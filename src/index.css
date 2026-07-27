@@ -1,0 +1,229 @@
+@import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&family=Yuji+Syuku&family=Instrument+Serif:ital@1&display=swap');
+@import "tailwindcss";
+
+html {
+  scrollbar-color: #549E9E transparent;
+  scrollbar-width: thin;
+  overflow-y: overlay;
+  background-color: #F5F5F0 !important;
+  font-size: 106%;
+}
+
+/* Mobile: tighter base font for better fitting */
+@media (max-width: 639px) {
+  html {
+    font-size: 100%;
+  }
+  /* Touch-friendly tap targets */
+  button, a, select, [role="button"] {
+    min-height: 40px;
+  }
+}
+
+body {
+  background-color: #F5F5F0 !important;
+  margin: 0;
+  padding: 0;
+  font-weight: 900;
+}
+
+/* Reset letter spacing for Hindi to preserve shirorekha */
+.lang-hi * {
+  letter-spacing: normal !important;
+}
+
+/* Ensure default tag weights are extra bold/black (900) for high legibility */
+p, span, div, li, td, th, input, select, button, textarea, a {
+  font-weight: 900;
+}
+
+th {
+  color: #111827 !important;
+  font-weight: 900 !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 900;
+}
+
+@theme {
+  --font-sans: "Zen Maru Gothic", ui-sans-serif, system-ui, sans-serif;
+  --font-hand: "Yuji Syuku", serif;
+  --font-display: "Instrument Serif", serif;
+  
+  --color-primary-teal: #78C2C4;
+  --color-soft-bg: #F5F5F0;
+  
+  --color-bg: #0a0a0a;
+  --color-text: #f5f5f5;
+  --color-muted: #888888;
+  --color-stroke: #1f1f1f;
+}
+
+@layer utilities {
+  .writing-vertical {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
+  .handwriting-font {
+    font-family: var(--font-hand);
+  }
+}
+
+/* Custom Scrollbar for News Cards */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Global Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  background-color: transparent !important;
+  border: none !important;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-track-piece,
+::-webkit-scrollbar-corner {
+  background-color: transparent !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #549E9E;
+  border-radius: 20px;
+  border: none !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #3AADAE;
+}
+
+::-webkit-scrollbar-button {
+  background-color: transparent;
+  display: block;
+  height: 6px;
+  width: 6px;
+}
+
+/* Scrollbar Buttons (Arrows) */
+::-webkit-scrollbar-button:vertical:start:increment,
+::-webkit-scrollbar-button:vertical:end:decrement,
+::-webkit-scrollbar-button:horizontal:start:increment,
+::-webkit-scrollbar-button:horizontal:end:decrement {
+  display: none;
+}
+
+::-webkit-scrollbar-button:vertical:start:decrement {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' fill='%23549E9E'><polygon points='50,20 20,80 80,80'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 6px;
+}
+
+::-webkit-scrollbar-button:vertical:end:increment {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' fill='%23549E9E'><polygon points='50,80 20,20 80,20'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 6px;
+}
+
+::-webkit-scrollbar-button:horizontal:start:decrement {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' fill='%23549E9E'><polygon points='20,50 80,20 80,80'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 8px;
+}
+
+::-webkit-scrollbar-button:horizontal:end:increment {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' fill='%23549E9E'><polygon points='80,50 20,20 20,80'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 8px;
+}
+
+.scrollbar-light::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-light::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-light::-webkit-scrollbar-thumb {
+  background: rgba(84, 158, 158, 0.3);
+  border-radius: 20px;
+}
+.scrollbar-light::-webkit-scrollbar-thumb:hover {
+  background: rgba(84, 158, 158, 0.5);
+}
+
+@keyframes start-session-glow {
+  0%, 100% {
+    box-shadow: 0 0 2px rgba(84, 158, 158, 0.3);
+    border-color: rgba(84, 158, 158, 0.4);
+    background-color: #ffffff;
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(84, 158, 158, 0.8), inset 0 0 8px rgba(84, 158, 158, 0.1);
+    border-color: #549E9E;
+    background-color: rgba(84, 158, 158, 0.15);
+    transform: scale(1.02);
+  }
+}
+
+.glow-blink-start-btn {
+  animation: start-session-glow 1.8s infinite ease-in-out;
+  color: #549E9E !important;
+  border-width: 1px;
+}
+
+/* Consultation Form Overrides */
+.consultation-form-override * {
+  font-weight: 900 !important;
+}
+
+.consultation-form-override .text-\[8px\] {
+  font-size: 11px !important;
+}
+
+.consultation-form-override .text-\[9px\] {
+  font-size: 12px !important;
+}
+
+.consultation-form-override .text-\[10px\] {
+  font-size: 13px !important;
+  line-height: 18px !important;
+}
+
+.consultation-form-override .text-xs {
+  font-size: 15px !important;
+  line-height: 22px !important;
+}
+
+.consultation-form-override .text-sm {
+  font-size: 17px !important;
+  line-height: 26px !important;
+}
+
+.consultation-form-override .text-base {
+  font-size: 19px !important;
+  line-height: 28px !important;
+}
+
+/* Remove black outline/border when clicking or focusing on Recharts charts */
+.recharts-wrapper:focus,
+.recharts-responsive-container:focus,
+.recharts-surface:focus,
+svg:focus,
+path:focus,
+g:focus,
+rect:focus {
+  outline: none !important;
+}
+
