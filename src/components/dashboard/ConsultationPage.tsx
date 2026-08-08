@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -18,7 +19,12 @@ import {
   ClipboardList,
   WandSparkles,
   RotateCcw,
+  Keyboard,
+  Activity,
+  UserCheck,
+  Pencil,
 } from "lucide-react";
+import PatientDetailsEditModal from "./PatientDetailsEditModal";
 import { useNotifications } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
 import { useDoctorFormulaMaster } from "../../context/DoctorFormulaMasterContext";
@@ -53,6 +59,7 @@ type TextMedicine = {
   medicine_value: string;
   normalized_value: string;
   medical_products?: any[];
+  remark_suggestions?: RemarkSuggestion[];
   products: any[];
   radient_pharma_products: any[];
   handwritten_product_prices: any[];
@@ -62,6 +69,25 @@ type VariantInfo = {
   label: string;
   price: string;
   type: string;
+  remark_suggestions?: RemarkSuggestion[];
+};
+
+type RemarkSuggestion = {
+  remark_value: string;
+  updated_at?: string;
+  created_at?: string;
+};
+
+const getLatestRemarkSuggestion = (
+  suggestions: RemarkSuggestion[] = [],
+): string => {
+  return [...suggestions]
+    .filter((suggestion) => String(suggestion.remark_value || "").trim())
+    .sort((a, b) => {
+      const aTimestamp = Date.parse(a.updated_at || a.created_at || "") || 0;
+      const bTimestamp = Date.parse(b.updated_at || b.created_at || "") || 0;
+      return bTimestamp - aTimestamp;
+    })[0]?.remark_value?.trim() || "";
 };
 
 type OtherMedEntry = {
@@ -84,6 +110,23 @@ type TestEntry = {
   test_name: string;
   amount: string;
 };
+
+type SuggestionDosage = {
+  dose_label?: string;
+  sort_order?: number;
+  times_per_day?: number;
+  balls_per_dose?: number;
+  instructions?: string;
+};
+
+type PrescriptionSuggestionItem = {
+  medicine_type: string;
+  medicine_value: string;
+  remark?: string;
+  doses?: SuggestionDosage[];
+};
+
+type PrescriptionSuggestionSet = PrescriptionSuggestionItem[] | string;
 
 function NumberDropdown({
   value,
@@ -396,11 +439,10 @@ function SearchableDropdown({
     >
       <div
         onClick={() => !disabled && setIsOpen(true)}
-        className={`w-full px-4 py-3 bg-white border rounded-lg text-sm font-bold text-gray-800 transition-all flex justify-between items-center ${
-          disabled
+        className={`w-full px-4 py-3 bg-white border rounded-lg text-sm font-bold text-gray-800 transition-all flex justify-between items-center ${disabled
             ? "opacity-80 bg-gray-100 border-gray-200 cursor-default"
             : "border-gray-200 cursor-text focus-within:border-[#549E9E] focus-within:ring-4 focus-within:ring-[#549E9E]/10"
-        }`}
+          }`}
       >
         {!isOpen || disabled ? (
           <span className={`truncate ${!displayValue ? "text-gray-400" : ""}`}>
@@ -413,7 +455,13 @@ function SearchableDropdown({
             className="w-full bg-transparent outline-none text-sm font-bold text-gray-800"
             placeholder={placeholder}
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              const nextValue = e.target.value;
+              setSearchTerm(nextValue);
+              if (allowCustom) {
+                onChange(nextValue);
+              }
+            }}
             onKeyDown={(e) => {
               if (
                 e.key === "ArrowDown" ||
@@ -486,7 +534,7 @@ export default function ConsultationPage() {
     appointmentDetail &&
     (!normalizedRouteAppointmentId ||
       Number(appointmentDetail.appointment_id) ===
-        normalizedRouteAppointmentId);
+      normalizedRouteAppointmentId);
   const stateAppMatchesRoute =
     app &&
     (!normalizedRouteAppointmentId ||
@@ -501,6 +549,9 @@ export default function ConsultationPage() {
     (!normalizedRouteAppointmentId ||
       Number(currentApp.appointment_id) === normalizedRouteAppointmentId);
   const [followUpChain, setFollowUpChain] = useState<any[]>([]);
+  const [isFollowUpChainOpen, setIsFollowUpChainOpen] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [isVitalsOpen, setIsVitalsOpen] = useState(false);
 
   const [chiefComplaints, setChiefComplaints] = useState(app?.symptoms || "");
   const [diagnosis, setDiagnosis] = useState("");
@@ -544,23 +595,62 @@ export default function ConsultationPage() {
   ]);
   const [textMedicines, setTextMedicines] = useState<TextMedicine[]>([]);
   const [labTests, setLabTests] = useState<LabTestMaster[]>([]);
+  const [prescriptionSuggestions, setPrescriptionSuggestions] = useState<
+    PrescriptionSuggestionSet[]
+  >([]);
+  const [suggestionBasis, setSuggestionBasis] = useState<
+    "PATIENT_HISTORY" | "GLOBAL_HISTORY" | null
+  >(null);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [isQuickFormulaDropdownOpen, setIsQuickFormulaDropdownOpen] = useState(false);
+  const quickFormulaDropdownRef = useRef<HTMLDivElement>(null);
+
+  type ConfirmationModalState = {
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  };
+
+  const [confirmModal, setConfirmModal] = useState<ConfirmationModalState>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        quickFormulaDropdownRef.current &&
+        !quickFormulaDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsQuickFormulaDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Extended History Fields
   const [isExtendedHistoryOpen, setIsExtendedHistoryOpen] = useState(false);
-  const [occupation, setOccupation] = useState("");
-  const [historyPresentIllness, setHistoryPresentIllness] = useState("");
-  const [historyPastIllness, setHistoryPastIllness] = useState("");
-  const [familyHistory, setFamilyHistory] = useState("");
-  const [allergiesHistory, setAllergiesHistory] = useState("");
-  const [gynecologicalHistory, setGynecologicalHistory] = useState("");
-  const [personalSocialHistory, setPersonalSocialHistory] = useState("");
-  const [generalExamination, setGeneralExamination] = useState("");
-  const [systematicExamination, setSystematicExamination] = useState("");
-  const [differentialDiagnosis, setDifferentialDiagnosis] = useState("");
-  const [followUp, setFollowUp] = useState("");
-  const [mentalMindStatus, setMentalMindStatus] = useState("");
-  const [disease, setDisease] = useState("");
+  const [occupation, setOccupation] = useState(app?.occupation || "");
+  const [historyPresentIllness, setHistoryPresentIllness] = useState(app?.history_present_illness || "");
+  const [historyPastIllness, setHistoryPastIllness] = useState(app?.history_past_illness || "");
+  const [familyHistory, setFamilyHistory] = useState(app?.family_history || "");
+  const [allergiesHistory, setAllergiesHistory] = useState(app?.allergies_history || "");
+  const [gynecologicalHistory, setGynecologicalHistory] = useState(app?.gynecological_history || "");
+  const [personalSocialHistory, setPersonalSocialHistory] = useState(app?.personal_social_history || "");
+  const [generalExamination, setGeneralExamination] = useState(app?.general_examination || "");
+  const [systematicExamination, setSystematicExamination] = useState(app?.systematic_examination || "");
+  const [differentialDiagnosis, setDifferentialDiagnosis] = useState(app?.differential_diagnosis || "");
+  const [followUp, setFollowUp] = useState(app?.follow_up || "");
+  const [mentalMindStatus, setMentalMindStatus] = useState(app?.mental_mind_status || "");
+  const [disease, setDisease] = useState(app?.disease || "");
 
+  const [isPatientEditOpen, setIsPatientEditOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
@@ -624,7 +714,7 @@ export default function ConsultationPage() {
       .toLowerCase();
     if (normalized.startsWith("7")) return 1;
     if (normalized.startsWith("15")) return 2;
-    if (normalized.startsWith("30")) return 3;
+    if (normalized.startsWith("30")) return 4;
     return 1;
   };
 
@@ -736,6 +826,19 @@ export default function ConsultationPage() {
             if (!weightValue.trim() && incomingWeight) {
               setWeightValue(incomingWeight);
             }
+            setOccupation((prev) => prev || result.data.occupation || "");
+            setHistoryPresentIllness((prev) => prev || result.data.history_present_illness || "");
+            setHistoryPastIllness((prev) => prev || result.data.history_past_illness || "");
+            setFamilyHistory((prev) => prev || result.data.family_history || "");
+            setAllergiesHistory((prev) => prev || result.data.allergies_history || "");
+            setGynecologicalHistory((prev) => prev || result.data.gynecological_history || "");
+            setPersonalSocialHistory((prev) => prev || result.data.personal_social_history || "");
+            setGeneralExamination((prev) => prev || result.data.general_examination || "");
+            setSystematicExamination((prev) => prev || result.data.systematic_examination || "");
+            setDifferentialDiagnosis((prev) => prev || result.data.differential_diagnosis || "");
+            setFollowUp((prev) => prev || result.data.follow_up || "");
+            setDisease((prev) => prev || result.data.disease || "");
+            setMentalMindStatus((prev) => prev || result.data.mental_mind_status || "");
           }
         }
       } catch (err) {
@@ -813,6 +916,18 @@ export default function ConsultationPage() {
             setHeightValue(loadedHeight);
           }
           setWeightValue((c.patient_weight || "").replace("kg", "").trim());
+          if (c.occupation) setOccupation(c.occupation);
+          if (c.history_present_illness) setHistoryPresentIllness(c.history_present_illness);
+          if (c.history_past_illness) setHistoryPastIllness(c.history_past_illness);
+          if (c.family_history) setFamilyHistory(c.family_history);
+          if (c.allergies_history) setAllergiesHistory(c.allergies_history);
+          if (c.gynecological_history) setGynecologicalHistory(c.gynecological_history);
+          if (c.personal_social_history) setPersonalSocialHistory(c.personal_social_history);
+          if (c.general_examination) setGeneralExamination(c.general_examination);
+          if (c.systematic_examination) setSystematicExamination(c.systematic_examination);
+          if (c.differential_diagnosis) setDifferentialDiagnosis(c.differential_diagnosis);
+          if (c.disease) setDisease(c.disease);
+          if (c.mental_mind_status) setMentalMindStatus(c.mental_mind_status);
           setQuickNumericInput(c.quick_formula_input || "");
           setLastAppliedQuickFormulaVersion(
             c.formula_version_used ? Number(c.formula_version_used) : null,
@@ -858,10 +973,10 @@ export default function ConsultationPage() {
                     Number(m.consultation_medication_id),
                   )
                     ? String(
-                        pricingByMedicationId.get(
-                          Number(m.consultation_medication_id),
-                        ) ?? "",
-                      )
+                      pricingByMedicationId.get(
+                        Number(m.consultation_medication_id),
+                      ) ?? "",
+                    )
                     : "",
                 });
               } else {
@@ -883,10 +998,10 @@ export default function ConsultationPage() {
                     Number(m.consultation_medication_id),
                   )
                     ? String(
-                        pricingByMedicationId.get(
-                          Number(m.consultation_medication_id),
-                        ) ?? "",
-                      )
+                      pricingByMedicationId.get(
+                        Number(m.consultation_medication_id),
+                      ) ?? "",
+                    )
                     : "",
                 });
               }
@@ -968,6 +1083,16 @@ export default function ConsultationPage() {
     ]);
     setFocusTrigger({ type: "med", index: newIdx });
   };
+
+  useEffect(() => {
+    if (isExtendedHistoryOpen || isFollowUpChainOpen || showShortcutsModal) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow || "";
+      };
+    }
+  }, [isExtendedHistoryOpen, isFollowUpChainOpen, showShortcutsModal]);
 
   const addOtherMedication = () => {
     if (isReadOnly) return;
@@ -1092,7 +1217,7 @@ export default function ConsultationPage() {
       if (!silent) {
         addToast(
           quickFormulaPreview.errors[0]?.message ||
-            "Quick formula parse failed.",
+          "Quick formula parse failed.",
           "error",
         );
       }
@@ -1298,8 +1423,8 @@ export default function ConsultationPage() {
       labTests.map((test) => {
         const amountLabel =
           test.amount !== null &&
-          test.amount !== undefined &&
-          test.amount !== ""
+            test.amount !== undefined &&
+            test.amount !== ""
             ? ` • ₹${Number(test.amount).toFixed(2)}`
             : "";
         const sampleLabel = test.sample_call ? ` • ${test.sample_call}` : "";
@@ -1357,25 +1482,11 @@ export default function ConsultationPage() {
     );
   };
 
-  const loadRepeatTreatmentDraft = async () => {
-    if (!currentApp?.appointment_id || !isFollowUpVisit || isReadOnly) return;
-
-    const hasExistingMedicineData =
-      medications.some((item) => item.name.trim()) ||
-      otherMedications.some((item) => item.name.trim());
-    if (
-      hasExistingMedicineData &&
-      !window.confirm(
-        "Current medicine draft will be replaced with the previous treatment. Continue?",
-      )
-    ) {
-      return;
-    }
-
+  const executeLoadRepeatTreatmentDraft = async () => {
     setIsLoadingRepeatDraft(true);
     try {
       const response = await fetch(
-        `/api/v1/doctors/consultations/${currentApp.appointment_id}/repeat-draft`,
+        `/api/v1/doctors/consultations/${currentApp?.appointment_id}/repeat-draft`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
       const result = await response.json();
@@ -1447,6 +1558,224 @@ export default function ConsultationPage() {
       );
     } finally {
       setIsLoadingRepeatDraft(false);
+    }
+  };
+
+  const loadRepeatTreatmentDraft = () => {
+    if (!currentApp?.appointment_id || !isFollowUpVisit || isReadOnly) return;
+
+    const hasExistingMedicineData =
+      medications.some((item) => item.name.trim()) ||
+      otherMedications.some((item) => item.name.trim());
+
+    if (hasExistingMedicineData) {
+      setConfirmModal({
+        isOpen: true,
+        title: "Replace Medicine Draft?",
+        message:
+          "Current medicine draft will be replaced with the previous treatment. Continue?",
+        onConfirm: () => {
+          void executeLoadRepeatTreatmentDraft();
+        },
+      });
+    } else {
+      void executeLoadRepeatTreatmentDraft();
+    }
+  };
+
+  // Debounced prescription suggestions fetching
+  useEffect(() => {
+    if (isReadOnly || !currentApp?.appointment_id) {
+      setPrescriptionSuggestions([]);
+      setSuggestionBasis(null);
+      return;
+    }
+
+    const trimmedSymptoms = chiefComplaints.trim();
+    const trimmedDiagnosis = diagnosis.trim();
+
+    if (!trimmedSymptoms && !trimmedDiagnosis) {
+      setPrescriptionSuggestions([]);
+      setSuggestionBasis(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsLoadingSuggestions(true);
+      try {
+        const queryParams = new URLSearchParams({
+          appointment_id: String(currentApp.appointment_id),
+          ...(trimmedSymptoms && { symptoms: trimmedSymptoms }),
+          ...(trimmedDiagnosis && { diagnosis: trimmedDiagnosis }),
+        }).toString();
+
+        const response = await fetch(
+          `/api/v1/doctors/consultations/prescription-suggestions?${queryParams}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data)) {
+          setPrescriptionSuggestions(result.data);
+          setSuggestionBasis(result.basis || null);
+        } else {
+          setPrescriptionSuggestions([]);
+          setSuggestionBasis(null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch prescription suggestions:", err);
+        setPrescriptionSuggestions([]);
+        setSuggestionBasis(null);
+      } finally {
+        setIsLoadingSuggestions(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [
+    chiefComplaints,
+    diagnosis,
+    currentApp?.appointment_id,
+    isReadOnly,
+    token,
+  ]);
+
+  const executeApplySuggestionSet = (
+    suggestionSet: PrescriptionSuggestionSet,
+  ) => {
+    if (typeof suggestionSet === "string" || typeof suggestionSet === "number") {
+      const formulaStr = String(suggestionSet).trim();
+
+      setQuickNumericInput(formulaStr);
+
+      const parsed = parseDoctorFormulaInput(formulaStr, formulaSnapshot);
+      if (parsed.entries.length > 0) {
+        setMedications(
+          parsed.entries.map((entry) => {
+            let targetDoses = { ...entry.doses };
+            if (globalDuration.startsWith("30")) {
+              if (thirtyDaysDoseFrequency === "3") {
+                targetDoses = { morning: 3, afternoon: 3, night: 3 };
+              } else if (thirtyDaysDoseFrequency === "2") {
+                targetDoses = { morning: 6, afternoon: 0, night: 6 };
+              }
+            }
+
+            return {
+              name: entry.name,
+              doses: targetDoses,
+              originalDoses: { ...entry.doses },
+              amount: scaleBaseAmountByDuration(entry.baseAmount, globalDuration),
+              baseAmount: entry.baseAmount.toFixed(2),
+              isQuickFormulaDerived: true,
+              quickFormulaToken: entry.raw_token,
+            };
+          }),
+        );
+        setLastAppliedQuickFormulaVersion(formulaSnapshot?.version_no || null);
+        setLastAppliedQuickFormulaSetId(formulaSnapshot?.set_id || null);
+        addToast(
+          `Applied formula "${formulaStr}" (${parsed.entries.length} numeric medicine(s)).`,
+          "success",
+        );
+      } else {
+        addToast(
+          `Loaded "${formulaStr}" into Quick Numeric Entry field.`,
+          "info",
+        );
+      }
+      setIsPrescriptionOpen(true);
+      return;
+    }
+
+    const numericMedicines: MedicationEntry[] = [];
+    const textMedicineDrafts: OtherMedEntry[] = [];
+
+    (suggestionSet as PrescriptionSuggestionItem[]).forEach((item) => {
+      const typeLower = String(item.medicine_type || "").toLowerCase();
+      const isNumeric =
+        typeLower === "numeric" ||
+        (/^\d+$/.test(String(item.medicine_value || "").trim()) &&
+          (!item.remark || !item.remark.trim()));
+
+      if (isNumeric) {
+        const doses = { morning: 0, afternoon: 0, night: 0 };
+        (item.doses || []).forEach((dose) => {
+          const label = String(dose.dose_label || "").toUpperCase();
+          if (label === "MORNING")
+            doses.morning = Number(dose.balls_per_dose || 0);
+          if (label === "AFTERNOON")
+            doses.afternoon = Number(dose.balls_per_dose || 0);
+          if (label === "NIGHT")
+            doses.night = Number(dose.balls_per_dose || 0);
+        });
+        if (
+          doses.morning === 0 &&
+          doses.afternoon === 0 &&
+          doses.night === 0
+        ) {
+          doses.morning = 4;
+          doses.afternoon = 4;
+          doses.night = 4;
+        }
+        numericMedicines.push({
+          name: String(item.medicine_value || ""),
+          doses,
+          amount: "",
+        });
+      } else {
+        textMedicineDrafts.push({
+          name: String(item.medicine_value || ""),
+          remark: String(item.remark || ""),
+          amount: "",
+        });
+      }
+    });
+
+    setMedications(
+      numericMedicines.length > 0
+        ? numericMedicines
+        : [
+            {
+              name: "",
+              doses: { morning: 4, afternoon: 4, night: 4 },
+              amount: "",
+            },
+          ],
+    );
+
+    setOtherMedications(
+      textMedicineDrafts.length > 0
+        ? textMedicineDrafts
+        : [{ name: "", remark: "", amount: "" }],
+    );
+
+    setIsPrescriptionOpen(true);
+    addToast(
+      "Previous prescription suggestion applied to draft.",
+      "success",
+    );
+  };
+
+  const handleApplySuggestionSet = (
+    suggestionSet: PrescriptionSuggestionSet,
+  ) => {
+    const hasExistingData =
+      medications.some((m) => m.name.trim()) ||
+      otherMedications.some((m) => m.name.trim());
+
+    if (hasExistingData) {
+      setConfirmModal({
+        isOpen: true,
+        title: "Replace Medicine Draft?",
+        message:
+          "Applying this prescription suggestion will replace current unsaved medicine entries. Continue?",
+        onConfirm: () => executeApplySuggestionSet(suggestionSet),
+      });
+    } else {
+      executeApplySuggestionSet(suggestionSet);
     }
   };
 
@@ -1525,7 +1854,7 @@ export default function ConsultationPage() {
           if (!om.name.trim()) continue;
 
           let finalMedicineValue = om.name.trim();
-          if (om.selectedVariant && om.selectedVariant.label) {
+          if (om.selectedVariant && om.selectedVariant.label && om.selectedVariant.label !== "N/A") {
             finalMedicineValue += ` - ${om.selectedVariant.label}`;
           }
 
@@ -1635,72 +1964,111 @@ export default function ConsultationPage() {
     }
   };
 
+  const handleUpdatePatientDetails = async (updatedData: {
+    full_name: string;
+    age: number;
+    gender: string;
+    mobile_no: string;
+  }) => {
+    const patientId = currentApp?.fk_patient_id || currentApp?.patient_id;
+    if (!patientId) return;
+    const payload: any = { ...updatedData };
+    if (
+      currentApp?.booked_for_type === "FAMILY_MEMBER" &&
+      currentApp?.fk_patient_family_member_id
+    ) {
+      payload.family_member_id = currentApp.fk_patient_family_member_id;
+    }
+    const response = await fetch(`/api/v1/doctors/patients/${patientId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (result.success) {
+      setAppointmentDetail((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              patient_full_name: updatedData.full_name,
+              patient_age: updatedData.age,
+              patient_gender: updatedData.gender,
+              patient_mobile_no: updatedData.mobile_no,
+            }
+          : prev,
+      );
+      setIsPatientEditOpen(false);
+      addToast(t("patient_edit.success", "Patient details updated successfully"), "success");
+    } else {
+      addToast(result.message || t("patient_edit.failed", "Failed to update patient details"), "error");
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pt-6 pb-12 consultation-form-override">
+      {currentApp && (
+        <PatientDetailsEditModal
+          isOpen={isPatientEditOpen}
+          patientData={{
+            patient_id: currentApp.fk_patient_id || currentApp.patient_id,
+            full_name: currentApp.patient_full_name || "",
+            age: currentApp.patient_age || "",
+            gender: currentApp.patient_gender || "",
+            mobile_no: currentApp.patient_mobile_no || "",
+          }}
+          onClose={() => setIsPatientEditOpen(false)}
+          onSave={handleUpdatePatientDetails}
+        />
+      )}
       <div className="bg-[#549E9E] p-6 text-white flex justify-between items-center shadow-sm">
         <div>
           <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
-            {t("consultation_modal.title", "Patient Consultation")}{" "}
-            {isReadOnly &&
-              `(${t("consultation_modal.completed", "Completed")})`}
+            {currentApp.patient_full_name}{" "}
+            {t("consultation_modal.consult_form", "Consult Form")}
+            {!isReadOnly && (
+              <button
+                onClick={() => setIsPatientEditOpen(true)}
+                className="p-1.5 hover:bg-white/20 rounded-lg transition-all cursor-pointer"
+                title={t("patient_edit.title", "Edit Patient Details")}
+              >
+                <Pencil size={16} />
+              </button>
+            )}
           </h3>
-          <p className="text-white/80 text-xs font-bold uppercase tracking-[0.2em] mt-1">
-            {currentApp.patient_full_name}
+          <div className="flex flex-wrap items-center gap-2.5 mt-3">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-white text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
+              {t("consultation_modal.token", "Token")} #
+              {currentApp.display_token_display || currentApp.token_number} •{" "}
+              {currentApp.treatment_name}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/25 border border-amber-300/30 text-amber-100 text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
+              <User size={13} className="text-amber-200" />
+              {t("consultation_modal.age_gender", "AGE / GENDER")}:{" "}
+              {currentApp.patient_age || "—"} /{" "}
+              {currentApp.patient_gender || "—"}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-400/25 border border-emerald-300/30 text-emerald-100 text-[11px] font-black tracking-wider backdrop-blur-xs shadow-xs">
+              <Phone size={13} className="text-emerald-200" />
+              {t("consultation_modal.mobile", "MOBILE")}:{" "}
+              {currentApp.patient_mobile_no}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-400/25 border border-sky-300/30 text-sky-100 text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
+              <MapPin size={13} className="text-sky-200" />
+              {t("consultation_modal.branch", "BRANCH")}:{" "}
+              {currentApp.branch_name}
+            </span>
             {currentApp.booked_for_type === "FAMILY_MEMBER" && (
-              <span className="ml-2 px-1.5 py-0.5 rounded bg-white/20 text-white text-[9px] font-black uppercase tracking-widest">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-400/30 border border-purple-300/30 text-purple-100 text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
                 {currentApp.family_member_relationship} (Account:{" "}
                 {currentApp.primary_patient_full_name})
               </span>
             )}
-            {" • "}
-            {t("consultation_modal.token", "Token")} #
-            {currentApp.display_token_display || currentApp.token_number} •{" "}
-            {currentApp.treatment_name}
-          </p>
+          </div>
         </div>
         <div className="flex items-center gap-4">
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/10">
-            <p className="text-[9px] font-black uppercase tracking-widest text-white/75 mb-2">
-              {t("consultation_modal.consultation_type", "Consultation Type")}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              {[
-                {
-                  label: t(
-                    "consultation_modal.patient_physical_present",
-                    "Patient Physical Present",
-                  ),
-                  value: "PHYSICAL_PRESENT",
-                },
-                {
-                  label: t(
-                    "consultation_modal.on_call_consultant",
-                    "On Call Consultant",
-                  ),
-                  value: "ON_CALL",
-                },
-              ].map((option) => (
-                <label
-                  key={option.value}
-                  className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${isReadOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
-                >
-                  <input
-                    type="radio"
-                    name="consultation_mode"
-                    disabled={isReadOnly}
-                    checked={consultationMode === option.value}
-                    onChange={() =>
-                      setConsultationMode(
-                        option.value as "PHYSICAL_PRESENT" | "ON_CALL",
-                      )
-                    }
-                    className="w-4 h-4 accent-white cursor-pointer"
-                  />
-                  <span className="text-white">{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
           <button
             onClick={() => navigate(-1)}
             className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors backdrop-blur-md cursor-pointer"
@@ -1710,952 +2078,1306 @@ export default function ConsultationPage() {
         </div>
       </div>
 
-      <div className="p-6 space-y-8 bg-white shadow-sm border border-gray-100 relative">
+      <div className="p-6 space-y-6 bg-white shadow-sm border border-gray-100 relative">
+        {/* Sleek Flat Top Control Row (No Box-in-Box Clutter) */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-3 border-b border-gray-100">
+          {/* Left: Consultation Mode Pill Segment */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] shrink-0">
+              {t("consultation_modal.consultation_type", "Consultation Mode")}:
+            </span>
+            <div className="inline-flex p-0.5 bg-gray-100/90 rounded-xl border border-gray-200/80">
+              <button
+                type="button"
+                disabled={isReadOnly}
+                onClick={() => setConsultationMode("PHYSICAL_PRESENT")}
+                className={`px-3 py-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${consultationMode === "PHYSICAL_PRESENT"
+                    ? "bg-[#549E9E] text-white shadow-xs"
+                    : "text-gray-500 hover:text-gray-900"
+                  }`}
+              >
+                <User size={13} />
+                {t(
+                  "consultation_modal.patient_physical_present",
+                  "Patient Physical Present",
+                )}
+              </button>
+
+              {/* <button
+                type="button"
+                disabled={isReadOnly}
+                onClick={() => setConsultationMode("ON_CALL")}
+                className={`px-3 py-1 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${consultationMode === "ON_CALL"
+                    ? "bg-[#549E9E] text-white shadow-xs"
+                    : "text-gray-500 hover:text-gray-900"
+                  }`}
+              >
+                <Phone size={13} />
+                {t("consultation_modal.on_call_consultant", "On Call Consultant")}
+              </button> */}
+            </div>
+          </div>
+
+          {/* Right: No Prescription Mode Switch Pill Badge */}
+          <label
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10.5px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${hasNoAdvice
+                ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+              } ${isReadOnly ? "opacity-70 cursor-default" : ""}`}
+          >
+            <input
+              type="checkbox"
+              disabled={isReadOnly}
+              checked={hasNoAdvice}
+              onChange={(e) => setHasNoAdvice(e.target.checked)}
+              className="sr-only"
+            />
+            <AlertCircle
+              size={14}
+              className={hasNoAdvice ? "text-white" : "text-amber-500"}
+            />
+            <span>
+              {t(
+                "consultation_modal.no_prescription_mode",
+                "No Prescription Mode",
+              )}
+            </span>
+            <div
+              className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${hasNoAdvice
+                  ? "bg-white text-amber-600"
+                  : "bg-gray-300 text-gray-600"
+                }`}
+            >
+              {hasNoAdvice ? "✓" : ""}
+            </div>
+          </label>
+        </div>
         {isLoading && (
           <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center rounded-2xl">
             <RefreshCcw className="animate-spin text-[#549E9E]" size={32} />
           </div>
         )}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            {
-              label: t("consultation_modal.patient", "Patient"),
-              value: (
-                <span className="flex items-center gap-1.5 flex-wrap">
-                  {currentApp.patient_full_name}
-                  {currentApp.booked_for_type === "FAMILY_MEMBER" && (
-                    <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-100 text-[8px] font-black uppercase tracking-widest">
-                      {currentApp.family_member_relationship}
+
+        {/* Unified Bottom-Left Floating Action Stack (Equal Spacing) */}
+        <div className="fixed bottom-6 left-6 z-40 flex flex-col-reverse items-start gap-3.5 no-print">
+          {/* 1. Keyboard Shortcuts Button (Bottom) */}
+          {!isReadOnly && (
+            <button
+              type="button"
+              onClick={() => setShowShortcutsModal(true)}
+              className="flex items-center justify-center bg-[#549E9E] hover:bg-[#438787] text-white h-12 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-105 cursor-pointer border border-white/20 group px-3.5"
+              title={t(
+                "consultation_modal.keyboard_active",
+                "Keyboard Shortcuts",
+              )}
+            >
+              <Keyboard
+                size={20}
+                className="transition-transform group-hover:rotate-12 shrink-0"
+              />
+              <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-black uppercase tracking-wider opacity-0 group-hover:opacity-100 group-hover:ml-2">
+                Shortcuts
+              </span>
+            </button>
+          )}
+
+          {/* 2. Follow-up Report Button (Middle) */}
+          {followUpChain.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsFollowUpChainOpen(true)}
+              className="flex items-center justify-center bg-red-500 hover:bg-red-600 text-white h-12 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-105 cursor-pointer border border-white/20 group px-3.5"
+              title={`Follow-up Report (${followUpChain.length} visits)`}
+            >
+              <div className="relative flex items-center justify-center">
+                <ClipboardList
+                  size={20}
+                  className="transition-transform group-hover:rotate-6 shrink-0"
+                />
+                <span className="absolute -top-2.5 -right-2 bg-white text-red-600 text-[9px] font-black h-4 min-w-4 px-1 rounded-full flex items-center justify-center border border-red-500 shadow-xs">
+                  {followUpChain.length}
+                </span>
+              </div>
+              <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-black uppercase tracking-wider opacity-0 group-hover:opacity-100 group-hover:ml-3">
+                Follow-up Report ({followUpChain.length})
+              </span>
+            </button>
+          )}
+
+          {/* 3. Extended History Button (Top) */}
+          {!isReadOnly && (
+            <button
+              type="button"
+              onClick={() => setIsExtendedHistoryOpen(true)}
+              className="flex items-center justify-center bg-teal-600 hover:bg-teal-700 text-white h-12 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-105 cursor-pointer border border-white/20 group px-3.5"
+              title="Extended Patient History & Examination"
+            >
+              <div className="relative flex items-center justify-center">
+                <ClipboardList
+                  size={20}
+                  className="transition-transform group-hover:rotate-6 shrink-0"
+                />
+                {(occupation ||
+                  historyPresentIllness ||
+                  historyPastIllness ||
+                  familyHistory ||
+                  allergiesHistory ||
+                  gynecologicalHistory ||
+                  mentalMindStatus ||
+                  generalExamination ||
+                  systematicExamination ||
+                  disease ||
+                  followUp ||
+                  differentialDiagnosis) && (
+                    <span className="absolute -top-2.5 -right-2 bg-emerald-400 text-white text-[9px] font-black h-4 min-w-4 px-1 rounded-full flex items-center justify-center border border-teal-600 shadow-xs">
+                      ✓
                     </span>
                   )}
-                </span>
-              ),
-              icon: User,
-            },
-            {
-              label: t("consultation_modal.age_gender", "Age / Gender"),
-              value: `${currentApp.patient_age || "—"} / ${currentApp.patient_gender || "—"}`,
-              icon: User,
-            },
-            {
-              label: t("consultation_modal.mobile", "Mobile"),
-              value: (
-                <span className="flex flex-col">
-                  <span>{currentApp.patient_mobile_no}</span>
-                  {currentApp.booked_for_type === "FAMILY_MEMBER" &&
-                    currentApp.primary_patient_full_name && (
-                      <span className="text-[9px] text-gray-400 font-bold normal-case mt-0.5">
-                        Owner: {currentApp.primary_patient_full_name}
-                      </span>
-                    )}
-                </span>
-              ),
-              icon: Phone,
-            },
-            {
-              label: t("consultation_modal.branch", "Branch"),
-              value: currentApp.branch_name,
-              icon: MapPin,
-            },
-          ].map((item, i) => (
-            <div
-              key={i}
-              className="bg-[#549E9E]/[0.03] p-4 rounded-xl border border-[#549E9E]/10 shadow-sm"
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <item.icon size={12} className="text-[#549E9E]" />
-                <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">
-                  {item.label}
-                </span>
               </div>
-              <div className="text-sm font-black text-gray-800 capitalize">
-                {item.value}
-              </div>
-            </div>
-          ))}
+              <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-black uppercase tracking-wider opacity-0 group-hover:opacity-100 group-hover:ml-3">
+                Extended History
+              </span>
+            </button>
+          )}
         </div>
 
-        {/* Keyboard Navigation Tip Banner */}
-        {!isReadOnly && (
-          <div className="bg-[#549E9E]/[0.05] border border-[#549E9E]/20 rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
-            <div className="p-2 bg-[#549E9E]/10 rounded-lg text-[#549E9E] shrink-0">
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
+        {/* Follow-up Report Modal */}
+        {isFollowUpChainOpen &&
+          createPortal(
+            <AnimatePresence>
+              <div
+                className="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/60 backdrop-blur-md p-4 no-print"
+                onClick={() => setIsFollowUpChainOpen(false)}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
-                />
-              </svg>
-            </div>
-            <div className="text-xs">
-              <span className="font-black text-[#549E9E] uppercase tracking-wider block mb-1">
-                {t(
-                  "consultation_modal.keyboard_active",
-                  "Keyboard Navigation Active",
-                )}
-              </span>
-              <p className="text-gray-600 font-bold leading-normal">
-                {t("consultation_modal.use", "Use")}{" "}
-                <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-black font-mono">
-                  Tab
-                </kbd>{" "}
-                /{" "}
-                <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-black font-mono">
-                  Shift + Tab
-                </kbd>{" "}
-                {t("consultation_modal.to_navigate", "to navigate. Press")}{" "}
-                <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-black font-mono">
-                  Enter
-                </kbd>{" "}
-                {t(
-                  "consultation_modal.amount_forward",
-                  "on Amount to go forward, and",
-                )}{" "}
-                <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-black font-mono">
-                  Shift + Enter
-                </kbd>{" "}
-                {t("consultation_modal.to_go_back", "to go back.")}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-gray-500 font-black uppercase text-[9px] tracking-wider">
-                <span className="flex items-center gap-1">
-                  <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-mono text-[9px]">
-                    Alt + M
-                  </kbd>{" "}
-                  {t("consultation_modal.add_medicine", "Add Medicine")}
-                </span>
-                <span className="flex items-center gap-1">
-                  <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-mono text-[9px]">
-                    Alt + O
-                  </kbd>{" "}
-                  {t("consultation_modal.add_other_med", "Add Other Med")}
-                </span>
-                <span className="flex items-center gap-1">
-                  <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-mono text-[9px]">
-                    Alt + T
-                  </kbd>{" "}
-                  {t("consultation_modal.add_test", "Add Test")}
-                </span>
-                <span className="flex items-center gap-1">
-                  <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-mono text-[9px]">
-                    Alt + Delete
-                  </kbd>{" "}
-                  /{" "}
-                  <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-mono text-[9px]">
-                    Alt + Backspace
-                  </kbd>{" "}
-                  {t("consultation_modal.delete_row", "Delete Row")}
-                </span>
-                <span className="flex items-center gap-1">
-                  <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-mono text-[9px]">
-                    Ctrl + Enter
-                  </kbd>{" "}
-                  {t("consultation_modal.save_complete", "Save / Complete")}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {followUpChain.length > 0 && (
-          <div className="bg-red-50/50 border border-red-100 rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-red-500">
-                  Follow-up Report
-                </p>
-                <p className="text-sm font-bold text-gray-700">
-                  Linked visit chain for this case
-                </p>
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-red-500">
-                {followUpChain.length} visit
-                {followUpChain.length > 1 ? "s" : ""}
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {followUpChain.map((item, index) => {
-                const isCurrent =
-                  Number(item.appointment_id) ===
-                  Number(currentApp.appointment_id);
-                const isExpanded =
-                  Number(expandedChainAppointmentId) ===
-                  Number(item.appointment_id);
-                const doctorMeds = (
-                  item.consultation?.medications || []
-                ).filter(
-                  (med: any) =>
-                    String(med?.added_by_role || "").toUpperCase() !==
-                    "MEDICAL",
-                );
-                const medicalMeds = (
-                  item.consultation?.medications || []
-                ).filter(
-                  (med: any) =>
-                    String(med?.added_by_role || "").toUpperCase() ===
-                    "MEDICAL",
-                );
-
-                return (
-                  <div
-                    key={item.appointment_id}
-                    className={`border rounded-xl overflow-hidden ${isCurrent ? "bg-white border-red-200" : "bg-white/70 border-red-100"}`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedChainAppointmentId((prev) =>
-                          prev === item.appointment_id
-                            ? null
-                            : item.appointment_id,
-                        )
-                      }
-                      className="w-full text-left p-4 flex items-start justify-between gap-3 cursor-pointer"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-xs font-black uppercase tracking-widest text-gray-700">
-                            {index + 1}. {item.treatment_name}
-                          </p>
-                          {isCurrent && (
-                            <span className="px-2 py-1 bg-red-500 text-white text-[9px] font-black uppercase tracking-widest rounded-lg">
-                              Current
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] font-bold text-gray-500 mt-1">
-                          {new Date(item.appointment_date).toLocaleDateString()}{" "}
-                          • {item.auid}
-                        </p>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {item.medication_duration_days ? (
-                            <span className="px-2 py-1 bg-red-50 text-red-500 text-[9px] font-black uppercase tracking-widest rounded-lg">
-                              {item.medication_duration_days} Days
-                            </span>
-                          ) : null}
-                          {item.consultation?.medications?.length ? (
-                            <span className="px-2 py-1 bg-[#549E9E]/10 text-[#549E9E] text-[9px] font-black uppercase tracking-widest rounded-lg">
-                              {item.consultation.medications.length} Medicines
-                            </span>
-                          ) : null}
-                          {medicalMeds.length > 0 ? (
-                            <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[9px] font-black uppercase tracking-widest rounded-lg">
-                              {medicalMeds.length} Medical Added
-                            </span>
-                          ) : null}
-                        </div>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden border border-red-100 flex flex-col max-h-[85vh]"
+                >
+                  <div className="bg-gradient-to-r from-red-500 to-rose-600 p-4 text-white flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/15 rounded-xl backdrop-blur-xs">
+                        <ClipboardList size={22} className="text-white" />
                       </div>
-                      <ChevronDown
-                        size={18}
-                        className={`text-red-400 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                      />
-                    </button>
-
-                    {isExpanded && item.consultation && (
-                      <div className="border-t border-red-100 bg-white/80 p-4 space-y-4">
-                        <div className="grid md:grid-cols-2 gap-3">
-                          <div className="bg-white border border-gray-100 rounded-xl p-3">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">
-                              Symptoms / Findings
-                            </p>
-                            <p className="text-xs font-bold text-gray-700 whitespace-pre-wrap">
-                              {item.consultation.symptoms || "—"}
-                            </p>
-                          </div>
-                          <div className="bg-white border border-gray-100 rounded-xl p-3">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">
-                              Treatment Advice
-                            </p>
-                            <p className="text-xs font-bold text-gray-700 whitespace-pre-wrap">
-                              {item.consultation.treatment_advice || "—"}
-                            </p>
-                          </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-black text-base uppercase tracking-wider text-white">
+                            Follow-up Report
+                          </h3>
+                          <span className="px-2 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-black uppercase tracking-widest backdrop-blur-xs">
+                            {followUpChain.length}{" "}
+                            {followUpChain.length === 1 ? "Visit" : "Visits"}
+                          </span>
                         </div>
+                        <p className="text-xs text-white/80 font-bold">
+                          Linked visit chain for this patient case
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setIsFollowUpChainOpen(false)}
+                      className="p-2 rounded-full hover:bg-white/20 text-white/90 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
 
-                        {doctorMeds.length > 0 && (
-                          <div className="bg-white border border-gray-100 rounded-xl p-3 space-y-2">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-[#549E9E]">
-                              Doctor Prescription
-                            </p>
-                            <div className="space-y-2">
-                              {doctorMeds.map((med: any) => (
-                                <div
-                                  key={med.consultation_medication_id}
-                                  className="border border-gray-100 rounded-lg p-3"
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="text-xs font-black text-gray-800 uppercase tracking-wide">
-                                        {med.medicine_value}
-                                      </p>
-                                      {med.remark ? (
-                                        <p className="text-[11px] font-bold text-gray-500 mt-1">
-                                          {med.remark}
-                                        </p>
-                                      ) : null}
-                                      <p className="text-[11px] font-bold text-gray-500 mt-1">
-                                        {getDosePreview(
-                                          med,
-                                          item.consultation
-                                            .medication_duration_days,
-                                        ) ||
-                                          `${item.consultation.medication_duration_days} days`}
-                                      </p>
-                                    </div>
-                                    <span className="text-[11px] font-black text-[#549E9E]">
-                                      ₹
-                                      {Number(
-                                        getMedicationPricingAmount(
-                                          item.pricing,
-                                          med,
-                                        ) || 0,
-                                      ).toFixed(2)}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                  <div className="p-5 space-y-3.5 overflow-y-auto flex-1 bg-red-50/20">
+                    {followUpChain.map((item, index) => {
+                      const isCurrent =
+                        Number(item.appointment_id) ===
+                        Number(currentApp?.appointment_id);
+                      const isExpanded =
+                        Number(expandedChainAppointmentId) ===
+                        Number(item.appointment_id);
+                      const doctorMeds = (
+                        item.consultation?.medications || []
+                      ).filter(
+                        (med: any) =>
+                          String(med?.added_by_role || "").toUpperCase() !==
+                          "MEDICAL",
+                      );
+                      const medicalMeds = (
+                        item.consultation?.medications || []
+                      ).filter(
+                        (med: any) =>
+                          String(med?.added_by_role || "").toUpperCase() ===
+                          "MEDICAL",
+                      );
 
-                        {medicalMeds.length > 0 && (
-                          <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 space-y-2">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-amber-600">
-                              Medical Added / Updated
-                            </p>
-                            <div className="space-y-2">
-                              {medicalMeds.map((med: any) => (
-                                <div
-                                  key={med.consultation_medication_id}
-                                  className="border border-amber-100 rounded-lg p-3 bg-white/90"
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="text-xs font-black text-gray-800 uppercase tracking-wide">
-                                          {med.medicine_value}
-                                        </p>
-                                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest">
-                                          {getMedicationRoleLabel(med) ||
-                                            "Medical Added"}
-                                        </span>
-                                      </div>
-                                      {med.remark ? (
-                                        <p className="text-[11px] font-bold text-gray-500 mt-1">
-                                          {med.remark}
-                                        </p>
-                                      ) : null}
-                                      <p className="text-[11px] font-bold text-gray-500 mt-1">
-                                        {getDosePreview(
-                                          med,
-                                          item.consultation
-                                            .medication_duration_days,
-                                        ) ||
-                                          `${item.consultation.medication_duration_days} days`}
-                                      </p>
-                                    </div>
-                                    <span className="text-[11px] font-black text-amber-700">
-                                      ₹
-                                      {Number(
-                                        getMedicationPricingAmount(
-                                          item.pricing,
-                                          med,
-                                        ) || 0,
-                                      ).toFixed(2)}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {Array.isArray(item.consultation?.tests) &&
-                          item.consultation.tests.length > 0 && (
-                            <div className="bg-white border border-gray-100 rounded-xl p-3 space-y-2">
-                              <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">
-                                Tests
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {item.consultation.tests.map((test: any) => (
-                                  <span
-                                    key={test.consultation_test_id}
-                                    className="px-3 py-2 border border-gray-100 rounded-lg text-[11px] font-bold text-gray-700 bg-gray-50"
-                                  >
-                                    {test.test_name}{" "}
-                                    {test.amount != null
-                                      ? `• ₹${Number(test.amount).toFixed(2)}`
-                                      : ""}
+                      return (
+                        <div
+                          key={item.appointment_id}
+                          className={`border rounded-xl overflow-hidden shadow-xs transition-all ${isCurrent
+                              ? "bg-white border-red-300 ring-2 ring-red-500/10"
+                              : "bg-white/90 border-red-100 hover:border-red-200"
+                            }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedChainAppointmentId((prev) =>
+                                prev === item.appointment_id
+                                  ? null
+                                  : item.appointment_id,
+                              )
+                            }
+                            className="w-full text-left p-3.5 flex items-start justify-between gap-3 cursor-pointer hover:bg-red-50/40 transition-colors"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-xs font-black uppercase tracking-widest text-gray-800">
+                                  {index + 1}. {item.treatment_name}
+                                </p>
+                                {isCurrent && (
+                                  <span className="px-2 py-0.5 bg-red-500 text-white text-[9px] font-black uppercase tracking-widest rounded shadow-xs">
+                                    Current
                                   </span>
-                                ))}
+                                )}
+                              </div>
+                              <p className="text-[11px] font-bold text-gray-500 mt-1">
+                                {new Date(
+                                  item.appointment_date,
+                                ).toLocaleDateString()}{" "}
+                                • {item.auid}
+                              </p>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {item.medication_duration_days ? (
+                                  <span className="px-2 py-0.5 bg-red-50 text-red-600 border border-red-100 text-[9px] font-black uppercase tracking-widest rounded">
+                                    {item.medication_duration_days} Days
+                                  </span>
+                                ) : null}
+                                {item.consultation?.medications?.length ? (
+                                  <span className="px-2 py-0.5 bg-[#549E9E]/10 text-[#549E9E] border border-[#549E9E]/20 text-[9px] font-black uppercase tracking-widest rounded">
+                                    {item.consultation.medications.length}{" "}
+                                    Medicines
+                                  </span>
+                                ) : null}
+                                {medicalMeds.length > 0 ? (
+                                  <span className="px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-200 text-[9px] font-black uppercase tracking-widest rounded">
+                                    {medicalMeds.length} Medical Added
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
+                            <ChevronDown
+                              size={18}
+                              className={`text-red-400 shrink-0 transition-transform duration-300 mt-1 ${isExpanded ? "rotate-180 text-red-600" : ""
+                                }`}
+                            />
+                          </button>
+
+                          {isExpanded && item.consultation && (
+                            <div className="border-t border-red-100 bg-white p-4 space-y-3.5">
+                              <div className="grid md:grid-cols-2 gap-3">
+                                <div className="bg-gray-50/70 border border-gray-100 rounded-xl p-3">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">
+                                    Symptoms / Findings
+                                  </p>
+                                  <p className="text-xs font-bold text-gray-700 whitespace-pre-wrap">
+                                    {item.consultation.symptoms || "—"}
+                                  </p>
+                                </div>
+                                <div className="bg-gray-50/70 border border-gray-100 rounded-xl p-3">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">
+                                    Treatment Advice
+                                  </p>
+                                  <p className="text-xs font-bold text-gray-700 whitespace-pre-wrap">
+                                    {item.consultation.treatment_advice || "—"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {doctorMeds.length > 0 && (
+                                <div className="bg-white border border-gray-100 rounded-xl p-3 space-y-2">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-[#549E9E]">
+                                    Doctor Prescription
+                                  </p>
+                                  <div className="space-y-2">
+                                    {doctorMeds.map((med: any) => (
+                                      <div
+                                        key={med.consultation_medication_id}
+                                        className="border border-gray-100 rounded-lg p-2.5 bg-gray-50/50"
+                                      >
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div>
+                                            <p className="text-xs font-black text-gray-800 uppercase tracking-wide">
+                                              {med.medicine_value}
+                                            </p>
+                                            {med.remark ? (
+                                              <p className="text-[11px] font-bold text-gray-500 mt-0.5">
+                                                {med.remark}
+                                              </p>
+                                            ) : null}
+                                            <p className="text-[11px] font-bold text-gray-500 mt-0.5">
+                                              {getDosePreview(
+                                                med,
+                                                item.consultation
+                                                  .medication_duration_days,
+                                              ) ||
+                                                `${item.consultation.medication_duration_days} days`}
+                                            </p>
+                                          </div>
+                                          <span className="text-[11px] font-black text-[#549E9E]">
+                                            ₹
+                                            {Number(
+                                              getMedicationPricingAmount(
+                                                item.pricing,
+                                                med,
+                                              ) || 0,
+                                            ).toFixed(2)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {medicalMeds.length > 0 && (
+                                <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 space-y-2">
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-amber-600">
+                                    Medical Added / Updated
+                                  </p>
+                                  <div className="space-y-2">
+                                    {medicalMeds.map((med: any) => (
+                                      <div
+                                        key={med.consultation_medication_id}
+                                        className="border border-amber-100 rounded-lg p-2.5 bg-white/90"
+                                      >
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <p className="text-xs font-black text-gray-800 uppercase tracking-wide">
+                                                {med.medicine_value}
+                                              </p>
+                                              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest">
+                                                {getMedicationRoleLabel(med) ||
+                                                  "Medical Added"}
+                                              </span>
+                                            </div>
+                                            {med.remark ? (
+                                              <p className="text-[11px] font-bold text-gray-500 mt-0.5">
+                                                {med.remark}
+                                              </p>
+                                            ) : null}
+                                            <p className="text-[11px] font-bold text-gray-500 mt-0.5">
+                                              {getDosePreview(
+                                                med,
+                                                item.consultation
+                                                  .medication_duration_days,
+                                              ) ||
+                                                `${item.consultation.medication_duration_days} days`}
+                                            </p>
+                                          </div>
+                                          <span className="text-[11px] font-black text-amber-700">
+                                            ₹
+                                            {Number(
+                                              getMedicationPricingAmount(
+                                                item.pricing,
+                                                med,
+                                              ) || 0,
+                                            ).toFixed(2)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {Array.isArray(item.consultation?.tests) &&
+                                item.consultation.tests.length > 0 && (
+                                  <div className="bg-white border border-gray-100 rounded-xl p-3 space-y-2">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+                                      Tests
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {item.consultation.tests.map(
+                                        (test: any) => (
+                                          <span
+                                            key={test.consultation_test_id}
+                                            className="px-2.5 py-1 border border-gray-100 rounded-lg text-[10px] font-bold text-gray-700 bg-gray-50"
+                                          >
+                                            {test.test_name}{" "}
+                                            {test.amount != null
+                                              ? `• ₹${Number(test.amount).toFixed(2)}`
+                                              : ""}
+                                          </span>
+                                        ),
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                            </div>
                           )}
-                      </div>
-                    )}
 
-                    {isExpanded && !item.consultation && (
-                      <div className="border-t border-red-100 bg-white/80 p-4">
-                        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">
-                          Consultation details not available for this visit yet.
-                        </p>
-                      </div>
-                    )}
+                          {isExpanded && !item.consultation && (
+                            <div className="border-t border-red-100 bg-white/80 p-3">
+                              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">
+                                Consultation details not available for this
+                                visit yet.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
-        {/* Extended History Card */}
-        <div className="bg-white border border-[#549E9E]/10 rounded-2xl shadow-sm overflow-hidden transition-all duration-300">
-          <button
-            type="button"
-            onClick={() => setIsExtendedHistoryOpen(!isExtendedHistoryOpen)}
-            className="w-full flex items-center justify-between p-5 bg-gray-50/50 hover:bg-gray-50 cursor-pointer transition-colors border-b border-transparent"
-            style={{
-              borderBottomColor: isExtendedHistoryOpen
-                ? "rgba(84, 158, 158, 0.1)"
-                : "transparent",
-            }}
-          >
-            <div className="flex items-center gap-2">
-              <ClipboardList size={16} className="text-[#549E9E]" />
-              <span className="text-xs font-black uppercase tracking-widest text-[#549E9E]">
-                {t(
-                  "consultation_modal.extended_history",
-                  "Extended Patient History & Examination",
-                )}
+                  <div className="p-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                      Press ESC or click button to close
+                    </span>
+                    <button
+                      onClick={() => setIsFollowUpChainOpen(false)}
+                      className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
+                    >
+                      Close Report
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            </AnimatePresence>,
+            document.body,
+          )}
+
+        {/* Fixed Bottom-Right Margin Vitals Inputs (4 Vertical Cards along right edge) */}
+        <div className="fixed right-2 bottom-6 z-40 flex flex-col gap-2 w-32 no-print">
+          {/* Box 1: O2 Value */}
+          <div className="bg-white border border-[#549E9E]/25 rounded-xl p-2 shadow-md hover:shadow-lg transition-shadow backdrop-blur-md">
+            <label className="text-[8px] font-black text-[#549E9E] uppercase tracking-wider mb-0.5 block">
+              {t("consultation_modal.o2_value", "O2 Value")}
+            </label>
+            <div className="flex items-center w-full h-7 px-1.5 bg-gray-50 border border-gray-200 rounded-lg focus-within:bg-white focus-within:border-[#549E9E] focus-within:ring-2 focus-within:ring-[#549E9E]/20 transition-all">
+              <input
+                type="text"
+                id="vitals-o2-input"
+                disabled={isReadOnly}
+                placeholder={t("consultation_modal.o2_placeholder", "e.g. 98")}
+                value={o2Value}
+                onChange={(e) =>
+                  setO2Value(e.target.value.replace(/[^0-9]/g, ""))
+                }
+                className="w-full bg-transparent outline-none text-[11px] font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80"
+              />
+              <span className="text-gray-400 font-black text-[10px] ml-0.5">
+                %
               </span>
             </div>
-            <ChevronDown
-              size={18}
-              className={`text-gray-400 transition-transform duration-300 ${isExtendedHistoryOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-
-          <AnimatePresence>
-            {isExtendedHistoryOpen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="overflow-hidden"
-              >
-                <div className="p-5 space-y-6">
-                  {/* Basic Details */}
-                  <div>
-                    <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest mb-3 block border-b border-gray-100 pb-2">
-                      {t(
-                        "consultation_modal.basic_lifestyle",
-                        "Basic & Lifestyle",
-                      )}
-                    </label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t("consultation_modal.occupation", "Occupation")}
-                        </label>
-                        <input
-                          type="text"
-                          disabled={isReadOnly}
-                          value={occupation}
-                          onChange={(e) => setOccupation(e.target.value)}
-                          className="w-full h-10 px-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80"
-                          placeholder={t(
-                            "consultation_modal.occupation_placeholder",
-                            "e.g. Teacher, Engineer...",
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t(
-                            "consultation_modal.personal_social_history",
-                            "Personal & Social History",
-                          )}
-                        </label>
-                        <input
-                          type="text"
-                          disabled={isReadOnly}
-                          value={personalSocialHistory}
-                          onChange={(e) =>
-                            setPersonalSocialHistory(e.target.value)
-                          }
-                          className="w-full h-10 px-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80"
-                          placeholder={t(
-                            "consultation_modal.personal_history_placeholder",
-                            "e.g. Smoking, Alcohol...",
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Medical History */}
-                  <div>
-                    <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest mb-3 block border-b border-gray-100 pb-2">
-                      {t(
-                        "consultation_modal.medical_history",
-                        "Medical History",
-                      )}
-                    </label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t(
-                            "consultation_modal.history_present_illness",
-                            "History of Present Illness",
-                          )}
-                        </label>
-                        <textarea
-                          disabled={isReadOnly}
-                          value={historyPresentIllness}
-                          onChange={(e) =>
-                            setHistoryPresentIllness(e.target.value)
-                          }
-                          rows={2}
-                          className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
-                          placeholder={t(
-                            "consultation_modal.present_illness_placeholder",
-                            "Details of current illness...",
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t(
-                            "consultation_modal.history_past_illness",
-                            "History of Past Illness",
-                          )}
-                        </label>
-                        <textarea
-                          disabled={isReadOnly}
-                          value={historyPastIllness}
-                          onChange={(e) =>
-                            setHistoryPastIllness(e.target.value)
-                          }
-                          rows={2}
-                          className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
-                          placeholder={t(
-                            "consultation_modal.past_illness_placeholder",
-                            "Details of past illnesses...",
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t(
-                            "consultation_modal.family_history",
-                            "Family History",
-                          )}
-                        </label>
-                        <textarea
-                          disabled={isReadOnly}
-                          value={familyHistory}
-                          onChange={(e) => setFamilyHistory(e.target.value)}
-                          rows={2}
-                          className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
-                          placeholder={t(
-                            "consultation_modal.family_history_placeholder",
-                            "Relevant family diseases...",
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t(
-                            "consultation_modal.allergies_history",
-                            "Allergies History",
-                          )}
-                        </label>
-                        <textarea
-                          disabled={isReadOnly}
-                          value={allergiesHistory}
-                          onChange={(e) => setAllergiesHistory(e.target.value)}
-                          rows={2}
-                          className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
-                          placeholder={t(
-                            "consultation_modal.allergies_history_placeholder",
-                            "Known allergies...",
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Specialty & Mind */}
-                  <div>
-                    <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest mb-3 block border-b border-gray-100 pb-2">
-                      {t(
-                        "consultation_modal.specialty_mind",
-                        "Specialty & Mind",
-                      )}
-                    </label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t(
-                            "consultation_modal.gynecological_history",
-                            "Gynecological History",
-                          )}
-                        </label>
-                        <textarea
-                          disabled={isReadOnly}
-                          value={gynecologicalHistory}
-                          onChange={(e) =>
-                            setGynecologicalHistory(e.target.value)
-                          }
-                          rows={2}
-                          className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
-                          placeholder={t(
-                            "consultation_modal.gynecological_placeholder",
-                            "Gynecological details (if applicable)...",
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t(
-                            "consultation_modal.mental_mind_status",
-                            "Mental / Mind Status",
-                          )}
-                        </label>
-                        <textarea
-                          disabled={isReadOnly}
-                          value={mentalMindStatus}
-                          onChange={(e) => setMentalMindStatus(e.target.value)}
-                          rows={2}
-                          className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
-                          placeholder={t(
-                            "consultation_modal.mental_mind_placeholder",
-                            "Psychological assessment...",
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Examination */}
-                  <div>
-                    <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest mb-3 block border-b border-gray-100 pb-2">
-                      {t("consultation_modal.examinations", "Examinations")}
-                    </label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t(
-                            "consultation_modal.general_examination",
-                            "General Examination",
-                          )}
-                        </label>
-                        <textarea
-                          disabled={isReadOnly}
-                          value={generalExamination}
-                          onChange={(e) =>
-                            setGeneralExamination(e.target.value)
-                          }
-                          rows={2}
-                          className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
-                          placeholder={t(
-                            "consultation_modal.general_exam_placeholder",
-                            "General physical exam findings...",
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t(
-                            "consultation_modal.systematic_examination",
-                            "Systematic Examination",
-                          )}
-                        </label>
-                        <textarea
-                          disabled={isReadOnly}
-                          value={systematicExamination}
-                          onChange={(e) =>
-                            setSystematicExamination(e.target.value)
-                          }
-                          rows={2}
-                          className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
-                          placeholder={t(
-                            "consultation_modal.systematic_exam_placeholder",
-                            "System-specific exam findings...",
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Diagnosis & Outcome */}
-                  <div>
-                    <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest mb-3 block border-b border-gray-100 pb-2">
-                      {t(
-                        "consultation_modal.diagnosis_follow_up",
-                        "Diagnosis & Follow Up",
-                      )}
-                    </label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t("consultation_modal.disease", "Disease")}
-                        </label>
-                        <input
-                          type="text"
-                          disabled={isReadOnly}
-                          value={disease}
-                          onChange={(e) => setDisease(e.target.value)}
-                          className="w-full h-10 px-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80"
-                          placeholder={t(
-                            "consultation_modal.disease_placeholder",
-                            "Identified disease...",
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t(
-                            "consultation_modal.follow_up_advice",
-                            "Follow Up Advice",
-                          )}
-                        </label>
-                        <input
-                          type="text"
-                          disabled={isReadOnly || followUpChainClosed}
-                          value={followUp}
-                          onChange={(e) => setFollowUp(e.target.value)}
-                          className="w-full h-10 px-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80"
-                          placeholder={t(
-                            "consultation_modal.follow_up_placeholder",
-                            "Next visit instructions...",
-                          )}
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                          {t(
-                            "consultation_modal.differential_diagnosis",
-                            "Differential Diagnosis",
-                          )}
-                        </label>
-                        <textarea
-                          disabled={isReadOnly}
-                          value={differentialDiagnosis}
-                          onChange={(e) =>
-                            setDifferentialDiagnosis(e.target.value)
-                          }
-                          rows={2}
-                          className="w-full p-3 bg-gray-50/70 border border-gray-200 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none transition-all text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
-                          placeholder={t(
-                            "consultation_modal.differential_diagnosis_placeholder",
-                            "Possible alternative diagnoses...",
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="bg-white border border-[#549E9E]/10 rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-gray-50">
-            <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-2">
-              <FileText size={14} /> {t("consultation_modal.vitals", "Vitals")}
-            </label>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <div>
-              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-end h-[18px]">
-                {t("consultation_modal.o2_value", "O2 Value")}
-              </label>
-              <div className="relative flex items-center w-full h-[46px] px-4 bg-gray-50/70 border border-gray-200 rounded-lg focus-within:bg-white focus-within:border-[#549E9E] focus-within:ring-4 focus-within:ring-[#549E9E]/10 transition-all">
-                <input
-                  type="text"
-                  id="vitals-o2-input"
-                  disabled={isReadOnly}
-                  placeholder={t(
-                    "consultation_modal.o2_placeholder",
-                    "e.g. 98",
-                  )}
-                  value={o2Value}
-                  onChange={(e) =>
-                    setO2Value(e.target.value.replace(/[^0-9]/g, ""))
-                  }
-                  className="w-full bg-transparent outline-none text-sm font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80 disabled:text-gray-500"
-                />
-                <span className="text-gray-400 font-black text-xs ml-2">%</span>
-              </div>
+          {/* Box 2: BP Value */}
+          <div className="bg-white border border-[#549E9E]/25 rounded-xl p-2 shadow-md hover:shadow-lg transition-shadow backdrop-blur-md">
+            <label className="text-[8px] font-black text-[#549E9E] uppercase tracking-wider mb-0.5 block">
+              {t("consultation_modal.bp_value", "BP Value")}
+            </label>
+            <div className="flex items-center w-full h-7 px-1 bg-gray-50 border border-gray-200 rounded-lg focus-within:bg-white focus-within:border-[#549E9E] focus-within:ring-2 focus-within:ring-[#549E9E]/20 transition-all">
+              <input
+                type="text"
+                disabled={isReadOnly}
+                placeholder="120"
+                value={bpValue.split("/")[0] || ""}
+                onChange={(e) => {
+                  const sys = e.target.value.replace(/[^0-9]/g, "");
+                  const dia = bpValue.split("/")[1] || "";
+                  setBpValue(sys || dia ? `${sys}/${dia}` : "");
+                }}
+                className="w-full bg-transparent outline-none text-right text-[11px] font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80"
+              />
+              <span className="text-gray-400 font-black mx-0.5 text-[10px]">
+                /
+              </span>
+              <input
+                type="text"
+                disabled={isReadOnly}
+                placeholder="80"
+                value={bpValue.split("/")[1] || ""}
+                onChange={(e) => {
+                  const dia = e.target.value.replace(/[^0-9]/g, "");
+                  const sys = bpValue.split("/")[0] || "";
+                  setBpValue(sys || dia ? `${sys}/${dia}` : "");
+                }}
+                className="w-full bg-transparent outline-none text-left text-[11px] font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80"
+              />
             </div>
+          </div>
 
-            <div>
-              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-end h-[18px]">
-                {t("consultation_modal.bp_value", "BP Value")}
+          {/* Box 3: Height */}
+          <div className="bg-white border border-[#549E9E]/25 rounded-xl p-2 shadow-md hover:shadow-lg transition-shadow backdrop-blur-md">
+            <div className="flex items-center justify-between mb-0.5">
+              <label className="text-[8px] font-black text-[#549E9E] uppercase tracking-wider block">
+                {t("consultation_modal.height", "Height")}
               </label>
-              <div className="flex items-center w-full h-[46px] px-4 bg-gray-50/70 border border-gray-200 rounded-lg focus-within:bg-white focus-within:border-[#549E9E] focus-within:ring-4 focus-within:ring-[#549E9E]/10 transition-all">
-                <input
-                  type="text"
-                  disabled={isReadOnly}
-                  placeholder="120"
-                  value={bpValue.split("/")[0] || ""}
-                  onChange={(e) => {
-                    const sys = e.target.value.replace(/[^0-9]/g, "");
-                    const dia = bpValue.split("/")[1] || "";
-                    setBpValue(sys || dia ? `${sys}/${dia}` : "");
-                  }}
-                  className="w-full bg-transparent outline-none text-right text-sm font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80 disabled:text-gray-500"
-                />
-                <span className="text-gray-400 font-black mx-2 text-xs">/</span>
-                <input
-                  type="text"
-                  disabled={isReadOnly}
-                  placeholder="80"
-                  value={bpValue.split("/")[1] || ""}
-                  onChange={(e) => {
-                    const dia = e.target.value.replace(/[^0-9]/g, "");
-                    const sys = bpValue.split("/")[0] || "";
-                    setBpValue(sys || dia ? `${sys}/${dia}` : "");
-                  }}
-                  className="w-full bg-transparent outline-none text-left text-sm font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80 disabled:text-gray-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-end justify-between h-[18px]">
-                <span>{t("consultation_modal.height", "Height")}</span>
-                {!isReadOnly && (
-                  <div className="flex items-center gap-1 bg-gray-100 rounded p-0.5 cursor-pointer">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHeightUnit("cm");
-                        setHeightValue("");
-                      }}
-                      className={`px-1.5 py-0.5 rounded text-[8px] transition-colors cursor-pointer ${heightUnit === "cm" ? "bg-white shadow text-[#549E9E]" : "text-gray-400"}`}
-                    >
-                      cm
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHeightUnit("ft");
-                        setHeightValue("");
-                      }}
-                      className={`px-1.5 py-0.5 rounded text-[8px] transition-colors cursor-pointer ${heightUnit === "ft" ? "bg-white shadow text-[#549E9E]" : "text-gray-400"}`}
-                    >
-                      ft
-                    </button>
-                  </div>
-                )}
-              </label>
-              {heightUnit === "cm" ? (
-                <div className="relative flex items-center w-full h-[46px] px-4 bg-gray-50/70 border border-gray-200 rounded-lg focus-within:bg-white focus-within:border-[#549E9E] focus-within:ring-4 focus-within:ring-[#549E9E]/10 transition-all">
-                  <input
-                    type="text"
-                    disabled={isReadOnly}
-                    placeholder={t(
-                      "consultation_modal.height_cm_placeholder",
-                      "e.g. 170",
-                    )}
-                    value={heightValue}
-                    onChange={(e) =>
-                      setHeightValue(e.target.value.replace(/[^0-9.]/g, ""))
-                    }
-                    className="w-full bg-transparent outline-none text-sm font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80 disabled:text-gray-500"
-                  />
-                  <span className="text-gray-400 font-black text-xs ml-2">
+              {!isReadOnly && (
+                <div className="flex items-center gap-0.5 bg-gray-100 rounded p-0.5 cursor-pointer">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeightUnit("cm");
+                      setHeightValue("");
+                    }}
+                    className={`px-1 py-0.2 rounded text-[7px] font-bold transition-colors cursor-pointer ${heightUnit === "cm" ? "bg-white shadow text-[#549E9E]" : "text-gray-400"}`}
+                  >
                     cm
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center w-full h-[46px] px-4 bg-gray-50/70 border border-gray-200 rounded-lg focus-within:bg-white focus-within:border-[#549E9E] focus-within:ring-4 focus-within:ring-[#549E9E]/10 transition-all">
-                  <input
-                    type="text"
-                    disabled={isReadOnly}
-                    placeholder="5"
-                    value={heightValue.split("'")[0] || ""}
-                    onChange={(e) => {
-                      const ft = e.target.value.replace(/[^0-9]/g, "");
-                      const inch = heightValue.includes("'")
-                        ? heightValue.split("'")[1].replace('"', "")
-                        : "";
-                      setHeightValue(ft || inch ? `${ft}'${inch}"` : "");
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeightUnit("ft");
+                      setHeightValue("");
                     }}
-                    className="w-full bg-transparent outline-none text-right text-sm font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80 disabled:text-gray-500"
-                  />
-                  <span className="text-gray-400 font-black mx-1 text-xs">
-                    '
-                  </span>
-                  <input
-                    type="text"
-                    disabled={isReadOnly}
-                    placeholder="7"
-                    value={
-                      heightValue.includes("'")
-                        ? heightValue.split("'")[1].replace('"', "")
-                        : ""
-                    }
-                    onChange={(e) => {
-                      const inch = e.target.value.replace(/[^0-9]/g, "");
-                      const ft = heightValue.split("'")[0] || "";
-                      setHeightValue(ft || inch ? `${ft}'${inch}"` : "");
-                    }}
-                    className="w-full bg-transparent outline-none text-left text-sm font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80 disabled:text-gray-500"
-                  />
-                  <span className="text-gray-400 font-black ml-1 text-xs">
-                    "
-                  </span>
+                    className={`px-1 py-0.2 rounded text-[7px] font-bold transition-colors cursor-pointer ${heightUnit === "ft" ? "bg-white shadow text-[#549E9E]" : "text-gray-400"}`}
+                  >
+                    ft
+                  </button>
                 </div>
               )}
             </div>
-
-            <div>
-              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-end h-[18px]">
-                {t("consultation_modal.weight", "Weight")}
-              </label>
-              <div className="relative flex items-center w-full h-[46px] px-4 bg-gray-50/70 border border-gray-200 rounded-lg focus-within:bg-white focus-within:border-[#549E9E] focus-within:ring-4 focus-within:ring-[#549E9E]/10 transition-all">
+            {heightUnit === "cm" ? (
+              <div className="flex items-center w-full h-7 px-1.5 bg-gray-50 border border-gray-200 rounded-lg focus-within:bg-white focus-within:border-[#549E9E] focus-within:ring-2 focus-within:ring-[#549E9E]/20 transition-all">
                 <input
                   type="text"
                   disabled={isReadOnly}
                   placeholder={t(
-                    "consultation_modal.weight_placeholder",
-                    "e.g. 65",
+                    "consultation_modal.height_cm_placeholder",
+                    "e.g. 170",
                   )}
-                  value={weightValue}
+                  value={heightValue}
                   onChange={(e) =>
-                    setWeightValue(e.target.value.replace(/[^0-9.]/g, ""))
+                    setHeightValue(e.target.value.replace(/[^0-9.]/g, ""))
                   }
-                  className="w-full bg-transparent outline-none text-sm font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80 disabled:text-gray-500"
+                  className="w-full bg-transparent outline-none text-[11px] font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80"
                 />
-                <span className="text-gray-400 font-black text-xs ml-2">
-                  kg
+                <span className="text-gray-400 font-black text-[10px] ml-0.5">
+                  cm
                 </span>
               </div>
+            ) : (
+              <div className="flex items-center w-full h-7 px-1 bg-gray-50 border border-gray-200 rounded-lg focus-within:bg-white focus-within:border-[#549E9E] focus-within:ring-2 focus-within:ring-[#549E9E]/20 transition-all">
+                <input
+                  type="text"
+                  disabled={isReadOnly}
+                  placeholder="5"
+                  value={heightValue.split("'")[0] || ""}
+                  onChange={(e) => {
+                    const ft = e.target.value.replace(/[^0-9]/g, "");
+                    const inch = heightValue.includes("'")
+                      ? heightValue.split("'")[1].replace('"', "")
+                      : "";
+                    setHeightValue(ft || inch ? `${ft}'${inch}"` : "");
+                  }}
+                  className="w-full bg-transparent outline-none text-right text-[11px] font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80"
+                />
+                <span className="text-gray-400 font-black mx-0.5 text-[10px]">
+                  '
+                </span>
+                <input
+                  type="text"
+                  disabled={isReadOnly}
+                  placeholder="7"
+                  value={
+                    heightValue.includes("'")
+                      ? heightValue.split("'")[1].replace('"', "")
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const inch = e.target.value.replace(/[^0-9]/g, "");
+                    const ft = heightValue.split("'")[0] || "";
+                    setHeightValue(ft || inch ? `${ft}'${inch}"` : "");
+                  }}
+                  className="w-full bg-transparent outline-none text-left text-[11px] font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80"
+                />
+                <span className="text-gray-400 font-black ml-0.5 text-[10px]">
+                  "
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Box 4: Weight */}
+          <div className="bg-white border border-[#549E9E]/25 rounded-xl p-2 shadow-md hover:shadow-lg transition-shadow backdrop-blur-md">
+            <label className="text-[8px] font-black text-[#549E9E] uppercase tracking-wider mb-0.5 block">
+              {t("consultation_modal.weight", "Weight")}
+            </label>
+            <div className="flex items-center w-full h-7 px-1.5 bg-gray-50 border border-gray-200 rounded-lg focus-within:bg-white focus-within:border-[#549E9E] focus-within:ring-2 focus-within:ring-[#549E9E]/20 transition-all">
+              <input
+                type="text"
+                disabled={isReadOnly}
+                placeholder={t(
+                  "consultation_modal.weight_placeholder",
+                  "e.g. 65",
+                )}
+                value={weightValue}
+                onChange={(e) =>
+                  setWeightValue(e.target.value.replace(/[^0-9.]/g, ""))
+                }
+                className="w-full bg-transparent outline-none text-[11px] font-bold text-gray-800 placeholder:text-gray-400 disabled:opacity-80"
+              />
+              <span className="text-gray-400 font-black text-[10px] ml-0.5">
+                kg
+              </span>
             </div>
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            <div className="space-y-3 bg-white border border-[#549E9E]/10 rounded-2xl p-5 shadow-sm">
-              <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-2">
-                <FileText size={14} />{" "}
-                {t("consultation_modal.clinical_findings", "Clinical Findings")}
+        {/* Confirmation Modal */}
+        {confirmModal.isOpen &&
+          createPortal(
+            <AnimatePresence>
+              <div
+                className="fixed inset-0 z-[99999] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 no-print"
+                onClick={() =>
+                  setConfirmModal((prev) => ({ ...prev, isOpen: false }))
+                }
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-gray-100"
+                >
+                  <div className="bg-gradient-to-r from-[#549E9E] to-teal-700 p-4 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-white/15 rounded-xl backdrop-blur-xs">
+                        <AlertCircle size={20} className="text-white" />
+                      </div>
+                      <h3 className="font-black text-sm uppercase tracking-wider text-white">
+                        {confirmModal.title || "Confirm Action"}
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfirmModal((prev) => ({ ...prev, isOpen: false }))
+                      }
+                      className="p-1.5 rounded-full hover:bg-white/20 text-white/90 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="p-5 space-y-3">
+                    <p className="text-sm font-bold text-gray-700 leading-relaxed">
+                      {confirmModal.message}
+                    </p>
+                    <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-amber-800 text-xs font-semibold flex items-start gap-2">
+                      <AlertCircle
+                        size={15}
+                        className="text-amber-600 shrink-0 mt-0.5"
+                      />
+                      <span>
+                        Unsaved changes in your current prescription draft will
+                        be overwritten.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfirmModal((prev) => ({ ...prev, isOpen: false }))
+                      }
+                      className="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-2xs"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const action = confirmModal.onConfirm;
+                        setConfirmModal((prev) => ({
+                          ...prev,
+                          isOpen: false,
+                        }));
+                        action();
+                      }}
+                      className="px-5 py-2 bg-[#549E9E] hover:bg-[#438787] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 size={15} />
+                      Yes, Replace
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            </AnimatePresence>,
+            document.body,
+          )}
+
+        {/* Keyboard Shortcuts Modal */}
+        {showShortcutsModal &&
+          createPortal(
+            <AnimatePresence>
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/60 backdrop-blur-md p-4 no-print">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100"
+                >
+                  <div className="bg-[#549E9E] p-4 text-white flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 bg-white/10 rounded-lg">
+                        <Keyboard size={20} />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-sm uppercase tracking-wider">
+                          {t(
+                            "consultation_modal.keyboard_active",
+                            "Keyboard Shortcuts & Navigation",
+                          )}
+                        </h4>
+                        <p className="text-[10px] text-white/80 font-bold">
+                          Quick reference guide for fast form entry
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowShortcutsModal(false)}
+                      className="p-1.5 rounded-full hover:bg-white/20 transition-colors cursor-pointer"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className="p-5 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
+                    {/* Field Navigation Section */}
+                    <div className="bg-gray-50 rounded-xl p-3.5 border border-gray-100 space-y-2.5">
+                      <p className="font-black text-gray-500 uppercase tracking-widest text-[9.5px]">
+                        1. Field & Form Navigation
+                      </p>
+                      <div className="space-y-2 text-gray-700 font-bold text-[11px]">
+                        <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-gray-100">
+                          <span>Navigate between form fields</span>
+                          <div className="gap-1 flex items-center">
+                            <kbd className="px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded shadow-xs font-mono text-[10px] text-gray-800 font-black">
+                              Tab
+                            </kbd>
+                            <span className="text-gray-400 text-[10px]">
+                              forward
+                            </span>
+                            <span className="text-gray-300">/</span>
+                            <kbd className="px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded shadow-xs font-mono text-[10px] text-gray-800 font-black">
+                              Shift + Tab
+                            </kbd>
+                            <span className="text-gray-400 text-[10px]">
+                              backward
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-gray-100">
+                          <span>Advance on Amount field</span>
+                          <div className="gap-1 flex items-center">
+                            <kbd className="px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded shadow-xs font-mono text-[10px] text-gray-800 font-black">
+                              Enter
+                            </kbd>
+                            <span className="text-gray-400 text-[10px]">
+                              forward
+                            </span>
+                            <span className="text-gray-300">/</span>
+                            <kbd className="px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded shadow-xs font-mono text-[10px] text-gray-800 font-black">
+                              Shift + Enter
+                            </kbd>
+                            <span className="text-gray-400 text-[10px]">
+                              back
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-gray-100">
+                          <span>Searchable Dropdown Selection</span>
+                          <div className="gap-1 flex items-center">
+                            <kbd className="px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded shadow-xs font-mono text-[10px] text-gray-800 font-black">
+                              ↑ / ↓
+                            </kbd>
+                            <span className="text-gray-400 text-[10px]">
+                              highlight
+                            </span>
+                            <span className="text-gray-300">•</span>
+                            <kbd className="px-1.5 py-0.5 bg-gray-50 border border-gray-200 rounded shadow-xs font-mono text-[10px] text-gray-800 font-black">
+                              Enter
+                            </kbd>
+                            <span className="text-gray-400 text-[10px]">
+                              select
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row Management Section */}
+                    <div className="bg-[#549E9E]/5 rounded-xl p-3.5 border border-[#549E9E]/10 space-y-2.5">
+                      <p className="font-black text-[#549E9E] uppercase tracking-widest text-[9.5px]">
+                        2. Prescription & Row Actions
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-gray-700 font-bold">
+                        <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100">
+                          <span className="text-[10.5px]">
+                            {t(
+                              "consultation_modal.add_medicine",
+                              "Add Medicine",
+                            )}
+                          </span>
+                          <kbd className="px-1.5 py-0.5 bg-[#549E9E]/10 border border-[#549E9E]/20 rounded font-mono text-[10px] font-black text-[#549E9E]">
+                            Alt + M
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100">
+                          <span className="text-[10.5px]">
+                            {t(
+                              "consultation_modal.add_other_med",
+                              "Add Other Med",
+                            )}
+                          </span>
+                          <kbd className="px-1.5 py-0.5 bg-[#549E9E]/10 border border-[#549E9E]/20 rounded font-mono text-[10px] font-black text-[#549E9E]">
+                            Alt + O
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100">
+                          <span className="text-[10.5px]">
+                            {t("consultation_modal.add_test", "Add Test")}
+                          </span>
+                          <kbd className="px-1.5 py-0.5 bg-[#549E9E]/10 border border-[#549E9E]/20 rounded font-mono text-[10px] font-black text-[#549E9E]">
+                            Alt + T
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-gray-100">
+                          <span className="text-[10.5px]">
+                            {t(
+                              "consultation_modal.delete_row",
+                              "Delete Active Row",
+                            )}
+                          </span>
+                          <kbd className="px-1.5 py-0.5 bg-red-50 border border-red-200 rounded font-mono text-[10px] font-black text-red-600">
+                            Alt + Del
+                          </kbd>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Submission Section */}
+                    <div className="bg-emerald-50/50 rounded-xl p-3.5 border border-emerald-100 space-y-2">
+                      <p className="font-black text-emerald-700 uppercase tracking-widest text-[9.5px]">
+                        3. Form Submission
+                      </p>
+                      <div className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-emerald-200 shadow-xs">
+                        <span className="text-[11px] font-black text-emerald-800">
+                          {t(
+                            "consultation_modal.save_complete",
+                            "Save & Complete Consultation",
+                          )}
+                        </span>
+                        <kbd className="px-2.5 py-1 bg-emerald-600 text-white rounded font-mono text-[10px] font-black shadow-xs">
+                          Ctrl + Enter
+                        </kbd>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-3.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                      Press ESC or click button to close
+                    </span>
+                    <button
+                      onClick={() => setShowShortcutsModal(false)}
+                      className="px-4 py-2 bg-[#549E9E] hover:bg-[#438787] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
+                    >
+                      Got It
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            </AnimatePresence>,
+            document.body,
+          )}
+
+        {/* Extended History Modal */}
+        {isExtendedHistoryOpen &&
+          createPortal(
+            <AnimatePresence>
+              <div
+                className="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/60 backdrop-blur-md p-4 no-print"
+                onClick={() => setIsExtendedHistoryOpen(false)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden border border-gray-100 flex flex-col max-h-[85vh]"
+                >
+                  <div className="bg-gradient-to-r from-[#549E9E] to-teal-700 p-4 text-white flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/15 rounded-xl backdrop-blur-xs">
+                        <ClipboardList size={22} className="text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-black text-base uppercase tracking-wider text-white">
+                          Extended Patient History & Examination
+                        </h3>
+                        <p className="text-xs text-white/80 font-bold">
+                          Comprehensive EMR medical records, lifestyle,
+                          examinations & observations
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsExtendedHistoryOpen(false)}
+                      className="p-2 rounded-full hover:bg-white/20 text-white/90 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  <div
+                    className="p-6 overflow-y-auto space-y-6 flex-1 h-full min-h-0"
+                    style={{ overscrollBehavior: "contain" }}
+                    onWheel={(e) => e.stopPropagation()}
+                    onTouchMove={(e) => e.stopPropagation()}
+                  >
+                    {/* Basic & Lifestyle */}
+                    <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
+                      <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
+                        {t(
+                          "consultation_modal.basic_lifestyle",
+                          "Basic & Lifestyle",
+                        )}
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t("consultation_modal.occupation", "Occupation")}
+                          </label>
+                          <input
+                            type="text"
+                            disabled={isReadOnly}
+                            value={occupation}
+                            onChange={(e) => setOccupation(e.target.value)}
+                            className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80"
+                            placeholder={t(
+                              "consultation_modal.occupation_placeholder",
+                              "e.g. Teacher, Engineer...",
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t(
+                              "consultation_modal.personal_social_history",
+                              "Personal & Social History",
+                            )}
+                          </label>
+                          <input
+                            type="text"
+                            disabled={isReadOnly}
+                            value={personalSocialHistory}
+                            onChange={(e) =>
+                              setPersonalSocialHistory(e.target.value)
+                            }
+                            className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80"
+                            placeholder={t(
+                              "consultation_modal.personal_history_placeholder",
+                              "e.g. Smoking, Alcohol...",
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Medical History */}
+                    <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
+                      <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
+                        {t(
+                          "consultation_modal.medical_history",
+                          "Medical History",
+                        )}
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t(
+                              "consultation_modal.history_present_illness",
+                              "History of Present Illness",
+                            )}
+                          </label>
+                          <textarea
+                            disabled={isReadOnly}
+                            value={historyPresentIllness}
+                            onChange={(e) =>
+                              setHistoryPresentIllness(e.target.value)
+                            }
+                            rows={2}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                            placeholder={t(
+                              "consultation_modal.present_illness_placeholder",
+                              "Details of current illness...",
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t(
+                              "consultation_modal.history_past_illness",
+                              "History of Past Illness",
+                            )}
+                          </label>
+                          <textarea
+                            disabled={isReadOnly}
+                            value={historyPastIllness}
+                            onChange={(e) =>
+                              setHistoryPastIllness(e.target.value)
+                            }
+                            rows={2}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                            placeholder={t(
+                              "consultation_modal.past_illness_placeholder",
+                              "Details of past illnesses...",
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t(
+                              "consultation_modal.family_history",
+                              "Family History",
+                            )}
+                          </label>
+                          <textarea
+                            disabled={isReadOnly}
+                            value={familyHistory}
+                            onChange={(e) => setFamilyHistory(e.target.value)}
+                            rows={2}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                            placeholder={t(
+                              "consultation_modal.family_history_placeholder",
+                              "Relevant family diseases...",
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t(
+                              "consultation_modal.allergies_history",
+                              "Allergies History",
+                            )}
+                          </label>
+                          <textarea
+                            disabled={isReadOnly}
+                            value={allergiesHistory}
+                            onChange={(e) =>
+                              setAllergiesHistory(e.target.value)
+                            }
+                            rows={2}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                            placeholder={t(
+                              "consultation_modal.allergies_history_placeholder",
+                              "Known allergies...",
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Specialty & Mind */}
+                    <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
+                      <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
+                        {t(
+                          "consultation_modal.specialty_mind",
+                          "Specialty & Mind",
+                        )}
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t(
+                              "consultation_modal.gynecological_history",
+                              "Gynecological History",
+                            )}
+                          </label>
+                          <textarea
+                            disabled={isReadOnly}
+                            value={gynecologicalHistory}
+                            onChange={(e) =>
+                              setGynecologicalHistory(e.target.value)
+                            }
+                            rows={2}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                            placeholder={t(
+                              "consultation_modal.gynecological_placeholder",
+                              "Gynecological details (if applicable)...",
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t(
+                              "consultation_modal.mental_mind_status",
+                              "Mental / Mind Status",
+                            )}
+                          </label>
+                          <textarea
+                            disabled={isReadOnly}
+                            value={mentalMindStatus}
+                            onChange={(e) =>
+                              setMentalMindStatus(e.target.value)
+                            }
+                            rows={2}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                            placeholder={t(
+                              "consultation_modal.mental_mind_placeholder",
+                              "Psychological assessment...",
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Examinations */}
+                    <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
+                      <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
+                        {t("consultation_modal.examinations", "Examinations")}
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t(
+                              "consultation_modal.general_examination",
+                              "General Examination",
+                            )}
+                          </label>
+                          <textarea
+                            disabled={isReadOnly}
+                            value={generalExamination}
+                            onChange={(e) =>
+                              setGeneralExamination(e.target.value)
+                            }
+                            rows={2}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                            placeholder={t(
+                              "consultation_modal.general_exam_placeholder",
+                              "General physical exam findings...",
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t(
+                              "consultation_modal.systematic_examination",
+                              "Systematic Examination",
+                            )}
+                          </label>
+                          <textarea
+                            disabled={isReadOnly}
+                            value={systematicExamination}
+                            onChange={(e) =>
+                              setSystematicExamination(e.target.value)
+                            }
+                            rows={2}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                            placeholder={t(
+                              "consultation_modal.systematic_exam_placeholder",
+                              "System-specific exam findings...",
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Diagnosis & Follow Up */}
+                    <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
+                      <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
+                        {t(
+                          "consultation_modal.diagnosis_follow_up",
+                          "Diagnosis & Follow Up",
+                        )}
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t("consultation_modal.disease", "Disease")}
+                          </label>
+                          <input
+                            type="text"
+                            disabled={isReadOnly}
+                            value={disease}
+                            onChange={(e) => setDisease(e.target.value)}
+                            className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80"
+                            placeholder={t(
+                              "consultation_modal.disease_placeholder",
+                              "Identified disease...",
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t(
+                              "consultation_modal.follow_up_advice",
+                              "Follow Up Advice",
+                            )}
+                          </label>
+                          <input
+                            type="text"
+                            disabled={isReadOnly || followUpChainClosed}
+                            value={followUp}
+                            onChange={(e) => setFollowUp(e.target.value)}
+                            className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80"
+                            placeholder={t(
+                              "consultation_modal.follow_up_placeholder",
+                              "Next visit instructions...",
+                            )}
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                            {t(
+                              "consultation_modal.differential_diagnosis",
+                              "Differential Diagnosis",
+                            )}
+                          </label>
+                          <textarea
+                            disabled={isReadOnly}
+                            value={differentialDiagnosis}
+                            onChange={(e) =>
+                              setDifferentialDiagnosis(e.target.value)
+                            }
+                            rows={2}
+                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                            placeholder={t(
+                              "consultation_modal.differential_diagnosis_placeholder",
+                              "Possible alternative diagnoses...",
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setIsExtendedHistoryOpen(false)}
+                      className="px-5 py-2.5 bg-[#549E9E] hover:bg-[#438787] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                    >
+                      Save & Close
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            </AnimatePresence>,
+            document.body,
+          )}
+
+        <div className="grid md:grid-cols-3 gap-4">
+          <div>
+            <div className="space-y-1.5 bg-white border border-[#549E9E]/15 rounded-2xl p-3 shadow-2xs">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-1.5">
+                <FileText size={13} />{" "}
+                {t("consultation_modal.chief_complaint", "Chief Complaint")}
               </label>
               <textarea
-                rows={3}
+                rows={2}
                 id="chief-complaints-input"
                 disabled={isReadOnly}
                 placeholder={t(
@@ -2664,197 +3386,277 @@ export default function ConsultationPage() {
                 )}
                 value={chiefComplaints}
                 onChange={(e) => setChiefComplaints(e.target.value)}
-                className="w-full px-5 py-4 bg-gray-50/70 border border-gray-200 rounded-xl focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 text-sm font-bold text-gray-800 placeholder:text-gray-400 resize-none transition-all shadow-sm disabled:opacity-80 disabled:bg-gray-100 disabled:text-gray-500"
-              />
-              <textarea
-                rows={3}
-                id="diagnosis-input"
-                disabled={isReadOnly}
-                placeholder={t(
-                  "consultation_modal.diagnosis_placeholder",
-                  "Diagnosis / Observation...",
-                )}
-                value={diagnosis}
-                onChange={(e) => setDiagnosis(e.target.value)}
-                className="w-full px-5 py-4 bg-gray-50/70 border border-gray-200 rounded-xl focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 text-sm font-bold text-gray-800 placeholder:text-gray-400 resize-none transition-all shadow-sm disabled:opacity-80 disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 text-xs font-bold text-gray-800 placeholder:text-gray-400 resize-none transition-all shadow-2xs disabled:opacity-80 disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="space-y-3 bg-white border border-[#549E9E]/10 rounded-2xl p-5 shadow-sm">
-              <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-2">
-                <FileText size={14} />{" "}
-                {t("consultation_modal.treatment_advice", "Treatment Advice")}{" "}
+          <div>
+            <div className="space-y-1.5 bg-white border border-[#549E9E]/15 rounded-2xl p-3 shadow-2xs">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-1.5">
+                <FileText size={13} />{" "}
+                {t("consultation_modal.clinical_findings", "Clinical Findings")}{" "}
                 <span className="text-[9px] text-gray-400 normal-case tracking-normal">
                   {t("common.optional", "Optional")}
                 </span>
               </label>
-              {!isReadOnly && (
-                <label className="inline-flex items-start gap-2 text-[10px] font-black uppercase tracking-widest text-gray-500 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={hasNoAdvice}
-                    onChange={(e) => setHasNoAdvice(e.target.checked)}
-                    className="w-4 h-4 accent-[#549E9E]"
-                  />
-                  <span className="flex flex-col gap-1">
-                    <span>
-                      {t(
-                        "consultation_modal.no_prescription_mode",
-                        "No Prescription Mode",
-                      )}
-                    </span>
-                    <span className="text-[9px] font-semibold normal-case tracking-normal text-gray-400">
-                      {t(
-                        "consultation_modal.no_prescription_mode_help",
-                        "Medicine and tests become optional, but at least one clinical detail is still required.",
-                      )}
-                    </span>
-                  </span>
-                </label>
-              )}
               <textarea
-                rows={5}
-                id="treatment-advice-input"
+                rows={2}
+                id="clinical-findings-input"
                 disabled={isReadOnly}
                 placeholder={t(
-                  "consultation_modal.treatment_advice_placeholder",
-                  "Detailed patient advice and observations...",
+                  "consultation_modal.clinical_findings_placeholder",
+                  "Detailed clinical findings and observations...",
                 )}
                 value={treatmentNotes}
                 onChange={(e) => setTreatmentNotes(e.target.value)}
-                className="w-full px-5 py-4 bg-gray-50/70 border border-gray-200 rounded-xl focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 text-sm font-bold text-gray-800 placeholder:text-gray-400 resize-none transition-all shadow-sm disabled:opacity-80 disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 text-xs font-bold text-gray-800 placeholder:text-gray-400 resize-none transition-all shadow-2xs disabled:opacity-80 disabled:bg-gray-100 disabled:text-gray-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <div className="space-y-1.5 bg-white border border-[#549E9E]/15 rounded-2xl p-3 shadow-2xs">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-1.5">
+                <FileText size={13} />{" "}
+                {t("consultation_modal.diagnosis", "Diagnosis")}{" "}
+                <span className="text-[9px] text-gray-400 normal-case tracking-normal">
+                  {t("common.optional", "Optional")}
+                </span>
+              </label>
+              <textarea
+                rows={2}
+                id="diagnosis-input"
+                disabled={isReadOnly}
+                placeholder={t(
+                  "consultation_modal.diagnosis_placeholder",
+                  "Diagnosis / Observations...",
+                )}
+                value={diagnosis}
+                onChange={(e) => setDiagnosis(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-xl focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 text-xs font-bold text-gray-800 placeholder:text-gray-400 resize-none transition-all shadow-2xs disabled:opacity-80 disabled:bg-gray-100 disabled:text-gray-500"
               />
             </div>
           </div>
         </div>
 
-        <div className="space-y-4 bg-white border border-[#549E9E]/15 rounded-2xl p-5 shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-2">
-                <WandSparkles size={14} /> Quick Numeric Entry
-              </label>
-              <p className="text-[11px] font-bold text-gray-400 mt-1">
-                Enter multiple medicines (e.g.{" "}
-                <span className="text-[#549E9E] font-bold">
-                  30, 200/2, 3q/5, 21 23 34/7
-                </span>
-                ). Automatically applied after typing.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
-                  Duration:
-                </span>
-                <div className="flex flex-col gap-2">
-                  <div className="flex gap-1 bg-gray-50 p-1 border border-gray-150 rounded-xl">
-                    {["7 Days", "15 Days", "30 Days"].map((day) => (
-                      <button
-                        key={day}
-                        type="button"
-                        disabled={isReadOnly}
-                        onClick={() => {
-                          const days = day.split(" ")[0] as "7" | "15" | "30";
-                          setGlobalDuration(day);
-                          setFollowUpPreset(days);
-                          setCustomFollowUpDays("");
-                        }}
-                        className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest transition-all rounded-lg cursor-pointer ${
-                          globalDuration === day
-                            ? "bg-[#549E9E] text-white shadow-sm"
-                            : "text-gray-400 hover:text-gray-600"
-                        } disabled:opacity-70 disabled:cursor-default`}
-                      >
-                        {day.split(" ")[0]} {/* 7, 15, 30 */}
-                      </button>
-                    ))}
-                  </div>
-                  {globalDuration.startsWith("30") && !isReadOnly && (
-                    <div className="flex gap-3 bg-gray-50/80 p-2 rounded-xl border border-[#549E9E]/20 mt-1 shadow-inner">
-                      <label className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-gray-600 cursor-pointer hover:text-[#549E9E] transition-colors">
-                        <input
-                          type="radio"
-                          checked={thirtyDaysDoseFrequency === "3"}
-                          onChange={() => setThirtyDaysDoseFrequency("3")}
-                          className="accent-[#549E9E] w-3 h-3"
-                        />
-                        3 times a day
-                      </label>
-                      <label className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-gray-600 cursor-pointer hover:text-[#549E9E] transition-colors">
-                        <input
-                          type="radio"
-                          checked={thirtyDaysDoseFrequency === "2"}
-                          onChange={() => setThirtyDaysDoseFrequency("2")}
-                          className="accent-[#549E9E] w-3 h-3"
-                        />
-                        2 times a day
-                      </label>
-                    </div>
-                  )}
-                </div>
-                <input
-                  type="number"
-                  min={1}
-                  max={365}
-                  disabled={isReadOnly || followUpChainClosed}
-                  value={customFollowUpDays}
-                  onChange={(event) => {
-                    setCustomFollowUpDays(event.target.value);
-                    setFollowUpPreset(
-                      event.target.value
-                        ? "custom"
-                        : (globalDuration.split(" ")[0] as "7" | "15" | "30"),
-                    );
-                  }}
-                  placeholder="Custom days"
-                  title="Custom follow-up days"
-                  className="h-8 w-24 rounded-lg border border-gray-200 bg-white px-2 text-[10px] font-black text-gray-700 outline-none focus:border-[#549E9E] disabled:bg-gray-100 disabled:opacity-60"
-                />
-              </div>
-
-              {!isReadOnly && (
-                <label className="flex items-center gap-2 cursor-pointer bg-red-50/50 border border-red-100/50 px-2.5 py-1.5 rounded-xl">
-                  <input
-                    type="checkbox"
-                    checked={followUpChainClosed}
-                    onChange={(e) => setFollowUpChainClosed(e.target.checked)}
-                    className="w-3.5 h-3.5 accent-[#549E9E]"
-                  />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-red-500">
-                    Close Case
-                  </span>
-                </label>
-              )}
-
-              <button
-                type="button"
-                disabled={isReadOnly || isFormulaLoading}
-                onClick={() => {
-                  void applyQuickNumericFormula();
-                }}
-                className="px-4 py-2 rounded-xl bg-[#549E9E] text-white text-xs font-black uppercase tracking-widest flex items-center gap-2 disabled:opacity-60 cursor-pointer"
-              >
-                {isFormulaLoading ? (
-                  <RefreshCcw size={14} className="animate-spin" />
-                ) : (
-                  <WandSparkles size={14} />
-                )}
-                Parse & Apply
-              </button>
-            </div>
+        {/* Quick Numeric Entry Card (Compact Single-Line Inline Bar) */}
+        <div className="space-y-2.5 bg-white border border-[#549E9E]/15 rounded-2xl p-3.5 shadow-sm">
+          {/* Header title */}
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-1.5">
+              <WandSparkles size={14} /> Quick Numeric Entry
+            </label>
+            <p className="text-[10px] font-bold text-gray-400">
+              Enter codes (e.g.{" "}
+              <span className="text-[#549E9E]">
+                30, 200/2, 3q/5, 21 23 34/7
+              </span>
+              )
+            </p>
           </div>
 
-          <textarea
-            rows={2}
-            disabled={isReadOnly}
-            value={quickNumericInput}
-            onChange={(e) => setQuickNumericInput(e.target.value)}
-            placeholder="30, 200/2, 84/20, 10/BD"
-            className="w-full p-4 bg-gray-50/70 border border-gray-200 rounded-xl focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 text-sm font-bold text-gray-800 placeholder:text-gray-400 resize-none transition-all shadow-sm disabled:opacity-80 disabled:bg-gray-100 disabled:text-gray-500"
-          />
+          {/* Unified Horizontal Controls Row */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Input field with Dropdown */}
+            <div className="relative flex-1 min-w-[220px]" ref={quickFormulaDropdownRef}>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  disabled={isReadOnly}
+                  value={quickNumericInput}
+                  onChange={(e) => {
+                    setQuickNumericInput(e.target.value);
+                    if (prescriptionSuggestions.length > 0) {
+                      setIsQuickFormulaDropdownOpen(true);
+                    }
+                  }}
+                  onFocus={() => {
+                    if (prescriptionSuggestions.length > 0) {
+                      setIsQuickFormulaDropdownOpen(true);
+                    }
+                  }}
+                  placeholder="e.g. 30, 200/2, 84/20, 10/BD"
+                  className="w-full h-9 pl-3 pr-8 bg-gray-50/80 border border-gray-200 rounded-xl focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 text-xs font-bold font-mono text-gray-800 placeholder:font-sans placeholder:text-gray-400 outline-none transition-all shadow-2xs disabled:opacity-80"
+                />
+                {prescriptionSuggestions.length > 0 && !isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setIsQuickFormulaDropdownOpen(!isQuickFormulaDropdownOpen)
+                    }
+                    className="absolute right-2.5 p-1 text-gray-400 hover:text-[#549E9E] transition-colors cursor-pointer"
+                    title="Toggle formula suggestions"
+                  >
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform duration-200 ${
+                        isQuickFormulaDropdownOpen ? "rotate-180 text-[#549E9E]" : ""
+                      }`}
+                    />
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown Menu */}
+              {isQuickFormulaDropdownOpen &&
+                prescriptionSuggestions.length > 0 &&
+                !isReadOnly && (
+                  <div className="absolute left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden py-1 max-h-56 overflow-y-auto">
+                    <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                      <span className="text-[9.5px] font-black uppercase tracking-wider text-[#549E9E] flex items-center gap-1">
+                        <WandSparkles size={11} /> Suggested Formula
+                        {prescriptionSuggestions.length > 1 ? "s" : ""}
+                      </span>
+                      {suggestionBasis && (
+                        <span className="text-[9px] font-bold text-gray-500">
+                          {suggestionBasis === "PATIENT_HISTORY"
+                            ? "Patient History"
+                            : "Global History"}
+                        </span>
+                      )}
+                    </div>
+
+                    {prescriptionSuggestions.map((sug, sIdx) => {
+                      const isString =
+                        typeof sug === "string" || typeof sug === "number";
+                      const displayLabel = isString
+                        ? String(sug)
+                        : Array.isArray(sug)
+                        ? sug.map((m: any) => m.medicine_value).join(" + ")
+                        : `Formula #${sIdx + 1}`;
+
+                      return (
+                        <button
+                          key={sIdx}
+                          type="button"
+                          onClick={() => {
+                            handleApplySuggestionSet(sug);
+                            setIsQuickFormulaDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-[#549E9E]/10 flex items-center justify-between text-xs font-mono font-black text-gray-800 hover:text-[#549E9E] transition-colors cursor-pointer border-b border-gray-50 last:border-0"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[9px] font-sans font-bold">
+                              #{sIdx + 1}
+                            </span>
+                            <span>{displayLabel}</span>
+                          </div>
+                          <span className="text-[9.5px] font-sans font-bold text-[#549E9E]">
+                            Apply & Parse →
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+            </div>
+
+            {/* Parse & Apply Button */}
+            <button
+              type="button"
+              disabled={isReadOnly || isFormulaLoading}
+              onClick={() => {
+                void applyQuickNumericFormula();
+              }}
+              className="h-9 px-3.5 bg-[#549E9E] hover:bg-[#438787] text-white text-[11px] font-black uppercase tracking-wider rounded-xl flex items-center gap-1.5 shrink-0 shadow-2xs active:scale-95 transition-all cursor-pointer disabled:opacity-60"
+            >
+              {isFormulaLoading ? (
+                <RefreshCcw size={13} className="animate-spin" />
+              ) : (
+                <WandSparkles size={13} />
+              )}
+              Parse & Apply
+            </button>
+
+
+
+            {/* Duration Pills */}
+            <div className="flex items-center gap-1 bg-gray-50 p-1 border border-gray-200 rounded-xl h-9">
+              <span className="text-[8px] font-black uppercase tracking-widest text-gray-400 px-1">
+                Duration:
+              </span>
+              {["7 Days", "15 Days", "30 Days"].map((day) => (
+                <button
+                  key={day}
+                  type="button"
+                  disabled={isReadOnly}
+                  onClick={() => {
+                    const days = day.split(" ")[0] as "7" | "15" | "30";
+                    setGlobalDuration(day);
+                    setFollowUpPreset(days);
+                    setCustomFollowUpDays("");
+                  }}
+                  className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-all rounded-lg cursor-pointer ${globalDuration === day
+                      ? "bg-[#549E9E] text-white shadow-xs"
+                      : "text-gray-400 hover:text-gray-600"
+                    } disabled:opacity-70 disabled:cursor-default`}
+                >
+                  {day.split(" ")[0]}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Days Input */}
+            <input
+              type="number"
+              min={1}
+              max={365}
+              disabled={isReadOnly || followUpChainClosed}
+              value={customFollowUpDays}
+              onChange={(event) => {
+                setCustomFollowUpDays(event.target.value);
+                setFollowUpPreset(
+                  event.target.value
+                    ? "custom"
+                    : (globalDuration.split(" ")[0] as "7" | "15" | "30"),
+                );
+              }}
+              placeholder="Custom day"
+              title="Custom follow-up days"
+              className="h-9 w-24 rounded-xl border border-gray-200 bg-gray-50/80 px-2.5 text-[10px] font-black text-gray-700 outline-none focus:border-[#549E9E] focus:bg-white disabled:bg-gray-100 disabled:opacity-60"
+            />
+
+            {/* Close Case Checkbox */}
+            {!isReadOnly && (
+              <label className="flex items-center gap-1.5 cursor-pointer bg-red-50/70 border border-red-200/60 px-2.5 h-9 rounded-xl text-red-600 select-none">
+                <input
+                  type="checkbox"
+                  checked={followUpChainClosed}
+                  onChange={(e) => setFollowUpChainClosed(e.target.checked)}
+                  className="w-3.5 h-3.5 accent-[#549E9E]"
+                />
+                <span className="text-[9px] font-black uppercase tracking-wider text-red-600">
+                  Close Case
+                </span>
+              </label>
+            )}
+          </div>
+
+          {/* 30 Days Frequency Options (Sub-row if 30 days active) */}
+          {globalDuration.startsWith("30") && !isReadOnly && (
+            <div className="flex items-center gap-3 bg-gray-50/80 px-3 py-1.5 rounded-xl border border-[#549E9E]/20 text-[9px] font-black uppercase tracking-wider text-gray-600">
+              <span className="text-[#549E9E]">30-Day Frequency:</span>
+              <label className="flex items-center gap-1.5 cursor-pointer hover:text-[#549E9E]">
+                <input
+                  type="radio"
+                  checked={thirtyDaysDoseFrequency === "3"}
+                  onChange={() => setThirtyDaysDoseFrequency("3")}
+                  className="accent-[#549E9E] w-3 h-3"
+                />
+                3 times a day
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer hover:text-[#549E9E]">
+                <input
+                  type="radio"
+                  checked={thirtyDaysDoseFrequency === "2"}
+                  onChange={() => setThirtyDaysDoseFrequency("2")}
+                  className="accent-[#549E9E] w-3 h-3"
+                />
+                2 times a day
+              </label>
+            </div>
+          )}
 
           {quickNumericInput.trim() &&
             lastAppliedQuickFormulaVersion !== null &&
@@ -2884,12 +3686,11 @@ export default function ConsultationPage() {
             <div className="grid lg:grid-cols-2 gap-4">
               {quickFormulaPreview.entries.length > 0 && (
                 <div
-                  className={`border border-emerald-100 bg-emerald-50/50 rounded-xl p-4 transition-all ${
-                    quickFormulaPreview.errors.length === 0 &&
-                    quickFormulaPreview.warnings.length === 0
+                  className={`border border-emerald-100 bg-emerald-50/50 rounded-xl p-4 transition-all ${quickFormulaPreview.errors.length === 0 &&
+                      quickFormulaPreview.warnings.length === 0
                       ? "lg:col-span-2"
                       : ""
-                  }`}
+                    }`}
                 >
                   <button
                     type="button"
@@ -2931,42 +3732,41 @@ export default function ConsultationPage() {
 
               {(quickFormulaPreview.errors.length > 0 ||
                 quickFormulaPreview.warnings.length > 0) && (
-                <div
-                  className={`border border-red-100 bg-red-50/50 rounded-xl p-4 ${
-                    quickFormulaPreview.entries.length === 0
-                      ? "lg:col-span-2"
-                      : ""
-                  }`}
-                >
-                  <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-3">
-                    Parser Issues
-                  </p>
-                  <div className="space-y-2">
-                    {quickFormulaPreview.errors.map((item, index) => (
-                      <div
-                        key={`quick-error-${index}`}
-                        className="bg-white border border-red-100 rounded-lg p-3 text-sm font-bold text-red-600"
-                      >
-                        {item.raw_token}: {item.message}
-                      </div>
-                    ))}
-                    {quickFormulaPreview.warnings.map((item, index) => (
-                      <div
-                        key={`quick-warning-${index}`}
-                        className="bg-white border border-amber-100 rounded-lg p-3 text-sm font-bold text-amber-600"
-                      >
-                        {item.raw_token}: {item.message}
-                      </div>
-                    ))}
+                  <div
+                    className={`border border-red-100 bg-red-50/50 rounded-xl p-4 ${quickFormulaPreview.entries.length === 0
+                        ? "lg:col-span-2"
+                        : ""
+                      }`}
+                  >
+                    <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-3">
+                      Parser Issues
+                    </p>
+                    <div className="space-y-2">
+                      {quickFormulaPreview.errors.map((item, index) => (
+                        <div
+                          key={`quick-error-${index}`}
+                          className="bg-white border border-red-100 rounded-lg p-3 text-sm font-bold text-red-600"
+                        >
+                          {item.raw_token}: {item.message}
+                        </div>
+                      ))}
+                      {quickFormulaPreview.warnings.map((item, index) => (
+                        <div
+                          key={`quick-warning-${index}`}
+                          className="bg-white border border-amber-100 rounded-lg p-3 text-sm font-bold text-amber-600"
+                        >
+                          {item.raw_token}: {item.message}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
           )}
         </div>
 
-        <div className="space-y-4 pt-2 bg-[#549E9E]/5 border-2 border-[#549E9E] rounded-2xl p-5 shadow-md">
-          <div className="flex justify-between items-center pb-2 border-b border-gray-50">
+        <div className="space-y-3 bg-[#549E9E]/5 border-2 border-[#549E9E] rounded-2xl p-3.5 shadow-md">
+          <div className="flex justify-between items-center pb-2 border-b border-gray-200/60">
             <button
               type="button"
               onClick={() => setIsPrescriptionOpen(!isPrescriptionOpen)}
@@ -2993,10 +3793,10 @@ export default function ConsultationPage() {
                       void loadRepeatTreatmentDraft();
                     }}
                     disabled={isLoadingRepeatDraft}
-                    className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all text-[10px] font-black uppercase tracking-widest rounded-xl cursor-pointer disabled:opacity-60"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all text-[9.5px] font-black uppercase tracking-wider rounded-xl cursor-pointer disabled:opacity-60"
                   >
                     <RotateCcw
-                      size={14}
+                      size={13}
                       className={isLoadingRepeatDraft ? "animate-spin" : ""}
                     />
                     Repeat Previous Treatment
@@ -3005,11 +3805,11 @@ export default function ConsultationPage() {
                 <button
                   tabIndex={-1}
                   onClick={addMedication}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#549E9E]/10 text-[#549E9E] hover:bg-[#549E9E] hover:text-white transition-all text-[10px] font-black uppercase tracking-widest rounded-xl cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#549E9E]/10 text-[#549E9E] hover:bg-[#549E9E] hover:text-white transition-all text-[9.5px] font-black uppercase tracking-wider rounded-xl cursor-pointer"
                 >
-                  <Plus size={14} />{" "}
+                  <Plus size={13} />{" "}
                   {t("consultation_modal.add_medicine", "Add Medicine")}{" "}
-                  <kbd className="ml-2 px-2.5 py-1 bg-[#549E9E] text-white rounded-lg text-xs font-black font-mono shadow-sm normal-case tracking-normal">
+                  <kbd className="ml-1 px-2 py-0.5 bg-[#549E9E] text-white rounded text-[10px] font-black font-mono shadow-xs normal-case tracking-normal">
                     Alt + M
                   </kbd>
                 </button>
@@ -3019,29 +3819,44 @@ export default function ConsultationPage() {
 
           {isPrescriptionOpen && (
             <>
-              <div className="hidden lg:grid lg:grid-cols-[minmax(220px,1.4fr)_110px_110px_110px_130px_90px] gap-3 px-2">
+              <div className="hidden lg:grid lg:grid-cols-[minmax(260px,1.8fr)_100px_100px_100px_100px_40px] gap-3 px-3">
                 {[
-                  t("consultation_modal.medicine", "Medicine"),
-                  t("consultation_modal.morning", "Morning"),
-                  t("consultation_modal.afternoon", "Afternoon"),
-                  t("consultation_modal.night", "Night"),
-                  t("consultation_modal.amount", "Amount"),
-                  "",
-                ].map((label, idx) => (
+                  {
+                    label: t("consultation_modal.medicine", "Medicine"),
+                    align: "text-left",
+                  },
+                  {
+                    label: t("consultation_modal.morning", "Morning"),
+                    align: "text-center",
+                  },
+                  {
+                    label: t("consultation_modal.afternoon", "Afternoon"),
+                    align: "text-center",
+                  },
+                  {
+                    label: t("consultation_modal.night", "Night"),
+                    align: "text-center",
+                  },
+                  {
+                    label: t("consultation_modal.amount", "Amount"),
+                    align: "text-center",
+                  },
+                  { label: "", align: "text-center" },
+                ].map((col, idx) => (
                   <div
-                    key={`${label}-${idx}`}
-                    className="text-[9px] font-black text-gray-500 uppercase tracking-widest"
+                    key={`${col.label}-${idx}`}
+                    className={`text-[9px] font-black text-gray-500 uppercase tracking-widest ${col.align}`}
                   >
-                    {label}
+                    {col.label}
                   </div>
                 ))}
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {medications.map((med, idx) => (
                   <div
                     key={idx}
-                    className="grid grid-cols-1 lg:grid-cols-[minmax(220px,1.4fr)_110px_110px_110px_130px_90px] gap-3 items-center bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md hover:border-[#549E9E]/20 transition-all"
+                    className="grid grid-cols-1 lg:grid-cols-[minmax(260px,1.8fr)_100px_100px_100px_100px_40px] gap-3 items-center bg-white border border-gray-200 rounded-xl p-2 px-3 shadow-2xs hover:shadow-sm hover:border-[#549E9E]/30 transition-all"
                     onKeyDown={(e) => {
                       if (
                         e.altKey &&
@@ -3054,8 +3869,8 @@ export default function ConsultationPage() {
                   >
                     <div className="relative">
                       <Pill
-                        size={14}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10"
+                        size={13}
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 z-10"
                       />
                       <NumberDropdown
                         id={`med-trigger-${idx}`}
@@ -3071,42 +3886,49 @@ export default function ConsultationPage() {
                         placeholder={
                           getAvailableNumericMedicineOptions(idx).length > 0
                             ? t(
-                                "consultation_modal.select_potency",
-                                "Select Potency / Remedy No.",
-                              )
+                              "consultation_modal.select_potency",
+                              "Select Potency / Remedy No.",
+                            )
                             : t(
-                                "consultation_modal.no_remedies_remaining",
-                                "No Remedies Remaining",
-                              )
+                              "consultation_modal.no_remedies_remaining",
+                              "No Remedies Remaining",
+                            )
                         }
                       />
                     </div>
 
                     {[
                       {
-                        label: t("consultation_modal.morning", "Morning"),
+                        fullLabel: t("consultation_modal.morning", "Morning"),
                         key: "morning",
                       },
                       {
-                        label: t("consultation_modal.afternoon", "Afternoon"),
+                        fullLabel: t(
+                          "consultation_modal.afternoon",
+                          "Afternoon",
+                        ),
                         key: "afternoon",
                       },
                       {
-                        label: t("consultation_modal.night", "Night"),
+                        fullLabel: t("consultation_modal.night", "Night"),
                         key: "night",
                       },
                     ].map((time) => {
                       const val =
                         med.doses[
-                          time.key as "morning" | "afternoon" | "night"
+                        time.key as "morning" | "afternoon" | "night"
                         ];
                       const isActive = val > 0;
                       return (
                         <div
                           key={time.key}
-                          className={`rounded-xl p-2 border transition-all ${isActive ? "bg-[#549E9E]/[0.04] border-[#549E9E]/30 shadow-sm" : "bg-gray-50/80 border-gray-200 opacity-80"}`}
+                          className={`rounded-lg px-2 py-1 border flex items-center justify-between transition-all h-8.5 ${isActive
+                              ? "bg-[#549E9E]/[0.06] border-[#549E9E]/30 shadow-2xs"
+                              : "bg-gray-50/80 border-gray-200 opacity-75"
+                            }`}
                         >
                           <button
+                            type="button"
                             disabled={isReadOnly}
                             onClick={() =>
                               updateDose(
@@ -3115,98 +3937,78 @@ export default function ConsultationPage() {
                                 isActive ? 0 : 4,
                               )
                             }
-                            onKeyDown={(e) => {
-                              if (isReadOnly) return;
-                              if (e.key === "ArrowUp" || e.key === "+") {
-                                e.preventDefault();
-                                updateDose(
-                                  idx,
-                                  time.key as "morning" | "afternoon" | "night",
-                                  isActive ? val + 1 : 4,
-                                );
-                              } else if (
-                                e.key === "ArrowDown" ||
-                                e.key === "-"
-                              ) {
-                                e.preventDefault();
-                                if (isActive) {
-                                  updateDose(
-                                    idx,
-                                    time.key as
-                                      | "morning"
-                                      | "afternoon"
-                                      | "night",
-                                    Math.max(0, val - 1),
-                                  );
-                                }
-                              }
-                            }}
-                            className={`w-full flex items-center justify-center gap-1.5 mb-2 disabled:cursor-default ${isReadOnly ? "" : "cursor-pointer hover:opacity-80 transition-opacity"}`}
+                            className="flex items-center justify-center cursor-pointer select-none outline-none disabled:cursor-default"
                             title={
                               isReadOnly
                                 ? ""
                                 : isActive
-                                  ? "Click/Space to disable dose (Arrow Up/Down to adjust)"
-                                  : "Click/Space to enable dose"
+                                  ? `Disable ${time.fullLabel} dose`
+                                  : `Enable ${time.fullLabel} dose`
                             }
                           >
                             {isActive ? (
                               <CheckCircle2
-                                size={14}
-                                className="text-[#549E9E]"
+                                size={15}
+                                className="text-[#549E9E] shrink-0"
                               />
                             ) : (
-                              <div className="w-[14px] h-[14px] rounded-full border-[1.5px] border-gray-300" />
+                              <div className="w-3.5 h-3.5 rounded-full border-[1.5px] border-gray-300 shrink-0" />
                             )}
-                            <span
-                              className={`text-[9px] font-black uppercase tracking-widest ${isActive ? "text-[#549E9E]" : "text-gray-400"}`}
-                            >
-                              {time.label}
-                            </span>
                           </button>
-                          <div
-                            className={`flex items-center justify-between rounded-lg p-1 ${isActive ? "bg-gray-50" : "bg-transparent pointer-events-none"}`}
-                          >
-                            <button
-                              tabIndex={-1}
-                              disabled={isReadOnly}
-                              onClick={() =>
-                                updateDose(
-                                  idx,
-                                  time.key as "morning" | "afternoon" | "night",
-                                  Math.max(1, val - 1),
-                                )
-                              }
-                              className={`w-7 h-7 rounded-md flex items-center justify-center ${isActive ? "text-gray-500 hover:text-[#549E9E] bg-white shadow-sm" : "text-transparent"} disabled:cursor-default cursor-pointer`}
-                            >
-                              {isActive && <Minus size={14} />}
-                            </button>
-                            <span
-                              className={`text-sm font-black ${isActive ? "text-[#549E9E]" : "text-transparent"}`}
-                            >
-                              {isActive ? val : "-"}
+
+                          {isActive ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                tabIndex={-1}
+                                type="button"
+                                disabled={isReadOnly}
+                                onClick={() =>
+                                  updateDose(
+                                    idx,
+                                    time.key as
+                                    | "morning"
+                                    | "afternoon"
+                                    | "night",
+                                    Math.max(1, val - 1),
+                                  )
+                                }
+                                className="w-4.5 h-4.5 rounded bg-white hover:bg-gray-100 flex items-center justify-center text-gray-600 shadow-2xs transition-colors cursor-pointer disabled:cursor-default"
+                              >
+                                <Minus size={10} />
+                              </button>
+                              <span className="w-4 text-center text-xs font-black text-[#549E9E]">
+                                {val}
+                              </span>
+                              <button
+                                tabIndex={-1}
+                                type="button"
+                                disabled={isReadOnly}
+                                onClick={() =>
+                                  updateDose(
+                                    idx,
+                                    time.key as
+                                    | "morning"
+                                    | "afternoon"
+                                    | "night",
+                                    val + 1,
+                                  )
+                                }
+                                className="w-4.5 h-4.5 rounded bg-white hover:bg-gray-100 flex items-center justify-center text-gray-600 shadow-2xs transition-colors cursor-pointer disabled:cursor-default"
+                              >
+                                <Plus size={10} />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">
+                              Off
                             </span>
-                            <button
-                              tabIndex={-1}
-                              disabled={isReadOnly}
-                              onClick={() =>
-                                updateDose(
-                                  idx,
-                                  time.key as "morning" | "afternoon" | "night",
-                                  val + 1,
-                                )
-                              }
-                              className={`w-7 h-7 rounded-md flex items-center justify-center ${isActive ? "text-gray-500 hover:text-[#549E9E] bg-white shadow-sm" : "text-transparent"} disabled:cursor-default cursor-pointer`}
-                            >
-                              {isActive && <Plus size={14} />}
-                            </button>
-                          </div>
+                          )}
                         </div>
                       );
                     })}
 
                     <div>
-                      <label className="lg:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1 block">
+                      <label className="lg:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
                         {t("consultation_modal.amount", "Amount")}
                       </label>
                       <input
@@ -3239,22 +4041,19 @@ export default function ConsultationPage() {
                             }
                           }
                         }}
-                        className="w-full px-4 py-3 bg-[#549E9E]/[0.03] border border-[#549E9E]/15 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 text-sm font-bold text-gray-800 placeholder:text-gray-400 transition-all outline-none disabled:opacity-80 disabled:bg-gray-100 disabled:text-gray-500"
+                        className="w-full h-8.5 px-2 bg-[#549E9E]/[0.03] border border-[#549E9E]/20 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 text-xs font-bold text-gray-800 placeholder:text-gray-400 transition-all outline-none text-center disabled:opacity-80 disabled:bg-gray-100"
                       />
                     </div>
 
-                    <div className="flex justify-end">
+                    <div className="flex justify-center">
                       {medications.length > 1 && !isReadOnly && (
                         <button
                           tabIndex={-1}
                           onClick={() => handleRemoveMedication(idx)}
                           title="Delete Row (Alt + Delete / Alt + Backspace)"
-                          className="flex items-center gap-1.5 px-2 py-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
                         >
-                          <Trash2 size={14} className="shrink-0" />
-                          <kbd className="px-1.5 py-0.5 bg-white border border-red-200 text-red-500 rounded text-[9px] font-black font-mono shadow-sm normal-case tracking-normal shrink-0">
-                            Alt+Del
-                          </kbd>
+                          <Trash2 size={15} />
                         </button>
                       )}
                     </div>
@@ -3265,8 +4064,153 @@ export default function ConsultationPage() {
           )}
         </div>
 
-        <div className="space-y-3 pt-2 bg-emerald-50/60 border border-emerald-200 rounded-2xl p-5 shadow-sm">
-          <div className="flex justify-between items-center pb-2 border-b border-gray-50">
+        {/* Previous Prescription Suggestions Panel */}
+        {(prescriptionSuggestions.length > 0 || isLoadingSuggestions) && !isReadOnly && (
+          <div className="space-y-3 bg-gradient-to-r from-teal-50/80 via-emerald-50/50 to-teal-50/80 border border-[#549E9E]/30 rounded-2xl p-4 shadow-sm transition-all">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#549E9E]/15 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-[#549E9E] text-white rounded-lg shadow-xs">
+                  <WandSparkles size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-[#549E9E]">
+                    Previous Prescription Suggestions
+                  </h4>
+                  <p className="text-[10px] text-gray-500 font-bold">
+                    Matching combinations based on entered symptoms/diagnosis
+                  </p>
+                </div>
+              </div>
+
+              {suggestionBasis && (
+                <span
+                  className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full border shadow-2xs ${
+                    suggestionBasis === "PATIENT_HISTORY"
+                      ? "bg-emerald-100/90 text-emerald-800 border-emerald-300"
+                      : "bg-amber-100/90 text-amber-800 border-amber-300"
+                  }`}
+                >
+                  {suggestionBasis === "PATIENT_HISTORY"
+                    ? "Based on Patient's History"
+                    : "Based on Global History"}
+                </span>
+              )}
+            </div>
+
+            {isLoadingSuggestions ? (
+              <div className="flex items-center gap-2 py-4 px-2 text-xs font-bold text-gray-500">
+                <RefreshCcw size={14} className="animate-spin text-[#549E9E]" />
+                <span>Fetching matching prescription suggestions...</span>
+              </div>
+            ) : prescriptionSuggestions.length > 0 ? (
+              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                {prescriptionSuggestions.map((suggestionSet, setIdx) => {
+                  const isStringSet =
+                    typeof suggestionSet === "string" ||
+                    typeof suggestionSet === "number";
+
+                  if (isStringSet) {
+                    const formulaStr = String(suggestionSet);
+                    return (
+                      <div
+                        key={setIdx}
+                        onClick={() => handleApplySuggestionSet(suggestionSet)}
+                        className="group relative bg-white border border-gray-200 hover:border-[#549E9E] hover:shadow-md rounded-xl p-3 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="px-2 py-0.5 bg-[#549E9E]/10 group-hover:bg-[#549E9E] text-[#549E9E] group-hover:text-white text-[10px] font-black rounded-md transition-colors">
+                            Formula #{setIdx + 1}
+                          </span>
+                          <span className="text-xs font-black text-gray-900 group-hover:text-[#549E9E] font-mono tracking-wide transition-colors">
+                            {formulaStr}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="shrink-0 px-3 py-1.5 bg-[#549E9E]/10 group-hover:bg-[#549E9E] text-[#549E9E] group-hover:text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 self-end sm:self-center"
+                        >
+                          <Plus size={13} />
+                          Apply to Quick Entry
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  const medList = suggestionSet as PrescriptionSuggestionItem[];
+
+                  return (
+                    <div
+                      key={setIdx}
+                      onClick={() => handleApplySuggestionSet(suggestionSet)}
+                      className="group relative bg-white border border-gray-200 hover:border-[#549E9E] hover:shadow-md rounded-xl p-3 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 bg-gray-100 group-hover:bg-[#549E9E] group-hover:text-white text-gray-700 text-[10px] font-black rounded-md transition-colors">
+                            Option #{setIdx + 1}
+                          </span>
+                          <span className="text-xs font-black text-gray-800 group-hover:text-[#549E9E] transition-colors">
+                            {medList.length} Medicine{medList.length > 1 ? "s" : ""}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {medList.map((med, medIdx) => {
+                            const dosesSummary = (med.doses || [])
+                              .filter((d) => (d.balls_per_dose || 0) > 0)
+                              .map(
+                                (d) =>
+                                  `${d.dose_label || ""}: ${d.balls_per_dose}`,
+                              )
+                              .join(", ");
+
+                            return (
+                              <span
+                                key={medIdx}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 group-hover:bg-[#549E9E]/10 border border-gray-200 group-hover:border-[#549E9E]/30 rounded-lg text-[11px] font-bold text-gray-700 transition-colors"
+                              >
+                                <span className="font-black text-gray-900">
+                                  {med.medicine_value}
+                                </span>
+                                {med.medicine_type && med.medicine_type !== "NUMERIC" && (
+                                  <span className="text-[9px] font-medium text-gray-500">
+                                    ({med.medicine_type})
+                                  </span>
+                                )}
+                                {dosesSummary && (
+                                  <span className="text-[9px] font-semibold text-[#549E9E]">
+                                    [{dosesSummary}]
+                                  </span>
+                                )}
+                                {med.remark && (
+                                  <span className="text-[9px] italic text-gray-500">
+                                    • "{med.remark}"
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="shrink-0 px-3 py-1.5 bg-[#549E9E]/10 group-hover:bg-[#549E9E] text-[#549E9E] group-hover:text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 self-end sm:self-center"
+                      >
+                        <Plus size={13} />
+                        Apply Suggestion
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        <div className="space-y-2.5 pt-2 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-3.5 shadow-sm">
+          <div className="flex justify-between items-center pb-2 border-b border-emerald-200/50">
             <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-2">
               <FileText size={14} />{" "}
               {t(
@@ -3279,11 +4223,11 @@ export default function ConsultationPage() {
                 tabIndex={-1}
                 id="add-other-med-btn"
                 onClick={addOtherMedication}
-                className="flex items-center gap-2 px-4 py-2 bg-[#549E9E]/10 text-[#549E9E] hover:bg-[#549E9E] hover:text-white transition-all text-[10px] font-black uppercase tracking-widest rounded-xl cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#549E9E]/10 text-[#549E9E] hover:bg-[#549E9E] hover:text-white transition-all text-[9.5px] font-black uppercase tracking-wider rounded-xl cursor-pointer"
               >
-                <Plus size={14} />{" "}
+                <Plus size={13} />{" "}
                 {t("consultation_modal.add_other_med", "Add Other Med")}{" "}
-                <kbd className="ml-2 px-2.5 py-1 bg-[#549E9E] text-white rounded-lg text-xs font-black font-mono shadow-sm normal-case tracking-normal">
+                <kbd className="ml-1 px-2 py-0.5 bg-[#549E9E] text-white rounded text-[10px] font-black font-mono shadow-xs normal-case tracking-normal">
                   Alt + O
                 </kbd>
               </button>
@@ -3291,13 +4235,53 @@ export default function ConsultationPage() {
           </div>
 
           {otherMedications.length === 0 && (
-            <p className="text-xs text-gray-500 italic py-2">
+            <p className="text-xs text-gray-500 italic py-1 px-1">
               No other medications added. Click "+ Add Other Med" to add syrups,
               custom medicines, etc.
             </p>
           )}
 
-          <div className="space-y-3">
+          {otherMedications.length > 0 && (
+            <div className="hidden lg:grid lg:grid-cols-[minmax(220px,1.4fr)_minmax(140px,0.9fr)_minmax(200px,1.2fr)_100px_40px] gap-3 px-3">
+              {[
+                {
+                  label: t(
+                    "consultation_modal.medicine_syrup_name",
+                    "Medicine / Syrup Name",
+                  ),
+                  align: "text-left",
+                },
+                {
+                  label: t(
+                    "consultation_modal.quantity_variant",
+                    "Quantity / Variant",
+                  ),
+                  align: "text-left",
+                },
+                {
+                  label: t(
+                    "consultation_modal.remark_instructions",
+                    "Remark / Instructions",
+                  ),
+                  align: "text-left",
+                },
+                {
+                  label: t("consultation_modal.amount", "Amount"),
+                  align: "text-center",
+                },
+                { label: "", align: "text-center" },
+              ].map((col, idx) => (
+                <div
+                  key={`${col.label}-${idx}`}
+                  className={`text-[9px] font-black text-gray-500 uppercase tracking-widest ${col.align}`}
+                >
+                  {col.label}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-2">
             {otherMedications.map((om, idx) => {
               const selectedMedicine = textMedicines.find(
                 (m) => m.medicine_value === om.name,
@@ -3308,57 +4292,95 @@ export default function ConsultationPage() {
               const variantOptions =
                 selectedMedicine && selectedMedicine.medical_products?.length
                   ? selectedMedicine.medical_products
-                      .map((p) => {
-                        if (p.source_type === "REGULAR_PRODUCT") {
-                          return {
-                            label: p.packing || "N/A",
-                            price: p.mrp_rate || "0",
-                            type: "product",
-                          };
-                        }
-                        if (p.source_type === "RADIENT_PHARMA") {
-                          return {
-                            label:
-                              p.size_or_weight || p.net_weight_or_size || "N/A",
-                            price: p.mrp_rate || "0",
-                            type: "radient",
-                          };
-                        }
+                    .map((p) => {
+                      if (p.source_type === "REGULAR_PRODUCT") {
                         return {
-                          label: "N/A",
-                          price: p.price_max || p.price_min || "0",
-                          type: "medical_product_price",
-                        };
-                      })
-                      .filter((v) => v.label)
-                  : selectedMedicine
-                    ? [
-                        ...(selectedMedicine.products || []).map((p) => ({
                           label: p.packing || "N/A",
                           price: p.mrp_rate || "0",
                           type: "product",
-                        })),
-                        ...(selectedMedicine.radient_pharma_products || []).map(
-                          (p) => ({
-                            label: p.net_weight_or_size || "N/A",
-                            price: p.mrp_rate || "0",
-                            type: "radient",
-                          }),
-                        ),
-                        ...(
-                          selectedMedicine.handwritten_product_prices || []
-                        ).map((p) => ({
-                          label: p.product_name || p.category || "N/A",
-                          price: p.price_max || p.price_min || "0",
-                          type: "handwritten",
-                        })),
-                      ].filter((v) => v.label)
+                          remark_suggestions: p.remark_suggestions || [],
+                        };
+                      }
+                      if (p.source_type === "RADIENT_PHARMA") {
+                        return {
+                          label:
+                            p.size_or_weight || p.net_weight_or_size || "N/A",
+                          price: p.mrp_rate || "0",
+                          type: "radient",
+                          remark_suggestions: p.remark_suggestions || [],
+                        };
+                      }
+                      return {
+                        label: "N/A",
+                        price: p.price_max || p.price_min || "0",
+                        type: "medical_product_price",
+                        remark_suggestions: p.remark_suggestions || [],
+                      };
+                    })
+                    .filter((v) => v.label)
+                  : selectedMedicine
+                    ? [
+                      ...(selectedMedicine.products || []).map((p) => ({
+                        label: p.packing || "N/A",
+                        price: p.mrp_rate || "0",
+                        type: "product",
+                        remark_suggestions: p.remark_suggestions || [],
+                      })),
+                      ...(selectedMedicine.radient_pharma_products || []).map(
+                        (p) => ({
+                          label: p.net_weight_or_size || "N/A",
+                          price: p.mrp_rate || "0",
+                          type: "radient",
+                          remark_suggestions: p.remark_suggestions || [],
+                        }),
+                      ),
+                      ...(
+                        selectedMedicine.handwritten_product_prices || []
+                      ).map((p) => ({
+                        label: p.product_name || p.category || "N/A",
+                        price: p.price_max || p.price_min || "0",
+                        type: "handwritten",
+                        remark_suggestions: p.remark_suggestions || [],
+                      })),
+                    ].filter((v) => v.label)
                     : [];
+              const defaultRemarkOptions =
+                om.name?.toLowerCase().includes("syrup") ||
+                  om.name?.toLowerCase().includes("syr")
+                  ? [
+                    { label: "2 spoon", value: "2 spoon" },
+                    { label: "3 spoon", value: "3 spoon" },
+                  ]
+                  : [
+                    {
+                      label: "20 drop for 3 times in a day",
+                      value: "20 drop for 3 times in a day",
+                    },
+                    {
+                      label: "30 drop for 2 times in a day",
+                      value: "30 drop for 2 times in a day",
+                    },
+                  ];
+              const savedRemarkSuggestions = om.selectedVariant
+                ? om.selectedVariant.remark_suggestions || []
+                : selectedMedicine?.remark_suggestions || [];
+              const savedVariantRemarkOptions = savedRemarkSuggestions
+                .map((remark) => String(remark.remark_value || "").trim())
+                .filter(Boolean)
+                .map((remark) => ({ label: remark, value: remark }));
+              const remarkOptions = Array.from(
+                new Map(
+                  [
+                    ...defaultRemarkOptions,
+                    ...savedVariantRemarkOptions,
+                  ].map((option) => [option.value.toLowerCase(), option]),
+                ).values(),
+              );
 
               return (
                 <div
                   key={idx}
-                  className="grid grid-cols-1 lg:grid-cols-[minmax(200px,1.2fr)_minmax(150px,0.8fr)_minmax(200px,1.2fr)_100px_90px] gap-3 items-start bg-gray-50/70 border border-gray-200 rounded-xl p-4 hover:border-[#549E9E]/15 transition-all"
+                  className="grid grid-cols-1 lg:grid-cols-[minmax(220px,1.4fr)_minmax(140px,0.9fr)_minmax(200px,1.2fr)_100px_40px] gap-3 items-center bg-white border border-emerald-100 rounded-xl p-2 px-3 shadow-2xs hover:shadow-sm hover:border-[#549E9E]/30 transition-all"
                   onKeyDown={(e) => {
                     if (
                       e.altKey &&
@@ -3370,7 +4392,7 @@ export default function ConsultationPage() {
                   }}
                 >
                   <div>
-                    <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1 block">
+                    <label className="lg:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
                       {t(
                         "consultation_modal.medicine_syrup_name",
                         "Medicine / Syrup Name",
@@ -3385,30 +4407,91 @@ export default function ConsultationPage() {
                       options={availableOtherMedicineOptions}
                       value={om.name}
                       onChange={(val) => {
+                        const medicine = textMedicines.find(
+                          (item) => item.medicine_value === val,
+                        );
+                        const computedVariants =
+                          medicine && medicine.medical_products?.length
+                            ? medicine.medical_products
+                              .map((p: any) => {
+                                if (p.source_type === "REGULAR_PRODUCT") {
+                                  return {
+                                    label: p.packing || "N/A",
+                                    price: p.mrp_rate || "0",
+                                    type: "product",
+                                    remark_suggestions: p.remark_suggestions || [],
+                                  };
+                                }
+                                if (p.source_type === "RADIENT_PHARMA") {
+                                  return {
+                                    label: p.size_or_weight || p.net_weight_or_size || "N/A",
+                                    price: p.mrp_rate || "0",
+                                    type: "radient",
+                                    remark_suggestions: p.remark_suggestions || [],
+                                  };
+                                }
+                                return {
+                                  label: "N/A",
+                                  price: p.price_max || p.price_min || "0",
+                                  type: "medical_product_price",
+                                  remark_suggestions: p.remark_suggestions || [],
+                                };
+                              })
+                              .filter((v: any) => v.label)
+                            : medicine
+                              ? [
+                                ...(medicine.products || []).map((p: any) => ({
+                                  label: p.packing || "N/A",
+                                  price: p.mrp_rate || "0",
+                                  type: "product",
+                                  remark_suggestions: p.remark_suggestions || [],
+                                })),
+                                ...(medicine.radient_pharma_products || []).map((p: any) => ({
+                                  label: p.net_weight_or_size || "N/A",
+                                  price: p.mrp_rate || "0",
+                                  type: "radient",
+                                  remark_suggestions: p.remark_suggestions || [],
+                                })),
+                                ...(medicine.handwritten_product_prices || []).map((p: any) => ({
+                                  label: p.product_name || p.category || "N/A",
+                                  price: p.price_max || p.price_min || "0",
+                                  type: "handwritten",
+                                  remark_suggestions: p.remark_suggestions || [],
+                                })),
+                              ].filter((v) => v.label)
+                              : [];
+
+                        const defaultVariant = computedVariants.length === 1 ? computedVariants[0] : null;
+
                         const updated = [...otherMedications];
                         updated[idx] = {
                           ...updated[idx],
                           name: val,
-                          selectedVariant: null,
-                          amount: "",
+                          selectedVariant: defaultVariant,
+                          remark: getLatestRemarkSuggestion(
+                            defaultVariant?.remark_suggestions?.length
+                              ? defaultVariant.remark_suggestions
+                              : medicine?.remark_suggestions,
+                          ),
+                          amount: defaultVariant && defaultVariant.price ? String(defaultVariant.price) : "",
                         };
                         setOtherMedications(updated);
                       }}
                       placeholder={
                         availableOtherMedicineOptions.length > 0
                           ? t(
-                              "consultation_modal.search_medicine",
-                              "Search Medicine...",
-                            )
+                            "consultation_modal.search_medicine",
+                            "Search Medicine...",
+                          )
                           : t(
-                              "consultation_modal.no_medicines_remaining",
-                              "No Medicines Remaining",
-                            )
+                            "consultation_modal.no_medicines_remaining",
+                            "No Medicines Remaining",
+                          )
                       }
                     />
                   </div>
                   <div>
-                    <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1 block">
+                    <label className="lg:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
                       {t(
                         "consultation_modal.quantity_variant",
                         "Quantity / Variant",
@@ -3416,11 +4499,17 @@ export default function ConsultationPage() {
                     </label>
                     <SearchableDropdown
                       disabled={isReadOnly || variantOptions.length === 0}
-                      options={variantOptions.map((v) => ({
-                        label: v.label,
-                        value: v.label,
-                      }))}
-                      value={om.selectedVariant?.label || ""}
+                      options={variantOptions
+                        .filter((v) => v.label !== "N/A")
+                        .map((v) => ({
+                          label: v.label,
+                          value: v.label,
+                        }))}
+                      value={
+                        om.selectedVariant?.label === "N/A"
+                          ? ""
+                          : (om.selectedVariant?.label || "")
+                      }
                       onChange={(val) => {
                         const variant = variantOptions.find(
                           (v) => v.label === val,
@@ -3429,6 +4518,11 @@ export default function ConsultationPage() {
                         updated[idx] = {
                           ...updated[idx],
                           selectedVariant: variant || null,
+                          remark: getLatestRemarkSuggestion(
+                            variant?.remark_suggestions?.length
+                              ? variant.remark_suggestions
+                              : selectedMedicine?.remark_suggestions,
+                          ),
                           amount:
                             variant && variant.price
                               ? String(variant.price)
@@ -3437,17 +4531,19 @@ export default function ConsultationPage() {
                         setOtherMedications(updated);
                       }}
                       placeholder={
-                        variantOptions.length > 0
-                          ? t(
+                        om.selectedVariant?.label === "N/A"
+                          ? t("consultation_modal.no_variants", "No Variants")
+                          : (variantOptions.length > 0
+                            ? t(
                               "consultation_modal.select_variant",
                               "Select Variant...",
                             )
-                          : t("consultation_modal.no_variants", "No Variants")
+                            : t("consultation_modal.no_variants", "No Variants"))
                       }
                     />
                   </div>
                   <div>
-                    <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1 block">
+                    <label className="lg:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
                       {t(
                         "consultation_modal.remark_instructions",
                         "Remark / Instructions",
@@ -3457,24 +4553,7 @@ export default function ConsultationPage() {
                       id={`remark-trigger-${idx}`}
                       disabled={isReadOnly}
                       allowCustom={true}
-                      options={
-                        om.name?.toLowerCase().includes("syrup") ||
-                        om.name?.toLowerCase().includes("syr")
-                          ? [
-                              { label: "2 spoon", value: "2 spoon" },
-                              { label: "3 spoon", value: "3 spoon" },
-                            ]
-                          : [
-                              {
-                                label: "20 drop for 3 times in a day",
-                                value: "20 drop for 3 times in a day",
-                              },
-                              {
-                                label: "30 drop for 2 times in a day",
-                                value: "30 drop for 2 times in a day",
-                              },
-                            ]
-                      }
+                      options={remarkOptions}
                       value={om.remark}
                       onChange={(val) => {
                         const updated = [...otherMedications];
@@ -3488,7 +4567,7 @@ export default function ConsultationPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1 block">
+                    <label className="lg:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
                       {t("consultation_modal.amount", "Amount")}
                     </label>
                     <input
@@ -3526,21 +4605,19 @@ export default function ConsultationPage() {
                           }
                         }
                       }}
-                      className="w-full px-4 py-3 bg-[#549E9E]/[0.03] border border-[#549E9E]/15 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 text-sm font-bold text-gray-800 placeholder:text-gray-400 transition-all outline-none disabled:opacity-80 disabled:bg-gray-100 disabled:text-gray-500"
+                      className="w-full h-8.5 px-2 bg-[#549E9E]/[0.03] border border-[#549E9E]/20 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 text-xs font-bold text-gray-800 placeholder:text-gray-400 transition-all outline-none text-center disabled:opacity-80 disabled:bg-gray-100"
                     />
                   </div>
-                  <div className="flex justify-end pt-5">
+
+                  <div className="flex justify-center">
                     {!isReadOnly && (
                       <button
                         tabIndex={-1}
                         onClick={() => handleRemoveOtherMedication(idx)}
                         title="Delete Row (Alt + Delete / Alt + Backspace)"
-                        className="flex items-center gap-1.5 px-2 py-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer shrink-0"
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
                       >
-                        <Trash2 size={14} className="shrink-0" />
-                        <kbd className="px-1.5 py-0.5 bg-white border border-red-200 text-red-500 rounded text-[9px] font-black font-mono shadow-sm normal-case tracking-normal shrink-0">
-                          Alt+Del
-                        </kbd>
+                        <Trash2 size={15} />
                       </button>
                     )}
                   </div>
@@ -3550,8 +4627,8 @@ export default function ConsultationPage() {
           </div>
         </div>
 
-        <div className="space-y-3 pt-2 bg-purple-50/60 border border-purple-200 rounded-2xl p-5 shadow-sm">
-          <div className="flex justify-between items-center pb-2 border-b border-gray-50">
+        <div className="space-y-2.5 pt-2 bg-purple-50/60 border border-purple-200/80 rounded-2xl p-3.5 shadow-sm">
+          <div className="flex justify-between items-center pb-2 border-b border-purple-200/50">
             <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-2">
               <FileText size={14} /> {t("consultation_modal.tests", "Tests")}
             </label>
@@ -3560,11 +4637,11 @@ export default function ConsultationPage() {
                 tabIndex={-1}
                 id="add-test-btn"
                 onClick={addTest}
-                className="flex items-center gap-2 px-4 py-2 bg-[#549E9E]/10 text-[#549E9E] hover:bg-[#549E9E] hover:text-white transition-all text-[10px] font-black uppercase tracking-widest rounded-xl cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#549E9E]/10 text-[#549E9E] hover:bg-[#549E9E] hover:text-white transition-all text-[9.5px] font-black uppercase tracking-wider rounded-xl cursor-pointer"
               >
-                <Plus size={14} />{" "}
+                <Plus size={13} />{" "}
                 {t("consultation_modal.add_test", "Add Test")}{" "}
-                <kbd className="ml-2 px-2.5 py-1 bg-[#549E9E] text-white rounded-lg text-xs font-black font-mono shadow-sm normal-case tracking-normal">
+                <kbd className="ml-1 px-2 py-0.5 bg-[#549E9E] text-white rounded text-[10px] font-black font-mono shadow-xs normal-case tracking-normal">
                   Alt + T
                 </kbd>
               </button>
@@ -3572,19 +4649,42 @@ export default function ConsultationPage() {
           </div>
 
           {tests.length === 0 && (
-            <p className="text-xs text-gray-500 italic py-2">
+            <p className="text-xs text-gray-500 italic py-1 px-1">
               No tests added. Click "+ Add Test" to add recommended tests.
             </p>
           )}
 
-          <div className="space-y-3">
+          {tests.length > 0 && (
+            <div className="hidden lg:grid lg:grid-cols-[minmax(280px,1.8fr)_120px_40px] gap-3 px-3">
+              {[
+                {
+                  label: t("consultation_modal.test_name", "Test Name"),
+                  align: "text-left",
+                },
+                {
+                  label: t("consultation_modal.amount", "Amount"),
+                  align: "text-center",
+                },
+                { label: "", align: "text-center" },
+              ].map((col, idx) => (
+                <div
+                  key={`${col.label}-${idx}`}
+                  className={`text-[9px] font-black text-gray-500 uppercase tracking-widest ${col.align}`}
+                >
+                  {col.label}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-2">
             {tests.map((test, idx) => {
               const availableLabTestOptions = getAvailableLabTestOptions(idx);
 
               return (
                 <div
                   key={idx}
-                  className="grid grid-cols-1 lg:grid-cols-[minmax(280px,1.5fr)_130px_90px] gap-3 items-center bg-gray-50/70 border border-gray-200 rounded-xl p-4 hover:border-[#549E9E]/15 transition-all"
+                  className="grid grid-cols-1 lg:grid-cols-[minmax(280px,1.8fr)_120px_40px] gap-3 items-center bg-white border border-purple-100 rounded-xl p-2 px-3 shadow-2xs hover:shadow-sm hover:border-[#549E9E]/30 transition-all"
                   onKeyDown={(e) => {
                     if (
                       e.altKey &&
@@ -3596,7 +4696,7 @@ export default function ConsultationPage() {
                   }}
                 >
                   <div>
-                    <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1 block">
+                    <label className="lg:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
                       {t("consultation_modal.test_name", "Test Name")}
                     </label>
                     {labTestOptions.length > 0 ? (
@@ -3635,13 +4735,13 @@ export default function ConsultationPage() {
                         placeholder={
                           availableLabTestOptions.length > 0
                             ? t(
-                                "consultation_modal.search_test",
-                                "Search Test...",
-                              )
+                              "consultation_modal.search_test",
+                              "Search Test...",
+                            )
                             : t(
-                                "consultation_modal.no_tests_remaining",
-                                "No Tests Remaining",
-                              )
+                              "consultation_modal.no_tests_remaining",
+                              "No Tests Remaining",
+                            )
                         }
                       />
                     ) : (
@@ -3663,12 +4763,12 @@ export default function ConsultationPage() {
                           };
                           setTests(updated);
                         }}
-                        className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 text-sm font-bold text-gray-800 placeholder:text-gray-400 transition-all outline-none disabled:opacity-80 disabled:bg-gray-100 disabled:text-gray-500"
+                        className="w-full h-8.5 px-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 text-xs font-bold text-gray-800 placeholder:text-gray-400 transition-all outline-none disabled:opacity-80 disabled:bg-gray-100"
                       />
                     )}
                   </div>
                   <div>
-                    <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1 block">
+                    <label className="lg:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
                       {t("consultation_modal.amount", "Amount")}
                     </label>
                     <input
@@ -3706,21 +4806,19 @@ export default function ConsultationPage() {
                           }
                         }
                       }}
-                      className="w-full px-4 py-3 bg-[#549E9E]/[0.03] border border-[#549E9E]/15 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 text-sm font-bold text-gray-800 placeholder:text-gray-400 transition-all outline-none disabled:opacity-80 disabled:bg-gray-100 disabled:text-gray-500"
+                      className="w-full h-8.5 px-2 bg-[#549E9E]/[0.03] border border-[#549E9E]/20 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 text-xs font-bold text-gray-800 placeholder:text-gray-400 transition-all outline-none text-center disabled:opacity-80 disabled:bg-gray-100"
                     />
                   </div>
-                  <div className="flex justify-end">
+
+                  <div className="flex justify-center">
                     {!isReadOnly && (
                       <button
                         tabIndex={-1}
                         onClick={() => handleRemoveTest(idx)}
                         title="Delete Row (Alt + Delete / Alt + Backspace)"
-                        className="flex items-center gap-1.5 px-2 py-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer shrink-0"
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
                       >
-                        <Trash2 size={14} className="shrink-0" />
-                        <kbd className="px-1.5 py-0.5 bg-white border border-red-200 text-red-500 rounded text-[9px] font-black font-mono shadow-sm normal-case tracking-normal shrink-0">
-                          Alt+Del
-                        </kbd>
+                        <Trash2 size={15} />
                       </button>
                     )}
                   </div>
@@ -3730,45 +4828,47 @@ export default function ConsultationPage() {
           </div>
         </div>
 
-        <div className="bg-[#549E9E]/7 border border-[#549E9E]/15 rounded-2xl p-5 shadow-sm">
-          <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] block mb-2">
-            {t("consultation_modal.amount", "Amount")}
-          </label>
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm font-bold text-gray-600">
-              {t(
-                "consultation_modal.auto_calculated_amount",
-                "Auto-calculated from Prescription, Other Medications and Tests",
-              )}
-            </p>
-            <div className="min-w-[160px] px-4 py-3 bg-white border border-[#549E9E]/20 rounded-lg text-right text-lg font-black text-[#549E9E] shadow-sm">
-              ₹ {totalAmount}
-            </div>
-          </div>
-        </div>
-
+        {/* Unified Sticky Bottom Footer (Total Amount + Confirm Button) */}
         {!isReadOnly && (
-          <div className="pt-6 border-t border-gray-100">
+          <div className="sticky bottom-4 z-30 bg-white/95 backdrop-blur-md border border-[#549E9E]/20 shadow-xl rounded-2xl p-3 px-5 flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[#549E9E]/10 text-[#549E9E] rounded-xl font-black text-xs">
+                ₹
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block">
+                  Total Payable
+                </span>
+                <span className="text-xl font-black text-[#549E9E]">
+                  ₹ {totalAmount}
+                </span>
+              </div>
+              <div className="hidden md:flex items-center gap-2 ml-4 pl-4 border-l border-gray-200 text-[10px] font-bold text-gray-400">
+                <span>Auto-calculated from Rx & Tests</span>
+              </div>
+            </div>
+
             <button
+              type="button"
               onClick={handleCompleteConsultation}
               disabled={isSubmitting || !isAppointmentContextReady}
-              className="w-full bg-[#549E9E] text-white py-5 font-black uppercase tracking-widest rounded-xl shadow-lg shadow-[#549E9E]/20 hover:bg-[#438787] hover:shadow-xl transition-all text-sm flex items-center justify-center gap-3.5 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              className="w-full sm:w-auto px-8 h-12 bg-[#549E9E] hover:bg-[#438787] text-white font-black uppercase tracking-wider text-xs rounded-xl shadow-md shadow-[#549E9E]/20 hover:shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
-                <RefreshCcw className="animate-spin" size={20} />
+                <RefreshCcw className="animate-spin" size={16} />
               ) : (
-                <CheckCircle2 size={20} />
+                <CheckCircle2 size={18} />
               )}
               <span>
                 {isSubmitting
                   ? t("consultation_modal.submitting", "Submitting...")
                   : t(
-                      "consultation_modal.confirm_complete",
-                      "Confirm & Complete Consultation",
-                    )}
+                    "consultation_modal.confirm_complete",
+                    "Confirm & Complete Consultation",
+                  )}
               </span>
               {!isSubmitting && (
-                <kbd className="ml-3 px-3 py-1.5 bg-white text-[#549E9E] rounded-xl text-sm font-black font-mono shadow-md normal-case tracking-normal">
+                <kbd className="px-2 py-0.5 bg-white/20 text-white rounded text-[10px] font-black font-mono shadow-xs normal-case tracking-normal">
                   Ctrl + Enter
                 </kbd>
               )}

@@ -27,6 +27,7 @@ import CustomDatePicker from '../CustomDatePicker';
 import Pagination from '../Pagination';
 import { getDosePreview, getMedicationPricingAmount, getMedicationRoleLabel } from '../../utils/prescriptionFormat';
 import { useTranslation } from 'react-i18next';
+import MedicationDispensingStatus from '../MedicationDispensingStatus';
 
 export default function DispensaryHistory() {
   const { t } = useTranslation();
@@ -452,6 +453,10 @@ export default function DispensaryHistory() {
                                       </span>
                                     )}
                                   </div>
+                                  <MedicationDispensingStatus
+                                    medication={med}
+                                    pricing={selectedPrescription.prescription?.pricing}
+                                  />
                                 </div>
                                 <div className="text-xs font-black text-gray-600">
                                   ₹ {medAmount}

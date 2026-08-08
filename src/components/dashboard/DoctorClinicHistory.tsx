@@ -33,6 +33,7 @@ import {
   getMedicationRoleLabel,
 } from "../../utils/prescriptionFormat";
 import { useTranslation } from "react-i18next";
+import MedicationDispensingStatus from "../MedicationDispensingStatus";
 
 export default function DoctorClinicHistory() {
   const { t } = useTranslation();
@@ -66,6 +67,7 @@ export default function DoctorClinicHistory() {
     any | null
   >(null);
   const [autoPrintPrescription, setAutoPrintPrescription] = useState(false);
+  const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
   const [
     expandedHistoryChainAppointmentId,
     setExpandedHistoryChainAppointmentId,
@@ -182,7 +184,7 @@ export default function DoctorClinicHistory() {
         className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${styles[s] || "bg-gray-50 text-gray-600 border-gray-100"}`}
       >
         {icons[s] || <AlertCircle size={12} />}
-        {status}
+        {t(`clinic_history.filters.${s}`, t(`dashboard.status_labels.${s}`, status))}
       </div>
     );
   };
@@ -313,15 +315,15 @@ export default function DoctorClinicHistory() {
                 id: "all",
                 label: t("clinic_history.filters.all_statuses", "All Statuses"),
               },
-              { id: "Completed", label: "Completed" },
-              { id: "Pending", label: "Pending" },
-              { id: "Cancelled", label: "Cancelled" },
+              { id: "Completed", label: t("clinic_history.filters.completed", "Completed") },
+              { id: "Pending", label: t("clinic_history.filters.pending", "Pending") },
+              { id: "Cancelled", label: t("clinic_history.filters.cancelled", "Cancelled") },
             ]}
           />
 
           <div className="space-y-1.5">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              Search
+              {t("clinic_history.filters.search_label", "Search")}
             </label>
             <div className="relative group">
               <Search
@@ -442,7 +444,7 @@ export default function DoctorClinicHistory() {
                             {appointment.treatment_name}
                           </span>
                         </div>
-                        
+
                         <div className="flex items-center justify-between mt-1">
                           {consultation?.medication_duration_days ? (
                             <span className="inline-flex w-fit text-[9px] font-black text-[#549E9E] bg-[#549E9E]/10 px-2 py-1 rounded-md uppercase tracking-widest">
@@ -559,10 +561,10 @@ export default function DoctorClinicHistory() {
                                 {appointment.patient_full_name}
                                 {appointment.booked_for_type ===
                                   "FAMILY_MEMBER" && (
-                                  <span className="ml-2 inline-block px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 border border-purple-100 text-[8px] font-black uppercase tracking-widest">
-                                    {appointment.family_member_relationship}
-                                  </span>
-                                )}
+                                    <span className="ml-2 inline-block px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 border border-purple-100 text-[8px] font-black uppercase tracking-widest">
+                                      {appointment.family_member_relationship}
+                                    </span>
+                                  )}
                               </span>
                               <div className="flex items-center gap-2 mt-1">
                                 <span className="text-[10px] font-bold text-[#549E9E] bg-[#549E9E]/10 px-1.5 py-0.5 rounded-md">
@@ -644,7 +646,7 @@ export default function DoctorClinicHistory() {
                                   "View Prescription",
                                 )}
                               </button>
-                              <button
+                              {/* <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setShowPrescriptionPreview(item);
@@ -655,7 +657,7 @@ export default function DoctorClinicHistory() {
                               >
                                 <Download size={12} />{" "}
                                 {t("clinic_history.table.print", "Print")}
-                              </button>
+                              </button> */}
                             </div>
                           </td>
                         </motion.tr>
@@ -680,7 +682,7 @@ export default function DoctorClinicHistory() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8 bg-gray-900/40 backdrop-blur-sm no-print"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 lg:p-8 bg-gray-900/60 backdrop-blur-md no-print"
             onClick={() => setSelectedConsultation(null)}
           >
             <motion.div
@@ -694,18 +696,37 @@ export default function DoctorClinicHistory() {
               <div className="bg-[#549E9E] px-8 py-6 flex justify-between items-start text-white shrink-0">
                 <div>
                   <h2 className="text-2xl font-black tracking-widest uppercase mb-1">
-                    {t(
-                      "consultation_modal.title",
-                      "PATIENT CONSULTATION (COMPLETED)",
-                    )}
+                    {selectedConsultation.appointment.patient_full_name}{" "}
+                    {t("consultation_modal.consult_form", "Consult Form")}
                   </h2>
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/90">
-                    {selectedConsultation.appointment.patient_full_name} •{" "}
-                    {t("consultation_modal.token", "TOKEN")} #
-                    {selectedConsultation.appointment.display_token_display ||
-                      selectedConsultation.appointment.token_number}{" "}
-                    • {selectedConsultation.appointment.treatment_name}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2.5 mt-2.5">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-white text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
+                      {t("consultation_modal.token", "TOKEN")} #
+                      {selectedConsultation.appointment.display_token_display ||
+                        selectedConsultation.appointment.token_number}{" "}
+                      • {selectedConsultation.appointment.treatment_name}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/25 border border-amber-300/30 text-amber-100 text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
+                      <User size={13} className="text-amber-200" />
+                      {t("consultation_modal.age_gender", "AGE / GENDER")}:{" "}
+                      {selectedConsultation.appointment.patient_age
+                        ? `${selectedConsultation.appointment.patient_age} Yrs`
+                        : "N/A"}{" "}
+                      {selectedConsultation.appointment.patient_gender
+                        ? `/ ${selectedConsultation.appointment.patient_gender}`
+                        : ""}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-400/25 border border-emerald-300/30 text-emerald-100 text-[11px] font-black tracking-wider backdrop-blur-xs shadow-xs">
+                      <Phone size={13} className="text-emerald-200" />
+                      {t("consultation_modal.mobile", "MOBILE")}:{" "}
+                      {selectedConsultation.appointment.patient_mobile_no || "N/A"}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-400/25 border border-sky-300/30 text-sky-100 text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
+                      <MapPin size={13} className="text-sky-200" />
+                      {t("consultation_modal.branch", "BRANCH")}:{" "}
+                      {selectedConsultation.appointment.branch_name}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
@@ -732,82 +753,6 @@ export default function DoctorClinicHistory() {
                 className="p-8 overflow-y-auto min-h-0 overscroll-behavior-contain space-y-8 bg-white flex-1 relative z-10"
                 data-lenis-prevent
               >
-                {/* Top 4 Info Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="border border-gray-100 p-4 bg-gray-50/50">
-                    <div className="flex items-center gap-2 text-gray-400 mb-2">
-                      <User size={14} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">
-                        {t("consultation_modal.patient", "PATIENT")}
-                      </span>
-                    </div>
-                    <div className="font-bold text-gray-800">
-                      {selectedConsultation.appointment.patient_full_name}
-                      {selectedConsultation.appointment.booked_for_type ===
-                        "FAMILY_MEMBER" && (
-                        <span className="ml-2 inline-block px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 border border-purple-100 text-[8px] font-black uppercase tracking-widest">
-                          {
-                            selectedConsultation.appointment
-                              .family_member_relationship
-                          }
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="border border-gray-100 p-4 bg-gray-50/50">
-                    <div className="flex items-center gap-2 text-gray-400 mb-2">
-                      <User size={14} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">
-                        {t("consultation_modal.age_gender", "AGE / GENDER")}
-                      </span>
-                    </div>
-                    <div className="font-bold text-gray-800 capitalize">
-                      {selectedConsultation.appointment.patient_age
-                        ? `${selectedConsultation.appointment.patient_age} Yrs`
-                        : "N/A"}{" "}
-                      {selectedConsultation.appointment.patient_gender
-                        ? `/ ${selectedConsultation.appointment.patient_gender}`
-                        : ""}
-                    </div>
-                  </div>
-                  <div className="border border-gray-100 p-4 bg-gray-50/50">
-                    <div className="flex items-center gap-2 text-gray-400 mb-2">
-                      <Phone size={14} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">
-                        {t("consultation_modal.mobile", "MOBILE")}
-                      </span>
-                    </div>
-                    <div className="font-bold text-gray-800">
-                      {selectedConsultation.appointment.patient_mobile_no ||
-                        "N/A"}
-                      {selectedConsultation.appointment.booked_for_type ===
-                        "FAMILY_MEMBER" &&
-                        selectedConsultation.appointment
-                          .primary_patient_full_name && (
-                          <span className="text-gray-400 text-xs font-bold block mt-0.5">
-                            {" "}
-                            (Account:{" "}
-                            {
-                              selectedConsultation.appointment
-                                .primary_patient_full_name
-                            }
-                            )
-                          </span>
-                        )}
-                    </div>
-                  </div>
-                  <div className="border border-gray-100 p-4 bg-gray-50/50">
-                    <div className="flex items-center gap-2 text-gray-400 mb-2">
-                      <MapPin size={14} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">
-                        {t("consultation_modal.branch", "BRANCH")}
-                      </span>
-                    </div>
-                    <div className="font-bold text-gray-800">
-                      {selectedConsultation.appointment.branch_name}
-                    </div>
-                  </div>
-                </div>
 
                 {(() => {
                   const consultation = selectedConsultation.consultation || {};
@@ -851,13 +796,13 @@ export default function DoctorClinicHistory() {
                               </span>
                               {selectedConsultation.appointment
                                 .booked_for_type === "FAMILY_MEMBER" && (
-                                <span className="px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 border border-purple-100 text-[8px] font-black uppercase tracking-widest">
-                                  {
-                                    selectedConsultation.appointment
-                                      .family_member_relationship
-                                  }
-                                </span>
-                              )}
+                                  <span className="px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 border border-purple-100 text-[8px] font-black uppercase tracking-widest">
+                                    {
+                                      selectedConsultation.appointment
+                                        .family_member_relationship
+                                    }
+                                  </span>
+                                )}
                               <span className="text-[10px] font-black text-[#549E9E] bg-[#549E9E]/10 px-2 py-1 rounded-md uppercase tracking-widest">
                                 #
                                 {selectedConsultation.appointment
@@ -906,13 +851,13 @@ export default function DoctorClinicHistory() {
                               </span>
                               {selectedConsultation.appointment
                                 .patient_uuid && (
-                                <span className="px-2 py-1 bg-white border border-gray-200 rounded-md text-[9px] font-black uppercase tracking-widest text-gray-500">
-                                  {
-                                    selectedConsultation.appointment
-                                      .patient_uuid
-                                  }
-                                </span>
-                              )}
+                                  <span className="px-2 py-1 bg-white border border-gray-200 rounded-md text-[9px] font-black uppercase tracking-widest text-gray-500">
+                                    {
+                                      selectedConsultation.appointment
+                                        .patient_uuid
+                                    }
+                                  </span>
+                                )}
                             </div>
                           </div>
 
@@ -1101,6 +1046,11 @@ export default function DoctorClinicHistory() {
                                                         ) ||
                                                           `${chainItem.consultation.medication_duration_days} days`}
                                                       </p>
+                                                      <MedicationDispensingStatus
+                                                        medication={med}
+                                                        pricing={chainItem.pricing}
+                                                        compact
+                                                      />
                                                     </div>
                                                     {/* <span className="text-[11px] font-black text-[#549E9E]">
                                                       ₹
@@ -1148,6 +1098,11 @@ export default function DoctorClinicHistory() {
                                                           {med.remark}
                                                         </p>
                                                       ) : null}
+                                                      <MedicationDispensingStatus
+                                                        medication={med}
+                                                        pricing={chainItem.pricing}
+                                                        compact
+                                                      />
                                                       <p className="text-[11px] font-bold text-gray-500 mt-1">
                                                         {getDosePreview(
                                                           med,
@@ -1347,6 +1302,32 @@ export default function DoctorClinicHistory() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
+                  {/* Language Toggle Options */}
+                  <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPrescriptionLang('en')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                        prescriptionLang === 'en'
+                          ? 'bg-[#549E9E] text-white shadow-xs'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                      }`}
+                    >
+                      English
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPrescriptionLang('hi')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                        prescriptionLang === 'hi'
+                          ? 'bg-[#549E9E] text-white shadow-xs'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                      }`}
+                    >
+                      हिंदी (Hindi)
+                    </button>
+                  </div>
+
                   <button
                     onClick={() => window.print()}
                     className="cursor-pointer bg-[#549E9E] text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#458b8b] flex items-center gap-2 transition-all shadow-lg active:scale-95"
@@ -1369,13 +1350,14 @@ export default function DoctorClinicHistory() {
                 className="flex-1 overflow-auto p-4 md:p-12 bg-gray-200/50 flex justify-center items-start overscroll-contain"
                 data-lenis-prevent
               >
-                <div 
+                <div
                   className="bg-white shadow-xl shrink-0 p-0 md:p-8 rounded-sm border border-gray-100 mx-auto flex flex-col"
                   style={{ width: '210mm', minHeight: '297mm' }}
                 >
-                  <PrescriptionPrint 
-                    consultation={showPrescriptionPreview.consultation} 
-                    appointment={showPrescriptionPreview.appointment} 
+                  <PrescriptionPrint
+                    consultation={showPrescriptionPreview.consultation}
+                    appointment={showPrescriptionPreview.appointment}
+                    lang={prescriptionLang}
                   />
                 </div>
               </div>
@@ -1394,6 +1376,7 @@ export default function DoctorClinicHistory() {
             appointment={
               (showPrescriptionPreview || selectedConsultation).appointment
             }
+            lang={prescriptionLang}
           />
         )}
       </div>

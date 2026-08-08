@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { RefreshCcw, AlertCircle, IndianRupee, CreditCard, Banknote, Clock, MapPin, Calendar } from 'lucide-react';
+import { RefreshCcw, AlertCircle, IndianRupee, CreditCard, Banknote, Clock, MapPin, Calendar, UserCheck, Pill } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 import { StatCard } from '../components/StatCard';
@@ -187,6 +187,120 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
                      <div className="h-[250px] flex items-center justify-center text-sm font-bold text-gray-400">Not enough data</div>
                    )}
                 </div>
+              </div>
+            </div>
+
+            {/* Revenue by Consultant Section */}
+            <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm space-y-4">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                <div>
+                  <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                    <UserCheck size={18} className="text-[#549E9E]" /> Revenue by Consultant
+                  </h4>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                    Doctor-wise consultation fee & prescribed medicine revenue breakdown
+                  </p>
+                </div>
+                {data?.revenue_by_consultant && data.revenue_by_consultant.length > 0 && (
+                  <span className="text-[10px] font-black text-[#549E9E] bg-[#549E9E]/10 px-3 py-1 rounded-full uppercase tracking-wider">
+                    {data.revenue_by_consultant.length} Doctors
+                  </span>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                {data?.revenue_by_consultant && data.revenue_by_consultant.length > 0 ? (
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50/50">
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Doctor / Consultant</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Consultations</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Consultation Revenue</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Medication Revenue</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total Gross Revenue</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Paid Revenue</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Pending</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
+                      {data.revenue_by_consultant.map((doc: any) => (
+                        <tr key={doc.doctor_id} className="hover:bg-[#549E9E]/[0.02] transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="font-extrabold text-gray-800">{doc.doctor_name}</div>
+                            {doc.doctor_uuid && (
+                              <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{doc.doctor_uuid}</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center font-extrabold text-gray-700">{doc.total_consultations}</td>
+                          <td className="py-3 px-4 text-right font-bold text-gray-700">₹ {Number(doc.consultation_revenue || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-bold text-violet-600">₹ {Number(doc.medication_revenue || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-black text-[#549E9E] text-sm">₹ {Number(doc.total_gross_revenue || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-bold text-emerald-600">₹ {Number(doc.total_paid_revenue || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-bold text-amber-500">₹ {Number(doc.total_pending_revenue || 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="p-8 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
+                    No doctor revenue data recorded for this timeframe
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Revenue by Medicine Section */}
+            <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm space-y-4">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                <div>
+                  <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                    <Pill size={18} className="text-emerald-500" /> Revenue by Medicine (Gross Sales Revenue)
+                  </h4>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                    Total sales revenue generated per medicine without deducting medicine cost price
+                  </p>
+                </div>
+                {data?.revenue_by_medicine && data.revenue_by_medicine.length > 0 && (
+                  <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-wider">
+                    {data.revenue_by_medicine.length} Medicines Sold
+                  </span>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                {data?.revenue_by_medicine && data.revenue_by_medicine.length > 0 ? (
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50/50">
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Medicine Name</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Bills Count</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Total Qty Sold</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Avg Unit Selling Price</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Gross Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
+                      {data.revenue_by_medicine.map((med: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-emerald-50/30 transition-colors">
+                          <td className="py-3 px-4 font-black text-gray-800 flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-[10px] font-black">
+                              #{idx + 1}
+                            </span>
+                            {med.medicine_name}
+                          </td>
+                          <td className="py-3 px-4 text-center font-bold text-gray-600">{med.total_bills}</td>
+                          <td className="py-3 px-4 text-center font-black text-[#549E9E]">{med.total_quantity_sold}</td>
+                          <td className="py-3 px-4 text-right font-bold text-gray-700">₹ {Number(med.average_unit_price || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-black text-emerald-600 text-sm">₹ {Number(med.gross_revenue || 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="p-8 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
+                    No medicine sales revenue recorded for this timeframe
+                  </div>
+                )}
               </div>
             </div>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Socket } from "socket.io-client";
 import {
@@ -103,7 +103,10 @@ const todayDateString = () => {
 const getTokenDisplay = (token: TokenItem) =>
   token.display_token_display ||
   token.current_token_display ||
-  String(token.current_token_number ?? token.token_number ?? "-").padStart(2, "0");
+  String(token.current_token_number ?? token.token_number ?? "-").padStart(
+    2,
+    "0",
+  );
 
 const getPatientDisplayName = (token?: TokenItem | null) =>
   token?.patient_full_name ||
@@ -112,9 +115,13 @@ const getPatientDisplayName = (token?: TokenItem | null) =>
   token?.primary_patient_full_name ||
   "Patient";
 
-const isUsefulValue = (value: unknown) => value !== null && value !== undefined && value !== "";
+const isUsefulValue = (value: unknown) =>
+  value !== null && value !== undefined && value !== "";
 
-const mergeTokenDetails = (base: TokenItem, override: TokenItem): TokenItem => ({
+const mergeTokenDetails = (
+  base: TokenItem,
+  override: TokenItem,
+): TokenItem => ({
   ...base,
   ...Object.fromEntries(
     Object.entries(override).filter(([, value]) => isUsefulValue(value)),
@@ -142,8 +149,10 @@ const sortRuntimeQueueItems = (items: TokenItem[] = []) =>
 
     if (leftRank !== rightRank) return leftRank - rightRank;
 
-    return Number(left.current_token_number ?? left.token_number ?? 0) -
-      Number(right.current_token_number ?? right.token_number ?? 0);
+    return (
+      Number(left.current_token_number ?? left.token_number ?? 0) -
+      Number(right.current_token_number ?? right.token_number ?? 0)
+    );
   });
 
 const isSameToken = (left?: TokenItem | null, right?: TokenItem | null) =>
@@ -161,7 +170,11 @@ const dateText = (value?: string | null) => {
   if (!value) return "Today";
   const date = new Date(value.replace(" ", "T"));
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" });
+  return date.toLocaleDateString([], {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 };
 
 const getQueueTime = (token?: TokenItem | null) =>
@@ -172,7 +185,8 @@ const getQueueTime = (token?: TokenItem | null) =>
   null;
 
 const getDurationText = (token?: TokenItem | null) => {
-  const minutes = token?.current_queue_duration_minutes ?? token?.consult_minutes;
+  const minutes =
+    token?.current_queue_duration_minutes ?? token?.consult_minutes;
   return minutes ? `${minutes} min` : null;
 };
 
@@ -229,37 +243,19 @@ const getStageTone = (stage: string) => {
   }
 };
 
-const renderTokenPositionBadge = (
-  token: TokenItem,
-  size: "sm" | "lg" = "sm",
-) => {
-  const tokenText = getTokenDisplay(token);
-  if (!tokenText) return null;
-
-  const sizeClass =
-    size === "lg"
-      ? "min-w-10 h-8 px-2 text-xs sm:min-w-12 sm:h-10 sm:text-sm sm:px-2.5 -top-3 sm:-top-3.5 -left-4 sm:-left-5"
-      : "min-w-8 h-6 px-1.5 text-[9px] -top-2 -left-3.5";
-
-  return (
-    <span
-      title={`Token ${tokenText}`}
-      className={`absolute z-30 ${sizeClass} rounded-full bg-yellow-400 text-gray-900 border-2 border-white shadow-lg flex items-center justify-center font-black leading-none tabular-nums whitespace-nowrap`}
-    >
-      {tokenText}
-    </span>
-  );
-};
-
 export default function LiveQueueFlow() {
   const [searchParams] = useSearchParams();
-  const appointmentDate = searchParams.get("appointment_date") || todayDateString();
+  const appointmentDate =
+    searchParams.get("appointment_date") || todayDateString();
   const requestedBranchId = Number(searchParams.get("branch_id") || 0) || null;
   const requestedSlotId = Number(searchParams.get("slot_id") || 0) || null;
 
   const [snapshot, setSnapshot] = useState<LiveQueueSnapshot>({});
-  const [currentRunningToken, setCurrentRunningToken] = useState<TokenItem | null>(null);
-  const [nextInLineToken, setNextInLineToken] = useState<TokenItem | null>(null);
+  const [currentRunningToken, setCurrentRunningToken] =
+    useState<TokenItem | null>(null);
+  const [nextInLineToken, setNextInLineToken] = useState<TokenItem | null>(
+    null,
+  );
   const [calledQueue, setCalledQueue] = useState<TokenItem[]>([]);
   const [readyQueue, setReadyQueue] = useState<TokenItem[]>([]);
   const [holdQueue, setHoldQueue] = useState<TokenItem[]>([]);
@@ -269,9 +265,65 @@ export default function LiveQueueFlow() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const lastRealtimeSnapshotKeyRef = useRef("");
 
+  // --- Ring-ring notification sound when consultation completes ---
+  const prevRunningTokenIdRef = useRef<number | null | undefined>(undefined); // undefined = not yet initialised
+
+  const playRingSound = useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+
+      const playBell = (startTime: number, freq: number, duration: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(0.35, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      };
+
+      // Two-ring pattern: "ring-ring ... ring-ring"
+      const now = ctx.currentTime;
+      playBell(now, 830, 0.25);        // ring 1a
+      playBell(now + 0.28, 1050, 0.25); // ring 1b
+      playBell(now + 0.7, 830, 0.25);   // ring 2a
+      playBell(now + 0.98, 1050, 0.25); // ring 2b
+      playBell(now + 1.4, 830, 0.25);   // ring 3a
+      playBell(now + 1.68, 1050, 0.3);  // ring 3b (slightly longer)
+
+      // Clean up the AudioContext after sounds finish
+      setTimeout(() => ctx.close().catch(() => {}), 3000);
+    } catch (e) {
+      console.warn("[LiveQueueFlow] Could not play notification sound", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    const currentId = currentRunningToken
+      ? Number(currentRunningToken.appointment_id)
+      : null;
+    const prevId = prevRunningTokenIdRef.current;
+
+    // Skip on first load (prevId === undefined)
+    if (prevId !== undefined && prevId !== currentId) {
+      // Token changed → consultation completed, play ring sound
+      playRingSound();
+    }
+
+    prevRunningTokenIdRef.current = currentId;
+  }, [currentRunningToken, playRingSound]);
+
   const applyQueueSnapshot = (data: LiveQueueSnapshot = {}) => {
     const activeQueueById = new Map(
-      (data.active_queue || []).map((token) => [Number(token.appointment_id), token]),
+      (data.active_queue || []).map((token) => [
+        Number(token.appointment_id),
+        token,
+      ]),
     );
     const enrichToken = (token?: TokenItem | null) => {
       if (!token) return null;
@@ -279,7 +331,9 @@ export default function LiveQueueFlow() {
       return activeToken ? mergeTokenDetails(activeToken, token) : token;
     };
     const current = enrichToken(data.current_running_token || null);
-    const next = enrichToken(data.next_in_line_token || data.next_ready_token || null);
+    const next = enrichToken(
+      data.next_in_line_token || data.next_ready_token || null,
+    );
     const called = sortRuntimeQueueItems(data.called_queue || []);
     const ready = sortRuntimeQueueItems(data.ready_queue || []);
     const hold = sortRuntimeQueueItems(data.hold_queue || []);
@@ -294,9 +348,19 @@ export default function LiveQueueFlow() {
     setSnapshot(data);
     setCurrentRunningToken(current);
     setNextInLineToken(next && !isSameToken(next, current) ? next : null);
-    setCalledQueue(called.filter((token) => !isSameToken(token, current) && !isSameToken(token, next)));
-    setReadyQueue(ready.filter((token) => !isSameToken(token, current) && !isSameToken(token, next)));
-    setHoldQueue(hold.filter((token) => !primaryIds.has(Number(token.appointment_id))));
+    setCalledQueue(
+      called.filter(
+        (token) => !isSameToken(token, current) && !isSameToken(token, next),
+      ),
+    );
+    setReadyQueue(
+      ready.filter(
+        (token) => !isSameToken(token, current) && !isSameToken(token, next),
+      ),
+    );
+    setHoldQueue(
+      hold.filter((token) => !primaryIds.has(Number(token.appointment_id))),
+    );
     setNotArrivedQueue(notArrived);
     setLastUpdatedAt(new Date());
   };
@@ -357,10 +421,14 @@ export default function LiveQueueFlow() {
       );
       const groups = Array.isArray(json.data?.groups) ? json.data.groups : [];
       const firstGroup =
-        groups.find((group) => Number(group.tokens?.length || 0) > 0) || groups[0];
+        groups.find((group) => Number(group.tokens?.length || 0) > 0) ||
+        groups[0];
 
       if (firstGroup?.branch_id && firstGroup?.slot_id) {
-        return fetchSlotSnapshot(Number(firstGroup.branch_id), Number(firstGroup.slot_id));
+        return fetchSlotSnapshot(
+          Number(firstGroup.branch_id),
+          Number(firstGroup.slot_id),
+        );
       }
 
       if (isMounted) {
@@ -404,9 +472,15 @@ export default function LiveQueueFlow() {
       if (realtimeSnapshot) {
         const snapshotKey = [
           payload?.event || (realtimeSnapshot as any)?.event || "queue",
-          payload?.generated_at || (realtimeSnapshot as any)?.generated_at || "",
-          payload?.appointment_id || (realtimeSnapshot as any)?.appointment_id || "",
-          (realtimeSnapshot as any)?.queue_revision || (realtimeSnapshot as any)?.session?.queue_revision || "",
+          payload?.generated_at ||
+            (realtimeSnapshot as any)?.generated_at ||
+            "",
+          payload?.appointment_id ||
+            (realtimeSnapshot as any)?.appointment_id ||
+            "",
+          (realtimeSnapshot as any)?.queue_revision ||
+            (realtimeSnapshot as any)?.session?.queue_revision ||
+            "",
         ].join(":");
 
         if (snapshotKey && snapshotKey === lastRealtimeSnapshotKeyRef.current) {
@@ -416,8 +490,12 @@ export default function LiveQueueFlow() {
 
         const payloadBranchId = Number(realtimeSnapshot.branch_id || 0);
         const payloadSlotId = Number(realtimeSnapshot.slot_id || 0);
-        const branchMatches = !activeBranchId || !payloadBranchId || payloadBranchId === activeBranchId;
-        const slotMatches = !activeSlotId || !payloadSlotId || payloadSlotId === activeSlotId;
+        const branchMatches =
+          !activeBranchId ||
+          !payloadBranchId ||
+          payloadBranchId === activeBranchId;
+        const slotMatches =
+          !activeSlotId || !payloadSlotId || payloadSlotId === activeSlotId;
 
         if (branchMatches && slotMatches && isMounted) {
           applyQueueSnapshot(realtimeSnapshot);
@@ -439,16 +517,17 @@ export default function LiveQueueFlow() {
 
         const subscribe = () => {
           if (!socket) return;
-          const payload = activeBranchId && activeSlotId
-            ? {
-              branch_id: activeBranchId,
-              slot_id: activeSlotId,
-              appointment_date: appointmentDate,
-            }
-            : {
-              branch_id: requestedBranchId || undefined,
-              appointment_date: appointmentDate,
-            };
+          const payload =
+            activeBranchId && activeSlotId
+              ? {
+                  branch_id: activeBranchId,
+                  slot_id: activeSlotId,
+                  appointment_date: appointmentDate,
+                }
+              : {
+                  branch_id: requestedBranchId || undefined,
+                  appointment_date: appointmentDate,
+                };
 
           socket.emit("live-queue.subscribe", payload, (ack: any) => {
             if (ack?.success) return;
@@ -533,12 +612,20 @@ export default function LiveQueueFlow() {
 
     const readyAndPresentHold = sortRuntimeQueueItems([
       ...readyQueue,
-      ...holdQueue.filter(isPresentHoldToken)
+      ...holdQueue.filter(isPresentHoldToken),
     ]);
 
-    readyAndPresentHold.forEach((token) => push(token, token.is_on_hold ? "HOLD" : "READY"));
+    readyAndPresentHold.forEach((token) =>
+      push(token, token.is_on_hold ? "HOLD" : "READY"),
+    );
     return result;
-  }, [calledQueue, currentRunningToken, nextInLineToken, readyQueue, holdQueue]);
+  }, [
+    calledQueue,
+    currentRunningToken,
+    nextInLineToken,
+    readyQueue,
+    holdQueue,
+  ]);
 
   const upcomingFlowItems = useMemo(
     () => mainFlowItems.filter(({ stage }) => stage !== "CONSULTING"),
@@ -565,8 +652,12 @@ export default function LiveQueueFlow() {
 
   const totals = {
     active: mainFlowItems.length,
-    ready: readyQueue.filter((token) => !token.is_on_hold).length + calledQueue.length + (nextInLineToken ? 1 : 0),
-    hold: holdQueue.length + readyQueue.filter((token) => token.is_on_hold).length,
+    ready:
+      readyQueue.filter((token) => !token.is_on_hold).length +
+      calledQueue.length +
+      (nextInLineToken ? 1 : 0),
+    hold:
+      holdQueue.length + readyQueue.filter((token) => token.is_on_hold).length,
     notArrived: notArrivedQueue.length,
   };
 
@@ -579,7 +670,7 @@ export default function LiveQueueFlow() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,#DFF4F3_0,#F7FAFC_38%,#EEF2F7_100%)] text-slate-900">
+    <div className="live-queue-flow-screen min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,#DFF4F3_0,#F7FAFC_38%,#EEF2F7_100%)] text-slate-900">
       <style>{`
         @keyframes flow-arrow-pulse {
           0%, 100% { transform: translateY(0); opacity: .45; }
@@ -599,9 +690,109 @@ export default function LiveQueueFlow() {
           display: inline-block;
           animation: marquee 60s linear infinite;
         }
+        .first-upcoming-card {
+          margin-top: .375rem;
+        }
+        @media (min-width: 1024px) and (max-height: 900px) {
+          .live-queue-flow-screen .flow-page {
+            gap: .5rem;
+            padding-top: .5rem;
+            padding-bottom: 4rem;
+          }
+          .live-queue-flow-screen .current-token-panel {
+            border-radius: 22px;
+            padding: .75rem;
+          }
+          .live-queue-flow-screen .current-token-row {
+            gap: .75rem;
+          }
+          .live-queue-flow-screen .current-token-display-box {
+            border-radius: 20px;
+            padding: .625rem .875rem;
+          }
+          .live-queue-flow-screen .current-token-display-value {
+            font-size: clamp(2rem, 3.2vw, 2.8rem);
+          }
+          .live-queue-flow-screen .current-token-status {
+            padding: .25rem .625rem;
+          }
+          .live-queue-flow-screen .current-token-name {
+            font-size: clamp(2rem, 3.2vw, 2.9rem);
+            line-height: .95;
+            margin-top: .25rem;
+          }
+          .live-queue-flow-screen .current-token-meta {
+            font-size: .8125rem;
+            margin-top: .125rem;
+          }
+          .live-queue-flow-screen .current-seq-box {
+            border-radius: 20px;
+            padding: .625rem .875rem;
+          }
+          .live-queue-flow-screen .current-seq-value {
+            font-size: clamp(2.6rem, 4vw, 3.35rem);
+          }
+          .live-queue-flow-screen .current-time-grid {
+            gap: .5rem;
+            margin-top: .5rem;
+          }
+          .live-queue-flow-screen .flow-section {
+            gap: .5rem;
+          }
+          .live-queue-flow-screen .flow-board-glow {
+            border-radius: 22px;
+            padding: .625rem;
+          }
+          .live-queue-flow-screen .upcoming-list {
+            gap: .5rem;
+          }
+          .live-queue-flow-screen .upcoming-header {
+            border-radius: 16px;
+            padding: .4rem .75rem;
+          }
+          .live-queue-flow-screen .token-card {
+            border-radius: 18px;
+            padding: .625rem .75rem;
+          }
+          .live-queue-flow-screen .token-card-row {
+            gap: .5rem;
+          }
+          .live-queue-flow-screen .next-in-line-badge {
+            left: 5.25rem;
+          }
+          .live-queue-flow-screen .first-upcoming-card {
+            margin-top: .25rem;
+          }
+          .live-queue-flow-screen .serial-tile {
+            border-radius: 14px;
+            height: 3rem;
+            width: 4rem;
+          }
+          .live-queue-flow-screen .serial-tile-value {
+            font-size: 1.125rem;
+          }
+          .live-queue-flow-screen .patient-name {
+            font-size: 1.25rem;
+            line-height: 1.05;
+          }
+          .live-queue-flow-screen .token-pill {
+            height: 2rem;
+          }
+          .live-queue-flow-screen .time-grid {
+            gap: .5rem;
+          }
+          .live-queue-flow-screen .time-box,
+          .live-queue-flow-screen .delay-box {
+            border-radius: 14px;
+            padding: .45rem .6rem;
+          }
+          .live-queue-flow-screen .time-value {
+            font-size: .875rem;
+          }
+        }
       `}</style>
 
-      <div className="mx-auto flex min-h-screen w-full max-w-[1780px] flex-col gap-5 px-3 py-4 sm:px-6 lg:px-10">
+      <div className="flow-page mx-auto flex min-h-screen w-full max-w-[1780px] flex-col gap-5 px-3 py-4 sm:px-6 lg:px-10">
         {error && (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-black text-rose-600">
             {error}
@@ -615,47 +806,53 @@ export default function LiveQueueFlow() {
           />
         </section>
 
-        <section className="flex flex-1 flex-col gap-5">
+        <section className="flow-section flex flex-1 flex-col gap-5">
           <div className="flow-board-glow rounded-[30px] border border-white/80 bg-white/90 p-4 shadow-xl backdrop-blur-md sm:p-5">
             <LayoutGroup id="live-queue-flow-board">
-              <div className="mx-auto flex w-full flex-col items-stretch gap-3">
+              <div className="upcoming-list mx-auto flex w-full flex-col items-stretch gap-3">
+                {upcomingFlowItems.length > 0 && <UpcomingQueueHeader />}
                 <AnimatePresence mode="popLayout" initial={false}>
-                    {upcomingFlowItems.length === 0 ? (
-                      <motion.div
-                        key="empty-flow"
-                        initial={{ opacity: 0, scale: 0.96 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="flex min-h-72 w-full items-center justify-center rounded-[24px] border-2 border-dashed border-slate-200 bg-white text-center"
-                      >
-                        <div>
-                          <Ticket className="mx-auto mb-3 text-slate-300" size={58} />
-                          <p className="text-2xl font-black text-slate-400">Waiting queue empty</p>
-                          <p className="mt-1 text-sm font-black text-slate-300">
-                            Current ke baad koi ready token nahi hai
-                          </p>
-                        </div>
-                      </motion.div>
-                    ) : (
-                      upcomingFlowItems.map(({ token, stage }, index) => (
-                        <React.Fragment key={token.appointment_id}>
-                          <motion.div
-                            layout
-                            layoutId={`flow-token-${token.appointment_id}`}
-                            initial={{ opacity: 0, y: 90, scale: 0.92 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -90, scale: 0.88 }}
-                            transition={{ type: "spring", stiffness: 230, damping: 26 }}
-                            className="w-full"
-                          >
-                            <TokenCard
-                              token={token}
-                              stage={stage}
-                              orderLabel={index === 0 ? "Next up" : `Queue ${index + 1}`}
-                            />
-                          </motion.div>
-                        </React.Fragment>
-                      ))
-                    )}
+                  {upcomingFlowItems.length === 0 ? (
+                    <motion.div
+                      key="empty-flow"
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="flex min-h-72 w-full items-center justify-center rounded-[24px] border-2 border-dashed border-slate-200 bg-white text-center"
+                    >
+                      <div>
+                        <Ticket
+                          className="mx-auto mb-3 text-slate-300"
+                          size={58}
+                        />
+                        <p className="text-2xl font-black text-slate-400">
+                          Waiting queue empty
+                        </p>
+                        <p className="mt-1 text-sm font-black text-slate-300">
+                          Current ke baad koi ready token nahi hai
+                        </p>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    upcomingFlowItems.map(({ token, stage }, index) => (
+                      <React.Fragment key={token.appointment_id}>
+                        <motion.div
+                          layout
+                          layoutId={`flow-token-${token.appointment_id}`}
+                          initial={{ opacity: 0, y: 90, scale: 0.92 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -90, scale: 0.88 }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 230,
+                            damping: 26,
+                          }}
+                          className={`w-full ${index === 0 ? "first-upcoming-card" : ""}`}
+                        >
+                          <TokenCard token={token} stage={stage} />
+                        </motion.div>
+                      </React.Fragment>
+                    ))
+                  )}
                 </AnimatePresence>
               </div>
             </LayoutGroup>
@@ -673,10 +870,14 @@ export default function LiveQueueFlow() {
             सूचना / Notice
           </h4>
           <p className="text-[12px] sm:text-[13px] font-black mt-0.5 text-red-700 leading-normal tracking-wide">
-            लाइव कतार का नियोजित समय डॉक्टर के आने के समय के आधार पर भिन्न हो सकता है और रोगी को 40 से 45 मिनट तक प्रतीक्षा करनी पड़ सकती है। आपकी समझ के लिए धन्यवाद।
+            लाइव कतार का नियोजित समय डॉक्टर के आने के समय के आधार पर भिन्न हो
+            सकता है और रोगी को 40 से 45 मिनट तक प्रतीक्षा करनी पड़ सकती है। आपकी
+            समझ के लिए धन्यवाद।
           </p>
           <p className="text-[10px] sm:text-[11px] font-medium mt-1 text-red-600/90 leading-normal uppercase tracking-wide">
-            Live queue planned times can vary based on doctor in-time and check-in sequence. Patients may need to wait for 40 to 45 minutes from their scheduled slot. Thank you for your patience.
+            Live queue planned times can vary based on doctor in-time and
+            check-in sequence. Patients may need to wait for 40 to 45 minutes
+            from their scheduled slot. Thank you for your patience.
           </p>
         </div>
       </div>
@@ -690,7 +891,8 @@ export default function LiveQueueFlow() {
                 💧 HEALTH TIP: DRINK PLENTY OF WATER 💧
               </span>
               <span className="mx-8 md:mx-16 inline-flex items-center gap-2 text-amber-400">
-                ⚠️ NOTICE: LIVE QUEUE PLANNED TIMES CAN VARY BASED ON DOCTOR IN-TIME. WAIT TIME MAY BE 40 TO 45 MIN. ⚠️
+                ⚠️ NOTICE: LIVE QUEUE PLANNED TIMES CAN VARY BASED ON DOCTOR
+                IN-TIME. WAIT TIME MAY BE 40 TO 45 MIN. ⚠️
               </span>
               <span className="mx-8 md:mx-16 inline-flex items-center gap-2">
                 📵 PLEASE KEEP YOUR MOBILE PHONES ON SILENT 📵
@@ -700,6 +902,36 @@ export default function LiveQueueFlow() {
               </span>
             </React.Fragment>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UpcomingQueueHeader() {
+  const headerClass =
+    "text-[10px] font-black uppercase tracking-wider text-slate-900 sm:text-[11px]";
+
+  return (
+    <div className="upcoming-header rounded-[20px] border border-slate-200 bg-slate-50/90 px-3 py-2 shadow-sm sm:px-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+          <div className={`w-16 shrink-0 text-center sm:w-20 ${headerClass}`}>
+            Serial No.
+          </div>
+          <div className="grid min-w-0 w-full max-w-[720px] flex-1 grid-cols-[minmax(0,1fr)_5.75rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_6.5rem]">
+            <div className={headerClass}>Patient Name</div>
+            <div className={`${headerClass} text-center`}>Token No.</div>
+          </div>
+        </div>
+
+        <div
+          className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_7rem] lg:w-[440px] xl:w-[460px] 2xl:w-[540px] items-center"
+        >
+          <div className={headerClass}>Planned</div>
+          <div className={headerClass}>Check-in</div>
+          <div className={headerClass}>Queue Time</div>
+          <div className={headerClass}>Delay</div>
         </div>
       </div>
     </div>
@@ -724,15 +956,18 @@ function StatusStat({
   value: number;
   tone: "teal" | "emerald" | "amber";
 }) {
-  const className = tone === "teal"
-    ? "bg-cyan-50/12 text-cyan-50 ring-cyan-100/20"
-    : tone === "emerald"
-      ? "bg-emerald-50/12 text-emerald-50 ring-emerald-100/20"
-      : "bg-amber-50/12 text-amber-50 ring-amber-100/20";
+  const className =
+    tone === "teal"
+      ? "bg-cyan-50/12 text-cyan-50 ring-cyan-100/20"
+      : tone === "emerald"
+        ? "bg-emerald-50/12 text-emerald-50 ring-emerald-100/20"
+        : "bg-amber-50/12 text-amber-50 ring-amber-100/20";
 
   return (
     <div className={`rounded-3xl px-4 py-4 text-center ring-1 ${className}`}>
-      <p className="text-[10px] font-black uppercase tracking-widest opacity-75">{label}</p>
+      <p className="text-[10px] font-black uppercase tracking-widest opacity-75">
+        {label}
+      </p>
       <p className="mt-1 text-4xl font-black">{value}</p>
     </div>
   );
@@ -749,7 +984,9 @@ function MiniStat({
 }) {
   return (
     <div className={`rounded-3xl border px-3 py-4 text-center ${className}`}>
-      <p className="text-[9px] font-black uppercase tracking-widest opacity-75">{label}</p>
+      <p className="text-[9px] font-black uppercase tracking-widest opacity-75">
+        {label}
+      </p>
       <p className="mt-1 text-3xl font-black">{value}</p>
     </div>
   );
@@ -768,7 +1005,9 @@ function CurrentTokenPanel({
         <div className="flex min-h-72 items-center justify-center rounded-[26px] border-2 border-dashed border-slate-200 bg-slate-50 text-center">
           <div>
             <Ticket className="mx-auto mb-3 text-slate-300" size={64} />
-            <p className="text-3xl font-black text-slate-400">No current consultation</p>
+            <p className="text-3xl font-black text-slate-400">
+              No current consultation
+            </p>
             <p className="mt-2 text-sm font-black text-slate-300">
               Doctor ke start karte hi current token yahan dikhega
             </p>
@@ -782,36 +1021,66 @@ function CurrentTokenPanel({
   const plannedTime = timeText(token.planned_start_at);
   const checkInTime = timeText(token.checked_in_at);
   const durationText = getDurationText(token);
+  const tokenDisplay = getTokenDisplay(token);
 
   return (
-    <div className="rounded-[28px] border border-teal-200 bg-[#0F766E] p-4 text-white shadow-2xl shadow-teal-900/20 sm:p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-50 ring-1 ring-white/20">
-            <Activity size={14} />
-            Consulting now
-          </div>
-          <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-5xl">
-            {getPatientDisplayName(token)}
-          </h2>
-          <p className="mt-1 text-sm font-black text-cyan-50/80 sm:text-base">
-            {token.treatment_name || "Consultation"} {durationText ? `· ${durationText}` : ""}
+    <div className="current-token-panel rounded-[28px] border border-teal-200 bg-[#0F766E] p-4 text-white shadow-2xl shadow-teal-900/20 sm:p-5">
+      <div className="current-token-row grid grid-cols-1 gap-4 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
+        <div className="current-seq-box relative rounded-[28px] bg-white p-4 text-center text-[#0F766E] shadow-2xl">
+          <p className="text-[11px] sm:text-[12px] font-black uppercase tracking-[0.2em] text-teal-600">
+            SEQ
+          </p>
+          <p className="current-seq-value text-5xl font-bold leading-none sm:text-6xl">
+            #{getSessionPosition(token) || "-"}
           </p>
         </div>
 
-        <div className="relative rounded-[28px] bg-white p-4 text-center text-[#0F766E] shadow-2xl">
-          {renderTokenPositionBadge(token, "lg")}
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-teal-600/70">SEQ</p>
-          <p className="text-5xl font-black leading-none sm:text-6xl">
-            #{getSessionPosition(token) || "-"}
+        <div className="min-w-0 text-center">
+          <div className="current-token-status inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.24em] text-cyan-50 ring-1 ring-white/20">
+            <Activity size={14} />
+            Consulting now
+          </div>
+          <h2 className="current-token-name mt-2 text-3xl font-black tracking-tight sm:text-5xl">
+            {getPatientDisplayName(token)}
+          </h2>
+          <p className="current-token-meta mt-1 text-sm font-black text-cyan-50/80 sm:text-base">
+            {token.treatment_name || "Consultation"}{" "}
+            {durationText ? `· ${durationText}` : ""}
+          </p>
+        </div>
+
+        <div className="current-token-display-box rounded-[28px] bg-yellow-400 p-4 text-center text-gray-900 shadow-2xl">
+          <p className="text-[11px] sm:text-[12px] font-black uppercase tracking-[0.2em] text-gray-700">
+            Token No.
+          </p>
+          <p className="current-token-display-value text-4xl font-normal leading-none sm:text-5xl">
+            {tokenDisplay}
           </p>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <TimeBox label="Planned" value={plannedTime} className="border-white/15 bg-white/10 text-white" labelClass="text-white/60" valueClass="text-white" />
-        <TimeBox label="Check in" value={checkInTime} className="border-white/15 bg-white/10 text-white" labelClass="text-white/60" valueClass="text-white" />
-        <TimeBox label="Queue time" value={queueTime} className="border-white/15 bg-white/10 text-white" labelClass="text-white/60" valueClass="text-white" />
+      <div className="current-time-grid mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <TimeBox
+          label="Planned"
+          value={plannedTime}
+          className="border-white/15 bg-white/10 text-white"
+          labelClass="text-white/60"
+          valueClass="text-white"
+        />
+        <TimeBox
+          label="Check in"
+          value={checkInTime}
+          className="border-white/15 bg-white/10 text-white"
+          labelClass="text-white/60"
+          valueClass="text-white"
+        />
+        <TimeBox
+          label="Queue time"
+          value={queueTime}
+          className="border-white/15 bg-white/10 text-white"
+          labelClass="text-white/60"
+          valueClass="text-white"
+        />
         <DelayBox delayMinutes={token.live_delay_minutes} dark />
       </div>
     </div>
@@ -838,14 +1107,22 @@ function NextTokenPanel({ token }: { token: TokenItem | null }) {
       ) : (
         <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
           <p className="text-lg font-black text-slate-400">No next token</p>
-          <p className="mt-1 text-xs font-black text-slate-300">Ready queue empty hai</p>
+          <p className="mt-1 text-xs font-black text-slate-300">
+            Ready queue empty hai
+          </p>
         </div>
       )}
     </div>
   );
 }
 
-function LegendItem({ colorClass, label }: { colorClass: string; label: string }) {
+function LegendItem({
+  colorClass,
+  label,
+}: {
+  colorClass: string;
+  label: string;
+}) {
   return (
     <div className="flex items-center justify-between rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-white/85">
       <span className="inline-flex items-center gap-2">
@@ -860,12 +1137,10 @@ function TokenCard({
   token,
   stage,
   variant = "normal",
-  orderLabel,
 }: {
   token: TokenItem;
   stage: string;
   variant?: "normal" | "compact";
-  orderLabel?: string;
 }) {
   const tone = getStageTone(stage);
   const position = getSessionPosition(token);
@@ -874,43 +1149,99 @@ function TokenCard({
   const queueTime = timeText(getQueueTime(token));
   const durationText = getDurationText(token);
   const isCompact = variant === "compact";
+  const isNextInLine = stage === "NEXT";
+  const tokenDisplay = getTokenDisplay(token);
 
   return (
-    <div className={`relative w-full rounded-[24px] border p-3 shadow-md sm:p-4 ${tone.railClass}`}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div
+      className={`token-card relative w-full rounded-[24px] border p-3 shadow-md sm:p-4 ${tone.railClass}`}
+    >
+      {!isCompact && isNextInLine && (
+        <div className="next-in-line-badge pointer-events-none absolute left-[5.5rem] top-0 z-20 -translate-y-1/2 sm:left-[7rem]">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-700 ring-1 ring-emerald-200 sm:px-3 sm:py-1 sm:text-[10px]">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 sm:h-2 sm:w-2" />
+            Next in Line
+          </span>
+        </div>
+      )}
+      <div className="token-card-row flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
-          <div className="relative flex h-14 w-16 shrink-0 flex-col items-center justify-center rounded-[18px] bg-slate-950 px-2 text-white shadow-lg sm:h-16 sm:w-20 sm:rounded-[22px]">
-            {renderTokenPositionBadge(token)}
-            <span className="text-[8px] font-black uppercase tracking-[0.18em] text-white/60 sm:text-[9px]">SEQ</span>
-            <span className="text-xl font-black leading-none sm:text-2xl">#{position || "-"}</span>
+          <div className="serial-tile relative flex h-14 w-16 shrink-0 flex-col items-center justify-center rounded-[18px] bg-slate-950 px-2 text-white shadow-lg sm:h-16 sm:w-20 sm:rounded-[22px]">
+            <span className="serial-tile-value text-xl font-black leading-none sm:text-2xl">
+              #{position || "-"}
+            </span>
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="mb-1 flex flex-wrap items-center gap-1.5 sm:mb-2 sm:gap-2">
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest sm:px-3 sm:py-1 sm:text-[10px] ${tone.badgeClass}`}>
-                <span className={`h-1.5 w-1.5 rounded-full sm:h-2 sm:w-2 ${tone.dotClass}`} />
-                {orderLabel || tone.label}
-              </span>
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 sm:text-[10px]">
-                {tone.helper}
+            {isCompact && (
+              <div className="mb-1 flex flex-wrap items-center gap-1.5 sm:mb-2 sm:gap-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest sm:px-3 sm:py-1 sm:text-[10px] ${tone.badgeClass}`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full sm:h-2 sm:w-2 ${tone.dotClass}`}
+                  />
+                  {tone.label}
+                </span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 sm:text-[10px]">
+                  {tone.helper}
+                </span>
+              </div>
+            )}
+            <div className="grid min-w-0 w-full max-w-[720px] grid-cols-[minmax(0,1fr)_5.75rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_6.5rem]">
+              <h3 className="patient-name min-w-0 break-words text-lg font-black leading-tight text-slate-950 sm:text-2xl">
+                {getPatientDisplayName(token)}
+              </h3>
+              <span
+                title={`Token ${tokenDisplay}`}
+                className="token-pill inline-flex h-8 min-w-16 items-center justify-center justify-self-center rounded-full border-2 border-white bg-yellow-400 px-3 text-sm font-black leading-none text-gray-900 shadow-lg tabular-nums sm:h-9 sm:min-w-20 sm:px-3.5 sm:text-base"
+              >
+                {tokenDisplay}
               </span>
             </div>
-            <h3 className="truncate text-lg font-black text-slate-950 sm:text-2xl">
-              {getPatientDisplayName(token)}
-            </h3>
-            <p className="mt-0.5 truncate text-[10px] font-black uppercase tracking-wider text-slate-500 sm:mt-1 sm:text-xs">
-              {token.treatment_name || "Consultation"} {durationText ? `· ${durationText}` : ""}
-            </p>
+            {isCompact && (
+              <p className="mt-0.5 truncate text-[10px] font-black uppercase tracking-wider text-slate-500 sm:mt-1 sm:text-xs">
+                {token.treatment_name || "Consultation"}{" "}
+                {durationText ? `· ${durationText}` : ""}
+              </p>
+            )}
           </div>
         </div>
 
-        <div className={`shrink-0 grid gap-2 ${isCompact ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-4 lg:w-[400px] xl:w-[420px] 2xl:w-[500px]"}`}>
-          <TimeBox label="Planned" value={plannedTime} className="border-white bg-white/80 text-slate-700" labelClass="text-slate-400" valueClass="text-slate-800" />
+        <div
+          className={`time-grid shrink-0 grid gap-2 ${isCompact ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_7rem] lg:w-[440px] xl:w-[460px] 2xl:w-[540px]"}`}
+        >
+          <TimeBox
+            label="Planned"
+            value={plannedTime}
+            className="border-white bg-white/80 text-slate-700"
+            labelClass="text-slate-400"
+            valueClass="text-slate-800"
+            showLabel={isCompact}
+          />
           {!isCompact && (
-            <TimeBox label="Check in" value={checkInTime} className="border-white bg-white/80 text-slate-700" labelClass="text-slate-400" valueClass="text-slate-800" />
+            <TimeBox
+              label="Check-in"
+              value={checkInTime}
+              className="border-white bg-white/80 text-slate-700"
+              labelClass="text-slate-400"
+              valueClass="text-slate-800"
+              showLabel={false}
+            />
           )}
-          <TimeBox label="Queue" value={queueTime} className="border-white bg-white/80 text-slate-700" labelClass="text-slate-400" valueClass="text-slate-800" />
-          <DelayBox delayMinutes={token.live_delay_minutes} />
+          <TimeBox
+            label="Queue Time"
+            value={queueTime}
+            className="border-white bg-white/80 text-slate-700"
+            labelClass="text-slate-400"
+            valueClass="text-slate-800"
+            showLabel={isCompact}
+          />
+          <DelayBox
+            delayMinutes={token.live_delay_minutes}
+            showLabel={isCompact}
+            wideValue={!isCompact}
+          />
         </div>
       </div>
     </div>
@@ -923,19 +1254,29 @@ function TimeBox({
   className,
   labelClass,
   valueClass,
+  showLabel = true,
 }: {
   label: string;
   value: string | null;
   className: string;
   labelClass: string;
   valueClass: string;
+  showLabel?: boolean;
 }) {
   return (
-    <div className={`min-w-0 rounded-2xl border px-3 py-2 text-left ${className}`}>
-      <div className={`truncate text-[8px] font-black uppercase tracking-widest ${labelClass}`}>
-        {label}
-      </div>
-      <div className={`mt-1 flex whitespace-nowrap items-center gap-1 text-sm font-black ${valueClass}`}>
+    <div
+      className={`time-box min-w-0 rounded-2xl border px-3 py-2 text-left ${className}`}
+    >
+      {showLabel && (
+        <div
+          className={`truncate text-[8px] font-black uppercase tracking-widest ${labelClass}`}
+        >
+          {label}
+        </div>
+      )}
+      <div
+        className={`time-value ${showLabel ? "mt-1" : ""} flex whitespace-nowrap items-center gap-1 text-sm font-black ${valueClass}`}
+      >
         <Clock size={13} className="shrink-0" />
         <span className="truncate">{value || "--"}</span>
       </div>
@@ -946,9 +1287,13 @@ function TimeBox({
 function DelayBox({
   delayMinutes,
   dark = false,
+  showLabel = true,
+  wideValue = false,
 }: {
   delayMinutes?: number | null;
   dark?: boolean;
+  showLabel?: boolean;
+  wideValue?: boolean;
 }) {
   const isDelayed = (delayMinutes || 0) > 0;
   const label = "Delay";
@@ -956,23 +1301,41 @@ function DelayBox({
 
   let className, labelClass, valueClass;
   if (dark) {
-    className = isDelayed ? "border-rose-400/30 bg-rose-500/20 text-rose-50" : "border-emerald-400/30 bg-emerald-500/20 text-emerald-50";
+    className = isDelayed
+      ? "border-rose-400/30 bg-rose-500/20 text-rose-50"
+      : "border-emerald-400/30 bg-emerald-500/20 text-emerald-50";
     labelClass = isDelayed ? "text-rose-200/80" : "text-emerald-200/80";
     valueClass = isDelayed ? "text-rose-100" : "text-emerald-100";
   } else {
-    className = isDelayed ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-emerald-50 text-emerald-600 border-emerald-100";
+    className = isDelayed
+      ? "bg-rose-50 text-rose-600 border-rose-100"
+      : "bg-emerald-50 text-emerald-600 border-emerald-100";
     labelClass = isDelayed ? "text-rose-400" : "text-emerald-400";
     valueClass = isDelayed ? "text-rose-600" : "text-emerald-600";
   }
 
   return (
-    <div className={`min-w-0 rounded-2xl border px-3 py-2 text-left ${className}`}>
-      <div className={`truncate text-[8px] font-black uppercase tracking-widest ${labelClass}`}>
-        {label}
-      </div>
-      <div className={`mt-1 flex whitespace-nowrap items-center gap-1 text-sm font-black ${valueClass}`}>
-        {isDelayed ? <AlertTriangle size={13} className="shrink-0" /> : <Clock size={13} className="shrink-0" />}
-        <span className="truncate">{value}</span>
+    <div
+      className={`delay-box ${wideValue ? "min-w-28" : "min-w-0"} rounded-2xl border px-3 py-2 text-left ${className}`}
+    >
+      {showLabel && (
+        <div
+          className={`truncate text-[8px] font-black uppercase tracking-widest ${labelClass}`}
+        >
+          {label}
+        </div>
+      )}
+      <div
+        className={`time-value ${showLabel ? "mt-1" : ""} flex whitespace-nowrap items-center gap-1 text-sm font-black ${valueClass}`}
+      >
+        {isDelayed ? (
+          <AlertTriangle size={13} className="shrink-0" />
+        ) : (
+          <Clock size={13} className="shrink-0" />
+        )}
+        <span className={wideValue ? "whitespace-nowrap" : "truncate"}>
+          {value}
+        </span>
       </div>
     </div>
   );

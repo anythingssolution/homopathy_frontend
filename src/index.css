@@ -9,6 +9,11 @@ html {
   font-size: 106%;
 }
 
+html.overflow-hidden,
+body.overflow-hidden {
+  overflow: hidden !important;
+}
+
 /* Mobile: tighter base font for better fitting */
 @media (max-width: 639px) {
   html {

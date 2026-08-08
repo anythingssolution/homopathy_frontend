@@ -9,6 +9,7 @@ const CustomDatePicker = ({
   readOnly = false,
   minDate,
   allowClear = true,
+  placeholder,
 }: {
   value: string;
   onChange: (date: string) => void;
@@ -16,6 +17,7 @@ const CustomDatePicker = ({
   readOnly?: boolean;
   minDate?: string;
   allowClear?: boolean;
+  placeholder?: string;
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -67,7 +69,7 @@ const CustomDatePicker = ({
 
   const displayValue = selectedDate
     ? selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    : 'All Dates';
+    : (placeholder || 'All Dates');
 
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstDayOfWeek; i++) cells.push(null);
@@ -78,7 +80,7 @@ const CustomDatePicker = ({
       {label && <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{label}</label>}
       <div
         onClick={() => !readOnly && setOpen(!open)}
-        className={`w-full min-w-[140px] bg-white border py-3 px-4 rounded-xl text-xs font-bold text-gray-600 flex items-center justify-between transition-all ${
+        className={`w-full min-w-[140px] bg-white border py-2.5 px-4 rounded-xl text-xs font-bold text-gray-600 flex items-center justify-between transition-all ${
           readOnly ? 'bg-gray-50 cursor-not-allowed opacity-80' : 
           open ? 'border-[#549E9E] ring-2 ring-[#549E9E]/10 cursor-pointer' : 'border-gray-200 hover:border-[#549E9E]/50 cursor-pointer'
         }`}

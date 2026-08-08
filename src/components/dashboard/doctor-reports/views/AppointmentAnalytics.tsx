@@ -1,19 +1,43 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { RefreshCcw, AlertCircle, Calendar, CalendarCheck, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { RefreshCcw, AlertCircle, Calendar, CalendarCheck, CheckCircle2, Clock, XCircle, TrendingUp, LayoutDashboard } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 import { FilterDropdown } from '../components/FilterDropdown';
 import { StatCard } from '../components/StatCard';
 import { useReportData } from '../hooks/useReportData';
 import CustomDatePicker from '../../../CustomDatePicker';
+import { BookedVsConsultedView } from './BookedVsConsultedView';
 
 interface AppointmentAnalyticsProps {
   token: string | null;
 }
 
 export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ token }) => {
+  const [subTab, setSubTab] = useState<'overview' | 'drilldown'>('overview');
   const { data, isLoading, error, dateFilter, setDateFilter, customDateRange, setCustomDateRange, fetchReports } = useReportData(token, 'appointments');
+
+  if (subTab === 'drilldown') {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl w-fit">
+          <button
+            onClick={() => setSubTab('overview')}
+            className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider text-gray-600 hover:text-gray-900 cursor-pointer flex items-center gap-2"
+          >
+            <LayoutDashboard size={14} /> Overview
+          </button>
+          <button
+            onClick={() => setSubTab('drilldown')}
+            className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider bg-[#549E9E] text-white shadow-xs cursor-pointer flex items-center gap-2"
+          >
+            <TrendingUp size={14} /> Booked vs Consulted (Drilldown)
+          </button>
+        </div>
+        <BookedVsConsultedView token={token} />
+      </div>
+    );
+  }
 
   const getStatusIcon = (status: string) => {
     switch(status.toLowerCase()) {
@@ -41,6 +65,21 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
 
   return (
     <div className="flex flex-col h-full space-y-6">
+      {/* Sub Tab Switcher */}
+      <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl w-fit">
+        <button
+          onClick={() => setSubTab('overview')}
+          className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider bg-[#549E9E] text-white shadow-xs cursor-pointer flex items-center gap-2"
+        >
+          <LayoutDashboard size={14} /> Overview
+        </button>
+        <button
+          onClick={() => setSubTab('drilldown')}
+          className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider text-gray-600 hover:text-gray-900 cursor-pointer flex items-center gap-2"
+        >
+          <TrendingUp size={14} /> Booked vs Consulted (Drilldown)
+        </button>
+      </div>
       {/* Filters Header */}
       <div className="bg-[#549E9E]/5 p-5 rounded-xl border border-[#549E9E]/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-col gap-2 w-full md:w-auto">

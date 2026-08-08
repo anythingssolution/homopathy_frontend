@@ -249,6 +249,7 @@ export default function Navigation() {
     { to: '/reports', icon: BarChart, label: t('dashboard.menu.reports'), subLabel: t('dashboard.menu_sub.reports'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/doctor-leave-calendar', icon: Calendar, label: t('dashboard.menu.leave_calendar', 'Leave Calendar'), subLabel: t('dashboard.menu_sub.leave_calendar', 'Doctor leave dates'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/clinic-history', icon: History, label: t('dashboard.menu.clinic_history'), subLabel: t('dashboard.menu_sub.clinic_history'), roles: ['DOC', 'doc', 'doctor'] },
+    { to: '/patient-records', icon: FileText, label: t('dashboard.menu.patient_records', 'Patient Records'), subLabel: t('dashboard.menu_sub.patient_records', 'History & documents'), roles: ['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical'] },
     { to: '/bills', icon: Receipt, label: t('dashboard.menu.bills'), subLabel: t('dashboard.menu_sub.bills'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/staff-access', icon: Shield, label: t('dashboard.menu.staff_access'), subLabel: t('dashboard.menu_sub.staff_access'), roles: ['DOC', 'doc', 'doctor'] },
     {
@@ -317,7 +318,7 @@ export default function Navigation() {
       </div>
 
       <div className="relative bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-20 relative z-20">
+        <div className="max-w-[1440px] mx-auto px-3 sm:px-4 flex items-center justify-between h-20 relative z-20">
 
           {/* Left: Logo Area */}
           <div className="flex-shrink-0 w-36 xs:w-44 xl:w-48">
@@ -338,7 +339,7 @@ export default function Navigation() {
           </div>
 
           {/* Center: Navigation Items */}
-          <div className="hidden xl:flex flex-1 items-center justify-center">
+          <div className="hidden xl:flex flex-1 items-center justify-center min-w-0 px-1">
             {(() => {
               const isDoc = user?.role_code === 'DOC' || normalizedRole === 'doc' || normalizedRole === 'doctor';
               const regularLinks = currentLinks.filter(link => !link.to.startsWith('/cross-role/'));
@@ -350,7 +351,7 @@ export default function Navigation() {
                     <React.Fragment key={link.to}>
                       <Link
                         to={link.to}
-                        className={`px-2 xl:px-3 ${idx !== regularLinks.length - 1 || crossRoleLinks.length > 0 ? 'border-r border-dashed border-gray-200' : ''}`}
+                        className={`px-1.5 xl:px-2 ${idx !== regularLinks.length - 1 || crossRoleLinks.length > 0 ? 'border-r border-dashed border-gray-200' : ''}`}
                       >
                         <NavItem
                           icon={link.icon}
@@ -366,7 +367,7 @@ export default function Navigation() {
                   {/* Cross-role links: grouped dropdown for doctors, inline for REC/MED */}
                   {crossRoleLinks.length > 0 && (
                     isDoc && crossRoleLinks.length > 1 ? (
-                      <div className="relative px-2 xl:px-3" ref={crossRoleDropdownRef}>
+                      <div className="relative px-1.5 xl:px-2" ref={crossRoleDropdownRef}>
                         <div
                           onClick={() => setIsCrossRoleDropdownOpen(prev => !prev)}
                           className="cursor-pointer"
@@ -452,7 +453,7 @@ export default function Navigation() {
                         <React.Fragment key={link.to}>
                           <Link
                             to={link.to}
-                            className={`px-2 xl:px-3 ${idx !== crossRoleLinks.length - 1 ? 'border-r border-dashed border-gray-200' : ''}`}
+                            className={`px-1.5 xl:px-2 ${idx !== crossRoleLinks.length - 1 ? 'border-r border-dashed border-gray-200' : ''}`}
                           >
                             <NavItem
                               icon={link.icon}
@@ -473,115 +474,83 @@ export default function Navigation() {
           </div>
 
           {/* Right: Actions Area */}
-          <div className="flex-shrink-0 flex items-center justify-end gap-3">
+          <div className="flex-shrink-0 flex items-center justify-end gap-1.5 xl:gap-2">
             {isAuthenticated ? (
-              (() => {
-                const isDoc = ['DOC', 'doctor', 'doc'].includes(user?.role_code || normalizedRole);
-                return isDoc ? (
-                  /* Compact icon-only logout for doctors */
-                  <motion.button
-                    whileHover={{ 
-                      scale: 1.08,
-                      backgroundColor: '#ef4444',
-                      borderColor: '#ef4444',
-                      color: '#ffffff'
-                    }}
-                    whileTap={{ scale: 0.92 }}
-                    disabled={isLoggingOut}
-                    onClick={() => setShowLogoutConfirm(true)}
-                    className={`hidden xl:flex items-center justify-center w-10 h-10 rounded-xl border border-red-100 bg-red-50 text-red-500 transition-all hover:shadow-md ${isLoggingOut ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
-                    title={t('common.logout')}
-                  >
-                    <LogOut size={16} />
-                  </motion.button>
-                ) : (
-                  /* Full logout button for other roles */
-                  <motion.button
-                    whileHover={{ scale: 1.02, backgroundColor: 'rgba(239, 68, 68, 0.05)' }}
-                    whileTap={{ scale: 0.98 }}
-                    disabled={isLoggingOut}
-                    onClick={() => setShowLogoutConfirm(true)}
-                    className={`hidden xl:flex items-center gap-2 px-3 py-1.5 border border-red-100 rounded-xl transition-all group hover:border-red-200 hover:shadow-sm ${isLoggingOut ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
-                  >
-                    <div className="w-7 h-7 bg-red-50 rounded-lg flex items-center justify-center text-red-500 transition-colors group-hover:bg-red-500 group-hover:text-white">
-                      <LogOut size={14} />
-                    </div>
-                    <div className="flex flex-col items-start">
-                      <span className="text-[8px] font-black text-red-400 uppercase tracking-widest leading-tight">
-                        {['REC', 'rec', 'receptionist'].includes(user.role_code || user.role?.toLowerCase()) ? t('roles.staff_portal') :
-                          ['MED', 'med', 'medical'].includes(user.role_code || user.role?.toLowerCase()) ? t('roles.medical_portal') :
-                            t('roles.patient_portal')}
-                      </span>
-                      <span className="text-[10px] font-black text-red-600 uppercase tracking-widest leading-tight">{t('common.logout')}</span>
-                    </div>
-                  </motion.button>
-                );
-              })()
+              <motion.button
+                whileHover={{ scale: 1.05, backgroundColor: 'rgba(239, 68, 68, 0.12)' }}
+                whileTap={{ scale: 0.96 }}
+                disabled={isLoggingOut}
+                onClick={() => setShowLogoutConfirm(true)}
+                title={t('common.logout')}
+                aria-label={t('common.logout')}
+                className={`hidden xl:flex items-center justify-center p-1.5 border border-red-200/80 bg-red-50/70 text-red-600 rounded-xl transition-all shadow-2xs hover:shadow-sm hover:border-red-300 group shrink-0 ${isLoggingOut ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
+              >
+                <div className="w-5 h-5 bg-red-100/80 group-hover:bg-red-500 group-hover:text-white rounded-lg flex items-center justify-center text-red-600 transition-colors shrink-0">
+                  <LogOut size={13} />
+                </div>
+              </motion.button>
             ) : (
               <Link to="/booking">
                 <motion.button
                   whileHover={{ scale: 1.02, backgroundColor: 'rgba(84, 158, 158, 0.05)' }}
                   whileTap={{ scale: 0.98 }}
-                  className="hidden xl:flex items-center gap-2 px-3 py-1.5 border border-gray-100 rounded-xl transition-all group hover:border-primary-teal/30 hover:shadow-sm"
+                  className="hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200/80 rounded-xl transition-all group hover:border-primary-teal/40 hover:shadow-sm"
                 >
-                  <div className="w-7 h-7 bg-gray-50 rounded-lg flex items-center justify-center text-primary-teal transition-colors group-hover:bg-primary-teal group-hover:text-white">
-                    <LogIn size={14} />
+                  <div className="w-5 h-5 bg-primary-teal/10 rounded-lg flex items-center justify-center text-primary-teal transition-colors group-hover:bg-primary-teal group-hover:text-white">
+                    <LogIn size={12} />
                   </div>
-                  <div className="flex flex-col items-start">
-                    <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest leading-tight">{t('common.patient_portal')}</span>
-                    <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest leading-tight">{t('common.login_register')}</span>
-                  </div>
+                  <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-wider leading-none">{t('common.login_register')}</span>
                 </motion.button>
               </Link>
             )}
 
-            <div className="hidden xl:flex items-center bg-gray-50/80 backdrop-blur-sm border border-gray-100 rounded-xl p-1 pr-3 gap-2 group transition-all hover:bg-white hover:shadow-md">
-              <div className={`relative flex items-center justify-center w-7 h-7 rounded-lg transition-all ${isDoctorAvailable ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                {isDoctorAvailable ? <UserCheck size={14} /> : <UserX size={14} />}
-                {/* Pulsing Status Dot */}
-                <div className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white transition-colors ${isDoctorAvailable ? 'bg-emerald-500' : 'bg-amber-500'}`}>
-                  <div className={`absolute inset-0 rounded-full animate-ping opacity-40 ${isDoctorAvailable ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                </div>
+            {/* Clinic Status (Stacked Doctor In & Time) */}
+            <div
+              title={`${t('common.clinic_status')}: ${isDoctorAvailable ? t('common.doctor_in') : t('common.doctor_out')}${activeSince ? ` (${activeSince})` : ''}`}
+              className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all cursor-default select-none shrink-0 shadow-2xs hover:shadow-sm ${
+                isDoctorAvailable
+                  ? 'bg-emerald-50/90 border-emerald-200/80 text-emerald-800 hover:bg-emerald-100/80'
+                  : 'bg-amber-50/90 border-amber-200/80 text-amber-800 hover:bg-amber-100/80'
+              }`}
+            >
+              <div className="relative flex items-center justify-center shrink-0">
+                {isDoctorAvailable ? (
+                  <UserCheck size={14} className="text-emerald-600" />
+                ) : (
+                  <UserX size={14} className="text-amber-600" />
+                )}
+                <span className={`absolute -top-1 -right-1 w-2 h-2 rounded-full border border-white ${isDoctorAvailable ? 'bg-emerald-500' : 'bg-amber-500'}`}>
+                  <span className={`absolute inset-0 rounded-full animate-ping opacity-60 ${isDoctorAvailable ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                </span>
               </div>
 
-              <div className="flex flex-col">
-                <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest leading-tight">{t('common.clinic_status')}</span>
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[10px] font-black uppercase tracking-widest leading-tight transition-colors ${isDoctorAvailable ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    {isDoctorAvailable ? t('common.doctor_in') : t('common.doctor_out')}
+              <div className="flex flex-col items-start justify-center leading-tight">
+                <span className={`text-[9px] font-black uppercase tracking-wider whitespace-nowrap leading-none ${isDoctorAvailable ? 'text-emerald-800' : 'text-amber-800'}`}>
+                  {isDoctorAvailable ? t('common.doctor_in') : t('common.doctor_out')}
+                </span>
+
+                {isDoctorAvailable && activeSince && (
+                  <span className="text-[8px] font-extrabold text-emerald-700/80 tracking-tight whitespace-nowrap leading-none mt-1">
+                    {activeSince}
                   </span>
-                  <AnimatePresence>
-                    {isDoctorAvailable && activeSince && (
-                      <motion.span
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        className="text-[7px] font-bold text-emerald-600/60 bg-emerald-100/50 px-1 py-0.5 rounded-md"
-                      >
-                        {activeSince}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </div>
+                )}
               </div>
             </div>
 
             {/* Language Switcher */}
             <motion.button
-              whileHover={{ scale: 1.02, backgroundColor: 'rgba(84, 158, 158, 0.05)' }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               onClick={toggleLanguage}
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 border border-gray-100 rounded-xl transition-all group hover:border-primary-teal/30 hover:shadow-sm"
+              title={i18n.language === 'en' ? 'Switch to हिन्दी' : 'Switch to English'}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200/80 bg-gray-50/80 text-[#2d8789] hover:text-[#549E9E] rounded-xl transition-all shadow-2xs hover:shadow-sm hover:border-[#549E9E]/40 group shrink-0"
             >
-              <div className="w-7 h-7 bg-primary-teal/5 rounded-lg flex items-center justify-center text-primary-teal transition-colors group-hover:bg-primary-teal group-hover:text-white">
-                <Languages size={14} />
+              <div className="w-5 h-5 bg-[#2d8789]/10 group-hover:bg-[#2d8789]/20 rounded-lg flex items-center justify-center text-[#2d8789] transition-colors shrink-0">
+                <Languages size={13} />
               </div>
-              <div className="flex flex-col items-start min-w-[32px]">
-                <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest leading-tight">{t('common.language')}</span>
-                <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest leading-tight">
-                  {i18n.language === 'en' ? 'हिन्दी' : 'English'}
-                </span>
-              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-[#2d8789] whitespace-nowrap leading-none">
+                {i18n.language === 'en' ? 'हिन्दी' : 'EN'}
+              </span>
             </motion.button>
 
             {/* Hamburger Toggle Button (mobile only) */}

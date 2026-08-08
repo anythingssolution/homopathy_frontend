@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { User, Phone, Calendar, Mail, Shield, Edit2, X, Save, CheckCircle2, AlertCircle, MapPin } from 'lucide-react';
+import { User, Phone, Calendar, Mail, Shield, Edit2, X, Save, CheckCircle2, AlertCircle, MapPin, Lock, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useApi } from '../../hooks/useApi';
 import { useNotifications } from '../../context/NotificationContext';
@@ -21,6 +21,16 @@ export default function Profile() {
     gender: '',
     address: ''
   });
+
+  // Password Change State
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -68,6 +78,48 @@ export default function Profile() {
       addToast('A network error occurred. Please try again.', 'error');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword) {
+      addToast(t('profile.current_password_required'), 'error');
+      return;
+    }
+    if (newPassword.length < 6) {
+      addToast(t('profile.password_min_length'), 'error');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      addToast(t('profile.password_mismatch'), 'error');
+      return;
+    }
+
+    setIsSubmittingPassword(true);
+    try {
+      const result = await apiFetch('/api/v1/auth/password/change', {
+        method: 'PUT',
+        body: {
+          current_password: currentPassword,
+          new_password: newPassword
+        }
+      });
+
+      if (result && result.success) {
+        addToast(t('profile.password_change_success'), 'success');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setIsChangingPassword(false);
+      } else {
+        addToast(result?.message || 'Failed to change password', 'error');
+      }
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      addToast(error?.message || 'A network error occurred. Please try again.', 'error');
+    } finally {
+      setIsSubmittingPassword(false);
     }
   };
 
@@ -291,6 +343,23 @@ export default function Profile() {
             )}
           </form>
 
+          {/* Security & Password Section */}
+          <div className="mt-8 pt-8 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-xs font-bold text-primary-teal uppercase tracking-[0.2em] flex items-center gap-2">
+                <Lock size={14} /> {t('profile.security_subtitle', 'Security & Password')}
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">Update your account credentials to keep your health records safe.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsChangingPassword(true)}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-teal text-white hover:bg-[#3D7474] rounded-xl text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg transition-all cursor-pointer"
+            >
+              <KeyRound size={14} /> {t('profile.change_password', 'Change Password')}
+            </button>
+          </div>
+
           {!isEditing && (
             <div className="mt-8 pt-6 border-t border-gray-100 flex justify-between items-center">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
@@ -306,6 +375,156 @@ export default function Profile() {
           )}
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      <AnimatePresence>
+        {isChangingPassword && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-lg overflow-hidden relative"
+            >
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-[#549E9E] via-[#549E9E] to-[#3D7474] p-6 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
+                    <KeyRound size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold tracking-wide">{t('profile.change_password', 'Change Password')}</h3>
+                    <p className="text-xs text-white/80">Enter your current & new password below</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsChangingPassword(false);
+                    setCurrentPassword('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                  }}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Form Body */}
+              <form onSubmit={handleChangePassword} className="p-6 space-y-5">
+                {/* Current Password */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">
+                    {t('profile.current_password', 'Current Password')}
+                  </label>
+                  <div className="relative">
+                    <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      required
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder={t('profile.enter_current_password', 'Enter current password')}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-11 pr-10 outline-none text-gray-700 font-medium text-sm focus:border-primary-teal focus:bg-white focus:ring-1 focus:ring-primary-teal/20 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* New Password */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">
+                    {t('profile.new_password', 'New Password')}
+                  </label>
+                  <div className="relative">
+                    <KeyRound size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder={t('profile.enter_new_password', 'Enter new password (min 6 chars)')}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-11 pr-10 outline-none text-gray-700 font-medium text-sm focus:border-primary-teal focus:bg-white focus:ring-1 focus:ring-primary-teal/20 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm New Password */}
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">
+                    {t('profile.confirm_new_password', 'Confirm New Password')}
+                  </label>
+                  <div className="relative">
+                    <KeyRound size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder={t('profile.reenter_new_password', 'Re-enter new password')}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-11 pr-10 outline-none text-gray-700 font-medium text-sm focus:border-primary-teal focus:bg-white focus:ring-1 focus:ring-primary-teal/20 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Modal Footer / Actions */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsChangingPassword(false);
+                      setCurrentPassword('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                    }}
+                    className="px-5 py-3 border border-gray-200 rounded-xl font-bold text-xs uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-all cursor-pointer"
+                  >
+                    {t('profile.cancel', 'Cancel')}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingPassword}
+                    className="px-6 py-3 bg-primary-teal text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-md hover:bg-[#3D7474] active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                  >
+                    {isSubmittingPassword ? (
+                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+                        <Save size={14} />
+                      </motion.div>
+                    ) : (
+                      <Save size={14} />
+                    )}
+                    {isSubmittingPassword ? t('profile.updating_password', 'Updating...') : t('profile.update_password', 'Update Password')}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

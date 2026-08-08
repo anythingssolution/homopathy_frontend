@@ -1,86 +1,70 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Stethoscope, Search, Filter, ArrowRight, HeartPulse,
-  Activity, Zap, Sparkles, X, ShieldCheck, Calendar
+  Activity, Zap, Sparkles, X, ShieldCheck, Calendar, Image as ImageIcon
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ScrollReveal } from './ScrollReveal';
+import { treatmentsData, TreatmentItem } from '../data/treatmentsData';
 
-export interface TreatmentItem {
-  id: string;
-  en: string;
-  hi: string;
-  category: string;
-  description: string;
-}
-
-export const treatments: TreatmentItem[] = [
-  { id: "kidney-stones", en: "Kidney Stones", hi: "गुर्दे की पथरी", category: "Vital", description: "Safe and effective homeopathic treatment to help dissolve and pass kidney stones naturally while preventing recurrence." },
-  { id: "arthritis", en: "Arthritis", hi: "गठिया", category: "Pain", description: "Comprehensive care for joint inflammation and pain, focusing on improving mobility and reducing stiffness without side effects." },
-  { id: "asthma", en: "Asthma", hi: "दमा", category: "Respiratory", description: "Holistic management of respiratory distress and wheezing by strengthening the immune system and reducing allergic sensitivity." },
-  { id: "acne", en: "Acne (Pimples)", hi: "मुँहासे (पिंपल्स)", category: "Skin", description: "Deep-acting remedies to treat the hormonal and constitutional root causes of acne for clear, healthy skin." },
-  { id: "allergies", en: "Allergies", hi: "एलर्जी", category: "Immune", description: "Natural desensitization to allergens like dust and pollen to provide long-term relief from recurrent sneezing and itching." },
-  { id: "back-pain", en: "Back Pain", hi: "पीठ दर्द", category: "Pain", description: "Specialized remedies for acute and chronic backache, addressing muscular strain, nerve issues, and structural support." },
-  { id: "bone-disorders", en: "Bone-related Disorders", hi: "हड्डियों से संबंधित विकार", category: "Orthopedic", description: "Supportive care for bone density and strength, treating various degenerative and structural bone conditions." },
-  { id: "cervical", en: "Cervical Spondylitis", hi: "सर्वाइकल स्पॉन्डिलाइटिस", category: "Orthopedic", description: "Effective relief from neck pain, stiffness, and radiating numbness through gentle homeopathic intervention." },
-  { id: "autism", en: "Autism", hi: "ऑटिज़्म", category: "Mental", description: "Supportive constitutional treatment focusing on behavioral improvements and developmental support for children." },
-  { id: "hip-pain", en: "Hip Pain", hi: "कूल्हे का दर्द", category: "Pain", description: "Addressing hip joint issues, bursitis, and referred pain to restore comfortable movement and posture." },
-  { id: "eye-disorders", en: "Eye Disorders", hi: "आंखों के विकार", category: "Specialty", description: "Natural support for various eye conditions, focusing on improving ocular health and relieving strain." },
-  { id: "mental-health", en: "Mental Health Issues", hi: "मानसिक स्वास्थ्य समस्याएँ", category: "Mental", description: "Compassionate care for anxiety, depression, and stress-related disorders using gentle constitutional remedies." },
-  { id: "migraine", en: "Migraine", hi: "माइग्रेन", category: "Neurological", description: "Long-term relief from recurrent headaches and sensitivity by addressing neurological and digestive triggers." },
-  { id: "piles", en: "Piles (Hemorrhoids)", hi: "बवासीर (पाइल्स)", category: "Chronic", description: "Non-surgical homeopathic management to reduce pain, swelling, and bleeding while correcting digestive health." },
-  { id: "prostate", en: "Prostate Issues", hi: "प्रोस्टेट समस्याएँ", category: "Vital", description: "Safe management of urinary difficulties associated with prostate enlargement through natural remedies." },
-  { id: "lower-back-pain", en: "Lower Back Pain", hi: "कमर दर्द", category: "Pain", description: "Targeted treatment for lumbar issues, disc compression, and muscle spasms for lasting relief." },
-  { id: "sciatica", en: "Sciatica", hi: "साइटिका", category: "Pain", description: "Effective remedies for nerve-related leg pain and numbness, focusing on reducing inflammation around the sciatic nerve." },
-  { id: "slip-disc", en: "Slip Disc", hi: "स्लिप डिस्क", category: "Orthopedic", description: "Non-invasive care for spinal disc issues, helping to reduce pressure and promote natural recovery." },
-  { id: "joint-muscular-pain", en: "Joint and Muscular Pain", hi: "जोड़ और मांसपेशियों का दर्द", category: "Pain", description: "Wide-spectrum relief for various muscular strains and joint aches using deep-acting homeopathic medicines." },
-  { id: "paralysis", hi: "लकवा", en: "Paralysis", category: "Neurological", description: "Supportive neurological rehabilitation focusing on nerve recovery and muscular stimulation." },
-  { id: "thyroid", en: "Thyroid Disorders", hi: "थायरॉयड विकार", category: "Vital", description: "Holistic management of Hypo/Hyperthyroidism by restoring hormonal balance and improving metabolism." },
-  { id: "urinary-disorders", en: "Urinary Disorders", hi: "मूत्र संबंधी विकार", category: "Vital", description: "Effective treatment for recurrent UTIs, burning sensation, and other bladder-related issues." },
-  { id: "heart-diseases", en: "Heart Diseases", hi: "हृदय रोग", category: "Vital", description: "Supportive cardiac care focusing on strengthening the heart muscle and managing blood pressure naturally." },
-  { id: "hair-fall", en: "Hair Fall", hi: "बाल झड़ना", category: "Skin", description: "Constitutional remedies to treat the root causes of hair loss, such as stress, nutrition, and hormonal issues." },
-  { id: "herpes", en: "Herpes", hi: "हरपीज", category: "Skin", description: "Natural management of viral outbreaks, focusing on reducing pain and boosting the immune system's response." },
-  { id: "infertility", en: "Infertility", hi: "बांझपन", category: "Specialty", description: "Gentle hormonal balancing and reproductive support for both men and women to improve natural fertility." },
-  { id: "dental-problems", en: "Dental Problems", hi: "दांतों की समस्याएँ", category: "Specialty", description: "Supportive homeopathic care for gum issues, tooth sensitivity, and recurrent mouth ulcers." },
-  { id: "liver-problems", en: "Liver Problems", hi: "लीवर की समस्याएँ", category: "Vital", description: "Natural detoxification and hepatoprotective care for fatty liver, jaundice, and digestive sluggishness." },
-  { id: "diarrhea", en: "Diarrhea and Dysentery", hi: "दस्त और पेचिश", category: "Digestive", description: "Rapid and safe relief for intestinal issues and infections while restoring gut health." },
-  { id: "leucorrhoea", en: "Leucorrhoea", hi: "श्वेत प्रदर", category: "Specialty", description: "Effective management of female health issues and hormonal imbalances through safe natural remedies." },
-  { id: "sexual-health", en: "Sexual Health Problems", hi: "यौन स्वास्थ्य समस्याएँ", category: "Specialty", description: "Confidential and effective constitutional treatment for various male and female sexual wellness issues." },
-  { id: "osteoarthritis", en: "Osteoarthritis", hi: "ऑस्टियोआर्थराइटिस", category: "Orthopedic", description: "Focused joint care to reduce friction, pain, and degeneration in weight-bearing joints." },
-  { id: "sinusitis", en: "Sinusitis", hi: "साइनसाइटिस", category: "Respiratory", description: "Relief from chronic nasal congestion, headaches, and facial pain by addressing the root of the inflammation." },
-  { id: "anemia", en: "Anemia (Blood Deficiency)", hi: "एनीमिया (रक्त की कमी)", category: "Vital", description: "Natural support to improve iron absorption and red blood cell production through constitutional care." },
-  { id: "ent", en: "Ear, Nose & Throat Disorders (ENT)", hi: "कान, नाक और गले के विकार (ईएनटी)", category: "Specialty", description: "Comprehensive management of recurrent throat infections, ear pain, and nasal issues." },
-  { id: "gynecology", en: "Gynecological Disorders", hi: "स्त्री रोग", category: "Specialty", description: "Safe and effective treatment for PCOD, irregular periods, and other hormonal issues in women." },
-  { id: "pediatrics", en: "Pediatric Diseases", hi: "बाल रोग", category: "Pediatric", description: "Gentle and child-friendly remedies for recurrent colds, immunity issues, and growth support." },
-  { id: "skin-diseases", en: "Skin Diseases", hi: "त्वचा रोग", category: "Skin", description: "Holistic treatment for Eczema, Psoriasis, and other chronic dermatological conditions." },
-  { id: "chronic-diseases", en: "Chronic & Complex Diseases", hi: "पुरानी और जटिल बीमारियाँ", category: "Chronic", description: "Specialized care for long-standing conditions that have not responded to conventional treatments." },
-  { id: "obesity", en: "Obesity (Weight Management)", hi: "मोटापा", category: "Chronic", description: "Metabolic correction and constitutional support to manage weight healthily and naturally." },
-];
+export { treatmentsData as treatments };
+export type { TreatmentItem };
 
 export default function Treatments() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [selectedTreatment, setSelectedTreatment] = useState<TreatmentItem | null>(null);
 
+  useEffect(() => {
+    if (selectedTreatment) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+
+      return () => {
+        const storedY = document.body.style.top;
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        if (storedY) {
+          window.scrollTo(0, parseInt(storedY || '0', 10) * -1);
+        }
+      };
+    }
+  }, [selectedTreatment]);
+
   const categoriesList = [
-    { key: "all", label: t('treatments_page.categories.all') },
-    { key: "Vital", label: t('treatments_page.categories.vital') },
-    { key: "Pain", label: t('treatments_page.categories.pain') },
-    { key: "Orthopedic", label: t('treatments_page.categories.orthopedic') },
-    { key: "Respiratory", label: t('treatments_page.categories.respiratory') },
-    { key: "Skin", label: t('treatments_page.categories.skin') },
-    { key: "Mental", label: t('treatments_page.categories.mental') },
-    { key: "Digestive", label: t('treatments_page.categories.digestive') },
-    { key: "Chronic", label: t('treatments_page.categories.chronic') },
-    { key: "Specialty", label: t('treatments_page.categories.specialty') }
+    { key: "all", label: t('treatments_page.categories.all') || "All" },
+    { key: "Vital", label: t('treatments_page.categories.vital') || "Vital" },
+    { key: "Pain", label: t('treatments_page.categories.pain') || "Pain" },
+    { key: "Orthopedic", label: t('treatments_page.categories.orthopedic') || "Orthopedic" },
+    { key: "Respiratory", label: t('treatments_page.categories.respiratory') || "Respiratory" },
+    { key: "Skin", label: t('treatments_page.categories.skin') || "Skin" },
+    { key: "Mental", label: t('treatments_page.categories.mental') || "Mental" },
+    { key: "Neurological", label: "Neurological" },
+    { key: "Digestive", label: t('treatments_page.categories.digestive') || "Digestive" },
+    { key: "Pediatric", label: "Pediatric" },
+    { key: "Immune", label: "Immune" },
+    { key: "Chronic", label: t('treatments_page.categories.chronic') || "Chronic" },
+    { key: "Specialty", label: t('treatments_page.categories.specialty') || "Specialty" }
   ];
 
-  const filteredTreatments = treatments.filter(item => {
+  const filteredTreatments = treatmentsData.filter(item => {
     const matchesSearch = item.en.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.hi.includes(searchTerm);
+      item.hi.includes(searchTerm) ||
+      item.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = activeCategory === "all" || item.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
@@ -88,22 +72,22 @@ export default function Treatments() {
   return (
     <div className="min-h-screen bg-[#FDFDF7]">
       {/* Header Banner */}
-      <div className="relative h-[550px]">
+      <div className="relative h-[480px]">
         <div className="absolute inset-0">
           <img src="https://www.drtrivedishomeopathy.in/assets/imgs/himg-3.jpeg" className="w-full h-full object-cover" alt="Treatments Cover" />
         </div>
-        <div className="absolute inset-0 bg-primary-teal/5" />
+        <div className="absolute inset-0 bg-[#549E9E]/20 backdrop-brightness-75" />
       </div>
 
-      {/* Title Section with Rounder Top Edge */}
-      <div className="relative pb-20 -mt-16 px-6">
+      {/* Title Section with Rounded Top Edge */}
+      <div className="relative pb-16 -mt-16 px-6">
         <div className="absolute inset-x-0 bottom-0 top-0 bg-[#FDFDF7] rounded-t-[60px]" />
 
         <div className="relative z-10 max-w-7xl mx-auto pt-12">
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
             <ScrollReveal width="100%" direction="right" distance={40}>
               <div className="flex-1">
-                <div className="flex items-center gap-4 text-primary-teal opacity-40 mb-6">
+                <div className="flex items-center gap-4 text-[#549E9E] opacity-60 mb-4">
                   <div className="w-12 h-[1px] bg-current" />
                   <Stethoscope size={20} />
                   <span className="text-[10px] font-black tracking-[0.4em] uppercase">{t('treatments_page.holistic_care')}</span>
@@ -112,10 +96,10 @@ export default function Treatments() {
                 <h1 className="text-5xl lg:text-7xl font-black text-[#549E9E] tracking-tighter mb-4 leading-none">
                   {t('treatments_page.specialized_treatments').split(' ').map((word, i) => <React.Fragment key={i}>{word}{i === 0 && <br />}</React.Fragment>)}
                 </h1>
-                <p className="text-[#6A6A50] text-lg lg:text-xl font-medium max-w-xl opacity-70 leading-relaxed">
+                <p className="text-[#6A6A50] text-lg lg:text-xl font-medium max-w-xl opacity-80 leading-relaxed">
                   {t('treatments_page.provide_solutions')}
                 </p>
-                <div className="w-12 h-1 bg-[#F2D06B] rounded-full mt-8" />
+                <div className="w-12 h-1 bg-[#F2D06B] rounded-full mt-6" />
               </div>
             </ScrollReveal>
 
@@ -131,6 +115,14 @@ export default function Treatments() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full bg-white border border-gray-100 rounded-[30px] pl-16 pr-8 py-5 text-sm font-bold text-[#549E9E] placeholder:text-gray-300 focus:ring-2 focus:ring-[#549E9E]/20 transition-all shadow-xl shadow-[#549E9E]/5"
                   />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm("")}
+                      className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
                 </div>
                 {/* Breadcrumb */}
                 <div className="text-sm text-gray-400 flex items-center gap-2 font-black uppercase tracking-widest px-6">
@@ -157,7 +149,7 @@ export default function Treatments() {
             <button
               key={cat.key}
               onClick={() => setActiveCategory(cat.key)}
-              className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.key ? 'bg-[#549E9E] text-white shadow-lg shadow-[#549E9E]/20' : 'bg-white text-gray-400 hover:bg-gray-50'}`}
+              className={`px-7 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.key ? 'bg-[#549E9E] text-white shadow-lg shadow-[#549E9E]/20' : 'bg-white text-gray-400 hover:bg-gray-50 border border-gray-100'}`}
             >
               {cat.label}
             </button>
@@ -170,37 +162,71 @@ export default function Treatments() {
             {filteredTreatments.map((item, idx) => (
               <motion.div
                 layout
-                key={item.en}
+                key={item.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ delay: (idx % 9) * 0.05 }}
-                className="group bg-white rounded-[40px] p-8 border border-gray-100 hover:border-[#549E9E]/20 shadow-sm hover:shadow-2xl hover:shadow-[#549E9E]/10 transition-all flex flex-col justify-between"
+                transition={{ delay: (idx % 9) * 0.04 }}
+                className="group bg-white rounded-[40px] p-7 border border-gray-100 hover:border-[#549E9E]/20 shadow-sm hover:shadow-2xl hover:shadow-[#549E9E]/10 transition-all flex flex-col justify-between"
               >
                 <div>
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center group-hover:bg-[#549E9E]/10 transition-colors">
-                      <HeartPulse className="text-[#549E9E]/30 group-hover:text-[#549E9E] transition-colors" size={24} />
+                  {/* Image Space Frame */}
+                  <div className="relative w-full h-48 mb-6 rounded-[28px] overflow-hidden bg-gradient-to-br from-[#EAF5F7] via-[#F5F9FA] to-[#E5F2F4] border border-[#549E9E]/15 flex items-center justify-center group-hover:border-[#549E9E]/40 transition-colors">
+                    {item.image ? (
+                      <img
+                        src={encodeURI(item.image)}
+                        alt={item.en}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-center p-4">
+                        <div className="w-12 h-12 rounded-2xl bg-white/80 backdrop-blur-sm shadow-sm flex items-center justify-center text-[#549E9E] mb-2 group-hover:scale-110 transition-transform">
+                          <HeartPulse size={24} className="text-[#549E9E]" />
+                        </div>
+                        <span className="text-[10px] font-bold text-[#549E9E]/60 uppercase tracking-widest flex items-center gap-1 bg-white/60 px-3 py-1 rounded-full border border-[#549E9E]/10">
+                          <ImageIcon size={12} /> Image Space
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Category Tag */}
+                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full border border-gray-100 shadow-sm">
+                      <span className="text-[8px] font-black text-[#549E9E] uppercase tracking-widest">
+                        {item.category}
+                      </span>
                     </div>
-                    <span className="text-[8px] font-black text-gray-300 uppercase tracking-[0.2em]">{t(`treatments_page.categories.${item.category.toLowerCase()}`)}</span>
                   </div>
 
-                  <h3 className="text-xl font-black text-[#549E9E] mb-2 uppercase tracking-tight group-hover:translate-x-2 transition-transform">
+                  <h3 className="text-xl font-black text-[#549E9E] mb-1 uppercase tracking-tight group-hover:translate-x-1 transition-transform">
                     {item.en}
                   </h3>
-                  <p className="text-lg font-bold text-[#6A6A50] opacity-60 mb-6">
+                  <p className="text-base font-bold text-[#6A6A50] opacity-70 mb-3">
                     {item.hi}
                   </p>
+
+                  <p className="text-[#6A6A50] text-sm leading-relaxed line-clamp-3 mb-4 opacity-80 font-medium">
+                    {item.description}
+                  </p>
+
+                  {item.remedies && item.remedies.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {item.remedies.map((remedy, rIdx) => (
+                        <span key={rIdx} className="text-[10px] font-bold bg-[#F2D06B]/15 text-[#8A6D1B] border border-[#F2D06B]/30 px-2.5 py-0.5 rounded-full">
+                          ✨ {remedy}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex items-center justify-between pt-6 border-t border-gray-50">
+                <div className="flex items-center justify-between pt-5 border-t border-gray-50">
                   <button
                     onClick={() => setSelectedTreatment(item)}
-                    className="flex items-center gap-2 text-[10px] font-black text-[#549E9E] uppercase tracking-widest group-hover:gap-4 transition-all"
+                    className="flex items-center gap-2 text-[10px] font-black text-[#549E9E] uppercase tracking-widest group-hover:gap-3 transition-all"
                   >
                     {t('treatments_page.i_want_details')} <ArrowRight size={14} />
                   </button>
-                  <Activity size={16} className="text-gray-100 group-hover:text-primary-teal/20 transition-colors" />
+                  <Activity size={16} className="text-gray-200 group-hover:text-primary-teal/40 transition-colors" />
                 </div>
               </motion.div>
             ))}
@@ -238,7 +264,7 @@ export default function Treatments() {
               <span className="opacity-60">{t('treatments_page.treat_over_100')}</span>
             </h2>
             <Link
-              to="/contact"
+              to="/booking"
               className="inline-flex items-center gap-4 bg-white text-[#549E9E] px-12 py-6 rounded-full font-black text-sm uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-black/10"
             >
               {t('treatments_page.ask_our_doctor')} <Zap size={18} fill="currentColor" />
@@ -247,95 +273,151 @@ export default function Treatments() {
         </ScrollReveal>
       </div>
 
-      {/* Details Modal */}
-      <AnimatePresence>
-        {selectedTreatment && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-10">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedTreatment(null)}
-              className="absolute inset-0 bg-[#549E9E]/20 backdrop-blur-md"
-            />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-4xl bg-white rounded-[50px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-            >
-              {/* Close Button */}
-              <button
+      {/* Details Modal via Portal */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {selectedTreatment && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 lg:p-10">
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 onClick={() => setSelectedTreatment(null)}
-                className="absolute top-8 right-8 z-20 w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 hover:text-red-400 transition-all shadow-sm"
-              >
-                <X size={20} />
-              </button>
+                className="absolute inset-0 bg-[#549E9E]/35 backdrop-blur-md"
+              />
 
-              <div className="overflow-y-auto p-10 lg:p-16">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12 pb-12 border-b border-gray-50">
+              {/* Modal Card */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
+                className="relative w-full max-w-3xl bg-white rounded-[36px] shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[85vh] z-10 border border-gray-100 text-left"
+              >
+                {/* Fixed Header */}
+                <div className="shrink-0 relative px-6 pt-6 pb-4 md:px-8 md:pt-7 md:pb-5 border-b border-gray-100 bg-gradient-to-r from-[#FDFDF7] via-white to-[#F9FCFC] flex items-start justify-between gap-4">
                   <div>
-                    <div className="flex items-center gap-3 text-primary-teal/40 mb-4">
-                      <Stethoscope size={20} />
-                      <span className="text-[10px] font-black uppercase tracking-[0.3em]">{t(`treatments_page.categories.${selectedTreatment.category.toLowerCase()}`)} Specialist</span>
+                    <div className="flex items-center gap-2 text-[#549E9E] mb-1">
+                      <Stethoscope size={16} />
+                      <span className="text-[10px] font-black uppercase tracking-[0.25em]">
+                        {selectedTreatment.category} Specialist Care
+                      </span>
                     </div>
-                    <h2 className="text-4xl lg:text-5xl font-black text-[#549E9E] tracking-tight mb-2 uppercase leading-none">
+                    <h2 className="text-2xl md:text-3xl font-black text-[#549E9E] tracking-tight uppercase leading-tight">
                       {selectedTreatment.en}
                     </h2>
-                    <p className="text-2xl font-bold text-[#6A6A50] opacity-60">
+                    <p className="text-base md:text-lg font-bold text-[#6A6A50] opacity-80 mt-0.5">
                       {selectedTreatment.hi}
                     </p>
                   </div>
-                  <div className="w-20 h-20 bg-[#549E9E]/5 rounded-3xl flex items-center justify-center text-[#549E9E] shrink-0">
-                    <HeartPulse size={40} />
-                  </div>
+
+                  {/* Close Button */}
+                  <button
+                    onClick={() => setSelectedTreatment(null)}
+                    className="w-10 h-10 bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full flex items-center justify-center transition-all shrink-0 shadow-sm cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
 
-                <div className="grid md:grid-cols-12 gap-12">
-                  <div className="md:col-span-7 space-y-8">
-                    <div>
-                      <h3 className="text-xs font-black text-[#549E9E] uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                        <Sparkles size={14} className="text-[#F2D06B]" /> {t('treatments_page.about_treatment')}
+                {/* Dedicated Scrollable Body Content inside Modal Box */}
+                <div id="treatment-modal-scroll-area" className="flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-6 overscroll-contain">
+
+                  {/* Treatment Details & About Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-[#549E9E]">
+                      <Sparkles size={16} className="text-[#F2D06B]" />
+                      <h3 className="text-xs font-black uppercase tracking-[0.2em]">
+                        {t('treatments_page.about_treatment') || "About The Treatment"}
                       </h3>
-                      <p className="text-[#6A6A50] text-lg lg:text-xl leading-loose font-medium">
-                        {selectedTreatment.description}
+                    </div>
+                    <p className="text-[#6A6A50] text-base md:text-lg leading-relaxed font-medium">
+                      {selectedTreatment.description}
+                    </p>
+
+                    {/* Homeopathic Remedies List */}
+                    {selectedTreatment.remedies && selectedTreatment.remedies.length > 0 && (
+                      <div className="p-4 bg-[#FDFDF7] rounded-2xl border border-[#F2D06B]/30">
+                        <h4 className="text-[11px] font-black text-[#8A6D1B] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <span>✨ Homeopathic Remedies Mentioned</span>
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedTreatment.remedies.map((remedy, rIdx) => (
+                            <span key={rIdx} className="bg-white border border-[#F2D06B]/50 px-3 py-1 rounded-full text-xs font-bold text-[#6A6A50] shadow-xs">
+                              {remedy}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Safety & Healing Badges */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div className="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-100/60 flex items-start gap-3">
+                        <ShieldCheck className="text-[#549E9E] shrink-0 mt-0.5" size={20} />
+                        <div>
+                          <h4 className="text-[11px] font-black text-[#549E9E] uppercase tracking-wider">
+                            {t('treatments_page.safety_first') || "Safe & Natural"}
+                          </h4>
+                          <p className="text-[10px] text-gray-500 font-medium leading-snug">
+                            {t('treatments_page.natural_side_effect_free') || "No side-effects or heavy painkillers."}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-3.5 bg-amber-50/50 rounded-2xl border border-amber-100/60 flex items-start gap-3">
+                        <Zap className="text-[#F2D06B] shrink-0 mt-0.5" size={20} />
+                        <div>
+                          <h4 className="text-[11px] font-black text-[#549E9E] uppercase tracking-wider">
+                            {t('treatments_page.deep_healing') || "Root Cause Care"}
+                          </h4>
+                          <p className="text-[10px] text-gray-500 font-medium leading-snug">
+                            {t('treatments_page.treating_root_causes') || "Prevents recurrence naturally."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Compact Horizontal Consultation CTA Section */}
+                  <div className="bg-gradient-to-r from-[#549E9E] to-[#3E7A7A] rounded-2xl p-5 md:p-6 text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="space-y-1 text-center sm:text-left">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-[#F2D06B] text-[9px] font-black uppercase tracking-widest">
+                        <Sparkles size={11} />
+                        <span>{t('treatments_page.ready_to_recover') || "Ready to recover?"}</span>
+                      </div>
+                      <h4 className="text-base md:text-lg font-black tracking-tight leading-snug">
+                        {t('treatments_page.book_expert_consultation') || "Book your expert consultation"}
+                      </h4>
+                      <p className="text-xs text-white/85 font-medium max-w-md leading-relaxed">
+                        Consult Dr. Uttkarsh Trivedi for a personalized treatment plan for <span className="font-bold underline decoration-[#F2D06B]/50">{selectedTreatment.en}</span>.
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="p-6 bg-[#FDFDF7] rounded-[30px] border border-gray-50">
-                        <ShieldCheck className="text-[#549E9E] mb-3" size={24} />
-                        <h4 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest mb-1">{t('treatments_page.safety_first')}</h4>
-                        <p className="text-[11px] text-gray-400 font-medium leading-relaxed">{t('treatments_page.natural_side_effect_free')}</p>
-                      </div>
-                      <div className="p-6 bg-[#FDFDF7] rounded-[30px] border border-gray-100">
-                        <Zap className="text-[#F2D06B] mb-3" size={24} />
-                        <h4 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest mb-1">{t('treatments_page.deep_healing')}</h4>
-                        <p className="text-[11px] text-gray-400 font-medium leading-relaxed">{t('treatments_page.treating_root_causes')}</p>
-                      </div>
+                    <div className="flex flex-col items-center sm:items-end shrink-0 w-full sm:w-auto">
+                      <button
+                        onClick={() => {
+                          setSelectedTreatment(null);
+                          navigate('/booking');
+                        }}
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#549E9E] hover:bg-emerald-50 px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-md hover:scale-102 transition-all cursor-pointer"
+                      >
+                        <Calendar size={15} />
+                        <span>{t('hero.cta_book') || "Book Appointment"}</span>
+                      </button>
+                      <span className="text-[9px] font-extrabold text-white/70 uppercase tracking-widest mt-2 bg-black/10 px-2.5 py-0.5 rounded-full">
+                        Raipur's Top Specialist
+                      </span>
                     </div>
                   </div>
 
-                  <div className="md:col-span-5">
-                    <div className="bg-[#549E9E] rounded-[40px] p-8 text-white">
-                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] mb-6 opacity-60">{t('treatments_page.ready_to_recover')}</h4>
-                      <h3 className="text-2xl font-black mb-8 leading-tight">{t('treatments_page.book_expert_consultation')}</h3>
-                      <Link
-                        to="/booking"
-                        className="flex items-center justify-center gap-3 bg-white text-[#549E9E] py-5 rounded-full font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-black/10 w-full"
-                      >
-                        <Calendar size={16} /> {t('hero.cta_book')}
-                      </Link>
-                      <p className="text-center text-[10px] font-bold mt-6 opacity-40 uppercase tracking-tighter"> Raipur's Top Specialist </p>
-                    </div>
-                  </div>
                 </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import Consultation from './components/Consultation';
 import Gallery from './components/Gallery';
 import AboutUs from './components/AboutUs';
 import Treatments from './components/Treatments';
+import TreatmentsSection from './components/TreatmentsSection';
 import Booking from './components/Booking';
 import Contact from './components/Contact';
 import Footer from './components/Footer';
@@ -31,6 +32,7 @@ import Bills from './components/dashboard/Bills';
 import ConsultationPage from './components/dashboard/ConsultationPage';
 import DoctorReports from './components/dashboard/DoctorReports';
 import DoctorClinicHistory from './components/dashboard/DoctorClinicHistory';
+import PatientRecords from './components/dashboard/PatientRecords';
 import DispensaryHistory from './components/dashboard/DispensaryHistory';
 import MedicalProductMaster from './components/dashboard/MedicalProductMaster';
 import MedicalProductImport from './components/dashboard/MedicalProductImport';
@@ -62,6 +64,7 @@ function HomePage() {
     <>
       <Hero />
       <Consultation />
+      <TreatmentsSection />
     </>
   );
 }
@@ -130,7 +133,7 @@ function AnimatedRoutes() {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen font-sans overflow-x-hidden">
+    <div className="min-h-screen font-sans">
       {!shouldHideNavigation && <Navigation />}
       
       <AnimatePresence mode="wait">
@@ -153,7 +156,7 @@ function AnimatedRoutes() {
             <Route 
               path="/medical-welcome" 
               element={
-                <ProtectedRoute allowedRoles={['REC', 'rec', 'MED', 'med', 'medical', 'receptionist', 'doc', 'DOC']}>
+                <ProtectedRoute allowedRoles={['REC', 'rec', 'MED', 'med', 'medical', 'receptionist', 'doc', 'DOC', 'doctor']}>
                   <StaffWelcome />
                 </ProtectedRoute>
               } 
@@ -191,7 +194,8 @@ function AnimatedRoutes() {
               <Route path="/reception-patients" element={<ProtectedRoute allowedRoles={['REC', 'rec', 'receptionist']}><ReceptionPatientManagement /></ProtectedRoute>} />
               <Route path="/my-appointments" element={<ProtectedRoute allowedRoles={['patient', 'PAT']}><MyAppointments /></ProtectedRoute>} />
               <Route path="/clinic-history" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorClinicHistory /></ProtectedRoute>} />
-              <Route path="/dispensary-history" element={<ProtectedRoute allowedRoles={['MED', 'med', 'medical']}><DispensaryHistory /></ProtectedRoute>} />
+              <Route path="/patient-records" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical']}><PatientRecords /></ProtectedRoute>} />
+              <Route path="/dispensary-history" element={<ProtectedRoute allowedRoles={['MED', 'med', 'medical', 'DOC', 'doc', 'doctor']}><DispensaryHistory /></ProtectedRoute>} />
               <Route path="/medical-product-master" element={<ProtectedRoute allowedRoles={['MED', 'med', 'medical', 'doc', 'DOC', 'doctor']}><MedicalProductMaster /></ProtectedRoute>} />
               <Route path="/medical-product-import" element={<ProtectedRoute allowedRoles={['MED', 'med', 'medical', 'doc', 'DOC', 'doctor']}><MedicalProductImport /></ProtectedRoute>} />
               <Route path="/bills" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><Bills /></ProtectedRoute>} />

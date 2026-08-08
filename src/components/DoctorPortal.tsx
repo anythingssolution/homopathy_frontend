@@ -10,6 +10,8 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getSocket } from '../services/socket';
+import { useNotifications } from '../context/NotificationContext';
+import CustomAlertDialog, { CustomAlertState } from './CustomAlertDialog';
 
 type DoctorAppointment = {
   appointment_id: number;
@@ -208,8 +210,27 @@ const FilterDropdown = ({
 import CustomDatePicker from './CustomDatePicker';
 
 export default function DoctorPortal() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+
+  const getLocalizedSlotName = useCallback((name: string | null | undefined) => {
+    if (!name) return '';
+    const key = `doctor_portal.slots.${name}`;
+    const translated = t(key);
+    if (translated && translated !== key) return translated;
+
+    if (i18n.language === 'hi') {
+      if (/morning/i.test(name)) return name.replace(/morning session/i, 'सुबह का सत्र (Morning Session)').replace(/morning/i, 'सुबह');
+      if (/evening/i.test(name)) return name.replace(/evening session/i, 'शाम का सत्र (Evening Session)').replace(/evening/i, 'शाम');
+      if (/full day/i.test(name)) return name.replace(/full day session/i, 'पूरे दिन का सत्र (Full Day Session)');
+      if (/slot\s*1/i.test(name)) return name.replace(/slot\s*1/i, 'स्लॉट 1 (Slot 1)');
+      if (/slot\s*2/i.test(name)) return name.replace(/slot\s*2/i, 'स्लॉट 2 (Slot 2)');
+    }
+    return name;
+  }, [t, i18n.language]);
+
   const { token, branchScope } = useAuth();
+  const { addToast } = useNotifications();
+  const [alertModal, setAlertModal] = useState<CustomAlertState | null>(null);
   const [appointments, setAppointments] = useState<DoctorAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -508,6 +529,23 @@ export default function DoctorPortal() {
     }
   };
 
+  const triggerCustomAlert = (message: string, type: 'warning' | 'error' | 'success' | 'info' = 'warning', title?: string) => {
+    addToast(message, type);
+    const isSessionError = message.toLowerCase().includes('doctor session not started') || message.toLowerCase().includes('session first');
+    setAlertModal({
+      isOpen: true,
+      title: title || (isSessionError ? 'Doctor Session Required' : type === 'error' ? 'Action Failed' : 'Notice'),
+      message,
+      type,
+      primaryAction: isSessionError ? {
+        label: 'Start Session Now',
+        onClick: () => toggleStatus(true),
+        icon: <UserCheck size={16} />
+      } : undefined,
+      confirmText: 'Got it',
+    });
+  };
+
   const fetchAppointments = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -716,11 +754,11 @@ export default function DoctorPortal() {
         fetchDashboardStats();
         navigate(`/consult/${app.appointment_id}`, { state: { app } });
       } else {
-        alert(data.message || 'Unable to start consultation. Start doctor session first.');
+        triggerCustomAlert(data.message || 'Unable to start consultation. Start doctor session first.', 'warning');
       }
     } catch (err) {
       console.error('Start consultation error:', err);
-      alert('Unable to start consultation. Please try again.');
+      triggerCustomAlert('Unable to start consultation. Please try again.', 'error');
     } finally {
       setStartingConsultationId(null);
     }
@@ -734,7 +772,7 @@ export default function DoctorPortal() {
       // We need a slot_id. Get it from first appointment of the day
       const todayAppts = appointments.filter(a => a.appointment_date === filterDate);
       if (todayAppts.length === 0) {
-        alert('No appointments found for today to call next.');
+        triggerCustomAlert('No appointments found for today to call next.', 'info');
         return;
       }
       const slotId = todayAppts[0].fk_slot_id;
@@ -756,12 +794,13 @@ export default function DoctorPortal() {
         // Refresh appointments list to reflect the change
         fetchAppointments();
         fetchDashboardStats();
+        addToast('Next patient called successfully', 'success');
       } else {
-        alert(data.message || 'No ready patient to call');
+        triggerCustomAlert(data.message || 'No ready patient to call', 'warning');
       }
     } catch (err) {
       console.error('Call next error:', err);
-      alert('Failed to call next patient');
+      triggerCustomAlert('Failed to call next patient', 'error');
     } finally {
       setIsCallingNext(false);
     }
@@ -882,10 +921,10 @@ export default function DoctorPortal() {
               </div>
               <div className="text-left min-w-0">
                 <span className="block text-[10px] font-black uppercase tracking-widest leading-tight truncate">
-                  {isAtDesk ? t('doctor_portal.at_desk') : isOnBreak ? 'On Break' : t('doctor_portal.not_at_desk')}
+                  {isAtDesk ? t('doctor_portal.at_desk') : isOnBreak ? t('doctor_portal.on_break', 'On Break') : t('doctor_portal.not_at_desk')}
                 </span>
                 <span className={`text-[8px] font-bold uppercase tracking-wider block mt-0.5 ${isAtDesk || isOnBreak ? 'text-white/75' : 'text-gray-400'}`}>
-                  {isAtDesk || isOnBreak ? 'End Session' : t('doctor_portal.start_session')}
+                  {isAtDesk || isOnBreak ? t('doctor_portal.end_session', 'End Session') : t('doctor_portal.start_session')}
                 </span>
               </div>
             </button>
@@ -902,10 +941,10 @@ export default function DoctorPortal() {
                 </div>
                 <div className="text-left">
                   <span className="block text-[10px] font-black uppercase tracking-widest leading-tight">
-                    {isOnBreak ? 'Resume' : 'Break'}
+                    {isOnBreak ? t('doctor_portal.resume', 'Resume') : t('doctor_portal.take_break', 'Take Break')}
                   </span>
                   <span className={`text-[8px] font-bold uppercase tracking-wider block mt-0.5 ${isOnBreak ? 'text-white/75' : 'text-amber-500'}`}>
-                    {isOnBreak ? 'Back' : 'Hold'}
+                    {isOnBreak ? t('doctor_portal.back_to_queue', 'Back To Queue') : t('doctor_portal.same_slot_hold', 'Same Slot Hold')}
                   </span>
                 </div>
               </button>
@@ -926,7 +965,7 @@ export default function DoctorPortal() {
                     <span className={`text-base font-black tabular-nums tracking-wider ml-2 ${isOnBreak ? 'text-amber-600' : 'text-[#549E9E]'}`}>{realTime}</span>
                   </div>
                   <span className={`text-[8px] font-bold uppercase tracking-widest ${isOnBreak ? 'text-amber-600/70' : 'text-[#549E9E]/60'}`}>
-                    {isOnBreak ? 'Break' : ''} {activeSince ? `Since ${activeSince}` : ''}
+                    {isOnBreak ? t('doctor_portal.on_break', 'On Break') : ''} {activeSince ? `${t('doctor_portal.since')} ${activeSince}` : ''}
                   </span>
                 </div>
               </motion.div>
@@ -953,12 +992,12 @@ export default function DoctorPortal() {
             <button onClick={() => navigate('/doctor-formula-master')}
               className="flex-1 flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl border border-emerald-100 active:scale-95 transition-transform">
               <WandSparkles size={15} />
-              <span>Formula</span>
+              <span>{t('doctor_portal.formula_master', 'Formula Master')}</span>
             </button>
             <button onClick={() => navigate('/doctor-portal/cms')}
               className="flex-1 flex items-center justify-center gap-2 bg-purple-50 text-purple-600 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl border border-purple-100 active:scale-95 transition-transform">
               <Layout size={15} />
-              <span>CMS</span>
+              <span>{t('doctor_portal.manage_cms', 'Manage CMS')}</span>
             </button>
             <button onClick={fetchAppointments}
               className="flex items-center justify-center bg-[#549E9E]/10 text-[#549E9E] p-3 rounded-xl border border-[#549E9E]/10 active:scale-95 transition-transform">
@@ -990,10 +1029,10 @@ export default function DoctorPortal() {
                 </div>
                 <div className="text-left">
                   <span className="block text-[10px] font-black uppercase tracking-widest leading-tight">
-                    {isAtDesk ? t('doctor_portal.at_desk') : isOnBreak ? 'On Break' : t('doctor_portal.not_at_desk')}
+                    {isAtDesk ? t('doctor_portal.at_desk') : isOnBreak ? t('doctor_portal.on_break', 'On Break') : t('doctor_portal.not_at_desk')}
                   </span>
                   <span className={`text-[8px] font-bold uppercase tracking-wider block mt-0.5 ${isAtDesk || isOnBreak ? 'text-white/75' : 'text-gray-400'}`}>
-                    {isAtDesk || isOnBreak ? 'End Session' : t('doctor_portal.start_session')}
+                    {isAtDesk || isOnBreak ? t('doctor_portal.end_session', 'End Session') : t('doctor_portal.start_session')}
                   </span>
                 </div>
               </button>
@@ -1010,10 +1049,10 @@ export default function DoctorPortal() {
                   </div>
                   <div className="text-left">
                     <span className="block text-[10px] font-black uppercase tracking-widest leading-tight">
-                      {isOnBreak ? 'Resume' : 'Take Break'}
+                      {isOnBreak ? t('doctor_portal.resume', 'Resume') : t('doctor_portal.take_break', 'Take Break')}
                     </span>
                     <span className={`text-[8px] font-bold uppercase tracking-wider block mt-0.5 ${isOnBreak ? 'text-white/75' : 'text-amber-500'}`}>
-                      {isOnBreak ? 'Back To Queue' : 'Same Slot Hold'}
+                      {isOnBreak ? t('doctor_portal.back_to_queue', 'Back To Queue') : t('doctor_portal.same_slot_hold', 'Same Slot Hold')}
                     </span>
                   </div>
                 </button>
@@ -1036,7 +1075,7 @@ export default function DoctorPortal() {
                     <div className={`${isOnBreak ? 'bg-amber-50 border-amber-200' : 'bg-[#549E9E]/5 border-[#549E9E]/10'} px-6 border text-center flex flex-col justify-center h-[62px] min-w-[120px]`}>
                       <span className={`text-[10px] font-black uppercase tracking-widest block leading-tight ${isOnBreak ? 'text-amber-500/70' : 'text-[#549E9E]/40'}`}>{t('doctor_portal.real_time')}</span>
                       <span className={`text-xl font-black tabular-nums tracking-widest leading-none my-0.5 ${isOnBreak ? 'text-amber-600' : 'text-[#549E9E]'}`}>{realTime}</span>
-                      <div className={`text-[8px] font-bold uppercase tracking-widest leading-tight ${isOnBreak ? 'text-amber-600/70' : 'text-[#549E9E]/60'}`}>{isOnBreak ? 'Break Since' : `${t('doctor_portal.since')} ${activeSince}`}{isOnBreak && activeSince ? ` ${activeSince}` : ''}</div>
+                      <div className={`text-[8px] font-bold uppercase tracking-widest leading-tight ${isOnBreak ? 'text-amber-600/70' : 'text-[#549E9E]/60'}`}>{isOnBreak ? t('doctor_portal.on_break', 'Break Since') : `${t('doctor_portal.since')} ${activeSince}`}{isOnBreak && activeSince ? ` ${activeSince}` : ''}</div>
                     </div>
                   </motion.div>
                 )}
@@ -1048,12 +1087,12 @@ export default function DoctorPortal() {
               <button onClick={() => navigate('/doctor-formula-master')}
                 className="cursor-pointer bg-emerald-50 text-emerald-700 px-6 py-4 text-xs font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 border-2 border-emerald-50 rounded-xl">
                 <WandSparkles size={16} />
-                Formula Master
+                {t('doctor_portal.formula_master', 'Formula Master')}
               </button>
               <button onClick={() => navigate('/doctor-portal/cms')}
                 className="cursor-pointer bg-purple-50 text-purple-600 px-6 py-4 text-xs font-black uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all flex items-center gap-2 border-2 border-purple-50 rounded-xl">
                 <Layout size={16} />
-                Manage CMS
+                {t('doctor_portal.manage_cms', 'Manage CMS')}
               </button>
               <button onClick={fetchAppointments}
                 className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-8 py-4 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-3 border-2 border-[#549E9E]/5 rounded-xl">
@@ -1062,39 +1101,44 @@ export default function DoctorPortal() {
               </button>
             </div>
           </div>
-          
-          {/* Search Bar on its own line */}
-          <div className="flex w-full">
-            <div className="relative group w-full md:w-96">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E] transition-colors" size={18} />
+        </div>
+
+        <div ref={listRef} className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-4 border-t border-gray-100 items-end scroll-mt-24">
+          <div className="md:col-span-6 space-y-1.5">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              {t('doctor_portal.search_label', 'Search Patient')}
+            </label>
+            <div className="relative group w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E] transition-colors" size={16} />
               <input
                 type="text"
                 placeholder={t('doctor_portal.search_placeholder')}
                 value={patientSearch}
                 onChange={(e) => setPatientSearch(e.target.value)}
-                className="w-full bg-white border-2 border-gray-50 py-4 pl-14 pr-6 text-sm font-bold text-gray-600 outline-none focus:border-[#549E9E]/20 transition-all placeholder:text-gray-300 rounded-xl"
+                className="w-full bg-white border border-gray-200 py-2.5 pl-11 pr-4 text-xs font-bold text-gray-600 outline-none focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all placeholder:text-gray-300 rounded-xl"
               />
             </div>
           </div>
-        </div>
-
-        <div ref={listRef} className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100 scroll-mt-24">
-          <CustomDatePicker
-            label={t('doctor_portal.today_appointment_date')}
-            value={filterDate}
-            onChange={setFilterDate}
-          />
-          <FilterDropdown
-            label={t('doctor_portal.status')}
-            icon={Tag}
-            value={filterStatus}
-            onChange={setFilterStatus}
-            options={[
-              { id: 'all', label: t('doctor_portal.all_statuses') },
-              { id: 'Pending', label: t('doctor_portal.pending') },
-              { id: 'Completed', label: t('doctor_portal.completed') },
-            ]}
-          />
+          <div className="md:col-span-3">
+            <CustomDatePicker
+              label={t('doctor_portal.today_appointment_date')}
+              value={filterDate}
+              onChange={setFilterDate}
+            />
+          </div>
+          <div className="md:col-span-3">
+            <FilterDropdown
+              label={t('doctor_portal.status')}
+              icon={Tag}
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { id: 'all', label: t('doctor_portal.all_statuses') },
+                { id: 'Pending', label: t('doctor_portal.pending') },
+                { id: 'Completed', label: t('doctor_portal.completed') },
+              ]}
+            />
+          </div>
         </div>
 
         <div className="border border-[#549E9E]/20 bg-[#549E9E]/[0.03] rounded-xl overflow-hidden transition-all shadow-sm">
@@ -1103,8 +1147,8 @@ export default function DoctorPortal() {
             className="w-full flex items-center justify-between p-5 text-left hover:bg-[#549E9E]/5 transition-colors focus:outline-none"
           >
             <div>
-              <p className="text-[10px] font-black text-[#549E9E] uppercase tracking-[0.2em]">Manage Slot Timing</p>
-              <p className="text-[10px] sm:text-xs font-bold text-gray-500 mt-1">Shift this date only. Token order and treatment durations stay unchanged.</p>
+              <p className="text-[10px] font-black text-[#549E9E] uppercase tracking-[0.2em]">{t('doctor_portal.manage_slot_timing', 'Manage Slot Timing')}</p>
+              <p className="text-[10px] sm:text-xs font-bold text-gray-500 mt-1">{t('doctor_portal.shift_timing_note', 'Shift this date only. Token order and treatment durations stay unchanged.')}</p>
             </div>
             <div className="flex items-center gap-4 shrink-0">
               {selectedDateSlotTiming && (
@@ -1112,7 +1156,7 @@ export default function DoctorPortal() {
                     ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm'
                     : 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm'
                   }`}>
-                  {selectedDateSlotTiming.has_override ? 'Shifted Timing' : 'Default Timing'}
+                  {selectedDateSlotTiming.has_override ? t('doctor_portal.shifted_timing', 'Shifted Timing') : t('doctor_portal.default_timing', 'Default Timing')}
                 </span>
               )}
               <div className={`p-1.5 rounded-md bg-white border border-gray-200 shadow-sm transition-transform duration-300 ${isSlotTimingOpen ? 'rotate-180 bg-[#549E9E]/10 border-[#549E9E]/30 text-[#549E9E]' : 'text-gray-400'}`}>
@@ -1132,30 +1176,30 @@ export default function DoctorPortal() {
                 <div className="p-5 pt-0 space-y-5 border-t border-[#549E9E]/10 mt-2">
                   {dateSlotTimings.length === 0 ? (
                     <div className="flex items-center justify-center p-6 bg-white border border-gray-100 rounded-xl">
-                      <p className="text-xs font-bold text-gray-400">No active slot is available for this branch.</p>
+                      <p className="text-xs font-bold text-gray-400">{t('doctor_portal.no_active_slot_available', 'No active slot is available for this branch.')}</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="z-10">
                         <FilterDropdown
-                          label="Slot"
+                          label={t('doctor_portal.slot_label', 'Slot')}
                           icon={Clock}
                           value={selectedTimingSlotId ? String(selectedTimingSlotId) : ''}
                           onChange={(v) => setSelectedTimingSlotId(Number(v))}
                           options={dateSlotTimings.map((slot) => ({
                             id: String(slot.slot_id),
-                            label: slot.slot_name
+                            label: getLocalizedSlotName(slot.slot_name)
                           }))}
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Default Time</span>
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('doctor_portal.default_time', 'Default Time')}</span>
                         <div className="bg-gray-50 border border-gray-100 px-4 py-3 text-xs font-black text-gray-600 rounded-xl flex items-center shadow-inner">
                           {toTimeInputValue(selectedDateSlotTiming?.default_start_time)} - {toTimeInputValue(selectedDateSlotTiming?.default_end_time)}
                         </div>
                       </div>
                       <label className="space-y-1.5">
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">New Start Time</span>
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('doctor_portal.new_start_time', 'New Start Time')}</span>
                         <div className="relative">
                           <input
                             type="time"
@@ -1166,9 +1210,9 @@ export default function DoctorPortal() {
                         </div>
                       </label>
                       <div className="space-y-1.5">
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Auto End Time</span>
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('doctor_portal.auto_end_time', 'Auto End Time')}</span>
                         <div className={`px-4 py-3 text-xs font-black rounded-xl border shadow-sm transition-colors ${shiftedEndTime ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-red-50 text-red-500 border-red-100'}`}>
-                          {shiftedEndTime || 'Invalid end time'}
+                          {shiftedEndTime || t('doctor_portal.invalid_end_time', 'Invalid end time')}
                         </div>
                       </div>
                     </div>
@@ -1181,7 +1225,7 @@ export default function DoctorPortal() {
                         value={overrideReason}
                         onChange={(event) => setOverrideReason(event.target.value)}
                         maxLength={500}
-                        placeholder="Reason / remark (optional)"
+                        placeholder={t('doctor_portal.reason_remark_optional', 'Reason / remark (optional)')}
                         className="flex-1 bg-white border border-gray-200 px-4 py-3.5 text-xs font-bold text-gray-600 outline-none focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 rounded-xl transition-all shadow-sm"
                       />
                       <button
@@ -1189,7 +1233,7 @@ export default function DoctorPortal() {
                         disabled={isSavingSlotTiming || !shiftedEndTime}
                         className="px-6 py-3.5 bg-[#549E9E] text-white text-[10px] font-black uppercase tracking-widest rounded-xl disabled:opacity-50 hover:bg-[#458585] transition-colors shadow-md shadow-[#549E9E]/20"
                       >
-                        {isSavingSlotTiming ? 'Updating...' : 'Apply Shift'}
+                        {isSavingSlotTiming ? t('doctor_portal.updating', 'Updating...') : t('doctor_portal.apply_shift', 'Apply Shift')}
                       </button>
                       {selectedDateSlotTiming.has_override && (
                         <button
@@ -1197,7 +1241,7 @@ export default function DoctorPortal() {
                           disabled={isSavingSlotTiming}
                           className="px-6 py-3.5 bg-white border border-gray-200 text-gray-600 text-[10px] font-black uppercase tracking-widest rounded-xl disabled:opacity-50 hover:bg-gray-50 transition-colors shadow-sm"
                         >
-                          Reset Default
+                          {t('doctor_portal.reset_default', 'Reset Default')}
                         </button>
                       )}
                     </div>
@@ -1234,8 +1278,8 @@ export default function DoctorPortal() {
           <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-8">
             <Users className="text-gray-200" size={48} />
           </div>
-          <h3 className="text-2xl font-black text-gray-800 uppercase tracking-widest mb-4">No Appointments Found</h3>
-          <p className="text-sm font-medium text-gray-400 uppercase tracking-widest">Try changing filters or date</p>
+          <h3 className="text-2xl font-black text-gray-800 uppercase tracking-widest mb-4">{t('doctor_portal.no_appointments_found', 'No Appointments Found')}</h3>
+          <p className="text-sm font-medium text-gray-400 uppercase tracking-widest">{t('doctor_portal.try_changing_filters', 'Try changing filters or date')}</p>
         </motion.div>
       ) : (
         <div className="bg-white border border-gray-200 shadow-sm overflow-hidden rounded-2xl sm:rounded-none">
@@ -1290,7 +1334,7 @@ export default function DoctorPortal() {
                     <div className="flex items-center justify-between mt-2.5">
                       <div className="flex items-center gap-3 text-[10px] font-bold text-gray-400">
                         <span className="flex items-center gap-1"><Calendar size={11} className="text-[#549E9E]" />{new Date(app.appointment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
-                        <span className="flex items-center gap-1"><Clock size={11} />{app.slot_name}</span>
+                        <span className="flex items-center gap-1"><Clock size={11} />{getLocalizedSlotName(app.slot_name)}</span>
                         <span className="text-xs font-black text-gray-600">{app.treatment_name}</span>
                       </div>
                       {app.template_start_time && (
@@ -1458,7 +1502,7 @@ export default function DoctorPortal() {
                           </div>
                           <div className="flex items-center gap-2 text-gray-400 text-[10px] font-bold uppercase tracking-widest">
                             <Clock size={13} />
-                            {app.slot_name}
+                            {getLocalizedSlotName(app.slot_name)}
                           </div>
                         </div>
                       </td>
@@ -1602,6 +1646,7 @@ export default function DoctorPortal() {
         </div>
 
       )}
+      <CustomAlertDialog alert={alertModal} onClose={() => setAlertModal(null)} />
     </div>
   );
 }

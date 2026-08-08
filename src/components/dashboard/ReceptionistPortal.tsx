@@ -24,6 +24,7 @@ import {
   UserCheck,
   UserX,
   Activity,
+  ClipboardList,
 } from "lucide-react";
 import CustomDatePicker from "../CustomDatePicker";
 import Pagination from "../Pagination";
@@ -110,6 +111,128 @@ export default function ReceptionistPortal() {
   const [vitalsHeightValue, setVitalsHeightValue] = useState("");
   const [vitalsHeightUnit, setVitalsHeightUnit] = useState<"cm" | "ft">("cm");
   const [vitalsWeightValue, setVitalsWeightValue] = useState("");
+
+  // Extended History Modal State
+  const [isExtendedHistoryModalOpen, setIsExtendedHistoryModalOpen] = useState(false);
+  const [historyAppointment, setHistoryAppointment] = useState<any | null>(null);
+  const [isSavingHistory, setIsSavingHistory] = useState(false);
+
+  const [extOccupation, setExtOccupation] = useState("");
+  const [extPersonalSocialHistory, setExtPersonalSocialHistory] = useState("");
+  const [extHistoryPresentIllness, setExtHistoryPresentIllness] = useState("");
+  const [extHistoryPastIllness, setExtHistoryPastIllness] = useState("");
+  const [extFamilyHistory, setExtFamilyHistory] = useState("");
+  const [extAllergiesHistory, setExtAllergiesHistory] = useState("");
+  const [extGynecologicalHistory, setExtGynecologicalHistory] = useState("");
+  const [extMentalMindStatus, setExtMentalMindStatus] = useState("");
+  const [extGeneralExamination, setExtGeneralExamination] = useState("");
+  const [extSystematicExamination, setExtSystematicExamination] = useState("");
+  const [extDisease, setExtDisease] = useState("");
+  const [extFollowUp, setExtFollowUp] = useState("");
+  const [extDifferentialDiagnosis, setExtDifferentialDiagnosis] = useState("");
+
+  const openExtendedHistoryModal = (appointment: any) => {
+    setHistoryAppointment(appointment);
+    setExtOccupation(appointment?.occupation || "");
+    setExtPersonalSocialHistory(appointment?.personal_social_history || "");
+    setExtHistoryPresentIllness(appointment?.history_present_illness || "");
+    setExtHistoryPastIllness(appointment?.history_past_illness || "");
+    setExtFamilyHistory(appointment?.family_history || "");
+    setExtAllergiesHistory(appointment?.allergies_history || "");
+    setExtGynecologicalHistory(appointment?.gynecological_history || "");
+    setExtMentalMindStatus(appointment?.mental_mind_status || "");
+    setExtGeneralExamination(appointment?.general_examination || "");
+    setExtSystematicExamination(appointment?.systematic_examination || "");
+    setExtDisease(appointment?.disease || "");
+    setExtFollowUp(appointment?.follow_up || "");
+    setExtDifferentialDiagnosis(appointment?.differential_diagnosis || "");
+
+    const rawO2 = String(appointment?.oxygen_saturation || "").trim();
+    const rawBp = String(appointment?.blood_pressure || "").trim();
+    const rawHeight = String(appointment?.patient_height || "").trim();
+    const rawWeight = String(appointment?.patient_weight || "").trim();
+    setVitalsO2Value(rawO2.replace("%", "").trim());
+    setVitalsBpValue(rawBp);
+    if (rawHeight.includes("cm")) {
+      setVitalsHeightUnit("cm");
+      setVitalsHeightValue(rawHeight.replace("cm", "").trim());
+    } else if (rawHeight) {
+      setVitalsHeightUnit("ft");
+      setVitalsHeightValue(rawHeight);
+    } else {
+      setVitalsHeightUnit("cm");
+      setVitalsHeightValue("");
+    }
+    setVitalsWeightValue(rawWeight.replace("kg", "").trim());
+
+    setIsExtendedHistoryModalOpen(true);
+  };
+
+  const closeExtendedHistoryModal = () => {
+    if (isSavingHistory) return;
+    setIsExtendedHistoryModalOpen(false);
+    setHistoryAppointment(null);
+  };
+
+  const saveExtendedHistory = async () => {
+    if (!historyAppointment?.appointment_id) return;
+
+    setIsSavingHistory(true);
+    try {
+      const response = await fetch(
+        `/api/v1/receptionist/appointments/${historyAppointment.appointment_id}/vitals`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            oxygen_saturation: vitalsO2Value.trim()
+              ? `${vitalsO2Value.trim()}%`
+              : "",
+            blood_pressure: vitalsBpValue.trim(),
+            patient_height: vitalsHeightValue.trim()
+              ? vitalsHeightUnit === "cm"
+                ? `${vitalsHeightValue.trim()} cm`
+                : vitalsHeightValue.trim()
+              : "",
+            patient_weight: vitalsWeightValue.trim()
+              ? `${vitalsWeightValue.trim()} kg`
+              : "",
+            occupation: extOccupation.trim(),
+            personal_social_history: extPersonalSocialHistory.trim(),
+            history_present_illness: extHistoryPresentIllness.trim(),
+            history_past_illness: extHistoryPastIllness.trim(),
+            family_history: extFamilyHistory.trim(),
+            allergies_history: extAllergiesHistory.trim(),
+            gynecological_history: extGynecologicalHistory.trim(),
+            mental_mind_status: extMentalMindStatus.trim(),
+            general_examination: extGeneralExamination.trim(),
+            systematic_examination: extSystematicExamination.trim(),
+            disease: extDisease.trim(),
+            follow_up: extFollowUp.trim(),
+            differential_diagnosis: extDifferentialDiagnosis.trim(),
+          }),
+        },
+      );
+
+      const data = await response.json();
+      if (!data.success) {
+        alert(data.message || "Failed to save extended history");
+        return;
+      }
+
+      addToast(data.message || "Extended History saved successfully", "success");
+      closeExtendedHistoryModal();
+      fetchAppointments();
+    } catch (error) {
+      console.error(error);
+      alert("Failed to save extended history");
+    } finally {
+      setIsSavingHistory(false);
+    }
+  };
 
   // Billing State
   const [bills, setBills] = useState<any[]>([]);
@@ -371,6 +494,22 @@ export default function ReceptionistPortal() {
     appointment?.consultation_payment_status === "PAID" &&
     appointment?.consultation_payment_settlement_type === "FOLLOW_UP";
 
+  const openConsultationPaymentModal = (appointment: any, amount?: number) => {
+    setApprovingId(Number(appointment.appointment_id));
+    setPaymentData({
+      payment_mode: "CASH",
+      amount:
+        amount !== undefined
+          ? String(amount)
+          : appointment.consultation_fee
+            ? String(appointment.consultation_fee)
+            : "",
+      transaction_reference: "",
+      remark: "Consultation fee",
+    });
+    setIsPaymentModalOpen(true);
+  };
+
   const handleApprove = async (id: number) => {
     const appointment = appointments.find(
       (item: any) => Number(item.appointment_id) === Number(id),
@@ -401,11 +540,11 @@ export default function ReceptionistPortal() {
           setIsCheckInPromptOpen(true);
           fetchAppointments();
         } else {
-          alert(data.message || "Failed to approve");
+          addToast(data.message || "Failed to approve", "error");
         }
       } catch (err) {
         console.error(err);
-        alert("Failed to approve");
+        addToast("Failed to approve", "error");
       } finally {
         setIsApproving(false);
         setApprovingId(null);
@@ -413,13 +552,7 @@ export default function ReceptionistPortal() {
       return;
     }
 
-    setPaymentData({
-      payment_mode: "CASH",
-      amount: "",
-      transaction_reference: "",
-      remark: "Consultation fee",
-    });
-    setIsPaymentModalOpen(true);
+    openConsultationPaymentModal(appointment);
   };
 
   const closeCheckInPrompt = () => {
@@ -451,11 +584,22 @@ export default function ReceptionistPortal() {
         fetchAppointments();
         return true;
       }
-      alert(data.message || "Failed to check in patient");
+      if (res.status === 409 && data.code === "CONSULTATION_PAYMENT_REQUIRED") {
+        const appointment = appointments.find(
+          (item: any) => Number(item.appointment_id) === Number(appointmentId),
+        ) || { appointment_id: appointmentId };
+        setIsCheckInPromptOpen(false);
+        setCheckInPromptAppointmentId(null);
+        openConsultationPaymentModal(appointment, Number(data.data?.amount) || 0);
+        addToast(data.message || "Consultation payment is required before check-in", "warning");
+        fetchAppointments();
+        return false;
+      }
+      addToast(data.message || "Failed to check in patient", "error");
       return false;
     } catch (err) {
       console.error(err);
-      alert("Failed to check in patient");
+      addToast("Failed to check in patient", "error");
       return false;
     } finally {
       setIsCheckingIn(false);
@@ -468,7 +612,7 @@ export default function ReceptionistPortal() {
       paymentData.payment_mode === "ONLINE" &&
       !paymentData.transaction_reference.trim()
     ) {
-      alert("Transaction reference is required for ONLINE payment");
+      addToast("Transaction reference is required for ONLINE payment", "warning");
       return;
     }
 
@@ -499,7 +643,7 @@ export default function ReceptionistPortal() {
         setIsCheckInPromptOpen(true);
         fetchAppointments();
       } else {
-        alert(data.message || "Failed to approve");
+        addToast(data.message || "Failed to approve", "error");
       }
     } catch (err) {
       console.error(err);
@@ -565,11 +709,11 @@ export default function ReceptionistPortal() {
         setRejectionReason("");
         fetchAppointments();
       } else {
-        alert(data.message || "Failed to reject");
+        addToast(data.message || "Failed to reject", "error");
       }
     } catch (err) {
       console.error(err);
-      alert("Failed to reject");
+      addToast("Failed to reject", "error");
     } finally {
       setIsRejecting(false);
     }
@@ -627,7 +771,7 @@ export default function ReceptionistPortal() {
         setNotAvailableId(null);
         fetchAppointments();
       } else {
-        alert(data.message || "Action failed");
+        addToast(data.message || "Action failed", "error");
       }
     } catch (err) {
       console.error(err);
@@ -782,7 +926,7 @@ export default function ReceptionistPortal() {
         (a: any) => a.appointment_date === dateStr,
       );
       if (todayAppts.length === 0) {
-        alert("No appointments found for today.");
+        addToast("No appointments found for today.", "warning");
         return;
       }
       const slotId = todayAppts[0].fk_slot_id;
@@ -804,11 +948,11 @@ export default function ReceptionistPortal() {
         addToast("Next patient called successfully", "success");
         fetchAppointments();
       } else {
-        alert(data.message || "No ready patient to call");
+        addToast(data.message || "No ready patient to call", "warning");
       }
     } catch (err) {
       console.error("Call next error:", err);
-      alert("Failed to call next patient");
+      addToast("Failed to call next patient", "error");
     } finally {
       setIsCallingNext(false);
     }
@@ -1088,6 +1232,14 @@ export default function ReceptionistPortal() {
                                     Check-In
                                   </button>
                                 )}
+                                {app.consultation_payment_status === "UNPAID" && (
+                                  <button
+                                    onClick={() => openConsultationPaymentModal(app)}
+                                    className="bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-orange-100 whitespace-nowrap"
+                                  >
+                                    Collect Payment
+                                  </button>
+                                )}
                               </>
                             ) : app.reception_status === "REJECTED_BY_RECEPTION" ? (
                               <span className="text-[10px] font-black text-red-600 bg-red-50 border border-red-100 px-3 py-1.5 rounded-lg uppercase tracking-widest">Rejected</span>
@@ -1095,6 +1247,9 @@ export default function ReceptionistPortal() {
                               <>
                                 <button onClick={() => openVitalsModal(app)} className="bg-sky-50 text-sky-600 hover:bg-sky-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-sky-100 flex items-center gap-1">
                                   <Activity size={12} /> Vitals
+                                </button>
+                                <button onClick={() => openExtendedHistoryModal(app)} className="bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-teal-100 flex items-center gap-1">
+                                  <ClipboardList size={12} /> History
                                 </button>
                                 <button onClick={() => handleApprove(app.appointment_id)} className="bg-[#549E9E] text-white hover:bg-[#468686] px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm shadow-[#549E9E]/20 flex items-center gap-1">
                                   <CheckCircle2 size={12} /> Approve
@@ -1364,14 +1519,13 @@ export default function ReceptionistPortal() {
                                 >
                                   <Activity size={12} /> Vitals
                                 </button>
-                                {/* <button
-                                onClick={() =>
-                                  handleNotAvailable(app.appointment_id)
-                                }
-                                className="bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-orange-100 whitespace-nowrap"
-                              >
-                                Not Available
-                              </button> */}
+                                <button
+                                  onClick={() => openExtendedHistoryModal(app)}
+                                  className="bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-teal-100 flex items-center justify-center gap-1 whitespace-nowrap"
+                                  title="Extended Patient History & Examination"
+                                >
+                                  <ClipboardList size={12} /> History
+                                </button>
                                 <button
                                   onClick={() => handleReject(app.appointment_id)}
                                   className="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-red-100 flex items-center justify-center gap-1 whitespace-nowrap"
@@ -1786,7 +1940,282 @@ export default function ReceptionistPortal() {
                     </motion.div>
                   </div>
                 )}
+              </AnimatePresence>
 
+              {/* Extended Patient History & Examination Modal */}
+              <AnimatePresence>
+                {isExtendedHistoryModalOpen && (
+                  <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/60 backdrop-blur-md p-4 no-print">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden border border-gray-100 flex flex-col max-h-[85vh]"
+                    >
+                      <div className="bg-gradient-to-r from-[#549E9E] to-teal-700 p-4 text-white flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-white/15 rounded-xl backdrop-blur-xs">
+                            <ClipboardList size={22} className="text-white" />
+                          </div>
+                          <div>
+                            <h3 className="font-black text-base uppercase tracking-wider text-white">
+                              Extended Patient History & Examination
+                            </h3>
+                            <p className="text-xs text-white/80 font-bold">
+                              Comprehensive EMR medical records, lifestyle, examinations & observations ({historyAppointment?.patient_full_name || "Patient"})
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={closeExtendedHistoryModal}
+                          disabled={isSavingHistory}
+                          className="p-2 rounded-full hover:bg-white/20 text-white/90 hover:text-white transition-colors cursor-pointer"
+                        >
+                          <X size={20} />
+                        </button>
+                      </div>
+
+                      <div
+                        className="p-6 overflow-y-auto space-y-6 flex-1 h-full min-h-0"
+                        style={{ overscrollBehavior: "contain" }}
+                      >
+                        {/* Basic & Lifestyle */}
+                        <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
+                          <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
+                            Basic & Lifestyle
+                          </label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                Occupation
+                              </label>
+                              <input
+                                type="text"
+                                disabled={isSavingHistory}
+                                value={extOccupation}
+                                onChange={(e) => setExtOccupation(e.target.value)}
+                                className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80"
+                                placeholder="e.g. Teacher, Engineer..."
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                Personal & Social History
+                              </label>
+                              <input
+                                type="text"
+                                disabled={isSavingHistory}
+                                value={extPersonalSocialHistory}
+                                onChange={(e) => setExtPersonalSocialHistory(e.target.value)}
+                                className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80"
+                                placeholder="e.g. Smoking, Alcohol..."
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Medical History */}
+                        <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
+                          <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
+                            Medical History
+                          </label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                History of Present Illness
+                              </label>
+                              <textarea
+                                disabled={isSavingHistory}
+                                value={extHistoryPresentIllness}
+                                onChange={(e) => setExtHistoryPresentIllness(e.target.value)}
+                                rows={2}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                                placeholder="Details of current illness..."
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                History of Past Illness
+                              </label>
+                              <textarea
+                                disabled={isSavingHistory}
+                                value={extHistoryPastIllness}
+                                onChange={(e) => setExtHistoryPastIllness(e.target.value)}
+                                rows={2}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                                placeholder="Details of past illnesses..."
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                Family History
+                              </label>
+                              <textarea
+                                disabled={isSavingHistory}
+                                value={extFamilyHistory}
+                                onChange={(e) => setExtFamilyHistory(e.target.value)}
+                                rows={2}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                                placeholder="Relevant family diseases..."
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                Allergies History
+                              </label>
+                              <textarea
+                                disabled={isSavingHistory}
+                                value={extAllergiesHistory}
+                                onChange={(e) => setExtAllergiesHistory(e.target.value)}
+                                rows={2}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                                placeholder="Known allergies..."
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Specialty & Mind */}
+                        <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
+                          <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
+                            Specialty & Mind
+                          </label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                Gynecological History
+                              </label>
+                              <textarea
+                                disabled={isSavingHistory}
+                                value={extGynecologicalHistory}
+                                onChange={(e) => setExtGynecologicalHistory(e.target.value)}
+                                rows={2}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                                placeholder="Gynecological details (if applicable)..."
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                Mental / Mind Status
+                              </label>
+                              <textarea
+                                disabled={isSavingHistory}
+                                value={extMentalMindStatus}
+                                onChange={(e) => setExtMentalMindStatus(e.target.value)}
+                                rows={2}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                                placeholder="Psychological assessment..."
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Examinations */}
+                        <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
+                          <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
+                            Examinations
+                          </label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                General Examination
+                              </label>
+                              <textarea
+                                disabled={isSavingHistory}
+                                value={extGeneralExamination}
+                                onChange={(e) => setExtGeneralExamination(e.target.value)}
+                                rows={2}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                                placeholder="General physical exam findings..."
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                Systematic Examination
+                              </label>
+                              <textarea
+                                disabled={isSavingHistory}
+                                value={extSystematicExamination}
+                                onChange={(e) => setExtSystematicExamination(e.target.value)}
+                                rows={2}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                                placeholder="System-specific exam findings..."
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Diagnosis & Follow Up */}
+                        <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
+                          <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
+                            Diagnosis & Follow Up
+                          </label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                Disease
+                              </label>
+                              <input
+                                type="text"
+                                disabled={isSavingHistory}
+                                value={extDisease}
+                                onChange={(e) => setExtDisease(e.target.value)}
+                                className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80"
+                                placeholder="Identified disease..."
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                Follow Up Advice
+                              </label>
+                              <input
+                                type="text"
+                                disabled={isSavingHistory}
+                                value={extFollowUp}
+                                onChange={(e) => setExtFollowUp(e.target.value)}
+                                className="w-full h-10 px-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80"
+                                placeholder="Next visit instructions..."
+                              />
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
+                                Differential Diagnosis
+                              </label>
+                              <textarea
+                                disabled={isSavingHistory}
+                                value={extDifferentialDiagnosis}
+                                onChange={(e) => setExtDifferentialDiagnosis(e.target.value)}
+                                rows={2}
+                                className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
+                                placeholder="Possible alternative diagnoses..."
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end">
+                        <button
+                          type="button"
+                          onClick={saveExtendedHistory}
+                          disabled={isSavingHistory}
+                          className="px-5 py-2.5 bg-[#549E9E] hover:bg-[#438787] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 flex items-center gap-2 disabled:opacity-60"
+                        >
+                          {isSavingHistory ? (
+                            <RefreshCcw size={14} className="animate-spin" />
+                          ) : null}
+                          SAVE & CLOSE
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+
+              {/* Rejection Modal */}
+              <AnimatePresence>
                 {isRejectModalOpen && (
                   <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <motion.div

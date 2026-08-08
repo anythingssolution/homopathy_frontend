@@ -5,6 +5,7 @@ import { BarChart as BarChartIcon } from 'lucide-react';
 
 import { Sidebar } from './doctor-reports/Sidebar';
 import { AppointmentAnalytics } from './doctor-reports/views/AppointmentAnalytics';
+import { BookedVsConsultedView } from './doctor-reports/views/BookedVsConsultedView';
 import { ClinicalAnalytics } from './doctor-reports/views/ClinicalAnalytics';
 import { PatientAnalytics } from './doctor-reports/views/PatientAnalytics';
 import { BillingAnalytics } from './doctor-reports/views/BillingAnalytics';
@@ -12,18 +13,20 @@ import { MedicalAnalytics } from './doctor-reports/views/MedicalAnalytics';
 import { Analytics } from './doctor-reports/views/Analytics';
 import { PatientDirectory } from './doctor-reports/views/PatientDirectory';
 
-type ViewType = 'appointments' | 'clinical' | 'patients_analytics' | 'billing' | 'medical' | 'analytics' | 'patients';
+type ViewType = 'appointments' | 'booked_vs_consulted' | 'clinical' | 'patients_analytics' | 'billing' | 'medical' | 'analytics' | 'patients';
 
 export default function DoctorReports() {
   const { t } = useTranslation();
   const { token } = useAuth();
-  
+
   const [activeView, setActiveView] = useState<ViewType>('appointments');
 
   const renderView = () => {
-    switch(activeView) {
+    switch (activeView) {
       case 'appointments':
         return <AppointmentAnalytics token={token} />;
+      case 'booked_vs_consulted':
+        return <BookedVsConsultedView token={token} />;
       case 'clinical':
         return <ClinicalAnalytics token={token} />;
       case 'patients_analytics':
@@ -56,9 +59,9 @@ export default function DoctorReports() {
       </div>
 
       {/* Main Layout Container */}
-      <div className="flex flex-col md:flex-row gap-6">
-        {/* Sidebar */}
-        <div className="w-full md:w-64 flex-shrink-0">
+      <div className="flex flex-col md:flex-row gap-6 items-start">
+        {/* Reports Menu Sidebar (Sticky) */}
+        <div className="w-full md:w-64 flex-shrink-0 md:sticky md:top-24 z-20">
           <Sidebar activeView={activeView} onChangeView={setActiveView} />
         </div>
 

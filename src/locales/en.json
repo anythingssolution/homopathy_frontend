@@ -289,24 +289,69 @@
     ],
     "milestones": "Milestones & Awards",
     "awards": [
-      { "year": "2017", "desc": "Contributed to the largest health camp of Chhattisgarh and was honored by former Chief Minister Dr. Raman Singh." },
-      { "year": "2021", "desc": "Honored in Dubai with the “Pride of Homeopathy Award” by former Indian cricket captain Mohammad Azharuddin." },
-      { "year": "2022", "desc": "Honored in Dehradun with the “Homeopathy Ratna Samman” by the Chief Minister of Uttarakhand." },
-      { "year": "2022", "desc": "Honored in Nagpur with the “Youth Icon of Homeopathy Award” by singer Kailash Kher." },
-      { "year": "2023", "desc": "Honored in Lucknow with the “Legend of Youth Icon Award” by Kapil Dev and Madan Lal." },
-      { "year": "2024", "desc": "Honored in Dubai at Burj Al Arab with the “Best Skin Care Specialist” award by famous cricketer Chris Gayle." },
-      { "year": "2024", "desc": "Organized health camp in remote Naxalite area of Narayanpur, examination of ~2000 patients in 2 days." },
-      { "year": "2025", "desc": "Honored in Delhi with the “Homoeopathy ke Purodha Hastakshar Samman” by Union Minister Shri Nitin Gadkari." },
-      { "year": "2025", "desc": "Honored in Germany by former England cricket captain Eoin Morgan." },
-      { "year": "2025", "desc": "Honored in Goa with the “Internal Flame of Homeopathy Award” by Australian fast bowler Brett Lee." }
+      {
+        "year": "2017",
+        "desc": "Contributed to the largest health camp of Chhattisgarh and was honored by former Chief Minister Dr. Raman Singh."
+      },
+      {
+        "year": "2021",
+        "desc": "Honored in Dubai with the “Pride of Homeopathy Award” by former Indian cricket captain Mohammad Azharuddin."
+      },
+      {
+        "year": "2022",
+        "desc": "Honored in Dehradun with the “Homeopathy Ratna Samman” by the Chief Minister of Uttarakhand."
+      },
+      {
+        "year": "2022",
+        "desc": "Honored in Nagpur with the “Youth Icon of Homeopathy Award” by singer Kailash Kher."
+      },
+      {
+        "year": "2023",
+        "desc": "Honored in Lucknow with the “Legend of Youth Icon Award” by Kapil Dev and Madan Lal."
+      },
+      {
+        "year": "2024",
+        "desc": "Honored in Dubai at Burj Al Arab with the “Best Skin Care Specialist” award by famous cricketer Chris Gayle."
+      },
+      {
+        "year": "2024",
+        "desc": "Organized health camp in remote Naxalite area of Narayanpur, examination of ~2000 patients in 2 days."
+      },
+      {
+        "year": "2025",
+        "desc": "Honored in Delhi with the “Homoeopathy ke Purodha Hastakshar Samman” by Union Minister Shri Nitin Gadkari."
+      },
+      {
+        "year": "2025",
+        "desc": "Honored in Germany by former England cricket captain Eoin Morgan."
+      },
+      {
+        "year": "2025",
+        "desc": "Honored in Goa with the “Internal Flame of Homeopathy Award” by Australian fast bowler Brett Lee."
+      }
     ],
     "why_choose_title": "Why Choose Trivedi's Homeopathy?",
     "why_choose_reasons": [
-      { "title": "Led by Experts", "desc": "Dr. Uttkarsh Trivedi brings over 9 years of experience and a track record of successfully treating complex conditions." },
-      { "title": "Safe & Natural Healing", "desc": "Our treatments are gentle, non-toxic, and free from side effects—ideal for all age groups." },
-      { "title": "Centrally Located", "desc": "Easily accessible at Lily Chowk, Purani Basti, Raipur, serving patients across Chhattisgarh and beyond." },
-      { "title": "Award-Winning Care", "desc": "Recognized nationally and internationally for excellence in homeopathy." },
-      { "title": "Trusted by Thousands", "desc": "Backed by glowing patient testimonials and long-term success stories." }
+      {
+        "title": "Led by Experts",
+        "desc": "Dr. Uttkarsh Trivedi brings over 9 years of experience and a track record of successfully treating complex conditions."
+      },
+      {
+        "title": "Safe & Natural Healing",
+        "desc": "Our treatments are gentle, non-toxic, and free from side effects—ideal for all age groups."
+      },
+      {
+        "title": "Centrally Located",
+        "desc": "Easily accessible at Lily Chowk, Purani Basti, Raipur, serving patients across Chhattisgarh and beyond."
+      },
+      {
+        "title": "Award-Winning Care",
+        "desc": "Recognized nationally and internationally for excellence in homeopathy."
+      },
+      {
+        "title": "Trusted by Thousands",
+        "desc": "Backed by glowing patient testimonials and long-term success stories."
+      }
     ],
     "treatments_title": "Treatments we Provide",
     "treatments_subtitle": "Effective treatment for complex and chronic diseases",
@@ -395,17 +440,95 @@
   },
   "testimonials": {
     "items": [
-      { "id": 1, "date": "2026.04.24", "tags": ["Piles"], "title": "☆ Relief from Painful Piles Without Surgery ☆" },
-      { "id": 2, "date": "2026.04.15", "tags": ["Pediatrics", "Immunity"], "title": "☆ My Child Falls Sick Much Less Now ☆" },
-      { "id": 3, "date": "2026.04.02", "tags": ["Skin"], "title": "☆ Chronic Skin Allergy Finally Under Control ☆" },
-      { "id": 4, "date": "2026.03.25", "tags": ["ENT"], "title": "☆ Recurring Throat Infection Gone Naturally ☆" },
-      { "id": 5, "date": "2026.03.10", "tags": ["Urinary"], "title": "☆ Fast Relief from Urinary Infection ☆" },
-      { "id": 6, "date": "2026.02.28", "tags": ["Respiratory"], "title": "☆ Breathing Feels Much Easier Now ☆" },
-      { "id": 7, "date": "2026.02.15", "tags": ["Pediatrics"], "title": "☆ Safe Treatment That Suits My Child ☆" },
-      { "id": 8, "date": "2026.02.01", "tags": ["Sinusitis"], "title": "☆ Sinus Headaches Reduced Significantly ☆" },
-      { "id": 9, "date": "2026.01.20", "tags": ["Chronic"], "title": "☆ Long-Term Relief Without Heavy Medicines ☆" },
-      { "id": 10, "date": "2026.01.05", "tags": ["Natural Healing"], "title": "☆ Feeling Healthier the Natural Way ☆" },
-      { "id": 11, "date": "2025.12.20", "tags": ["Experience"], "title": "☆ Caring Doctor Who Listens & Treats ☆" }
+      {
+        "id": 1,
+        "date": "2026.04.24",
+        "tags": [
+          "Piles"
+        ],
+        "title": "☆ Relief from Painful Piles Without Surgery ☆"
+      },
+      {
+        "id": 2,
+        "date": "2026.04.15",
+        "tags": [
+          "Pediatrics",
+          "Immunity"
+        ],
+        "title": "☆ My Child Falls Sick Much Less Now ☆"
+      },
+      {
+        "id": 3,
+        "date": "2026.04.02",
+        "tags": [
+          "Skin"
+        ],
+        "title": "☆ Chronic Skin Allergy Finally Under Control ☆"
+      },
+      {
+        "id": 4,
+        "date": "2026.03.25",
+        "tags": [
+          "ENT"
+        ],
+        "title": "☆ Recurring Throat Infection Gone Naturally ☆"
+      },
+      {
+        "id": 5,
+        "date": "2026.03.10",
+        "tags": [
+          "Urinary"
+        ],
+        "title": "☆ Fast Relief from Urinary Infection ☆"
+      },
+      {
+        "id": 6,
+        "date": "2026.02.28",
+        "tags": [
+          "Respiratory"
+        ],
+        "title": "☆ Breathing Feels Much Easier Now ☆"
+      },
+      {
+        "id": 7,
+        "date": "2026.02.15",
+        "tags": [
+          "Pediatrics"
+        ],
+        "title": "☆ Safe Treatment That Suits My Child ☆"
+      },
+      {
+        "id": 8,
+        "date": "2026.02.01",
+        "tags": [
+          "Sinusitis"
+        ],
+        "title": "☆ Sinus Headaches Reduced Significantly ☆"
+      },
+      {
+        "id": 9,
+        "date": "2026.01.20",
+        "tags": [
+          "Chronic"
+        ],
+        "title": "☆ Long-Term Relief Without Heavy Medicines ☆"
+      },
+      {
+        "id": 10,
+        "date": "2026.01.05",
+        "tags": [
+          "Natural Healing"
+        ],
+        "title": "☆ Feeling Healthier the Natural Way ☆"
+      },
+      {
+        "id": 11,
+        "date": "2025.12.20",
+        "tags": [
+          "Experience"
+        ],
+        "title": "☆ Caring Doctor Who Listens & Treats ☆"
+      }
     ]
   },
   "forgot_password": {
@@ -445,7 +568,9 @@
       "dispensary_history": "Dispensary History",
       "family_members": "Family Members",
       "leave_calendar": "Leave Calendar",
-      "patient_management": "Patients"
+      "patient_management": "Patients",
+      "patient_records": "Patient Records",
+      "staff_portals": "Staff Portals"
     },
     "menu_sub": {
       "dashboard": "OVERVIEW",
@@ -462,7 +587,9 @@
       "dispensary_history": "PAST RECORDS",
       "family_members": "DEPENDENTS",
       "leave_calendar": "DOCTOR LEAVE DATES",
-      "patient_management": "MANAGE RECORDS"
+      "patient_management": "MANAGE RECORDS",
+      "patient_records": "HISTORY & DOCUMENTS",
+      "staff_portals": "CROSS-ROLE"
     },
     "stats": {
       "next_appointment": "Next Appointment",
@@ -536,7 +663,21 @@
     "saving": "Saving...",
     "last_sync": "Last profile sync:",
     "refresh_records": "Refresh Records",
-    "update_success": "Profile updated successfully!"
+    "update_success": "Profile updated successfully!",
+    "security_subtitle": "Security & Password",
+    "change_password": "Change Password",
+    "current_password": "Current Password",
+    "new_password": "New Password",
+    "confirm_new_password": "Confirm New Password",
+    "enter_current_password": "Enter current password",
+    "enter_new_password": "Enter new password (min. 6 characters)",
+    "reenter_new_password": "Re-enter new password",
+    "update_password": "Update Password",
+    "updating_password": "Updating...",
+    "password_change_success": "Password changed successfully!",
+    "password_mismatch": "New passwords do not match",
+    "password_min_length": "New password must be at least 6 characters",
+    "current_password_required": "Current password is required"
   },
   "my_appointments": {
     "title": "My Appointments",
@@ -578,6 +719,7 @@
   },
   "doctor_portal": {
     "start_session": "Start Session",
+    "end_session": "End Session",
     "at_desk": "I am at my desk",
     "pause_session": "Pause Session",
     "not_at_desk": "Not at my desk",
@@ -592,6 +734,37 @@
     "completed": "Completed",
     "cancelled": "Cancelled",
     "today": "Today",
+    "on_break": "On Break",
+    "resume": "Resume",
+    "take_break": "Take Break",
+    "hold": "Hold",
+    "back_to_queue": "Back To Queue",
+    "same_slot_hold": "Same Slot Hold",
+    "formula_master": "Formula Master",
+    "manage_cms": "Manage CMS",
+    "manage_slot_timing": "Manage Slot Timing",
+    "shift_timing_note": "Shift this date only. Token order and treatment durations stay unchanged.",
+    "default_timing": "Default Timing",
+    "shifted_timing": "Shifted Timing",
+    "default_time": "Default Time",
+    "new_start_time": "New Start Time",
+    "auto_end_time": "Auto End Time",
+    "slot_label": "Slot",
+    "reason_remark_optional": "Reason / remark (optional)",
+    "no_active_slot_available": "No active slot is available for this branch.",
+    "invalid_end_time": "Invalid end time",
+    "apply_shift": "Apply Shift",
+    "reset_default": "Reset Default",
+    "updating": "Updating...",
+    "no_appointments_found": "No Appointments Found",
+    "try_changing_filters": "Try changing filters or date",
+    "slots": {
+      "Morning Session": "Morning Session",
+      "Evening Session": "Evening Session",
+      "Full Day Session": "Full Day Session",
+      "Slot 1": "Slot 1",
+      "Slot 2": "Slot 2"
+    },
     "stats": {
       "total_appointments": "Total Appointments",
       "today_appointments": "Today Appointments",
@@ -776,7 +949,12 @@
     "age_gender": "AGE / GENDER",
     "mobile": "MOBILE",
     "branch": "BRANCH",
+    "chief_complaint": "CHIEF COMPLAINT",
+    "chief_complaints_placeholder": "Chief Complaints / Symptoms...",
     "clinical_findings": "CLINICAL FINDINGS",
+    "clinical_findings_placeholder": "Detailed clinical findings and observations...",
+    "diagnosis": "DIAGNOSIS",
+    "diagnosis_placeholder": "Diagnosis / Observations...",
     "treatment_advice": "TREATMENT ADVICE",
     "treatment_duration": "TREATMENT DURATION",
     "prescription": "PRESCRIPTION",
@@ -898,7 +1076,6 @@
     "patient_details": "Patient & Details",
     "date": "Date"
   },
-
   "cross_role": {
     "access_denied": "Access Denied",
     "no_permission_medical": "You do not have permission to view the Medical menus.",
@@ -975,5 +1152,215 @@
     "select_branch": "Select branch",
     "current_branch": "CURRENT BRANCH",
     "select_active": "SELECT ACTIVE BRANCH"
+  },
+  "clinic_history": {
+    "title": "Clinic History",
+    "subtitle": "View completed consultations and medical records",
+    "refresh": "Refresh",
+    "filters": {
+      "from_date": "From Date",
+      "to_date": "To Date",
+      "status": "Status",
+      "all_statuses": "All Statuses",
+      "completed": "Completed",
+      "pending": "Pending",
+      "cancelled": "Cancelled",
+      "search_label": "Search",
+      "search_placeholder": "Search..."
+    },
+    "no_records": {
+      "title": "No Records Found",
+      "desc": "Try adjusting your dates or search query."
+    },
+    "table": {
+      "date_time": "Date & Time",
+      "token": "Token",
+      "patient_details": "Patient Details",
+      "branch_treatment": "Branch & Treatment",
+      "status": "Status",
+      "action": "Action",
+      "view_details": "View Details",
+      "view_prescription": "View Prescription",
+      "print": "Print"
+    }
+  },
+  "patient_records": {
+    "category": "PATIENT HISTORY & RECORDS",
+    "title": "Patient Registry",
+    "refresh": "Refresh",
+    "stats": {
+      "total_patients": "Total patients",
+      "this_page": "This page",
+      "prescriptions": "Prescriptions",
+      "family_members": "Family members"
+    },
+    "search_placeholder": "Search primary patient, mobile, patient ID, family member, AUID...",
+    "table": {
+      "patient": "Patient",
+      "identity": "Identity",
+      "summary": "Summary",
+      "latest_visit": "Latest visit",
+      "action": "Action",
+      "open_record": "Open Record"
+    },
+    "badges": {
+      "visits": "visits",
+      "rx": "Rx",
+      "family": "family"
+    },
+    "modal": {
+      "primary_patient": "PRIMARY PATIENT",
+      "all_linked_visits": "All linked visits",
+      "record_scope": "RECORD SCOPE",
+      "primary_plus_family": "Primary + family",
+      "self": "Self",
+      "from_date": "From Date",
+      "to_date": "To Date",
+      "all_dates": "All Dates",
+      "visit_type_label": "Visit Type",
+      "apply": "Apply",
+      "history_types": {
+        "all_visits": "All visits",
+        "all_completed": "All completed visits",
+        "consultations": "Consultation visits",
+        "prescriptions": "Printable prescription visits",
+        "bills": "Visits with bills",
+        "documents": "Visits with documents"
+      },
+      "table": {
+        "date": "Date",
+        "treatment": "Treatment",
+        "doctor_status": "Doctor / Status",
+        "patient": "Patient"
+      },
+      "status": {
+        "no_consultation": "No consultation",
+        "bill_pending": "Bill pending",
+        "completed_visit": "Completed visit"
+      },
+      "action": {
+        "view": "View",
+        "print": "Print"
+      },
+      "completed_visits_count": "completed visits",
+      "no_history": "No history found",
+      "details": {
+        "consultation": "Consultation",
+        "prescription": "Prescription",
+        "bill": "Bill",
+        "documents": "Documents"
+      },
+      "prescription_preview": "Prescription Preview",
+      "saved_prescription_sub": "Saved doctor consultation prescription"
+    }
+  },
+  "formula_master": {
+    "doctor_menu": "Doctor Menu",
+    "title": "Quick Prescription Formula Master",
+    "subtitle": "Loaded formula rules for your login session will be managed here. Saving/activating will instantly update your current session.",
+    "new_set": "New Set",
+    "duplicate": "Duplicate",
+    "reload": "Reload",
+    "available_sets": "Available Sets",
+    "total": "total",
+    "current_session_snapshot": "Current Session Snapshot",
+    "set": "Set",
+    "version": "Version",
+    "updated": "Updated",
+    "set_basics": "Set Basics",
+    "edit_formula_set": "Edit Formula Set",
+    "create_formula_set": "Create Formula Set",
+    "activate": "Activate",
+    "delete": "Delete",
+    "save": "Save",
+    "set_name_placeholder": "Set Name",
+    "description_placeholder": "Description",
+    "active": "Active",
+    "default": "Default",
+    "published": "Published",
+    "core_numeric_rules": "Core Numeric Rules",
+    "plain_number": "Plain Number",
+    "plain_number_hint": "Example: 30",
+    "slash_single_numeric": "/ + Single Digit",
+    "slash_single_numeric_hint": "Example: 200/2",
+    "slash_double_numeric": "/ + Two Digits",
+    "slash_double_numeric_hint": "Example: 84/20",
+    "strategy_fixed": "FIXED",
+    "strategy_multiply_suffix": "MULTIPLY_SUFFIX",
+    "fixed_amount": "Fixed Amount",
+    "multiplier": "Multiplier",
+    "template_code": "Template Code",
+    "dosage_templates": "Dosage Templates",
+    "add_template": "Add Template",
+    "template_name": "Template Name",
+    "remove": "Remove",
+    "dose_label": "Dose Label",
+    "balls_per_dose": "Balls/Dose",
+    "instructions": "Instructions",
+    "add_dose_row": "Add Dose Row",
+    "alpha_codes": "Alpha Codes",
+    "add_code": "Add Code",
+    "code": "Code",
+    "description": "Description",
+    "amount": "Amount",
+    "duration_override": "Duration Override",
+    "preview_sandbox": "Preview Sandbox",
+    "preview_placeholder": "30, 200/2, 84/20, 10/BD",
+    "parsed_entries": "Parsed Entries",
+    "no_entries": "No valid entries parsed yet.",
+    "warnings_errors": "Warnings / Errors",
+    "no_issues": "No parser issues.",
+    "loading": "Loading Formula Master...",
+    "parsed": "Parsed",
+    "strategy": "Strategy",
+    "flat_amount": "Flat Amount",
+    "multiplier": "Multiplier",
+    "dosage_template": "Dosage Template",
+    "price_label": "Price (₹)",
+    "price_placeholder": "Price",
+    "days_override": "Days Override",
+    "days_placeholder": "Days",
+    "delete_dose_row": "Delete Dose Row",
+    "remove_code": "Remove Code",
+    "help_tooltip": "Click for explanation",
+    "got_it": "Got It",
+    "help_basics_title": "Set Basics — Explanation",
+    "help_basics_desc": "Formula sets define the master rules for parsing doctor notes and quick entries during patient consultations.",
+    "help_basics_name_title": "Set Name & Description",
+    "help_basics_name_detail": "Name your formula set (e.g. \"Default Quick Formula\") to organize different pricing or dosage rules for your clinic.",
+    "help_basics_active_title": "Active Status",
+    "help_basics_active_detail": "Enables this formula set for active consultation note parsing.",
+    "help_basics_default_title": "Default Set",
+    "help_basics_default_detail": "Marks this formula set as the primary fallback ruleset for all doctor consultations.",
+    "help_basics_published_title": "Published",
+    "help_basics_published_detail": "Publishes the formula set so it is available live during patient visits.",
+    "help_numeric_title": "Core Numeric Rules — Explanation",
+    "help_numeric_desc": "These rules control how numbers typed in the doctor's consultation form (e.g., 30, 200/2, 84/20) are automatically converted into medicine charges and dosage schedules.",
+    "help_numeric_plain_title": "1. Plain Number (e.g. \"30\")",
+    "help_numeric_plain_detail": "Used when a doctor types a single standalone number (like \"30\"). The system recognizes it as Medicine Code 30, sets a flat price (e.g. ₹80), and attaches the default 4-4-4 dosage schedule.",
+    "help_numeric_single_title": "2. / + Single Digit (e.g. \"200/2\")",
+    "help_numeric_single_detail": "Used when typing a number with a 1-digit slash suffix (like \"200/2\"). Here, \"200\" is the medicine code and \"2\" is the duration multiplier (e.g., 2 weeks). Total Price = Suffix (2) × Multiplier (₹100) = ₹200.",
+    "help_numeric_double_title": "3. / + Two Digits (e.g. \"84/20\")",
+    "help_numeric_double_detail": "Used when typing a number with a 2-digit slash suffix (like \"84/20\"). \"84\" is the medicine code and \"20\" is the quantity. Total Price = Suffix (20) × Multiplier (₹10) = ₹200.",
+    "help_templates_title": "Dosage Templates — Explanation",
+    "help_templates_desc": "Dosage templates define how medicine doses are distributed throughout the day (Morning, Afternoon, Night) and what instructions to give the patient.",
+    "help_templates_code_title": "Template Code (e.g. DEFAULT_444, BD)",
+    "help_templates_code_detail": "A short unique code used by rules and alpha codes to apply this exact dosage schedule.",
+    "help_templates_dose_title": "Dose Label (MORNING / AFTERNOON / NIGHT)",
+    "help_templates_dose_detail": "Defines the time of day the patient should take the medication.",
+    "help_templates_balls_title": "Balls / Dose",
+    "help_templates_balls_detail": "The number of homeopathic pills or globules to take in each single dose (e.g., 4 balls).",
+    "help_templates_instructions_title": "Instructions",
+    "help_templates_instructions_detail": "Optional directions printed on the prescription (e.g., \"Empty stomach\" or \"After meals\").",
+    "help_alpha_title": "Alpha Shortcodes — Explanation",
+    "help_alpha_desc": "Alpha shortcodes are medical abbreviations (like BD, TDS, QID) typed in the consultation form to quickly set pricing, duration, and dosage.",
+    "help_alpha_code_title": "Code (e.g. BD, TDS)",
+    "help_alpha_code_detail": "The quick text abbreviation typed by the doctor during consultation (e.g., \"10/BD\").",
+    "help_alpha_price_title": "Price (₹)",
+    "help_alpha_price_detail": "Fixed price automatically applied to the prescription when this alpha code is typed.",
+    "help_alpha_template_title": "Dosage Template",
+    "help_alpha_template_detail": "Maps the alpha code directly to its timing template (e.g. BD → Morning & Night).",
+    "help_alpha_days_title": "Days Override",
+    "help_alpha_days_detail": "Customizes or overrides the total prescription duration in days when this code is used."
   }
 }

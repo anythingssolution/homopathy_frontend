@@ -15,7 +15,10 @@ import {
   ChevronDown,
   CheckCircle2,
   Tag,
-  CreditCard
+  CreditCard,
+  UserCheck,
+  Pill,
+  BarChart3
 } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import CustomDatePicker from '../CustomDatePicker';
@@ -23,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 
 type BillFilterType = 'ALL' | 'CONSULTATION' | 'MEDICATION';
 type BillFilterStatus = 'ALL' | 'UNPAID' | 'PAID' | 'PARTIAL';
+type ActiveBillingTab = 'BILLS' | 'CONSULTANT_REVENUE' | 'MEDICINE_REVENUE';
 
 const PaymentStatusBadge = ({ status }: { status: string }) => {
   const normalized = String(status || '').toUpperCase();
@@ -154,8 +158,12 @@ export default function Bills() {
     return today.toISOString().split('T')[0];
   });
 
+  const [activeTab, setActiveTab] = useState<ActiveBillingTab>('BILLS');
   const [bills, setBills] = useState<any[]>([]);
+  const [consultantRevenue, setConsultantRevenue] = useState<any[]>([]);
+  const [medicineRevenue, setMedicineRevenue] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isReportLoading, setIsReportLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSummary, setSelectedSummary] = useState<any>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -195,8 +203,39 @@ export default function Bills() {
     }
   };
 
+  const fetchRevenueReports = async () => {
+    setIsReportLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filterDate && filterDate !== 'all') {
+        params.append('from', filterDate);
+        params.append('to', filterDate);
+        params.append('from_date', filterDate);
+        params.append('to_date', filterDate);
+      }
+      const [resDoc, resMed] = await Promise.all([
+        fetch(`/api/v1/reports/billing/revenue-by-consultant?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`/api/v1/reports/billing/revenue-by-medicine?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      const [jsonDoc, jsonMed] = await Promise.all([resDoc.json(), resMed.json()]);
+      if (jsonDoc.success) setConsultantRevenue(jsonDoc.data || []);
+      if (jsonMed.success) setMedicineRevenue(jsonMed.data || []);
+    } catch (err) {
+      console.error('Error fetching revenue reports:', err);
+    } finally {
+      setIsReportLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (token) fetchBills();
+    if (token) {
+      fetchBills();
+      fetchRevenueReports();
+    }
   }, [token, filterDate, billType, paymentStatus]);
 
   useEffect(() => {
@@ -344,6 +383,39 @@ export default function Bills() {
 
   return (
     <div className="space-y-8 pb-12">
+      {/* Top Module View Tabs */}
+      <div className="bg-white p-2 border border-gray-200 rounded-2xl shadow-xs flex flex-wrap gap-2">
+        <button
+          onClick={() => setActiveTab('BILLS')}
+          className={`cursor-pointer px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+            activeTab === 'BILLS'
+              ? 'bg-[#549E9E] text-white shadow-md shadow-[#549E9E]/20'
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <Receipt size={16} /> Appointment Bills List
+        </button>
+        <button
+          onClick={() => setActiveTab('CONSULTANT_REVENUE')}
+          className={`cursor-pointer px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+            activeTab === 'CONSULTANT_REVENUE'
+              ? 'bg-[#549E9E] text-white shadow-md shadow-[#549E9E]/20'
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <UserCheck size={16} /> Revenue by Consultant
+        </button>
+        <button
+          onClick={() => setActiveTab('MEDICINE_REVENUE')}
+          className={`cursor-pointer px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+            activeTab === 'MEDICINE_REVENUE'
+              ? 'bg-[#549E9E] text-white shadow-md shadow-[#549E9E]/20'
+              : 'text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <Pill size={16} /> Gross Revenue by Medicine
+        </button>
+      </div>
       <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="relative group flex-1">
@@ -406,15 +478,18 @@ export default function Bills() {
         </div>
       )}
 
-      <div className="bg-white border border-gray-200 shadow-sm overflow-hidden relative">
-        {isLoading && (
-          <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-10 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-12 h-12 border-4 border-[#549E9E]/20 border-t-[#549E9E] rounded-full animate-spin" />
-              <p className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest">Fetching Bills...</p>
-            </div>
-          </div>
-        )}
+      {activeTab === 'BILLS' ? (
+        <>
+          <div className="bg-white border border-gray-200 shadow-sm overflow-hidden relative">
+            {isLoading && (
+              <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-10 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-12 h-12 border-4 border-[#549E9E]/20 border-t-[#549E9E] rounded-full animate-spin" />
+                  <p className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest">Fetching Bills...</p>
+                </div>
+              </div>
+            )}
+
 
         <div className="overflow-x-auto">
           <table className="w-full text-left whitespace-nowrap">
@@ -846,6 +921,130 @@ export default function Bills() {
           </div>
         )}
       </AnimatePresence>
+        </>
+      ) : activeTab === 'CONSULTANT_REVENUE' ? (
+        /* Revenue by Consultant Section */
+        <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm space-y-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-gray-100">
+            <div>
+              <h3 className="text-base font-black text-gray-800 uppercase tracking-tight flex items-center gap-2">
+                <UserCheck size={20} className="text-[#549E9E]" /> Doctor / Consultant Revenue Breakdown
+              </h3>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
+                Consultation fees and prescribed medicine revenue per doctor
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <CustomDatePicker label="Filter Date" value={filterDate} onChange={setFilterDate} />
+              <button
+                onClick={fetchRevenueReports}
+                className="bg-gray-50 hover:bg-gray-100 border border-gray-200 px-4 py-2.5 rounded-xl text-xs font-black text-gray-600 uppercase tracking-wider flex items-center gap-2 cursor-pointer"
+              >
+                <RefreshCcw size={14} className={isReportLoading ? 'animate-spin' : ''} /> Refresh
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            {consultantRevenue.length > 0 ? (
+              <table className="w-full text-left border-collapse whitespace-nowrap">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Doctor / Consultant</th>
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Consultations</th>
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Consultation Revenue</th>
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Prescribed Medicine Revenue</th>
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total Gross Revenue</th>
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Paid Revenue</th>
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Pending Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
+                  {consultantRevenue.map((doc: any) => (
+                    <tr key={doc.doctor_id} className="hover:bg-[#549E9E]/[0.02] transition-colors">
+                      <td className="py-4 px-5">
+                        <div className="font-extrabold text-gray-800 text-sm">{doc.doctor_name}</div>
+                        {doc.doctor_uuid && (
+                          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{doc.doctor_uuid}</div>
+                        )}
+                      </td>
+                      <td className="py-4 px-5 text-center font-black text-gray-800 text-sm">{doc.total_consultations}</td>
+                      <td className="py-4 px-5 text-right font-bold text-gray-700">₹ {Number(doc.consultation_revenue || 0).toFixed(2)}</td>
+                      <td className="py-4 px-5 text-right font-bold text-violet-600">₹ {Number(doc.medication_revenue || 0).toFixed(2)}</td>
+                      <td className="py-4 px-5 text-right font-black text-[#549E9E] text-base">₹ {Number(doc.total_gross_revenue || 0).toFixed(2)}</td>
+                      <td className="py-4 px-5 text-right font-bold text-emerald-600">₹ {Number(doc.total_paid_revenue || 0).toFixed(2)}</td>
+                      <td className="py-4 px-5 text-right font-bold text-amber-500">₹ {Number(doc.total_pending_revenue || 0).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="p-16 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
+                {isReportLoading ? 'Loading consultant revenue data...' : 'No consultant revenue records found for this period'}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Revenue by Medicine Section */
+        <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm space-y-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-gray-100">
+            <div>
+              <h3 className="text-base font-black text-gray-800 uppercase tracking-tight flex items-center gap-2">
+                <Pill size={20} className="text-emerald-500" /> Gross Revenue by Medicine
+              </h3>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
+                Total medicine sales revenue without calculating actual cost price
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <CustomDatePicker label="Filter Date" value={filterDate} onChange={setFilterDate} />
+              <button
+                onClick={fetchRevenueReports}
+                className="bg-gray-50 hover:bg-gray-100 border border-gray-200 px-4 py-2.5 rounded-xl text-xs font-black text-gray-600 uppercase tracking-wider flex items-center gap-2 cursor-pointer"
+              >
+                <RefreshCcw size={14} className={isReportLoading ? 'animate-spin' : ''} /> Refresh
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            {medicineRevenue.length > 0 ? (
+              <table className="w-full text-left border-collapse whitespace-nowrap">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Medicine Name</th>
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Bills Count</th>
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Total Quantity Sold</th>
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Avg Unit Selling Price</th>
+                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Gross Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
+                  {medicineRevenue.map((med: any, idx: number) => (
+                    <tr key={idx} className="hover:bg-emerald-50/30 transition-colors">
+                      <td className="py-4 px-5 font-black text-gray-800 flex items-center gap-3">
+                        <span className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center text-xs font-black border border-emerald-100">
+                          #{idx + 1}
+                        </span>
+                        <span className="text-sm font-black text-gray-800">{med.medicine_name}</span>
+                      </td>
+                      <td className="py-4 px-5 text-center font-bold text-gray-700 text-sm">{med.total_bills}</td>
+                      <td className="py-4 px-5 text-center font-black text-[#549E9E] text-base">{med.total_quantity_sold}</td>
+                      <td className="py-4 px-5 text-right font-bold text-gray-700">₹ {Number(med.average_unit_price || 0).toFixed(2)}</td>
+                      <td className="py-4 px-5 text-right font-black text-emerald-600 text-base">₹ {Number(med.gross_revenue || 0).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="p-16 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
+                {isReportLoading ? 'Loading medicine revenue data...' : 'No medicine revenue records found for this period'}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

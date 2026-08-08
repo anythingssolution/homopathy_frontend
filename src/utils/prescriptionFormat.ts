@@ -43,5 +43,29 @@ export const getMedicationPricingAmount = (pricing: any, medication: any) => {
   return matchedByValue?.amount || 0;
 };
 
+export const getMedicationDispensingState = (pricing: any, medication: any) => {
+  const directStatus = String(medication?.dispense_status || '').trim().toUpperCase();
+  const pricingItems = Array.isArray(pricing?.medications) ? pricing.medications : [];
+  const medicationId = Number(medication?.consultation_medication_id);
+  const matchedItem = pricingItems.find(
+    (item: any) => Number(item?.consultation_medication_id) === medicationId
+  ) || pricingItems.find(
+    (item: any) => String(item?.medicine_value || '').trim() === String(medication?.medicine_value || '').trim()
+  );
+  const matchedStatus = String(matchedItem?.dispense_status || '').trim().toUpperCase();
+  const hasDirectStatus = directStatus === 'VOID' || directStatus === 'ACTIVE';
+  const status = hasDirectStatus
+    ? directStatus
+    : (matchedStatus === 'VOID' || matchedStatus === 'ACTIVE' ? matchedStatus : null);
+  const source = hasDirectStatus ? medication : matchedItem;
+
+  return {
+    status,
+    reason: status === 'VOID' ? String(source?.void_reason || '').trim() : '',
+    voidedAt: status === 'VOID' ? source?.voided_at || null : null,
+    voidedBy: status === 'VOID' ? source?.voided_by || null : null,
+  };
+};
+
 export const getMedicationRoleLabel = (medication: any) =>
   String(medication?.added_by_role || '').toUpperCase() === 'MEDICAL' ? 'Medical Added' : '';

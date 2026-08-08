@@ -13,6 +13,9 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        workbox: {
+          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        },
         manifest: {
           name: 'Dr. Trivedi\'s Homeopathy',
           short_name: 'Clinic',

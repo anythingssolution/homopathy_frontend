@@ -131,10 +131,31 @@ export const parseDoctorFormulaInput = (
     };
   }
 
-  const tokens = source
+  const rawCommaItems = source
     .split(',')
     .map((token) => token.trim())
     .filter(Boolean);
+
+  const tokens: string[] = [];
+  let pendingGroupItems: string[] = [];
+
+  rawCommaItems.forEach((item) => {
+    if (item.includes('/')) {
+      if (pendingGroupItems.length > 0) {
+        tokens.push([...pendingGroupItems, item].join(', '));
+        pendingGroupItems = [];
+      } else {
+        tokens.push(item);
+      }
+    } else {
+      pendingGroupItems.push(item);
+    }
+  });
+
+  if (pendingGroupItems.length > 0) {
+    pendingGroupItems.forEach((item) => tokens.push(item));
+    pendingGroupItems = [];
+  }
 
   const errors: Array<{ raw_token: string; message: string }> = [];
   const warnings: Array<{ raw_token: string; message: string }> = [];
@@ -174,11 +195,11 @@ export const parseDoctorFormulaInput = (
 
     const medicineMatches = [...groupPart.matchAll(/(\d{1,3})([A-Za-z]*)/g)];
 
-    const validateGroup = groupPart.replace(/(\d{1,3})([A-Za-z]*)/g, '').replace(/[\s\-+]/g, '');
+    const validateGroup = groupPart.replace(/(\d{1,3})([A-Za-z]*)/g, '').replace(/[\s\-+,]/g, '');
     if (validateGroup !== '') {
       errors.push({
         raw_token: token,
-        message: `Invalid characters found in medicine group: ${validateGroup}. Only numbers, letters, spaces, dashes or pluses allowed before the slash.`,
+        message: `Invalid characters found in medicine group: ${validateGroup}. Only numbers, letters, spaces, dashes, commas or pluses allowed before the slash.`,
       });
       return;
     }
@@ -258,6 +279,11 @@ export const parseDoctorFormulaInput = (
       }
     }
 
+    const medicineCount = medicineMatches.length;
+    const perMedicineBaseAmount = medicineCount > 0
+      ? Number((baseAmountValue / medicineCount).toFixed(2))
+      : baseAmountValue;
+
     medicineMatches.forEach(match => {
       const medicineNo = Number(match[1]);
       const inlineAlphaCode = match[2] ? match[2].trim().toUpperCase() : null;
@@ -317,8 +343,8 @@ export const parseDoctorFormulaInput = (
       entries.push({
         raw_token: derivedToken,
         name: medicineValue,
-        baseAmount: Number(baseAmountValue),
-        amount: toCurrencyAmount(baseAmountValue),
+        baseAmount: Number(perMedicineBaseAmount),
+        amount: toCurrencyAmount(perMedicineBaseAmount),
         doses: mapped.doses,
         dosage_template_code: templateCode,
         suffix_type: groupSuffixType,

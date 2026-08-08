@@ -23,7 +23,12 @@ export default function StaffWelcome() {
   const navigate = useNavigate();
 
   const isReceptionist = user?.role_code === 'REC' || user?.role?.toLowerCase() === 'rec' || user?.role?.toLowerCase() === 'receptionist';
-  const isMedical = user?.role_code === 'MED' || user?.role?.toLowerCase() === 'med' || user?.role?.toLowerCase() === 'medical';
+  const isMedical = user?.role_code === 'DOC'
+    || user?.role_code === 'MED'
+    || user?.role?.toLowerCase() === 'doc'
+    || user?.role?.toLowerCase() === 'doctor'
+    || user?.role?.toLowerCase() === 'med'
+    || user?.role?.toLowerCase() === 'medical';
 
   if (isReceptionist) {
     return (

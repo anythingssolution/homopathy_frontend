@@ -225,7 +225,25 @@ export default function MedicalDashboard() {
   };
 
   const [medAmounts, setMedAmounts] = useState<Record<number, string>>({});
+  const [medItemStates, setMedItemStates] = useState<Record<number, {
+    dispense_status: 'ACTIVE' | 'VOID';
+    void_reason: string;
+    version: number;
+    events: any[];
+  }>>({});
+  const [voidDialog, setVoidDialog] = useState<{ idx: number; medicine: string } | null>(null);
+  const [voidReason, setVoidReason] = useState('');
   const [additionalMeds, setAdditionalMeds] = useState<Array<{ medicine_value: string; amount: string; consultation_medication_id?: number | null }>>([]);
+  const getBaseMedicationTotal = (
+    amounts: Record<number, string> = medAmounts,
+    states: typeof medItemStates = medItemStates
+  ) =>
+    Object.entries(amounts).reduce(
+      (sum, [idx, value]) => states[Number(idx)]?.dispense_status === 'VOID'
+        ? sum
+        : sum + (parseFloat(value) || 0),
+      0
+    );
   const getSelectedTestsTotal = () =>
     (selectedPrescription?.prescription?.tests || []).reduce(
       (sum: number, test: any) => sum + (parseFloat(String(test?.amount ?? 0)) || 0),
@@ -239,14 +257,22 @@ export default function MedicalDashboard() {
     const medicalAddedMedications = (p.prescription?.medications || []).filter((m: any) => m.added_by_role === 'MEDICAL');
     if (pricing) {
       const initialAmounts: Record<number, string> = {};
+      const initialStates: typeof medItemStates = {};
       const pricingItemsByMedicationId = new Map<number, any>(
         (pricing.medications || []).map((item: any) => [Number(item.consultation_medication_id), item])
       );
       baseMedications.forEach((m: any, i: number) => {
         const pricingItem = pricingItemsByMedicationId.get(Number(m.consultation_medication_id));
         initialAmounts[i] = pricingItem?.amount && Number(pricingItem.amount) !== 0 ? pricingItem.amount.toString() : '';
+        initialStates[i] = {
+          dispense_status: pricingItem?.dispense_status === 'VOID' ? 'VOID' : 'ACTIVE',
+          void_reason: pricingItem?.void_reason || '',
+          version: Number(pricingItem?.version || 0),
+          events: pricingItem?.events || [],
+        };
       });
       setMedAmounts(initialAmounts);
+      setMedItemStates(initialStates);
       setAdditionalMeds(
         medicalAddedMedications.map((m: any) => {
           const pricingItem = pricingItemsByMedicationId.get(Number(m.consultation_medication_id));
@@ -262,7 +288,7 @@ export default function MedicalDashboard() {
         0
       );
       const computedBaseTotal =
-        Object.values(initialAmounts).reduce((sum, curr) => sum + (parseFloat(curr) || 0), 0)
+        getBaseMedicationTotal(initialAmounts, initialStates)
         + medicalAddedMedications.reduce((sum: number, med: any) => {
           const pricingItem = pricingItemsByMedicationId.get(Number(med.consultation_medication_id));
           return sum + (parseFloat(String(pricingItem?.amount ?? 0)) || 0);
@@ -276,6 +302,12 @@ export default function MedicalDashboard() {
       setRemark(pricing.remark || '');
     } else {
       setMedAmounts({});
+      setMedItemStates(
+        Object.fromEntries(baseMedications.map((_: any, i: number) => [
+          i,
+          { dispense_status: 'ACTIVE', void_reason: '', version: 0, events: [] }
+        ]))
+      );
       setAdditionalMeds([]);
       setAmount(((p.prescription?.tests || []).reduce(
         (sum: number, test: any) => sum + (parseFloat(String(test?.amount ?? 0)) || 0),
@@ -286,6 +318,8 @@ export default function MedicalDashboard() {
     setPaymentMode('CASH');
     setTransactionReference('');
     setPaymentRemark('');
+    setVoidDialog(null);
+    setVoidReason('');
   };
 
   const handleMedAmountChange = (idx: number, val: string) => {
@@ -294,7 +328,7 @@ export default function MedicalDashboard() {
 
     const additionalTotal = additionalMeds.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
     const testsTotal = getSelectedTestsTotal();
-    const total = Object.values(newAmounts).reduce((sum, curr) => sum + (parseFloat(curr) || 0), 0) + additionalTotal + testsTotal;
+    const total = getBaseMedicationTotal(newAmounts, medItemStates) + additionalTotal + testsTotal;
     setAmount(total.toString());
   };
 
@@ -303,7 +337,7 @@ export default function MedicalDashboard() {
     updated[idx] = { ...updated[idx], [field]: val };
     setAdditionalMeds(updated);
 
-    const baseTotal = Object.values(medAmounts).reduce((sum, curr) => sum + (parseFloat(curr) || 0), 0);
+    const baseTotal = getBaseMedicationTotal();
     const additionalTotal = updated.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
     const testsTotal = getSelectedTestsTotal();
     setAmount((baseTotal + additionalTotal + testsTotal).toString());
@@ -316,15 +350,57 @@ export default function MedicalDashboard() {
   const removeAdditionalMed = (idx: number) => {
     const updated = additionalMeds.filter((_, i) => i !== idx);
     setAdditionalMeds(updated);
-    const baseTotal = Object.values(medAmounts).reduce((sum, curr) => sum + (parseFloat(curr) || 0), 0);
+    const baseTotal = getBaseMedicationTotal();
     const additionalTotal = updated.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
     const testsTotal = getSelectedTestsTotal();
     setAmount((baseTotal + additionalTotal + testsTotal).toString());
   };
 
-  const handleSubmitDispensing = async () => {
+  const recalculateTotalForStates = (states: typeof medItemStates) => {
+    const additionalTotal = additionalMeds.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+    setAmount((getBaseMedicationTotal(medAmounts, states) + additionalTotal + getSelectedTestsTotal()).toString());
+  };
+
+  const confirmVoidMedication = () => {
+    if (!voidDialog || !voidReason.trim()) {
+      addToast('Removal reason is required', 'error');
+      return;
+    }
+
+    const updatedStates = {
+      ...medItemStates,
+      [voidDialog.idx]: {
+        ...(medItemStates[voidDialog.idx] || { version: 0, events: [] }),
+        dispense_status: 'VOID' as const,
+        void_reason: voidReason.trim(),
+      },
+    };
+    setMedItemStates(updatedStates);
+    recalculateTotalForStates(updatedStates);
+    setVoidDialog(null);
+    setVoidReason('');
+  };
+
+  const restoreMedication = (idx: number) => {
+    const updatedStates = {
+      ...medItemStates,
+      [idx]: {
+        ...(medItemStates[idx] || { version: 0, events: [] }),
+        dispense_status: 'ACTIVE' as const,
+        void_reason: '',
+      },
+    };
+    setMedItemStates(updatedStates);
+    recalculateTotalForStates(updatedStates);
+  };
+
+  const handleSubmitDispensing = async (processAfterSave = true) => {
     const meds = (selectedPrescription.prescription?.medications || []).filter((m: any) => m.added_by_role !== 'MEDICAL');
-    const hasEmptyAmount = meds.some((_: any, i: number) => !medAmounts[i] || parseFloat(medAmounts[i]) === 0);
+    const hasEmptyAmount = meds.some(
+      (_: any, i: number) =>
+        medItemStates[i]?.dispense_status !== 'VOID'
+        && (!medAmounts[i] || parseFloat(medAmounts[i]) === 0)
+    );
     const normalizedAdditionalMeds = additionalMeds
       .filter((item) => item.medicine_value.trim())
       .map((item) => ({
@@ -338,12 +414,12 @@ export default function MedicalDashboard() {
       return;
     }
 
-    if (parseFloat(amount) <= 0) {
+    if (processAfterSave && parseFloat(amount) <= 0) {
       addToast('Please enter a valid payment amount', 'error');
       return;
     }
 
-    if (paymentMode === 'ONLINE' && !transactionReference.trim()) {
+    if (processAfterSave && paymentMode === 'ONLINE' && !transactionReference.trim()) {
       addToast('Please enter transaction reference for online payment', 'error');
       return;
     }
@@ -352,28 +428,32 @@ export default function MedicalDashboard() {
     try {
       const payload = {
         consultation_id: selectedPrescription.consultation_id,
-        amount: parseFloat(amount),
         remark: remark,
-        process_after_save: true,
+        process_after_save: processAfterSave,
         medications: meds.map((m: any, i: number) => ({
           consultation_medication_id: m.consultation_medication_id,
           medicine_value: m.medicine_value,
-          amount: parseFloat(medAmounts[i]) || 0
+          amount: parseFloat(medAmounts[i]) || 0,
+          dispense_status: medItemStates[i]?.dispense_status || 'ACTIVE',
+          void_reason: medItemStates[i]?.void_reason || null,
+          version: medItemStates[i]?.version || 0,
         })),
         additional_medications: normalizedAdditionalMeds,
-        payment: {
+        payment: processAfterSave ? {
           payment_mode: paymentMode,
           amount: parseFloat(amount),
           transaction_reference: paymentMode === 'ONLINE' ? transactionReference.trim() : null,
           remark: paymentRemark.trim() || null
-        }
+        } : null
       };
+      const requestKey = crypto.randomUUID();
 
       const response = await fetch(`/api/v1/medical/prescriptions/${selectedPrescription.consultation_id}/pricing`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Idempotency-Key': requestKey,
         },
         body: JSON.stringify(payload)
       });
@@ -381,7 +461,7 @@ export default function MedicalDashboard() {
       const result = await response.json();
 
       if (result.success) {
-        addToast(result.message || 'Medication priced, paid and processed successfully', 'success');
+        addToast(result.message || (processAfterSave ? 'Medication priced, paid and processed successfully' : 'Dispensing changes saved'), 'success');
         setSelectedPrescription(null);
         fetchPrescriptions();
       } else {
@@ -398,41 +478,48 @@ export default function MedicalDashboard() {
   return (
     <div className="space-y-8 pb-12">
       {/* Clock + Filters Card (Uniform Style) */}
-      <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="relative group flex-1">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E] transition-colors" size={22} />
-            <input
-              type="text"
-              placeholder={t('medical_dashboard.search_placeholder', 'Search patient name, AUID...')}
-              value={patientSearch}
-              onChange={(e) => setPatientSearch(e.target.value)}
-              className="w-full bg-white border-2 border-gray-50 py-4 pl-14 pr-6 text-sm font-bold text-gray-600 outline-none focus:border-[#549E9E]/20 transition-all placeholder:text-gray-300"
+      <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+          <div className="md:col-span-5 space-y-1.5">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              {t('medical_dashboard.search_label', 'Search Patient')}
+            </label>
+            <div className="relative group w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E] transition-colors" size={16} />
+              <input
+                type="text"
+                placeholder={t('medical_dashboard.search_placeholder', 'Search patient name, mobile, UUID...')}
+                value={patientSearch}
+                onChange={(e) => setPatientSearch(e.target.value)}
+                className="w-full bg-white border border-gray-200 py-2.5 pl-11 pr-4 text-xs font-bold text-gray-600 outline-none focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all placeholder:text-gray-300 rounded-xl"
+              />
+            </div>
+          </div>
+          <div className="md:col-span-3">
+            <CustomDatePicker label={t('medical_dashboard.filters.today_date', 'Today Appointment Date')} value={filterDate} onChange={setFilterDate} />
+          </div>
+          <div className="md:col-span-3">
+            <FilterDropdown
+              label={t('medical_dashboard.filters.status', 'Status')}
+              icon={AlertCircle}
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { id: 'all', label: t('medical_dashboard.filters.all_statuses', 'All Statuses') },
+                { id: 'pending', label: t('medical_dashboard.filters.pending', 'Pending') },
+                { id: 'completed', label: t('medical_dashboard.filters.completed', 'Completed') }
+              ]}
             />
           </div>
-
-          <button
-            onClick={fetchPrescriptions}
-            className="bg-[#549E9E]/10 text-[#549E9E] py-4 px-6 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center justify-center gap-3 border-2 border-[#549E9E]/5"
-          >
-            <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
-            {t('medical_dashboard.refresh', 'Refresh')}
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100 items-end">
-          <CustomDatePicker label={t('medical_dashboard.filters.today_date', 'Today Appointment Date')} value={filterDate} onChange={setFilterDate} />
-          <FilterDropdown
-            label={t('medical_dashboard.filters.status', 'Status')}
-            icon={AlertCircle}
-            value={filterStatus}
-            onChange={setFilterStatus}
-            options={[
-              { id: 'all', label: t('medical_dashboard.filters.all_statuses', 'All Statuses') },
-              { id: 'pending', label: t('medical_dashboard.filters.pending', 'Pending') },
-              { id: 'completed', label: t('medical_dashboard.filters.completed', 'Completed') }
-            ]}
-          />
+          <div className="md:col-span-1 flex items-end">
+            <button
+              onClick={fetchPrescriptions}
+              className="w-full h-[42px] bg-[#549E9E]/10 text-[#549E9E] text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center justify-center gap-2 border border-[#549E9E]/20 rounded-xl cursor-pointer"
+              title={t('medical_dashboard.refresh', 'Refresh')}
+            >
+              <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -695,17 +782,69 @@ export default function MedicalDashboard() {
                                 med,
                                 selectedPrescription.prescription?.medication_duration_days
                               );
+                              const itemState = medItemStates[idx] || {
+                                dispense_status: 'ACTIVE',
+                                void_reason: '',
+                                version: 0,
+                                events: [],
+                              };
+                              const lastEvent = itemState.events[itemState.events.length - 1];
                               return (
-                                <div key={idx} className="bg-white p-5 border border-gray-100 shadow-sm flex items-center justify-between gap-4 group/med transition-all hover:border-[#549E9E]/30">
-                                  <div className="flex-1">
+                                <div
+                                  key={med.consultation_medication_id || idx}
+                                  className={`bg-white p-5 border shadow-sm flex items-start justify-between gap-4 group/med transition-all ${
+                                    itemState.dispense_status === 'VOID'
+                                      ? 'border-red-200 bg-red-50/40'
+                                      : 'border-gray-100 hover:border-[#549E9E]/30'
+                                  }`}
+                                >
+                                  <div className="flex-1 min-w-0">
                                     <p className="text-sm font-black text-gray-800 group-hover/med:text-[#549E9E] transition-colors">{med.medicine_value}</p>
                                     <div className="flex items-center gap-3 mt-1">
                                       <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">
                                         {dosePreview || 'No dose details'}
                                       </span>
                                     </div>
+                                    {itemState.dispense_status === 'VOID' && (
+                                      <div className="mt-3 rounded-lg border border-red-100 bg-white px-3 py-2">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Not dispensed</p>
+                                        <p className="mt-1 text-xs font-bold text-red-700">{itemState.void_reason}</p>
+                                        {lastEvent && (
+                                          <p className="mt-1 text-[9px] font-bold text-gray-400">
+                                            {lastEvent.actor_name || lastEvent.actor_role || 'Medical'} • {new Date(lastEvent.created_at).toLocaleString()}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                    {voidDialog?.idx === idx && (
+                                      <div className="mt-3 space-y-2 rounded-xl border border-red-100 bg-red-50 p-3">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-red-600">Removal reason *</label>
+                                        <textarea
+                                          value={voidReason}
+                                          onChange={(e) => setVoidReason(e.target.value)}
+                                          placeholder="Why is this prescribed medicine not being dispensed?"
+                                          className="min-h-20 w-full resize-none rounded-lg border border-red-100 bg-white p-3 text-xs font-bold text-gray-700 outline-none focus:border-red-300"
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => { setVoidDialog(null); setVoidReason(''); }}
+                                            className="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-white"
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={confirmVoidMedication}
+                                            className="rounded-lg bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white"
+                                          >
+                                            Confirm removal
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
-                                  <div className="w-28 shrink-0">
+                                  <div className="w-32 shrink-0 space-y-2">
                                     <div className="relative">
                                       <IndianRupee size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
                                       <input
@@ -713,10 +852,27 @@ export default function MedicalDashboard() {
                                         placeholder="0"
                                         value={medAmounts[idx] || ''}
                                         onChange={(e) => handleMedAmountChange(idx, e.target.value)}
-                                        disabled={/* selectedPrescription.appointment?.status === 'Completed' */ false}
+                                        disabled={itemState.dispense_status === 'VOID'}
                                         className="w-full bg-gray-50 border-2 border-gray-50 py-2.5 pl-8 pr-3 text-xs font-black text-gray-800 focus:border-[#549E9E]/20 transition-all outline-none text-right"
                                       />
                                     </div>
+                                    {itemState.dispense_status === 'VOID' ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => restoreMedication(idx)}
+                                        className="flex w-full items-center justify-center gap-1 rounded-lg bg-emerald-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-emerald-700 hover:bg-emerald-100"
+                                      >
+                                        <RefreshCcw size={11} /> Restore
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => { setVoidDialog({ idx, medicine: med.medicine_value }); setVoidReason(''); }}
+                                        className="flex w-full items-center justify-center gap-1 rounded-lg bg-red-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100"
+                                      >
+                                        <XCircle size={11} /> Remove
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -919,10 +1075,19 @@ export default function MedicalDashboard() {
                       </div>
                     </div>
 
-                    <div className="mt-auto pt-8">
-                      {/* selectedPrescription.appointment?.status !== 'Completed' && ( */}
+                    <div className="mt-auto pt-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
-                        onClick={handleSubmitDispensing}
+                        type="button"
+                        onClick={() => handleSubmitDispensing(false)}
+                        disabled={isSubmitting}
+                        className="w-full py-5 border-2 border-[#549E9E]/20 bg-white text-[#549E9E] text-[10px] font-black uppercase tracking-widest hover:bg-[#549E9E]/5 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        <FileText size={16} />
+                        {t('dispense.save_changes', 'Save Changes')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSubmitDispensing(true)}
                         disabled={isSubmitting}
                         className="w-full py-5 bg-[#549E9E] text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-[#549E9E]/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:grayscale"
                       >
@@ -935,7 +1100,6 @@ export default function MedicalDashboard() {
                           </>
                         )}
                       </button>
-                      {/* ) */}
                     </div>
                   </div>
                 </div>
