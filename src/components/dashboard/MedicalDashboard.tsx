@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -287,29 +288,32 @@ export default function MedicalDashboard() {
     return today.toISOString().split('T')[0];
   });
 
-  const formatDosePreview = (medication: any, durationDays: number | string) => {
+  const getDosePreviewParts = (medication: any, durationDays: number | string) => {
     const doseLabelMap: Record<string, string> = {
-      MORNING: 'M',
-      AFTERNOON: 'A',
-      NIGHT: 'E',
+      MORNING: 'Morning',
+      AFTERNOON: 'Afternoon',
+      NIGHT: 'Evening',
+      EVENING: 'Evening',
     };
 
     const normalizedDuration = Number(durationDays) || 0;
     const doses = Array.isArray(medication?.doses) ? medication.doses : [];
 
-    if (doses.length === 0) {
-      return normalizedDuration > 0 ? `${normalizedDuration} days` : '';
-    }
-
-    return doses
+    const parts = doses
       .map((dose: any) => {
-        const shortLabel = doseLabelMap[String(dose?.dose_label || '').toUpperCase()] || String(dose?.dose_label || '').charAt(0).toUpperCase();
+        const rawLabel = String(dose?.dose_label || '').toUpperCase();
+        const label =
+          doseLabelMap[rawLabel] ||
+          String(dose?.dose_label || '')
+            .toLowerCase()
+            .replace(/^\w/, (c: string) => c.toUpperCase());
         const balls = Number(dose?.balls_per_dose) || 0;
-        if (!shortLabel || !balls) return null;
-        return `${shortLabel} ${balls} balls ${normalizedDuration} days`;
+        if (!label || !balls) return null;
+        return { label, balls };
       })
-      .filter(Boolean)
-      .join(' • ');
+      .filter(Boolean) as Array<{ label: string; balls: number }>;
+
+    return { parts, durationDays: normalizedDuration };
   };
 
   const fetchPrescriptions = async () => {
@@ -371,6 +375,21 @@ export default function MedicalDashboard() {
   useEffect(() => {
     setCurrentPage(1);
   }, [filterDate, filterStatus, patientSearch]);
+
+  // Lock background page scroll while dispense modal is open.
+  useEffect(() => {
+    if (!selectedPrescription) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [selectedPrescription]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -719,7 +738,7 @@ export default function MedicalDashboard() {
       {/* Clock + Filters Card (Uniform Style) */}
       <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-          <div className="md:col-span-5 space-y-1.5">
+          <div className="md:col-span-4 space-y-1.5">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               {t('medical_dashboard.search_label', 'Search Patient')}
             </label>
@@ -750,13 +769,13 @@ export default function MedicalDashboard() {
               ]}
             />
           </div>
-          <div className="md:col-span-1 flex items-end">
+          <div className="md:col-span-2 flex items-end">
             <button
               onClick={fetchPrescriptions}
-              className="w-full h-[42px] bg-[#549E9E]/10 text-[#549E9E] text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center justify-center gap-2 border border-[#549E9E]/20 rounded-xl cursor-pointer"
-              title={t('medical_dashboard.refresh', 'Refresh')}
+              className="w-full h-[42px] cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-4 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center justify-center gap-2 border-2 border-[#549E9E]/5 rounded-xl"
             >
               <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
+              {t('medical_dashboard.refresh', 'Refresh')}
             </button>
           </div>
         </div>
@@ -967,9 +986,13 @@ export default function MedicalDashboard() {
       </div>
 
       {/* Dispensing Modal (Matches Portal Aesthetics) */}
+      {createPortal(
       <AnimatePresence>
         {selectedPrescription && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden p-4 overscroll-none"
+            onWheel={(e) => e.stopPropagation()}
+          >
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -981,192 +1004,202 @@ export default function MedicalDashboard() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-5xl max-h-[90vh] bg-white rounded-none border-2 border-gray-100 shadow-2xl overflow-y-auto"
+              className="relative flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-none border-2 border-gray-100 bg-white shadow-2xl lg:h-[min(90vh,820px)]"
+              onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-8">
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight">{t('dispense.title', 'Dispense Medicines')}</h2>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                      {t('dispense.patient', 'Patient')}: {selectedPrescription.patient?.full_name}
-                      {selectedPrescription.patient?.booked_for_type === 'FAMILY_MEMBER' && (
-                        <span className="ml-2 inline-block px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 border border-purple-100 text-[8px] font-black uppercase tracking-widest">
-                          {selectedPrescription.patient?.family_member_relationship} (Owner: {selectedPrescription.patient?.primary_patient_full_name})
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedPrescription(null)}
-                    className="w-10 h-10 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
+              <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-3">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-black uppercase tracking-tight text-gray-800">{t('dispense.title', 'Dispense Medicines')}</h2>
+                  <p className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    {t('dispense.patient', 'Patient')}: {selectedPrescription.patient?.full_name}
+                    {selectedPrescription.patient?.booked_for_type === 'FAMILY_MEMBER' && (
+                      <span className="ml-2 inline-block rounded-md border border-purple-100 bg-purple-50 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest text-purple-600">
+                        {selectedPrescription.patient?.family_member_relationship} (Owner: {selectedPrescription.patient?.primary_patient_full_name})
+                      </span>
+                    )}
+                  </p>
                 </div>
+                <button
+                  onClick={() => setSelectedPrescription(null)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-50 text-gray-400 transition-colors hover:bg-gray-100"
+                >
+                  <X size={18} />
+                </button>
+              </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                  {/* Left Side: Medication List with individual amounts */}
-                  <div className="space-y-6">
-                    <div className="bg-gray-50 border border-gray-100 p-6 space-y-4 min-h-[400px]">
-                      <h3 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-2">
-                        <Pill size={14} />
-                        {t('dispense.medication_list', 'Medication List')}
-                      </h3>
+              <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[1.15fr_0.85fr] lg:overflow-hidden">
+                {/* Left Side: Medication List with individual amounts */}
+                <div className="flex min-h-0 flex-col overflow-hidden border border-gray-100 bg-gray-50 lg:h-full">
+                  <h3 className="flex shrink-0 items-center gap-2 border-b border-gray-100 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+                    <Pill size={14} />
+                    {t('dispense.medication_list', 'Medication List')}
+                  </h3>
 
-                      <div className="space-y-4">
-                        {(selectedPrescription.prescription?.medications || []).length > 0 ? (
-                          <div className="space-y-4">
-                            {selectedPrescription.prescription.medications.filter((med: any) => med.added_by_role !== 'MEDICAL').map((med: any, idx: number) => {
-                              const dosePreview = formatDosePreview(
-                                med,
-                                selectedPrescription.prescription?.medication_duration_days
-                              );
-                              const itemState = medItemStates[idx] || {
-                                dispense_status: 'ACTIVE',
-                                void_reason: '',
-                                version: 0,
-                                events: [],
-                              };
-                              const lastEvent = itemState.events[itemState.events.length - 1];
-                              return (
-                                <div
-                                  key={med.consultation_medication_id || idx}
-                                  className={`bg-white p-5 border shadow-sm flex items-start justify-between gap-4 group/med transition-all ${
-                                    itemState.dispense_status === 'VOID'
-                                      ? 'border-red-200 bg-red-50/40'
-                                      : 'border-gray-100 hover:border-[#549E9E]/30'
-                                  }`}
-                                >
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-black text-gray-800 group-hover/med:text-[#549E9E] transition-colors">{formatPrescriptionMedicineText(med.medicine_value)}</p>
-                                    <div className="flex items-center gap-3 mt-1">
-                                      <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">
-                                        {dosePreview || 'No dose details'}
-                                      </span>
-                                    </div>
-                                    {itemState.dispense_status === 'VOID' && (
-                                      <div className="mt-3 rounded-lg border border-red-100 bg-white px-3 py-2">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Not dispensed</p>
-                                        <p className="mt-1 text-xs font-bold text-red-700">{itemState.void_reason}</p>
-                                        {lastEvent && (
-                                          <p className="mt-1 text-[9px] font-bold text-gray-400">
-                                            {lastEvent.actor_name || lastEvent.actor_role || 'Medical'} • {new Date(lastEvent.created_at).toLocaleString()}
-                                          </p>
-                                        )}
-                                      </div>
-                                    )}
-                                    {voidDialog?.idx === idx && (
-                                      <div className="mt-3 space-y-2 rounded-xl border border-red-100 bg-red-50 p-3">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-red-600">Removal reason *</label>
-                                        <textarea
-                                          value={voidReason}
-                                          onChange={(e) => setVoidReason(e.target.value)}
-                                          placeholder="Why is this prescribed medicine not being dispensed?"
-                                          className="min-h-20 w-full resize-none rounded-lg border border-red-100 bg-white p-3 text-xs font-bold text-gray-700 outline-none focus:border-red-300"
-                                        />
-                                        <div className="flex justify-end gap-2">
-                                          <button
-                                            type="button"
-                                            onClick={() => { setVoidDialog(null); setVoidReason(''); }}
-                                            className="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-white"
-                                          >
-                                            Cancel
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={confirmVoidMedication}
-                                            className="rounded-lg bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white"
-                                          >
-                                            Confirm removal
-                                          </button>
-                                        </div>
-                                      </div>
+                  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3">
+                    {(selectedPrescription.prescription?.medications || []).length > 0 ? (
+                      <div className="space-y-2">
+                        {selectedPrescription.prescription.medications.filter((med: any) => med.added_by_role !== 'MEDICAL').map((med: any, idx: number) => {
+                          const dosePreview = getDosePreviewParts(
+                            med,
+                            selectedPrescription.prescription?.medication_duration_days
+                          );
+                          const itemState = medItemStates[idx] || {
+                            dispense_status: 'ACTIVE',
+                            void_reason: '',
+                            version: 0,
+                            events: [],
+                          };
+                          const lastEvent = itemState.events[itemState.events.length - 1];
+                          return (
+                            <div
+                              key={med.consultation_medication_id || idx}
+                              className={`group/med flex items-start justify-between gap-3 border bg-white p-3 shadow-sm transition-all ${
+                                itemState.dispense_status === 'VOID'
+                                  ? 'border-red-200 bg-red-50/40'
+                                  : 'border-gray-100 hover:border-[#549E9E]/30'
+                              }`}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-black text-gray-800 transition-colors group-hover/med:text-[#549E9E]">{formatPrescriptionMedicineText(med.medicine_value)}</p>
+                                <p className="mt-1 text-[11px] font-bold leading-snug text-[#2f6f6f]">
+                                  {dosePreview.parts.length > 0
+                                    ? [
+                                        ...dosePreview.parts.map(
+                                          (part) => `${part.label} ${part.balls} balls`,
+                                        ),
+                                        dosePreview.durationDays > 0
+                                          ? `${dosePreview.durationDays} days`
+                                          : null,
+                                      ]
+                                        .filter(Boolean)
+                                        .join(' • ')
+                                    : dosePreview.durationDays > 0
+                                      ? `${dosePreview.durationDays} days`
+                                      : 'No dose details'}
+                                </p>
+                                {itemState.dispense_status === 'VOID' && (
+                                  <div className="mt-2 rounded-lg border border-red-100 bg-white px-2.5 py-1.5">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Not dispensed</p>
+                                    <p className="mt-0.5 text-xs font-bold text-red-700">{itemState.void_reason}</p>
+                                    {lastEvent && (
+                                      <p className="mt-0.5 text-[9px] font-bold text-gray-400">
+                                        {lastEvent.actor_name || lastEvent.actor_role || 'Medical'} • {new Date(lastEvent.created_at).toLocaleString()}
+                                      </p>
                                     )}
                                   </div>
-                                  <div className="w-32 shrink-0 space-y-2">
-                                    <div className="relative">
-                                      <IndianRupee size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
-                                      <input
-                                        type="number"
-                                        placeholder="0"
-                                        value={medAmounts[idx] || ''}
-                                        onChange={(e) => handleMedAmountChange(idx, e.target.value)}
-                                        disabled={itemState.dispense_status === 'VOID'}
-                                        className="w-full bg-gray-50 border-2 border-gray-50 py-2.5 pl-8 pr-3 text-xs font-black text-gray-800 focus:border-[#549E9E]/20 transition-all outline-none text-right"
-                                      />
+                                )}
+                                {voidDialog?.idx === idx && (
+                                  <div className="mt-2 space-y-2 rounded-xl border border-red-100 bg-red-50 p-2.5">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-red-600">Removal reason *</label>
+                                    <textarea
+                                      value={voidReason}
+                                      onChange={(e) => setVoidReason(e.target.value)}
+                                      placeholder="Why is this prescribed medicine not being dispensed?"
+                                      className="min-h-16 w-full resize-none rounded-lg border border-red-100 bg-white p-2.5 text-xs font-bold text-gray-700 outline-none focus:border-red-300"
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => { setVoidDialog(null); setVoidReason(''); }}
+                                        className="rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-white"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={confirmVoidMedication}
+                                        className="rounded-lg bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white"
+                                      >
+                                        Confirm removal
+                                      </button>
                                     </div>
-                                    {itemState.dispense_status === 'VOID' ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => restoreMedication(idx)}
-                                        className="flex w-full items-center justify-center gap-1 rounded-lg bg-emerald-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-emerald-700 hover:bg-emerald-100"
-                                      >
-                                        <RefreshCcw size={11} /> Restore
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => { setVoidDialog({ idx, medicine: med.medicine_value }); setVoidReason(''); }}
-                                        className="flex w-full items-center justify-center gap-1 rounded-lg bg-red-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100"
-                                      >
-                                        <XCircle size={11} /> Remove
-                                      </button>
-                                    )}
                                   </div>
+                                )}
+                              </div>
+                              <div className="flex w-auto shrink-0 items-center gap-1.5">
+                                <div className="relative w-24">
+                                  <IndianRupee size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
+                                  <input
+                                    type="number"
+                                    placeholder="0"
+                                    value={medAmounts[idx] || ''}
+                                    onChange={(e) => handleMedAmountChange(idx, e.target.value)}
+                                    disabled={itemState.dispense_status === 'VOID'}
+                                    className="w-full border-2 border-gray-50 bg-gray-50 py-2 pl-7 pr-2 text-right text-xs font-black text-gray-800 outline-none transition-all focus:border-[#549E9E]/20"
+                                  />
                                 </div>
-                              );
-                            })}
+                                {itemState.dispense_status === 'VOID' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => restoreMedication(idx)}
+                                    className="flex items-center justify-center gap-1 rounded-lg bg-emerald-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-emerald-700 hover:bg-emerald-100"
+                                  >
+                                    <RefreshCcw size={11} /> Restore
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setVoidDialog({ idx, medicine: med.medicine_value }); setVoidReason(''); }}
+                                    className="flex items-center justify-center gap-1 rounded-lg bg-red-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100"
+                                  >
+                                    <XCircle size={11} /> Remove
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-2 border border-amber-100 bg-amber-50 p-4 text-center text-amber-600">
+                        <AlertCircle size={24} strokeWidth={1.5} />
+                        <p className="text-xs font-black uppercase tracking-widest leading-relaxed">No medications prescribed<br />for this visit.</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-2.5 border-t border-gray-200 pt-3">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+                            <FileText size={12} />
+                            {t('dispense.tests', 'Tests')}
+                          </h4>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+                            {(selectedPrescription.prescription?.tests || []).length} item(s)
+                          </span>
+                        </div>
+
+                        {(selectedPrescription.prescription?.tests || []).length > 0 ? (
+                          <div className="space-y-2">
+                            {(selectedPrescription.prescription?.tests || []).map((test: any, idx: number) => (
+                              <div key={`test-${idx}`} className="grid grid-cols-[1fr_100px] items-center gap-2 border border-gray-100 bg-white p-2.5">
+                                <div>
+                                  <p className="text-xs font-black text-gray-800">{test.test_name}</p>
+                                  <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-gray-500">Doctor Recommended Test</p>
+                                </div>
+                                <div className="border border-gray-100 bg-gray-50 px-2.5 py-2 text-right text-xs font-black text-gray-800">
+                                  ₹ {Number(test.amount || 0).toFixed(2)}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         ) : (
-                          <div className="bg-amber-50 p-6 border border-amber-100 flex flex-col items-center justify-center gap-3 text-amber-600 text-center rounded-3xl">
-                            <AlertCircle size={32} strokeWidth={1.5} />
-                            <p className="text-xs font-black uppercase tracking-widest leading-loose">No medications prescribed<br />for this visit.</p>
-                          </div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('dispense.no_tests', 'No tests added')}</p>
                         )}
+                      </div>
 
-                        <div className="pt-4 border-t border-gray-100 space-y-3">
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-2">
-                                <FileText size={12} />
-                                {t('dispense.tests', 'Tests')}
-                              </h4>
-                              <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">
-                                {(selectedPrescription.prescription?.tests || []).length} item(s)
-                              </span>
-                            </div>
-
-                            {(selectedPrescription.prescription?.tests || []).length > 0 ? (
-                              <div className="space-y-3">
-                                {(selectedPrescription.prescription?.tests || []).map((test: any, idx: number) => (
-                                  <div key={`test-${idx}`} className="grid grid-cols-[1fr_110px] gap-3 items-center bg-white border border-gray-100 p-3">
-                                    <div>
-                                      <p className="text-xs font-black text-gray-800">{test.test_name}</p>
-                                      <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mt-1">Doctor Recommended Test</p>
-                                    </div>
-                                    <div className="bg-gray-50 border-2 border-gray-50 py-2.5 px-3 text-xs font-black text-gray-800 text-right">
-                                      ₹ {Number(test.amount || 0).toFixed(2)}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t('dispense.no_tests', 'No tests added')}</p>
-                            )}
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-2">
-                              <FileText size={12} />
-                              {t('dispense.medical_additional_medicines', 'Medical Additional Medicines')}
-                            </h4>
-                            <button
-                              onClick={addAdditionalMed}
-                              className="text-[10px] font-black uppercase tracking-widest px-3 py-2 bg-[#549E9E]/10 text-[#549E9E] hover:bg-[#549E9E] hover:text-white transition-all rounded-lg cursor-pointer"
-                            >
-                              + {t('common.add', 'Add')}
-                            </button>
-                          </div>
+                      <div className="flex items-center justify-between">
+                        <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+                          <FileText size={12} />
+                          {t('dispense.medical_additional_medicines', 'Medical Additional Medicines')}
+                        </h4>
+                        <button
+                          onClick={addAdditionalMed}
+                          className="cursor-pointer rounded-lg bg-[#549E9E]/10 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#549E9E] transition-all hover:bg-[#549E9E] hover:text-white"
+                        >
+                          + {t('common.add', 'Add')}
+                        </button>
+                      </div>
 
                           {additionalMeds.map((med, idx) => {
                             const selectedMedicine = textMedicines.find((m) => m.medicine_value === med.name);
@@ -1263,157 +1296,157 @@ export default function MedicalDashboard() {
                             );
                           })}
 
-                          {additionalMeds.length === 0 && (
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t('dispense.no_additional_medicines', 'No additional medicines added')}</p>
+                    {additionalMeds.length === 0 && (
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('dispense.no_additional_medicines', 'No additional medicines added')}</p>
+                    )}
+                  </div>
+                  </div>
+                </div>
+
+                {/* Right Side: Billing Summary & Remarks */}
+                <div className="flex min-h-0 flex-col gap-2 lg:h-full">
+                  <div className="min-h-0 flex-1 space-y-3 border-2 border-[#549E9E]/10 bg-[#549E9E]/[0.03] p-3 lg:overflow-y-auto">
+                    <div className="flex items-center justify-between border-b border-[#549E9E]/10 pb-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#549E9E] text-white">
+                          <IndianRupee size={18} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]/70">{t('dispense.total_bill_amount', 'Total Bill Amount')}</p>
+                          <p className="text-xl font-black text-[#549E9E]">₹ {amount}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="mb-0.5 block text-[9px] font-black uppercase tracking-widest text-gray-400">{t('dispense.items', 'Items')}</span>
+                        <span className="rounded-md bg-[#549E9E]/10 px-2 py-1 text-[10px] font-black text-[#549E9E]">
+                          {(selectedPrescription.prescription?.medications || []).filter((med: any) => med.added_by_role !== 'MEDICAL').length
+                            + additionalMeds.filter((med) => med.medicine_value.trim()).length
+                            + (selectedPrescription.prescription?.tests || []).length}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-gray-500">{t('dispense.dispensing_remark', 'Dispensing Remark / Notes')}</label>
+                      <textarea
+                        placeholder="Please provide a remark (Mandatory if any amount is zero)..."
+                        value={remark}
+                        onChange={(e) => setRemark(e.target.value)}
+                        disabled={/* selectedPrescription.appointment?.status === 'Completed' */ false}
+                        className="min-h-[72px] w-full resize-none border-2 border-gray-100 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition-all focus:border-[#549E9E]/20"
+                      />
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {/* Payment Mode */}
+                      <div className="space-y-1">
+                        <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">{t('dispense.payment_mode', 'Payment Mode')}</label>
+                        <div className="relative" ref={paymentDropdownRef}>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentDropdownOpen((o) => !o)}
+                            className="flex w-full cursor-pointer items-center justify-between rounded-full bg-gray-50 py-2.5 pl-4 pr-3 text-xs font-black text-gray-700 outline-none transition-all focus:ring-2 focus:ring-[#549E9E]/20"
+                          >
+                            <span>{paymentMode === 'CASH' ? '💵 Cash' : '📱 Online (UPI / Paytm / Card)'}</span>
+                            <svg
+                              width="12" height="12" viewBox="0 0 12 12" fill="none"
+                              className={`text-[#549E9E] transition-transform duration-200 ${paymentDropdownOpen ? 'rotate-180' : ''}`}
+                            >
+                              <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                          {paymentDropdownOpen && (
+                            <div className="absolute top-full left-0 right-0 z-50 mt-1.5 overflow-hidden rounded-[16px] border border-gray-100 bg-white py-1 shadow-xl">
+                              {[
+                                { value: 'CASH', label: '💵 Cash' },
+                                { value: 'ONLINE', label: '📱 Online (UPI / Paytm / Card)' },
+                              ].map((opt) => (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => { setPaymentMode(opt.value as 'CASH' | 'ONLINE'); setPaymentDropdownOpen(false); }}
+                                  className={`w-full px-4 py-2.5 text-left text-xs font-black transition-all ${paymentMode === opt.value
+                                      ? 'bg-[#549E9E]/10 text-[#549E9E]'
+                                      : 'text-gray-600 hover:bg-gray-50 hover:text-[#549E9E]'
+                                    }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
                           )}
                         </div>
+                      </div>
+
+                      {/* Transaction Reference */}
+                      <div className="space-y-1">
+                        <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+                          {t('dispense.transaction_ref', 'Transaction Reference')}
+                          {paymentMode === 'ONLINE'
+                            ? <span className="ml-1 text-red-400">*</span>
+                            : <span className="ml-1 font-bold normal-case tracking-normal text-gray-400">({t('common.optional', 'Optional')})</span>
+                          }
+                        </label>
+                        <input
+                          type="text"
+                          value={transactionReference}
+                          onChange={(e) => setTransactionReference(e.target.value)}
+                          placeholder={paymentMode === 'ONLINE' ? 'Enter UPI / Paytm / Card txn ID' : 'e.g. UPI ref, cheque no...'}
+                          className="w-full rounded-full border-none bg-gray-50 py-2.5 pl-4 pr-4 text-xs font-bold text-gray-700 outline-none transition-all focus:ring-2 focus:ring-[#549E9E]/20"
+                        />
+                      </div>
+
+                      {/* Payment Note */}
+                      <div className="space-y-1">
+                        <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+                          {t('dispense.payment_note', 'Payment Note')}
+                          <span className="ml-1 font-bold normal-case tracking-normal text-gray-400">({t('common.optional', 'Optional')})</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={paymentRemark}
+                          onChange={(e) => setPaymentRemark(e.target.value)}
+                          placeholder="e.g. Collected at counter / Paytm / UPI"
+                          className="w-full rounded-full border-none bg-gray-50 py-2.5 pl-4 pr-4 text-xs font-bold text-gray-700 outline-none transition-all focus:ring-2 focus:ring-[#549E9E]/20"
+                        />
                       </div>
                     </div>
                   </div>
 
-                  {/* Right Side: Billing Summary & Remarks */}
-                  <div className="space-y-8 flex flex-col">
-                    <div className="bg-[#549E9E]/[0.03] border-2 border-[#549E9E]/10 p-8 space-y-6">
-                      <div className="flex items-center justify-between border-b border-[#549E9E]/10 pb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#549E9E] text-white rounded-xl flex items-center justify-center">
-                            <IndianRupee size={20} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-black text-[#549E9E]/60 uppercase tracking-widest">{t('dispense.total_bill_amount', 'Total Bill Amount')}</p>
-                            <p className="text-2xl font-black text-[#549E9E]">₹ {amount}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest block mb-1">{t('dispense.items', 'Items')}</span>
-                          <span className="bg-[#549E9E]/10 text-[#549E9E] px-2 py-1 rounded-md text-[10px] font-black">
-                            {(selectedPrescription.prescription?.medications || []).filter((med: any) => med.added_by_role !== 'MEDICAL').length
-                              + additionalMeds.filter((med) => med.medicine_value.trim()).length
-                              + (selectedPrescription.prescription?.tests || []).length}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">{t('dispense.dispensing_remark', 'Dispensing Remark / Notes')}</label>
-                        <textarea
-                          placeholder="Please provide a remark (Mandatory if any amount is zero)..."
-                          value={remark}
-                          onChange={(e) => setRemark(e.target.value)}
-                          disabled={/* selectedPrescription.appointment?.status === 'Completed' */ false}
-                          className="w-full bg-white border-2 border-gray-100 py-4 px-6 text-sm font-bold text-gray-700 focus:border-[#549E9E]/20 transition-all outline-none min-h-[180px] resize-none shadow-inner"
-                        />
-                      </div>
-
-                      <div className="space-y-4 pt-2">
-                        {/* Payment Mode */}
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest pl-1">{t('dispense.payment_mode', 'Payment Mode')}</label>
-                          <div className="relative" ref={paymentDropdownRef}>
-                            <button
-                              type="button"
-                              onClick={() => setPaymentDropdownOpen((o) => !o)}
-                              className="w-full flex items-center justify-between bg-gray-50 rounded-full py-3 pl-5 pr-4 text-xs font-black text-gray-700 focus:ring-2 focus:ring-[#549E9E]/20 transition-all outline-none cursor-pointer"
-                            >
-                              <span>{paymentMode === 'CASH' ? '💵 Cash' : '📱 Online (UPI / Paytm / Card)'}</span>
-                              <svg
-                                width="12" height="12" viewBox="0 0 12 12" fill="none"
-                                className={`text-[#549E9E] transition-transform duration-200 ${paymentDropdownOpen ? 'rotate-180' : ''}`}
-                              >
-                                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            </button>
-                            {paymentDropdownOpen && (
-                              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-[20px] shadow-xl border border-gray-100 overflow-hidden z-50 py-1">
-                                {[
-                                  { value: 'CASH', label: '💵 Cash' },
-                                  { value: 'ONLINE', label: '📱 Online (UPI / Paytm / Card)' },
-                                ].map((opt) => (
-                                  <button
-                                    key={opt.value}
-                                    type="button"
-                                    onClick={() => { setPaymentMode(opt.value as 'CASH' | 'ONLINE'); setPaymentDropdownOpen(false); }}
-                                    className={`w-full text-left px-5 py-3 text-xs font-black transition-all ${paymentMode === opt.value
-                                        ? 'bg-[#549E9E]/10 text-[#549E9E]'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#549E9E]'
-                                      }`}
-                                  >
-                                    {opt.label}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Transaction Reference */}
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest pl-1">
-                            {t('dispense.transaction_ref', 'Transaction Reference')}
-                            {paymentMode === 'ONLINE'
-                              ? <span className="text-red-400 ml-1">*</span>
-                              : <span className="text-gray-400 font-bold normal-case tracking-normal ml-1">({t('common.optional', 'Optional')})</span>
-                            }
-                          </label>
-                          <input
-                            type="text"
-                            value={transactionReference}
-                            onChange={(e) => setTransactionReference(e.target.value)}
-                            placeholder={paymentMode === 'ONLINE' ? 'Enter UPI / Paytm / Card txn ID' : 'e.g. UPI ref, cheque no...'}
-                            className="w-full bg-gray-50 border-none rounded-full py-3 pl-5 pr-5 text-xs font-bold text-gray-700 focus:ring-2 focus:ring-[#549E9E]/20 transition-all outline-none"
-                          />
-                        </div>
-
-                        {/* Payment Note */}
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest pl-1">
-                            {t('dispense.payment_note', 'Payment Note')}
-                            <span className="text-gray-400 font-bold normal-case tracking-normal ml-1">({t('common.optional', 'Optional')})</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={paymentRemark}
-                            onChange={(e) => setPaymentRemark(e.target.value)}
-                            placeholder="e.g. Collected at counter / Paytm / UPI"
-                            className="w-full bg-gray-50 border-none rounded-full py-3 pl-5 pr-5 text-xs font-bold text-gray-700 focus:ring-2 focus:ring-[#549E9E]/20 transition-all outline-none"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-auto pt-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => handleSubmitDispensing(false)}
-                        disabled={isSubmitting}
-                        className="w-full py-5 border-2 border-[#549E9E]/20 bg-white text-[#549E9E] text-[10px] font-black uppercase tracking-widest hover:bg-[#549E9E]/5 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        <FileText size={16} />
-                        {t('dispense.save_changes', 'Save Changes')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSubmitDispensing(true)}
-                        disabled={isSubmitting}
-                        className="w-full py-5 bg-[#549E9E] text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-[#549E9E]/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:grayscale"
-                      >
-                        {isSubmitting ? (
-                          <RefreshCcw size={16} className="animate-spin" />
-                        ) : (
-                          <>
-                            <CheckCircle2 size={16} />
-                            {t('dispense.confirm_dispensed', 'Confirm & Mark as Dispensed')}
-                          </>
-                        )}
-                      </button>
-                    </div>
+                  <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSubmitDispensing(false)}
+                      disabled={isSubmitting}
+                      className="flex w-full items-center justify-center gap-2 border-2 border-[#549E9E]/20 bg-white py-3 text-[10px] font-black uppercase tracking-widest text-[#549E9E] transition-all hover:bg-[#549E9E]/5 disabled:opacity-50"
+                    >
+                      <FileText size={15} />
+                      {t('dispense.save_changes', 'Save Changes')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSubmitDispensing(true)}
+                      disabled={isSubmitting}
+                      className="flex w-full items-center justify-center gap-2 bg-[#549E9E] py-3 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-[#549E9E]/20 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:grayscale"
+                    >
+                      {isSubmitting ? (
+                        <RefreshCcw size={15} className="animate-spin" />
+                      ) : (
+                        <>
+                          <CheckCircle2 size={15} />
+                          {t('dispense.confirm_dispensed', 'Confirm & Mark as Dispensed')}
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body,
+      )}
     </div>
   );
 }

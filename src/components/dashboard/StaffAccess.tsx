@@ -126,17 +126,13 @@ export default function StaffAccess() {
   const medPermission = permissions.find(p => p.role_code === 'MED');
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Outer Card with Accent Top Border */}
-      <div className="bg-white border-t-4 border-t-[#549E9E] border border-gray-150 p-8 md:p-10 space-y-8 relative rounded-none shadow-md">
-        
+    <div className="max-w-3xl mx-auto">
+      <div className="bg-white border-t-4 border-t-[#549E9E] border border-gray-200 p-4 sm:p-5 space-y-3 relative rounded-xl shadow-sm">
         {/* Top Header Row */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-gray-100">
-          <div>
-            <h2 className="text-xl font-black text-gray-800 tracking-wider uppercase">
-              {t('staff_access.title')}
-            </h2>
-          </div>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-gray-100">
+          <h2 className="text-sm font-black text-gray-800 tracking-wider uppercase">
+            {t('staff_access.title')}
+          </h2>
 
           <AnimatePresence mode="wait">
             {isDirty ? (
@@ -145,7 +141,7 @@ export default function StaffAccess() {
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 5 }}
-                className="bg-[#EFF6FF] border border-[#DBEAFE] text-[#1E40AF] px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-none whitespace-nowrap"
+                className="bg-[#EFF6FF] border border-[#DBEAFE] text-[#1E40AF] px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full whitespace-nowrap"
               >
                 {t('staff_access.not_saved_yet')}
               </motion.div>
@@ -155,9 +151,9 @@ export default function StaffAccess() {
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 5 }}
-                className="bg-[#ECFDF5] border border-[#D1FAE5] text-[#065F46] px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-none flex items-center gap-1.5 whitespace-nowrap"
+                className="bg-[#ECFDF5] border border-[#D1FAE5] text-[#065F46] px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-full flex items-center gap-1.5 whitespace-nowrap"
               >
-                <CheckCircle size={12} className="text-[#059669]" />
+                <CheckCircle size={11} className="text-[#059669]" />
                 {t('staff_access.all_changes_saved')}
               </motion.div>
             )}
@@ -165,43 +161,40 @@ export default function StaffAccess() {
         </div>
 
         {/* Permissions Rows */}
-        <div className="space-y-6">
-          
-          {/* Receptionist Access Card */}
+        <div className="space-y-2">
           {recPermission && (
-            <motion.div 
+            <motion.div
               onClick={() => handleToggle('REC')}
-              whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)' }}
-              className={`p-6 border transition-all cursor-pointer flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 rounded-none ${
+              whileHover={{ y: -1 }}
+              className={`px-3 py-2.5 border transition-all cursor-pointer flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 rounded-xl ${
                 recPermission.has_cross_module_access === 1
-                  ? 'border-[#549E9E] bg-[#549E9E]/[0.02]' 
+                  ? 'border-[#549E9E] bg-[#549E9E]/[0.02]'
                   : 'border-gray-200 bg-white hover:border-gray-300'
               }`}
             >
-              <div className="space-y-2">
-                <h3 className="text-sm font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <h3 className="text-xs font-black text-[#549E9E] uppercase tracking-widest">
                   {t('staff_access.receptionist')}
                 </h3>
-                <div className="flex items-center gap-2">
-                  <span className={`relative flex h-2 w-2 ${recPermission.total_users > 0 ? 'block' : 'hidden'}`}>
+                <div className="flex items-center gap-1.5">
+                  <span className={`relative flex h-1.5 w-1.5 ${recPermission.total_users > 0 ? 'block' : 'hidden'}`}>
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                   </span>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-gray-400">
                     {recPermission.total_users} {recPermission.total_users === 1 ? t('staff_access.active_user') : t('staff_access.active_users')}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 select-none">
-                {/* Custom Checkbox Box */}
-                <motion.div 
-                  animate={{ 
+              <div className="flex items-center gap-3 select-none">
+                <motion.div
+                  animate={{
                     scale: recPermission.has_cross_module_access === 1 ? 1 : 0.98,
                     borderColor: recPermission.has_cross_module_access === 1 ? '#549E9E' : '#D1D5DB',
                     backgroundColor: recPermission.has_cross_module_access === 1 ? '#549E9E' : '#FFFFFF'
                   }}
-                  className="w-6 h-6 border-2 flex items-center justify-center rounded-none shrink-0"
+                  className="w-5 h-5 border-2 flex items-center justify-center rounded-md shrink-0"
                 >
                   {recPermission.has_cross_module_access === 1 && (
                     <motion.div
@@ -209,15 +202,15 @@ export default function StaffAccess() {
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                     >
-                      <Check className="w-4 h-4 text-white stroke-[3px]" />
+                      <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />
                     </motion.div>
                   )}
                 </motion.div>
-                <div className="space-y-0.5">
-                  <label className="text-xs font-black text-gray-800 uppercase tracking-widest cursor-pointer block">
+                <div className="min-w-0">
+                  <label className="text-[11px] font-black text-gray-800 uppercase tracking-widest cursor-pointer block">
                     {t('staff_access.allow_medical')}
                   </label>
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block leading-snug">
                     {t('staff_access.rec_desc')}
                   </span>
                 </div>
@@ -225,41 +218,39 @@ export default function StaffAccess() {
             </motion.div>
           )}
 
-          {/* Medical Access Card */}
           {medPermission && (
-            <motion.div 
+            <motion.div
               onClick={() => handleToggle('MED')}
-              whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)' }}
-              className={`p-6 border transition-all cursor-pointer flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 rounded-none ${
+              whileHover={{ y: -1 }}
+              className={`px-3 py-2.5 border transition-all cursor-pointer flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 rounded-xl ${
                 medPermission.has_cross_module_access === 1
-                  ? 'border-[#549E9E] bg-[#549E9E]/[0.02]' 
+                  ? 'border-[#549E9E] bg-[#549E9E]/[0.02]'
                   : 'border-gray-200 bg-white hover:border-gray-300'
               }`}
             >
-              <div className="space-y-2">
-                <h3 className="text-sm font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <h3 className="text-xs font-black text-[#549E9E] uppercase tracking-widest">
                   {t('staff_access.medical')}
                 </h3>
-                <div className="flex items-center gap-2">
-                  <span className={`relative flex h-2 w-2 ${medPermission.total_users > 0 ? 'block' : 'hidden'}`}>
+                <div className="flex items-center gap-1.5">
+                  <span className={`relative flex h-1.5 w-1.5 ${medPermission.total_users > 0 ? 'block' : 'hidden'}`}>
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                   </span>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-gray-400">
                     {medPermission.total_users} {medPermission.total_users === 1 ? t('staff_access.active_user') : t('staff_access.active_users')}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 select-none">
-                {/* Custom Checkbox Box */}
-                <motion.div 
-                  animate={{ 
+              <div className="flex items-center gap-3 select-none">
+                <motion.div
+                  animate={{
                     scale: medPermission.has_cross_module_access === 1 ? 1 : 0.98,
                     borderColor: medPermission.has_cross_module_access === 1 ? '#549E9E' : '#D1D5DB',
                     backgroundColor: medPermission.has_cross_module_access === 1 ? '#549E9E' : '#FFFFFF'
                   }}
-                  className="w-6 h-6 border-2 flex items-center justify-center rounded-none shrink-0"
+                  className="w-5 h-5 border-2 flex items-center justify-center rounded-md shrink-0"
                 >
                   {medPermission.has_cross_module_access === 1 && (
                     <motion.div
@@ -267,49 +258,47 @@ export default function StaffAccess() {
                       animate={{ scale: 1, opacity: 1 }}
                       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                     >
-                      <Check className="w-4 h-4 text-white stroke-[3px]" />
+                      <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />
                     </motion.div>
                   )}
                 </motion.div>
-                <div className="space-y-0.5">
-                  <label className="text-xs font-black text-gray-800 uppercase tracking-widest cursor-pointer block">
+                <div className="min-w-0">
+                  <label className="text-[11px] font-black text-gray-800 uppercase tracking-widest cursor-pointer block">
                     {t('staff_access.allow_reception')}
                   </label>
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block leading-snug">
                     {t('staff_access.med_desc')}
                   </span>
                 </div>
               </div>
             </motion.div>
           )}
-
         </div>
 
         {/* Footer Actions */}
-        <div className="flex flex-col sm:flex-row justify-end items-center gap-4 pt-6 border-t border-gray-100">
+        <div className="flex justify-end items-center pt-3 border-t border-gray-100">
           <button
             onClick={handleSave}
             disabled={isSaving || !isDirty}
-            className={`w-full sm:w-auto px-8 py-4 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 border transition-all rounded-none ${
-              !isDirty 
-                ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' 
-                : 'bg-[#549E9E] text-white border-[#549E9E] hover:bg-[#438787] hover:border-[#438787] shadow-lg shadow-[#549E9E]/20 cursor-pointer'
+            className={`w-full sm:w-auto px-5 py-2.5 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border transition-all rounded-xl ${
+              !isDirty
+                ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                : 'bg-[#549E9E] text-white border-[#549E9E] hover:bg-[#438787] hover:border-[#438787] shadow-md shadow-[#549E9E]/20 cursor-pointer'
             }`}
           >
             {isSaving ? (
               <>
-                <RefreshCcw size={14} className="animate-spin" />
+                <RefreshCcw size={13} className="animate-spin" />
                 {t('staff_access.saving')}
               </>
             ) : (
               <>
-                <Save size={14} />
+                <Save size={13} />
                 {t('staff_access.save_permissions')}
               </>
             )}
           </button>
         </div>
-
       </div>
     </div>
   );

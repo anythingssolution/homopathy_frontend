@@ -1000,8 +1000,9 @@ export default function DoctorPortal() {
               <span>{t('doctor_portal.manage_cms', 'Manage CMS')}</span>
             </button>
             <button onClick={fetchAppointments}
-              className="flex items-center justify-center bg-[#549E9E]/10 text-[#549E9E] p-3 rounded-xl border border-[#549E9E]/10 active:scale-95 transition-transform">
+              className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-4 py-3 text-[10px] font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5 rounded-xl active:scale-95">
               <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
+              {t('doctor_portal.refresh')}
             </button>
           </div>
         </div>

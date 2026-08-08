@@ -36,6 +36,12 @@ import {
   formatConsultationMedicineText,
 } from "../../utils/prescriptionFormat";
 import { parseDoctorFormulaInput } from "../../utils/doctorFormulaParser";
+import {
+  clearConsultDraft,
+  loadConsultDraft,
+  saveConsultDraft,
+  type ConsultDraftPayload,
+} from "../../utils/consultDraftStorage";
 
 type MedicationEntry = {
   name: string;
@@ -518,8 +524,16 @@ export default function ConsultationPage() {
   const { state } = useLocation();
   const navigate = useNavigate();
   const { appointmentId } = useParams();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { addToast } = useNotifications();
+  const consultDraftAppliedForRef = useRef<number | null>(null);
+  const consultDraftHydratedRef = useRef(false);
+  const [consultDraftReadyToken, setConsultDraftReadyToken] = useState(0);
+  const latestConsultDraftRef = useRef<{
+    doctorId: string | number;
+    appointmentId: number;
+    payload: ConsultDraftPayload;
+  } | null>(null);
   const {
     snapshot: formulaSnapshot,
     isLoading: isFormulaLoading,
@@ -798,7 +812,8 @@ export default function ConsultationPage() {
             setFollowUpChain(result.data.follow_up_chain);
           }
           if (!app?.symptoms && result.data.symptoms) {
-            setChiefComplaints(result.data.symptoms);
+            // Keep any in-progress draft / doctor typing ahead of appointment prefill.
+            setChiefComplaints((prev) => prev || result.data.symptoms);
           }
 
           const canPrefillVitals =
@@ -813,23 +828,27 @@ export default function ConsultationPage() {
               .replace("kg", "")
               .trim();
 
-            if (!o2Value.trim() && incomingO2) {
-              setO2Value(incomingO2);
+            if (incomingO2) {
+              setO2Value((prev) => (prev.trim() ? prev : incomingO2));
             }
-            if (!bpValue.trim() && incomingBp) {
-              setBpValue(incomingBp);
+            if (incomingBp) {
+              setBpValue((prev) => (prev.trim() ? prev : incomingBp));
             }
-            if (!heightValue.trim() && incomingHeight) {
-              if (incomingHeight.includes("cm")) {
-                setHeightUnit("cm");
-                setHeightValue(incomingHeight.replace("cm", "").trim());
-              } else {
+            if (incomingHeight) {
+              setHeightValue((prev) => {
+                if (prev.trim()) return prev;
+                if (incomingHeight.includes("cm")) {
+                  setHeightUnit("cm");
+                  return incomingHeight.replace("cm", "").trim();
+                }
                 setHeightUnit("ft");
-                setHeightValue(incomingHeight);
-              }
+                return incomingHeight;
+              });
             }
-            if (!weightValue.trim() && incomingWeight) {
-              setWeightValue(incomingWeight);
+            if (incomingWeight) {
+              setWeightValue((prev) =>
+                prev.trim() ? prev : incomingWeight,
+              );
             }
             setOccupation((prev) => prev || result.data.occupation || "");
             setHistoryPresentIllness((prev) => prev || result.data.history_present_illness || "");
@@ -1071,6 +1090,255 @@ export default function ConsultationPage() {
       previousCompletedVisit?.appointment_id || null,
     );
   }, [followUpChain, currentApp?.appointment_id]);
+
+  // Restore per-appointment consultation drafts from localStorage.
+  useEffect(() => {
+    const draftAppointmentId =
+      normalizedRouteAppointmentId || Number(currentApp?.appointment_id || 0);
+
+    if (!user?.id || !draftAppointmentId || draftAppointmentId <= 0) {
+      consultDraftHydratedRef.current = false;
+      return;
+    }
+
+    if (consultDraftAppliedForRef.current === draftAppointmentId) {
+      return;
+    }
+
+    const isCompleted =
+      String(currentApp?.status || "").toLowerCase() === "completed";
+
+    // Wait until appointment context is ready so we know completed vs in-progress.
+    if (!isAppointmentContextReady) {
+      consultDraftHydratedRef.current = false;
+      return;
+    }
+
+    consultDraftAppliedForRef.current = draftAppointmentId;
+
+    if (isCompleted || isReadOnly) {
+      clearConsultDraft(user.id, draftAppointmentId);
+      consultDraftHydratedRef.current = true;
+      return;
+    }
+
+    const draft = loadConsultDraft(user.id, draftAppointmentId);
+    if (draft) {
+      setChiefComplaints(draft.chiefComplaints || "");
+      setDiagnosis(draft.diagnosis || "");
+      setTreatmentNotes(draft.treatmentNotes || "");
+      setHasNoAdvice(Boolean(draft.hasNoAdvice));
+      setConsultationMode(
+        draft.consultationMode === "ON_CALL" ? "ON_CALL" : "PHYSICAL_PRESENT",
+      );
+      setO2Value(draft.o2Value || "");
+      setBpValue(draft.bpValue || "");
+      setHeightValue(draft.heightValue || "");
+      setHeightUnit(draft.heightUnit === "ft" ? "ft" : "cm");
+      setWeightValue(draft.weightValue || "");
+      setGlobalDuration(draft.globalDuration || "15 Days");
+      setThirtyDaysDoseFrequency(
+        draft.thirtyDaysDoseFrequency === "2" ? "2" : "3",
+      );
+      if (
+        draft.followUpPreset === "7" ||
+        draft.followUpPreset === "15" ||
+        draft.followUpPreset === "30" ||
+        draft.followUpPreset === "custom"
+      ) {
+        setFollowUpPreset(draft.followUpPreset);
+      }
+      setCustomFollowUpDays(draft.customFollowUpDays || "");
+      setRepeatedFromConsultationId(
+        draft.repeatedFromConsultationId
+          ? Number(draft.repeatedFromConsultationId)
+          : null,
+      );
+      setQuickNumericInput(draft.quickNumericInput || "");
+      setLastAppliedQuickFormulaVersion(
+        draft.lastAppliedQuickFormulaVersion
+          ? Number(draft.lastAppliedQuickFormulaVersion)
+          : null,
+      );
+      setLastAppliedQuickFormulaSetId(
+        draft.lastAppliedQuickFormulaSetId
+          ? Number(draft.lastAppliedQuickFormulaSetId)
+          : null,
+      );
+      setMedications(
+        draft.medications?.length
+          ? draft.medications
+          : [
+              {
+                name: "",
+                doses: { morning: 4, afternoon: 4, night: 4 },
+                amount: "",
+              },
+            ],
+      );
+      setOtherMedications(
+        draft.otherMedications?.length
+          ? draft.otherMedications
+          : [{ name: "", remark: "", amount: "", quantity: 1 }],
+      );
+      setTests(
+        draft.tests?.length
+          ? draft.tests
+          : [{ test_name: "", amount: "" }],
+      );
+      setOccupation(draft.occupation || "");
+      setHistoryPresentIllness(draft.historyPresentIllness || "");
+      setHistoryPastIllness(draft.historyPastIllness || "");
+      setFamilyHistory(draft.familyHistory || "");
+      setAllergiesHistory(draft.allergiesHistory || "");
+      setGynecologicalHistory(draft.gynecologicalHistory || "");
+      setPersonalSocialHistory(draft.personalSocialHistory || "");
+      setGeneralExamination(draft.generalExamination || "");
+      setSystematicExamination(draft.systematicExamination || "");
+      setDifferentialDiagnosis(draft.differentialDiagnosis || "");
+      setFollowUp(draft.followUp || "");
+      setMentalMindStatus(draft.mentalMindStatus || "");
+      setDisease(draft.disease || "");
+      setFollowUpChainClosed(Boolean(draft.followUpChainClosed));
+    }
+
+    // Enable persistence on the next render so we never save pre-restore values.
+    consultDraftHydratedRef.current = true;
+    setConsultDraftReadyToken((token) => token + 1);
+  }, [
+    user?.id,
+    normalizedRouteAppointmentId,
+    currentApp?.appointment_id,
+    currentApp?.status,
+    isAppointmentContextReady,
+    isReadOnly,
+  ]);
+
+  // Persist in-progress consultation drafts per appointment.
+  useEffect(() => {
+    const draftAppointmentId =
+      normalizedRouteAppointmentId || Number(currentApp?.appointment_id || 0);
+
+    if (
+      !consultDraftHydratedRef.current ||
+      !consultDraftReadyToken ||
+      !user?.id ||
+      !draftAppointmentId ||
+      draftAppointmentId <= 0 ||
+      isReadOnly ||
+      isSubmitting ||
+      String(currentApp?.status || "").toLowerCase() === "completed"
+    ) {
+      latestConsultDraftRef.current = null;
+      return;
+    }
+
+    const payload: ConsultDraftPayload = {
+      chiefComplaints,
+      diagnosis,
+      treatmentNotes,
+      hasNoAdvice,
+      consultationMode,
+      o2Value,
+      bpValue,
+      heightValue,
+      heightUnit,
+      weightValue,
+      globalDuration,
+      thirtyDaysDoseFrequency,
+      followUpPreset,
+      customFollowUpDays,
+      repeatedFromConsultationId,
+      quickNumericInput,
+      lastAppliedQuickFormulaVersion,
+      lastAppliedQuickFormulaSetId,
+      medications,
+      otherMedications,
+      tests,
+      occupation,
+      historyPresentIllness,
+      historyPastIllness,
+      familyHistory,
+      allergiesHistory,
+      gynecologicalHistory,
+      personalSocialHistory,
+      generalExamination,
+      systematicExamination,
+      differentialDiagnosis,
+      followUp,
+      mentalMindStatus,
+      disease,
+      followUpChainClosed,
+    };
+
+    latestConsultDraftRef.current = {
+      doctorId: user.id,
+      appointmentId: draftAppointmentId,
+      payload,
+    };
+
+    const timer = window.setTimeout(() => {
+      saveConsultDraft(user.id, draftAppointmentId, payload);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    consultDraftReadyToken,
+    user?.id,
+    normalizedRouteAppointmentId,
+    currentApp?.appointment_id,
+    currentApp?.status,
+    isReadOnly,
+    isSubmitting,
+    chiefComplaints,
+    diagnosis,
+    treatmentNotes,
+    hasNoAdvice,
+    consultationMode,
+    o2Value,
+    bpValue,
+    heightValue,
+    heightUnit,
+    weightValue,
+    globalDuration,
+    thirtyDaysDoseFrequency,
+    followUpPreset,
+    customFollowUpDays,
+    repeatedFromConsultationId,
+    quickNumericInput,
+    lastAppliedQuickFormulaVersion,
+    lastAppliedQuickFormulaSetId,
+    medications,
+    otherMedications,
+    tests,
+    occupation,
+    historyPresentIllness,
+    historyPastIllness,
+    familyHistory,
+    allergiesHistory,
+    gynecologicalHistory,
+    personalSocialHistory,
+    generalExamination,
+    systematicExamination,
+    differentialDiagnosis,
+    followUp,
+    mentalMindStatus,
+    disease,
+    followUpChainClosed,
+  ]);
+
+  // Flush the latest draft when leaving the consult page or switching appointments.
+  useEffect(() => {
+    return () => {
+      const latest = latestConsultDraftRef.current;
+      if (!latest) return;
+      saveConsultDraft(
+        latest.doctorId,
+        latest.appointmentId,
+        latest.payload,
+      );
+    };
+  }, [appointmentId]);
 
   if (!currentApp) return null;
 
@@ -1984,6 +2252,7 @@ export default function ConsultationPage() {
       const result = await response.json();
 
       if (result.success) {
+        clearConsultDraft(user?.id, submissionAppointmentId);
         addToast("Consultation completed successfully", "success");
         navigate("/doctor-portal");
       } else {

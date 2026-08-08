@@ -99,7 +99,7 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
         <button
           onClick={fetchReports}
           disabled={isLoading}
-          className="cursor-pointer bg-white border border-gray-100 text-gray-600 px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 hover:border-gray-200 transition-all flex items-center gap-2 shadow-sm self-stretch md:self-auto justify-center"
+          className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5 self-stretch md:self-auto justify-center"
         >
           <RefreshCcw size={14} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? 'Syncing...' : 'Refresh'}
         </button>

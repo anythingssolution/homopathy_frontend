@@ -431,7 +431,7 @@ export default function Bills() {
 
           <button
             onClick={fetchBills}
-            className="bg-[#549E9E]/10 text-[#549E9E] py-4 px-6 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center justify-center gap-3 border-2 border-[#549E9E]/5 cursor-pointer"
+            className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] py-4 px-6 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center justify-center gap-3 border-2 border-[#549E9E]/5 rounded-xl"
           >
             <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
             {t('bills.refresh', 'Refresh')}
@@ -938,7 +938,7 @@ export default function Bills() {
               <CustomDatePicker label="Filter Date" value={filterDate} onChange={setFilterDate} />
               <button
                 onClick={fetchRevenueReports}
-                className="bg-gray-50 hover:bg-gray-100 border border-gray-200 px-4 py-2.5 rounded-xl text-xs font-black text-gray-600 uppercase tracking-wider flex items-center gap-2 cursor-pointer"
+                className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-5 py-2.5 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5 rounded-xl"
               >
                 <RefreshCcw size={14} className={isReportLoading ? 'animate-spin' : ''} /> Refresh
               </button>
@@ -1001,7 +1001,7 @@ export default function Bills() {
               <CustomDatePicker label="Filter Date" value={filterDate} onChange={setFilterDate} />
               <button
                 onClick={fetchRevenueReports}
-                className="bg-gray-50 hover:bg-gray-100 border border-gray-200 px-4 py-2.5 rounded-xl text-xs font-black text-gray-600 uppercase tracking-wider flex items-center gap-2 cursor-pointer"
+                className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-5 py-2.5 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5 rounded-xl"
               >
                 <RefreshCcw size={14} className={isReportLoading ? 'animate-spin' : ''} /> Refresh
               </button>

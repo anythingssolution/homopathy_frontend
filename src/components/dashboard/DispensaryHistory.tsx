@@ -188,7 +188,7 @@ export default function DispensaryHistory() {
 
           <button
             onClick={() => fetchPrescriptions(page)}
-            className="bg-[#549E9E]/10 text-[#549E9E] py-4 px-6 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center justify-center gap-3 border-2 border-[#549E9E]/5"
+            className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] py-4 px-6 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center justify-center gap-3 border-2 border-[#549E9E]/5 rounded-xl"
           >
             <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
             {t('dispensary_history.refresh', 'Refresh')}

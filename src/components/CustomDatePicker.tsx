@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { getLocalDateString } from '../utils/date';
 
 const CustomDatePicker = ({
   value,
@@ -22,7 +23,7 @@ const CustomDatePicker = ({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = getLocalDateString(today);
 
   const selectedDate = value && value !== 'all' ? new Date(value + 'T00:00:00') : null;
   const [viewYear, setViewYear] = useState(selectedDate?.getFullYear() || today.getFullYear());

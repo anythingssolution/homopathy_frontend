@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  HelpCircle,
+  Info,
   LoaderCircle,
   MapPin,
   Sparkles,
@@ -73,6 +75,7 @@ export default function DoctorLeaveCalendar() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   const selectedBranchId = branchScope?.selected_branch_id || null;
   const selectedBranchName = branchScope?.selected_branch?.branch_name || t('doctor_leave.selected_branch', 'Selected Branch');
@@ -358,99 +361,85 @@ export default function DoctorLeaveCalendar() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="bg-white border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-primary-teal/10 text-primary-teal flex items-center justify-center">
-              <Calendar size={20} />
+    <div className="max-w-5xl mx-auto">
+      <div className="bg-white border border-gray-200 shadow-sm overflow-hidden rounded-xl">
+        <div className="px-4 py-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-primary-teal/10 text-primary-teal flex items-center justify-center">
+              <Calendar size={16} />
             </div>
             <div>
-              <p className="text-lg font-black text-gray-800 uppercase tracking-widest">
-                {t('doctor_leave.title', 'Leave Calendar')}
-              </p>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-black text-gray-800 uppercase tracking-widest">
+                  {t('doctor_leave.title', 'Leave Calendar')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowHelpModal(true)}
+                  className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 hover:bg-amber-500 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                  title={t('doctor_leave.help_tooltip', 'Click for explanation')}
+                >
+                  <Info size={12} />
+                </button>
+              </div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                 {t('doctor_leave.subtitle', 'Drag on dates to select a leave range')}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-teal/5 border border-primary-teal/10 text-primary-teal">
-              <MapPin size={14} />
-              <span className="text-[11px] font-black uppercase tracking-widest">{selectedBranchName}</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-teal/5 border border-primary-teal/10 text-primary-teal">
+              <MapPin size={12} />
+              <span className="text-[10px] font-black uppercase tracking-widest">{selectedBranchName}</span>
             </div>
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 border border-amber-100 text-amber-600">
-              <Sparkles size={14} />
-              <span className="text-[11px] font-black uppercase tracking-widest">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-100 text-amber-600">
+              <Sparkles size={12} />
+              <span className="text-[10px] font-black uppercase tracking-widest">
                 {t('doctor_leave.drag_hint', 'Click + drag for range')}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="bg-amber-50 border-b border-amber-100 px-6 py-4">
-          <div className="flex flex-col md:flex-row md:items-center gap-x-6 gap-y-3">
-            <div className="flex-shrink-0">
-              <p className="text-[11px] font-black uppercase tracking-widest text-amber-700">
-                {t('doctor_leave.usage_title', 'How to use')}
-              </p>
-            </div>
-            <ul className="flex flex-col md:flex-row md:flex-wrap gap-x-8 gap-y-2 text-[13px] font-medium text-amber-700">
-              <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                {t('doctor_leave.usage_drag', '1. Mouse press karke dates par drag karo to range select ho jayega.')}
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                {t('doctor_leave.usage_click_more', '2. Alag dates par click/drag karke multiple selections add kar sakte ho.')}
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                {t('doctor_leave.usage_save', '3. “Mark Selected Dates” se saari selected dates ek sath save hongi.')}
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,720px)_1fr] gap-0">
-          <div className="p-5 xl:p-6 border-b xl:border-b-0 xl:border-r border-gray-100">
-            <div className="max-w-[720px]">
-              <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,420px)_1fr] gap-0">
+          <div className="p-3 sm:p-4 border-b lg:border-b-0 lg:border-r border-gray-100">
+            <div className="max-w-[420px] mx-auto lg:mx-0">
+              <div className="flex items-center justify-between gap-2 mb-2">
                 <button
                   type="button"
                   onClick={goToPreviousMonth}
-                  className="w-10 h-10 rounded-xl border border-gray-100 bg-gray-50 text-gray-500 hover:bg-primary-teal hover:text-white hover:border-primary-teal transition-all flex items-center justify-center"
+                  className="w-8 h-8 rounded-lg border border-gray-100 bg-gray-50 text-gray-500 hover:bg-primary-teal hover:text-white hover:border-primary-teal transition-all flex items-center justify-center"
                 >
-                  <ChevronLeft size={17} />
+                  <ChevronLeft size={15} />
                 </button>
                 <div className="text-center">
-                  <p className="text-lg font-black text-gray-800 tracking-tight">{monthLabel}</p>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.25em] mt-1">
+                  <p className="text-sm font-black text-gray-800 tracking-tight">{monthLabel}</p>
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">
                     {t('doctor_leave.selection_count', '{{count}} dates selected', { count: selectedDates.length })}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={goToNextMonth}
-                  className="w-10 h-10 rounded-xl border border-gray-100 bg-gray-50 text-gray-500 hover:bg-primary-teal hover:text-white hover:border-primary-teal transition-all flex items-center justify-center"
+                  className="w-8 h-8 rounded-lg border border-gray-100 bg-gray-50 text-gray-500 hover:bg-primary-teal hover:text-white hover:border-primary-teal transition-all flex items-center justify-center"
                 >
-                  <ChevronRight size={17} />
+                  <ChevronRight size={15} />
                 </button>
               </div>
 
-              <div className="grid grid-cols-7 gap-1.5 mb-2">
+              <div className="grid grid-cols-7 gap-1 mb-1">
                 {weekdayLabels.map((day) => (
-                  <div key={day} className="text-center text-[9px] font-black text-primary-teal/50 uppercase tracking-widest py-1">
+                  <div key={day} className="text-center text-[9px] font-black text-primary-teal/50 uppercase tracking-widest py-0.5">
                     {day}
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-1.5 select-none">
+              <div className="grid grid-cols-7 gap-1 select-none">
                 {calendarCells.map((cell, index) => {
                   if (!cell) {
-                    return <div key={`blank-${index}`} className="aspect-square rounded-xl bg-transparent" />;
+                    return <div key={`blank-${index}`} className="h-9 rounded-lg bg-transparent" />;
                   }
 
                   const isInPreview = previewDateSet.has(cell.date);
@@ -465,75 +454,74 @@ export default function DoctorLeaveCalendar() {
                       whileTap={{ scale: cell.isPast ? 1 : 0.98 }}
                       onMouseDown={() => handleCellMouseDown(cell.date, cell.isPast)}
                       onMouseEnter={() => handleCellMouseEnter(cell.date, cell.isPast)}
-                      className={`aspect-square rounded-[18px] border p-1.5 transition-all text-left relative overflow-hidden ${
+                      title={
+                        cell.hasLeave
+                          ? t('doctor_leave.leave_badge', 'Leave')
+                          : isToday
+                            ? t('doctor_leave.today_badge', 'Today')
+                            : undefined
+                      }
+                      className={`h-9 rounded-lg border transition-all relative flex items-center justify-center ${
                         cell.isPast
                           ? 'bg-gray-50/60 border-gray-100 text-gray-300 cursor-not-allowed'
                           : isInPreview
                             ? 'bg-primary-teal/15 border-primary-teal/30 text-primary-teal'
                             : isSelected
-                              ? 'bg-primary-teal text-white border-primary-teal shadow-lg shadow-primary-teal/15'
+                              ? 'bg-primary-teal text-white border-primary-teal shadow-sm shadow-primary-teal/15'
                               : cell.hasLeave
                                 ? 'bg-red-50 border-red-100 text-red-600 hover:border-red-200'
                                 : 'bg-white border-gray-100 text-gray-700 hover:border-primary-teal/30 hover:bg-primary-teal/[0.03]'
                       }`}
                     >
-                      <span className="absolute top-1.5 left-2 text-[11px] font-black">{cell.day}</span>
-                      <div className="absolute inset-x-1.5 bottom-1.5 flex items-center justify-between gap-1">
-                        {cell.hasLeave ? (
-                          <span className={`text-[8px] font-black uppercase tracking-widest ${isSelected ? 'text-white/85' : 'text-red-500'}`}>
-                            {t('doctor_leave.leave_badge', 'Leave')}
-                          </span>
-                        ) : (
-                          <span className={`text-[8px] font-black uppercase tracking-widest ${isSelected ? 'text-white/60' : isToday ? 'text-primary-teal' : 'text-gray-300'}`}>
-                            {isToday ? t('doctor_leave.today_badge', 'Today') : ''}
-                          </span>
-                        )}
-                        {cell.hasLeave && (
-                          <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-red-400'}`} />
-                        )}
-                      </div>
+                      <span className="text-[11px] font-black leading-none">{cell.day}</span>
+                      {cell.hasLeave && (
+                        <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-red-400'}`} />
+                      )}
+                      {isToday && !cell.hasLeave && (
+                        <span className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-primary-teal'}`} />
+                      )}
                     </motion.button>
                   );
                 })}
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-red-400" />
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-black uppercase tracking-widest text-gray-400">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-red-400" />
                   <span>{t('doctor_leave.legend_marked_leave', 'Marked Leave')}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-primary-teal" />
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-primary-teal" />
                   <span>{t('doctor_leave.legend_selected_date', 'Selected')}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-primary-teal/30" />
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-primary-teal/30" />
                   <span>{t('doctor_leave.legend_drag_preview', 'Drag Preview')}</span>
                 </div>
               </div>
 
               {error && (
-                <div className="mt-4 p-4 rounded-2xl bg-red-50 border border-red-100 flex items-start gap-3 text-red-600">
-                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <div className="mt-2.5 p-2.5 rounded-xl bg-red-50 border border-red-100 flex items-start gap-2 text-red-600">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-[11px] font-black uppercase tracking-widest">
+                    <p className="text-[10px] font-black uppercase tracking-widest">
                       {t('doctor_leave.load_error_title', 'Unable to load calendar')}
                     </p>
-                    <p className="text-sm mt-1">{error}</p>
+                    <p className="text-xs mt-0.5">{error}</p>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="p-5 bg-gray-50/40">
-            <div className="bg-white border border-gray-100 rounded-[24px] p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
+          <div className="p-3 sm:p-4 bg-gray-50/40 space-y-3">
+            <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm space-y-3">
+              <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.25em]">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">
                     {t('doctor_leave.selection_panel', 'Selection')}
                   </p>
-                  <p className="text-lg font-black text-gray-800 mt-1">
+                  <p className="text-sm font-black text-gray-800">
                     {t('doctor_leave.selection_count', '{{count}} dates selected', { count: selectedDates.length })}
                   </p>
                 </div>
@@ -541,34 +529,69 @@ export default function DoctorLeaveCalendar() {
                   <button
                     type="button"
                     onClick={clearSelection}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all text-[10px] font-black uppercase tracking-widest"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-all text-[9px] font-black uppercase tracking-widest"
                   >
-                    <X size={12} />
+                    <X size={11} />
                     {t('doctor_leave.clear_selection', 'Clear')}
                   </button>
                 )}
               </div>
 
-              <div className="mt-4">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">
-                  {t('doctor_leave.reason_label', 'Reason (optional)')}
-                </label>
-                <textarea
-                  value={leaveReason}
-                  onChange={(event) => setLeaveReason(event.target.value)}
-                  placeholder={t('doctor_leave.reason_placeholder', 'Common reason for selected leave dates')}
-                  className="w-full min-h-[96px] rounded-[20px] border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-700 outline-none focus:border-primary-teal/30 focus:ring-2 focus:ring-primary-teal/10 transition-all resize-none"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-[100px_110px_minmax(0,1fr)] gap-2 items-end">
+                <div className="h-[42px] rounded-xl bg-emerald-50 border border-emerald-100 px-2.5 flex flex-col justify-center">
+                  <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest leading-none">
+                    {t('doctor_leave.new_dates_count', 'New Dates')}
+                  </p>
+                  <p className="text-sm font-black text-emerald-600 leading-none mt-1">{selectedNewLeaveDates.length}</p>
+                </div>
+                <div className="h-[42px] rounded-xl bg-red-50 border border-red-100 px-2.5 flex flex-col justify-center">
+                  <p className="text-[9px] font-black text-red-500 uppercase tracking-widest leading-none">
+                    {t('doctor_leave.marked_dates_count', 'Existing Leave')}
+                  </p>
+                  <p className="text-sm font-black text-red-600 leading-none mt-1">{selectedExistingLeaveDates.length}</p>
+                </div>
+                <div className="min-w-0">
+                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">
+                    {t('doctor_leave.reason_label', 'Reason (optional)')}
+                  </label>
+                  <input
+                    type="text"
+                    value={leaveReason}
+                    onChange={(event) => setLeaveReason(event.target.value)}
+                    placeholder={t('doctor_leave.reason_placeholder', 'Common reason for selected leave dates')}
+                    className="w-full h-[42px] rounded-xl border border-gray-100 bg-gray-50 px-3 text-xs text-gray-700 outline-none focus:border-primary-teal/30 focus:ring-2 focus:ring-primary-teal/10 transition-all"
+                  />
+                </div>
               </div>
 
-              <div className="mt-4 space-y-3">
+              {selectedDates.length > 0 && (
+                <div className="rounded-xl bg-primary-teal/[0.04] border border-primary-teal/10 px-2.5 py-2">
+                  <p className="text-[9px] font-black text-primary-teal uppercase tracking-widest mb-1.5">
+                    {t('doctor_leave.selected_dates_list', 'Selected dates')}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedDates.slice(0, 8).map((date) => (
+                      <span key={date} className="px-2 py-0.5 rounded-full bg-white border border-primary-teal/10 text-[9px] font-black text-primary-teal uppercase tracking-widest">
+                        {new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                      </span>
+                    ))}
+                    {selectedDates.length > 8 && (
+                      <span className="px-2 py-0.5 rounded-full bg-white border border-primary-teal/10 text-[9px] font-black text-primary-teal uppercase tracking-widest">
+                        +{selectedDates.length - 8}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={handleSaveSelectedLeaves}
                   disabled={isSaving || isLoading || selectedDates.length === 0}
-                  className="w-full rounded-full px-4 py-3.5 text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 bg-primary-teal text-white hover:bg-[#438787] shadow-lg shadow-primary-teal/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full rounded-xl px-3 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 bg-primary-teal text-white hover:bg-[#438787] shadow-md shadow-primary-teal/15 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSaving ? <LoaderCircle size={16} className="animate-spin" /> : <Calendar size={16} />}
+                  {isSaving ? <LoaderCircle size={14} className="animate-spin" /> : <Calendar size={14} />}
                   {t('doctor_leave.mark_selected_button', 'Mark Selected Dates')}
                 </button>
 
@@ -576,70 +599,35 @@ export default function DoctorLeaveCalendar() {
                   type="button"
                   onClick={handleRemoveSelectedLeaves}
                   disabled={isSaving || isLoading || selectedExistingLeaveDates.length === 0}
-                  className="w-full rounded-full px-4 py-3.5 text-sm font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full rounded-xl px-3 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 bg-red-500 text-white hover:bg-red-600 shadow-md shadow-red-500/15 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSaving ? <LoaderCircle size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  {isSaving ? <LoaderCircle size={14} className="animate-spin" /> : <Trash2 size={14} />}
                   {t('doctor_leave.remove_selected_button', 'Remove Selected Leave')}
                 </button>
               </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-emerald-50 border border-emerald-100 px-4 py-3">
-                  <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
-                    {t('doctor_leave.new_dates_count', 'New Dates')}
-                  </p>
-                  <p className="text-xl font-black text-emerald-600 mt-1">{selectedNewLeaveDates.length}</p>
-                </div>
-                <div className="rounded-2xl bg-red-50 border border-red-100 px-4 py-3">
-                  <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">
-                    {t('doctor_leave.marked_dates_count', 'Existing Leave')}
-                  </p>
-                  <p className="text-xl font-black text-red-600 mt-1">{selectedExistingLeaveDates.length}</p>
-                </div>
-              </div>
             </div>
 
-            <div className="mt-4 bg-white border border-gray-100 rounded-[24px] p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
+              <div className="flex items-center justify-between gap-2 mb-2">
                 <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.25em]">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">
                     {t('doctor_leave.monthly_list_label', 'This month')}
                   </p>
-                  <p className="text-base font-black text-gray-800 mt-1">
+                  <p className="text-sm font-black text-gray-800">
                     {t('doctor_leave.monthly_list_title', 'Saved leave dates')}
                   </p>
                 </div>
-                {isLoading && <LoaderCircle size={16} className="animate-spin text-primary-teal" />}
+                {isLoading && <LoaderCircle size={14} className="animate-spin text-primary-teal" />}
               </div>
 
-              {selectedDates.length > 0 && (
-                <div className="mb-3 rounded-2xl bg-primary-teal/[0.04] border border-primary-teal/10 px-3 py-3">
-                  <p className="text-[10px] font-black text-primary-teal uppercase tracking-widest mb-2">
-                    {t('doctor_leave.selected_dates_list', 'Selected dates')}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedDates.slice(0, 10).map((date) => (
-                      <span key={date} className="px-2.5 py-1 rounded-full bg-white border border-primary-teal/10 text-[10px] font-black text-primary-teal uppercase tracking-widest">
-                        {new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                      </span>
-                    ))}
-                    {selectedDates.length > 10 && (
-                      <span className="px-2.5 py-1 rounded-full bg-white border border-primary-teal/10 text-[10px] font-black text-primary-teal uppercase tracking-widest">
-                        +{selectedDates.length - 10}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {leaves.length === 0 ? (
-                <div className="rounded-2xl bg-gray-50 border border-dashed border-gray-200 px-4 py-6 text-center">
-                  <p className="text-sm font-bold text-gray-400">
+                <div className="rounded-xl bg-gray-50 border border-dashed border-gray-200 px-3 py-4 text-center">
+                  <p className="text-xs font-bold text-gray-400">
                     {t('doctor_leave.empty_month', 'No leave dates marked for this month.')}
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
+                <div className="space-y-1.5 max-h-[180px] overflow-y-auto overscroll-contain pr-0.5">
                   {leaves.map((leave) => {
                     const isSelected = selectedDateSet.has(leave.leave_date);
                     return (
@@ -653,26 +641,26 @@ export default function DoctorLeaveCalendar() {
                               : [...previous, leave.leave_date].sort()
                           ));
                         }}
-                        className={`w-full text-left rounded-2xl border px-4 py-3 transition-all ${
+                        className={`w-full text-left rounded-xl border px-2.5 py-2 transition-all ${
                           isSelected
                             ? 'border-primary-teal bg-primary-teal/[0.04]'
                             : 'border-gray-100 hover:border-primary-teal/20 hover:bg-primary-teal/[0.02]'
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-black text-gray-800">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-gray-800">
                               {new Date(`${leave.leave_date}T00:00:00`).toLocaleDateString('en-GB', {
                                 day: '2-digit',
                                 month: 'short',
                                 year: 'numeric',
                               })}
                             </p>
-                            <p className="text-xs text-gray-400 mt-1">
+                            <p className="text-[10px] text-gray-400 truncate">
                               {leave.leave_reason || t('doctor_leave.no_reason', 'No reason added')}
                             </p>
                           </div>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-50 border border-red-100 rounded-full px-2.5 py-1">
+                          <span className="shrink-0 text-[9px] font-black uppercase tracking-widest text-red-500 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">
                             {t('doctor_leave.leave_badge', 'Leave')}
                           </span>
                         </div>
@@ -682,10 +670,63 @@ export default function DoctorLeaveCalendar() {
                 </div>
               )}
             </div>
-
           </div>
         </div>
       </div>
+
+      {showHelpModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 border border-gray-100 relative">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2 text-[#549E9E]">
+                <HelpCircle size={20} />
+                <h3 className="text-base font-black text-gray-800">
+                  {t('doctor_leave.usage_title', 'How to use')}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHelpModal(false)}
+                className="w-8 h-8 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-800 flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-xs font-bold text-gray-600 leading-relaxed bg-gray-50 p-3 rounded-xl border border-gray-100">
+              {t('doctor_leave.subtitle', 'Drag on dates to select a leave range')}
+            </p>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              <div className="border border-gray-100 rounded-xl p-3 bg-white">
+                <p className="text-xs font-medium text-gray-600 leading-relaxed">
+                  {t('doctor_leave.usage_drag', '1. Mouse press karke dates par drag karo to range select ho jayega.')}
+                </p>
+              </div>
+              <div className="border border-gray-100 rounded-xl p-3 bg-white">
+                <p className="text-xs font-medium text-gray-600 leading-relaxed">
+                  {t('doctor_leave.usage_click_more', '2. Alag dates par click/drag karke multiple selections add kar sakte ho.')}
+                </p>
+              </div>
+              <div className="border border-gray-100 rounded-xl p-3 bg-white">
+                <p className="text-xs font-medium text-gray-600 leading-relaxed">
+                  {t('doctor_leave.usage_save', '3. “Mark Selected Dates” se saari selected dates ek sath save hongi.')}
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowHelpModal(false)}
+                className="px-4 py-2 rounded-xl bg-[#549E9E] text-white text-xs font-black uppercase tracking-wider cursor-pointer hover:bg-[#438282]"
+              >
+                {t('doctor_leave.got_it', 'Got It')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

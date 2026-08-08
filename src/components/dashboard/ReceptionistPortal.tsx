@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -25,11 +25,102 @@ import {
   UserX,
   Activity,
   ClipboardList,
+  ChevronDown,
+  Tags,
+  Stethoscope,
+  IndianRupee,
 } from "lucide-react";
 import CustomDatePicker from "../CustomDatePicker";
+import { getLocalDateString } from "../../utils/date";
 import Pagination from "../Pagination";
 import { useNotifications } from "../../context/NotificationContext";
 import TokenLayoutManager from "./TokenLayoutManager";
+
+const FilterDropdown = ({
+  label,
+  options,
+  value,
+  onChange,
+  icon: Icon,
+  className = "",
+}: {
+  label: string;
+  options: { id: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  className?: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = options.find((o) => o.id === value);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div className={`space-y-1.5 relative ${className}`} ref={ref}>
+      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">
+        {label}
+      </label>
+      <div
+        onClick={() => setOpen(!open)}
+        className={`w-full bg-white border border-gray-200 rounded-xl py-2.5 px-4 text-xs font-bold text-gray-700 cursor-pointer flex items-center justify-between transition-all ${
+          open
+            ? "border-[#549E9E] ring-2 ring-[#549E9E]/20"
+            : "hover:border-gray-300"
+        }`}
+      >
+        <div className="flex items-center gap-2 truncate min-w-0">
+          <Icon
+            size={14}
+            className={open ? "text-[#549E9E] shrink-0" : "text-gray-400 shrink-0"}
+          />
+          <span className="truncate">{selected?.label || label}</span>
+        </div>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 transition-transform duration-300 text-gray-400 ${
+            open ? "rotate-180 text-[#549E9E]" : ""
+          }`}
+        />
+      </div>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 5 }}
+            className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 shadow-xl z-[100] max-h-60 overflow-y-auto rounded-xl"
+          >
+            {options.map((opt) => (
+              <div
+                key={opt.id}
+                onClick={() => {
+                  onChange(opt.id);
+                  setOpen(false);
+                }}
+                className={`px-4 py-3 text-xs font-bold transition-all flex items-center justify-between cursor-pointer first:rounded-t-xl last:rounded-b-xl ${
+                  value === opt.id
+                    ? "bg-[#549E9E] text-white"
+                    : "text-gray-600 hover:bg-[#549E9E]/5 hover:text-[#549E9E]"
+                }`}
+              >
+                {opt.label}
+                {value === opt.id && <CheckCircle2 size={12} />}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 export default function ReceptionistPortal() {
   const { token, user, branchScope } = useAuth();
@@ -55,9 +146,9 @@ export default function ReceptionistPortal() {
 
   // Appointments State
   const [appointments, setAppointments] = useState<any[]>([]);
-  const [dateStr, setDateStr] = useState(
-    () => new Date().toISOString().split("T")[0],
-  );
+  // Use local calendar date — toISOString() is UTC and shows yesterday after midnight IST.
+  const [dateStr, setDateStr] = useState(() => getLocalDateString());
+  const userPickedFilterDateRef = useRef(false);
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
   const [tokenFilter, setTokenFilter] = useState("");
   const [slotFilter, setSlotFilter] = useState<"ALL" | "M" | "E">("ALL");
@@ -262,6 +353,27 @@ export default function ReceptionistPortal() {
       setAppointmentsPage(1);
     }
   }, [dateStr, token, activeTab]);
+
+  // Keep filter on local "today" across midnight unless the user picked another date.
+  useEffect(() => {
+    const syncToLocalToday = () => {
+      if (userPickedFilterDateRef.current) return;
+      const today = getLocalDateString();
+      setDateStr((prev) => (prev === today ? prev : today));
+    };
+
+    syncToLocalToday();
+    const intervalId = window.setInterval(syncToLocalToday, 60_000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") syncToLocalToday();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (activeTab === "billing") {
@@ -1075,7 +1187,10 @@ export default function ReceptionistPortal() {
             <CustomDatePicker
               label={t("receptionist.filter_date", "Filter Date")}
               value={dateStr}
-              onChange={setDateStr}
+              onChange={(nextDate) => {
+                userPickedFilterDateRef.current = true;
+                setDateStr(nextDate);
+              }}
             />
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">
@@ -1089,22 +1204,17 @@ export default function ReceptionistPortal() {
                 className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-[#549E9E]/20 placeholder:text-gray-300"
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">
-                Slot
-              </label>
-              <select
-                value={slotFilter}
-                onChange={(event) =>
-                  setSlotFilter(event.target.value as "ALL" | "M" | "E")
-                }
-                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-[#549E9E]/20"
-              >
-                <option value="ALL">All Slots</option>
-                <option value="M">M Slot</option>
-                <option value="E">E Slot</option>
-              </select>
-            </div>
+            <FilterDropdown
+              label="Slot"
+              icon={Clock}
+              value={slotFilter}
+              onChange={(value) => setSlotFilter(value as "ALL" | "M" | "E")}
+              options={[
+                { id: "ALL", label: "All Slots" },
+                { id: "M", label: "M Slot" },
+                { id: "E", label: "E Slot" },
+              ]}
+            />
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">
                 Patient Name
@@ -1117,32 +1227,28 @@ export default function ReceptionistPortal() {
                 className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-[#549E9E]/20 placeholder:text-gray-300"
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">
-                Treatment Type
-              </label>
-              <select
-                value={treatmentFilter}
-                onChange={(event) => setTreatmentFilter(event.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-[#549E9E]/20"
-              >
-                <option value="ALL">All Treatments</option>
-                {treatmentOptions.map((treatmentName) => (
-                  <option key={treatmentName} value={treatmentName}>
-                    {treatmentName}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <FilterDropdown
+              label="Treatment Type"
+              icon={Stethoscope}
+              value={treatmentFilter}
+              onChange={setTreatmentFilter}
+              options={[
+                { id: "ALL", label: "All Treatments" },
+                ...treatmentOptions.map((treatmentName) => ({
+                  id: treatmentName,
+                  label: treatmentName,
+                })),
+              ]}
+            />
             <button
               onClick={fetchAppointments}
-              className="flex items-center justify-center bg-white border border-gray-200 text-[#549E9E] p-3 rounded-xl hover:bg-gray-50 transition-colors h-[42px]"
-              title="Refresh appointments"
+              className="h-[42px] cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-5 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center justify-center gap-2 border-2 border-[#549E9E]/5 rounded-xl"
             >
               <RefreshCcw
-                size={18}
+                size={16}
                 className={isLoadingAppointments ? "animate-spin" : ""}
               />
+              Refresh
             </button>
           </div>
           <div className="bg-white border border-gray-100 shadow-sm rounded-xl sm:rounded-none overflow-hidden">
@@ -1561,57 +1667,63 @@ export default function ReceptionistPortal() {
           {activeTab === "billing" && (
             <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
               <div className="flex flex-wrap items-end justify-between gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
-                <div className="flex gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">
-                      {t("receptionist.bill_type", "Bill Type")}
-                    </label>
-                    <select
-                      value={billTypeFilter}
-                      onChange={(e) => setBillTypeFilter(e.target.value as any)}
-                      className="w-48 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-[#549E9E]/20"
-                    >
-                      <option value="ALL">
-                        {t("receptionist.all_types", "All Types")}
-                      </option>
-                      <option value="CONSULTATION">
-                        {t("receptionist.consultation", "Consultation")}
-                      </option>
-                      <option value="MEDICATION">
-                        {t("receptionist.medication", "Medication")}
-                      </option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">
-                      {t("receptionist.status", "Status")}
-                    </label>
-                    <select
-                      value={billStatusFilter}
-                      onChange={(e) => setBillStatusFilter(e.target.value as any)}
-                      className="w-40 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-[#549E9E]/20"
-                    >
-                      <option value="ALL">
-                        {t("receptionist.all_status", "All Status")}
-                      </option>
-                      <option value="UNPAID">
-                        {t("receptionist.unpaid", "Unpaid")}
-                      </option>
-                      <option value="PAID">{t("receptionist.paid", "Paid")}</option>
-                      <option value="PARTIAL">
-                        {t("receptionist.partial", "Partial")}
-                      </option>
-                    </select>
-                  </div>
+                <div className="flex flex-wrap gap-4">
+                  <FilterDropdown
+                    className="w-48"
+                    label={t("receptionist.bill_type", "Bill Type")}
+                    icon={IndianRupee}
+                    value={billTypeFilter}
+                    onChange={(value) => setBillTypeFilter(value as any)}
+                    options={[
+                      {
+                        id: "ALL",
+                        label: t("receptionist.all_types", "All Types"),
+                      },
+                      {
+                        id: "CONSULTATION",
+                        label: t("receptionist.consultation", "Consultation"),
+                      },
+                      {
+                        id: "MEDICATION",
+                        label: t("receptionist.medication", "Medication"),
+                      },
+                    ]}
+                  />
+                  <FilterDropdown
+                    className="w-40"
+                    label={t("receptionist.status", "Status")}
+                    icon={Tags}
+                    value={billStatusFilter}
+                    onChange={(value) => setBillStatusFilter(value as any)}
+                    options={[
+                      {
+                        id: "ALL",
+                        label: t("receptionist.all_status", "All Status"),
+                      },
+                      {
+                        id: "UNPAID",
+                        label: t("receptionist.unpaid", "Unpaid"),
+                      },
+                      {
+                        id: "PAID",
+                        label: t("receptionist.paid", "Paid"),
+                      },
+                      {
+                        id: "PARTIAL",
+                        label: t("receptionist.partial", "Partial"),
+                      },
+                    ]}
+                  />
                 </div>
                 <button
                   onClick={fetchBills}
-                  className="flex items-center justify-center bg-white border border-gray-200 text-[#549E9E] p-3 rounded-xl hover:bg-gray-50 transition-colors"
+                  className="h-[42px] cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-5 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center justify-center gap-2 border-2 border-[#549E9E]/5 rounded-xl"
                 >
                   <RefreshCcw
-                    size={18}
+                    size={16}
                     className={isLoadingBills ? "animate-spin" : ""}
                   />
+                  Refresh
                 </button>
               </div>
 

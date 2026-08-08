@@ -253,7 +253,7 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
 
           <button
             onClick={() => fetchDrilldownReport(selectedYear, selectedMonth, selectedDate)}
-            className="cursor-pointer bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 flex items-center gap-2 shadow-xs"
+            className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5"
           >
             <RefreshCcw size={14} className={isLoading ? 'animate-spin' : ''} /> Refresh
           </button>
