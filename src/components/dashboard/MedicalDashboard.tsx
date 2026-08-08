@@ -26,6 +26,7 @@ import { useNotifications } from '../../context/NotificationContext';
 import CustomDatePicker from '../CustomDatePicker';
 import Pagination from '../Pagination';
 import { useTranslation } from 'react-i18next';
+import { formatPrescriptionMedicineText, formatConsultationMedicineText } from '../../utils/prescriptionFormat';
 
 const StatusBadge = ({ status }: { status: string }) => {
   const s = status.toLowerCase();
@@ -106,6 +107,138 @@ const FilterDropdown = ({
   );
 };
 
+function SearchableDropdown({
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  id,
+  allowCustom,
+}: {
+  options: { label: string; value: string }[];
+  value: string;
+  onChange: (val: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+  id?: string;
+  allowCustom?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const filteredOptions = options.filter((opt) =>
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  const showCustomOption =
+    allowCustom &&
+    searchTerm.trim() &&
+    !options.some(
+      (opt) => opt.label.toLowerCase() === searchTerm.trim().toLowerCase(),
+    );
+  if (showCustomOption) {
+    filteredOptions.push({
+      label: `Use "${searchTerm.trim()}"`,
+      value: searchTerm.trim(),
+    });
+  }
+
+  const selectedOption =
+    options.find((opt) => opt.value === value) ||
+    options.find((opt) => opt.label === value);
+  const displayValue = selectedOption ? selectedOption.label : value;
+
+  const handleSelect = (val: string) => {
+    onChange(val);
+    setIsOpen(false);
+    setSearchTerm("");
+  };
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <div
+        id={id}
+        tabIndex={disabled ? -1 : 0}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={`w-full h-8.5 px-3 bg-white border rounded-lg flex items-center justify-between text-xs font-bold text-gray-800 transition-all outline-none ${
+          disabled
+            ? "bg-gray-100 opacity-80 cursor-not-allowed border-gray-200"
+            : isOpen
+            ? "border-[#549E9E] ring-2 ring-[#549E9E]/10 cursor-pointer"
+            : "border-gray-200 hover:border-gray-300 cursor-pointer"
+        }`}
+      >
+        <span className={`truncate ${!displayValue ? "text-gray-400 font-normal" : ""}`}>
+          {displayValue || placeholder}
+        </span>
+        <ChevronDown size={14} className={`text-gray-400 shrink-0 transition-transform ${isOpen ? "rotate-180 text-[#549E9E]" : ""}`} />
+      </div>
+
+      <AnimatePresence>
+        {isOpen && !disabled && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 shadow-xl z-[150] rounded-xl overflow-hidden max-h-56 flex flex-col"
+          >
+            <div className="p-2 border-b border-gray-100 bg-gray-50">
+              <input
+                type="text"
+                autoFocus
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full h-7 px-2.5 bg-white border border-gray-200 rounded-md text-xs font-bold text-gray-800 outline-none focus:border-[#549E9E]"
+              />
+            </div>
+
+            <div className="overflow-y-auto max-h-44 p-1 space-y-0.5">
+              {filteredOptions.length > 0 ? (
+                filteredOptions.map((opt, idx) => (
+                  <div
+                    key={`${opt.value}-${idx}`}
+                    onClick={() => handleSelect(opt.value)}
+                    className={`px-3 py-2 text-xs font-bold rounded-lg cursor-pointer transition-colors flex items-center justify-between ${
+                      value === opt.value
+                        ? "bg-[#549E9E] text-white"
+                        : "text-gray-700 hover:bg-[#549E9E]/10 hover:text-[#549E9E]"
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    {value === opt.value && <Check size={12} />}
+                  </div>
+                ))
+              ) : (
+                <div className="px-3 py-3 text-xs font-bold text-gray-400 text-center">
+                  No matches found
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function MedicalDashboard() {
   const { t } = useTranslation();
   const { token, user } = useAuth();
@@ -116,6 +249,27 @@ export default function MedicalDashboard() {
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [textMedicines, setTextMedicines] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchTextMedicines = async () => {
+      try {
+        const response = await fetch('/api/v1/medical/masters/text-medicines', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const result = await response.json();
+        if (result.success && result.data && Array.isArray(result.data.text_medicines)) {
+          setTextMedicines(result.data.text_medicines);
+        }
+      } catch (err) {
+        console.error('Failed to fetch text medicines in MedicalDashboard:', err);
+      }
+    };
+    if (token) {
+      fetchTextMedicines();
+    }
+  }, [token]);
+
   const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
   const [amount, setAmount] = useState('');
   const [remark, setRemark] = useState('');
@@ -233,7 +387,16 @@ export default function MedicalDashboard() {
   }>>({});
   const [voidDialog, setVoidDialog] = useState<{ idx: number; medicine: string } | null>(null);
   const [voidReason, setVoidReason] = useState('');
-  const [additionalMeds, setAdditionalMeds] = useState<Array<{ medicine_value: string; amount: string; consultation_medication_id?: number | null }>>([]);
+  type AdditionalMed = {
+    name: string;
+    medicine_value: string;
+    selectedVariant?: { label: string; price: string | number } | null;
+    quantity?: number | string;
+    amount: string;
+    consultation_medication_id?: number | null;
+  };
+
+  const [additionalMeds, setAdditionalMeds] = useState<AdditionalMed[]>([]);
   const getBaseMedicationTotal = (
     amounts: Record<number, string> = medAmounts,
     states: typeof medItemStates = medItemStates
@@ -276,8 +439,23 @@ export default function MedicalDashboard() {
       setAdditionalMeds(
         medicalAddedMedications.map((m: any) => {
           const pricingItem = pricingItemsByMedicationId.get(Number(m.consultation_medication_id));
+          let medVal = String(m.medicine_value || '').trim();
+          let parsedQty = 1;
+          const matchSuffix = medVal.match(/^(.*?)\s*[*xX]\s*(\d+)$/);
+          const matchPrefix = medVal.match(/^(\d+)\s*[*xX]\s*(.*)$/);
+          if (matchSuffix) {
+            medVal = matchSuffix[1].trim();
+            parsedQty = parseInt(matchSuffix[2]) || 1;
+          } else if (matchPrefix) {
+            parsedQty = parseInt(matchPrefix[1]) || 1;
+            medVal = matchPrefix[2].trim();
+          }
+
           return {
+            name: medVal,
             medicine_value: m.medicine_value || '',
+            selectedVariant: null,
+            quantity: parsedQty,
             amount: pricingItem?.amount && Number(pricingItem.amount) !== 0 ? pricingItem.amount.toString() : '',
             consultation_medication_id: m.consultation_medication_id || null,
           };
@@ -332,9 +510,67 @@ export default function MedicalDashboard() {
     setAmount(total.toString());
   };
 
-  const handleAdditionalMedChange = (idx: number, field: 'medicine_value' | 'amount', val: string) => {
+  const updateAdditionalMedField = (
+    idx: number,
+    field: 'name' | 'selectedVariant' | 'quantity' | 'amount' | 'medicine_value',
+    val: any
+  ) => {
     const updated = [...additionalMeds];
-    updated[idx] = { ...updated[idx], [field]: val };
+    const current = { ...updated[idx] };
+
+    if (field === 'name') {
+      current.name = val;
+      const medicine = textMedicines.find((m) => m.medicine_value === val);
+      const computedVariants =
+        medicine && medicine.medical_products?.length
+          ? medicine.medical_products
+              .map((p: any) => ({
+                label: p.packing || p.size_or_weight || p.net_weight_or_size || p.product_name || 'N/A',
+                price: p.mrp_rate || p.price_max || p.price_min || '0',
+              }))
+              .filter((v: any) => v.label !== 'N/A')
+          : medicine
+          ? [
+              ...(medicine.products || []).map((p: any) => ({ label: p.packing || 'N/A', price: p.mrp_rate || '0' })),
+              ...(medicine.radient_pharma_products || []).map((p: any) => ({ label: p.net_weight_or_size || 'N/A', price: p.mrp_rate || '0' })),
+              ...(medicine.handwritten_product_prices || []).map((p: any) => ({ label: p.product_name || p.category || 'N/A', price: p.price_max || '0' })),
+            ].filter((v: any) => v.label !== 'N/A')
+          : [];
+
+      const defaultVariant = computedVariants.length === 1 ? computedVariants[0] : null;
+      current.selectedVariant = defaultVariant;
+      const qtyNum = Math.max(1, parseInt(String(current.quantity || 1)) || 1);
+      const unitPrice = defaultVariant && defaultVariant.price ? Number(defaultVariant.price) : 0;
+      if (unitPrice) {
+        current.amount = (unitPrice * qtyNum).toFixed(2);
+      }
+    } else if (field === 'selectedVariant') {
+      current.selectedVariant = val;
+      const qtyNum = Math.max(1, parseInt(String(current.quantity || 1)) || 1);
+      const unitPrice = val && val.price ? Number(val.price) : 0;
+      if (unitPrice) {
+        current.amount = (unitPrice * qtyNum).toFixed(2);
+      }
+    } else if (field === 'quantity') {
+      current.quantity = val;
+      const qtyNum = Math.max(1, parseInt(String(val)) || 1);
+      const unitPrice = current.selectedVariant?.price ? Number(current.selectedVariant.price) : 0;
+      if (unitPrice) {
+        current.amount = (unitPrice * qtyNum).toFixed(2);
+      }
+    } else if (field === 'amount') {
+      current.amount = val;
+    } else if (field === 'medicine_value') {
+      current.medicine_value = val;
+    }
+
+    current.medicine_value = formatConsultationMedicineText(
+      current.name || current.medicine_value,
+      current.selectedVariant?.label,
+      current.quantity
+    );
+
+    updated[idx] = current;
     setAdditionalMeds(updated);
 
     const baseTotal = getBaseMedicationTotal();
@@ -344,7 +580,10 @@ export default function MedicalDashboard() {
   };
 
   const addAdditionalMed = () => {
-    setAdditionalMeds([...additionalMeds, { medicine_value: '', amount: '', consultation_medication_id: null }]);
+    setAdditionalMeds([
+      ...additionalMeds,
+      { name: '', medicine_value: '', selectedVariant: null, quantity: 1, amount: '', consultation_medication_id: null },
+    ]);
   };
 
   const removeAdditionalMed = (idx: number) => {
@@ -799,7 +1038,7 @@ export default function MedicalDashboard() {
                                   }`}
                                 >
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-black text-gray-800 group-hover/med:text-[#549E9E] transition-colors">{med.medicine_value}</p>
+                                    <p className="text-sm font-black text-gray-800 group-hover/med:text-[#549E9E] transition-colors">{formatPrescriptionMedicineText(med.medicine_value)}</p>
                                     <div className="flex items-center gap-3 mt-1">
                                       <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">
                                         {dosePreview || 'No dose details'}
@@ -929,33 +1168,100 @@ export default function MedicalDashboard() {
                             </button>
                           </div>
 
-                          {additionalMeds.map((med, idx) => (
-                            <div key={`additional-${idx}`} className="grid grid-cols-[1fr_110px_40px] gap-3 items-center bg-white border border-gray-100 p-3">
-                              <input
-                                type="text"
-                                placeholder={t('dispense.enter_additional_medicine', 'Enter additional medicine')}
-                                value={med.medicine_value}
-                                onChange={(e) => handleAdditionalMedChange(idx, 'medicine_value', e.target.value)}
-                                className="w-full bg-gray-50 border-2 border-gray-50 py-2.5 px-3 text-xs font-bold text-gray-800 focus:border-[#549E9E]/20 transition-all outline-none"
-                              />
-                              <div className="relative">
-                                <IndianRupee size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
-                                <input
-                                  type="number"
-                                  placeholder="0"
-                                  value={med.amount}
-                                  onChange={(e) => handleAdditionalMedChange(idx, 'amount', e.target.value)}
-                                  className="w-full bg-gray-50 border-2 border-gray-50 py-2.5 pl-8 pr-3 text-xs font-black text-gray-800 focus:border-[#549E9E]/20 transition-all outline-none text-right"
-                                />
-                              </div>
-                              <button
-                                onClick={() => removeAdditionalMed(idx)}
-                                className="w-10 h-10 flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all cursor-pointer"
+                          {additionalMeds.map((med, idx) => {
+                            const selectedMedicine = textMedicines.find((m) => m.medicine_value === med.name);
+                            const variantOptions =
+                              selectedMedicine && selectedMedicine.medical_products?.length
+                                ? selectedMedicine.medical_products
+                                    .map((p: any) => ({
+                                      label: p.packing || p.size_or_weight || p.net_weight_or_size || p.product_name || 'N/A',
+                                      price: p.mrp_rate || p.price_max || p.price_min || '0',
+                                    }))
+                                    .filter((v: any) => v.label !== 'N/A')
+                                : selectedMedicine
+                                ? [
+                                    ...(selectedMedicine.products || []).map((p: any) => ({ label: p.packing || 'N/A', price: p.mrp_rate || '0' })),
+                                    ...(selectedMedicine.radient_pharma_products || []).map((p: any) => ({ label: p.net_weight_or_size || 'N/A', price: p.mrp_rate || '0' })),
+                                    ...(selectedMedicine.handwritten_product_prices || []).map((p: any) => ({ label: p.product_name || p.category || 'N/A', price: p.price_max || '0' })),
+                                  ].filter((v: any) => v.label !== 'N/A')
+                                : [];
+
+                            const medicineOptions = textMedicines.map((m) => ({ label: m.medicine_value, value: m.medicine_value }));
+
+                            return (
+                              <div
+                                key={`additional-${idx}`}
+                                className="grid grid-cols-1 sm:grid-cols-[minmax(180px,1.2fr)_minmax(120px,0.8fr)_70px_100px_40px] gap-2.5 items-center bg-white border border-gray-100 p-3 rounded-xl shadow-2xs"
                               >
-                                <X size={14} />
-                              </button>
-                            </div>
-                          ))}
+                                <div>
+                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
+                                    Medicine / Syrup Name
+                                  </label>
+                                  <SearchableDropdown
+                                    disabled={false}
+                                    allowCustom={true}
+                                    options={medicineOptions}
+                                    value={med.name || med.medicine_value}
+                                    onChange={(val) => updateAdditionalMedField(idx, 'name', val)}
+                                    placeholder="Search / Enter medicine..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
+                                    Variant
+                                  </label>
+                                  <SearchableDropdown
+                                    disabled={variantOptions.length === 0}
+                                    options={variantOptions.map((v) => ({ label: v.label, value: v.label }))}
+                                    value={med.selectedVariant?.label || ''}
+                                    onChange={(val) => {
+                                      const variant = variantOptions.find((v) => v.label === val);
+                                      updateAdditionalMedField(idx, 'selectedVariant', variant || null);
+                                    }}
+                                    placeholder={variantOptions.length > 0 ? 'Variant...' : 'No Variants'}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
+                                    Qty
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    placeholder="1"
+                                    value={med.quantity ?? 1}
+                                    onChange={(e) => updateAdditionalMedField(idx, 'quantity', e.target.value)}
+                                    className="w-full h-8.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-gray-800 outline-none text-center focus:border-[#549E9E]"
+                                  />
+                                </div>
+                                <div className="relative">
+                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
+                                    Amount
+                                  </label>
+                                  <div className="relative">
+                                    <IndianRupee size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
+                                    <input
+                                      type="number"
+                                      placeholder="0"
+                                      value={med.amount}
+                                      onChange={(e) => updateAdditionalMedField(idx, 'amount', e.target.value)}
+                                      className="w-full h-8.5 bg-gray-50 border border-gray-200 rounded-lg pl-7 pr-2 text-xs font-black text-gray-800 outline-none text-right focus:border-[#549E9E]"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex justify-center">
+                                  <button
+                                    onClick={() => removeAdditionalMed(idx)}
+                                    className="w-8 h-8 flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all cursor-pointer"
+                                    title="Remove Row"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
 
                           {additionalMeds.length === 0 && (
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{t('dispense.no_additional_medicines', 'No additional medicines added')}</p>

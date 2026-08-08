@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../Pagination';
-import { getDosePreview, getMedicationRoleLabel } from '../../utils/prescriptionFormat';
+import { getDosePreview, getMedicationRoleLabel, formatPrescriptionMedicineText } from '../../utils/prescriptionFormat';
 import MedicationDispensingStatus from '../MedicationDispensingStatus';
 
 interface Appointment {
@@ -876,7 +876,7 @@ export default function MyAppointments() {
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{med.medicine_value}</p>
+                                <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{formatPrescriptionMedicineText(med.medicine_value)}</p>
                                 {med.remark && (
                                   <p className="text-[11px] font-bold text-gray-400 mt-1 uppercase tracking-widest">{med.remark}</p>
                                 )}

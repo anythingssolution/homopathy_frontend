@@ -1,6 +1,6 @@
 import React from 'react';
 import { Mail, Phone, MapPin, Pill, Activity, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
-import { getDosePreview, getMedicationRoleLabel } from '../utils/prescriptionFormat';
+import { getDosePreview, getMedicationRoleLabel, formatPrescriptionMedicineText } from '../utils/prescriptionFormat';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
 
 interface PrescriptionPrintProps {
@@ -303,7 +303,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                                     {roleLabel}
                                   </span>
                                 )}
-                                <div className="text-xs font-bold text-gray-800">{m.medicine_value}</div>
+                                <div className="text-xs font-bold text-gray-800">{formatPrescriptionMedicineText(m.medicine_value)}</div>
                                 {m.remark && <div className="text-[10px] text-gray-600 font-medium">{m.remark}</div>}
                                 <MedicationDispensingStatus
                                   medication={m}

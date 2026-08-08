@@ -1,6 +1,6 @@
 import React from 'react';
 import { Activity, Mail, Phone, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
-import { getMedicationRoleLabel } from '../utils/prescriptionFormat';
+import { getMedicationRoleLabel, formatPrescriptionMedicineText } from '../utils/prescriptionFormat';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
 
 interface VisitData {
@@ -313,7 +313,7 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                           {roleLabel}
                                         </span>
                                       )}
-                                      <div className="text-[10px] font-bold text-gray-800">{m.medicine_value}</div>
+                                      <div className="text-[10px] font-bold text-gray-800">{formatPrescriptionMedicineText(m.medicine_value)}</div>
                                       {m.remark && <div className="text-[9px] text-gray-600 font-medium">{m.remark}</div>}
                                     </div>
                                   );

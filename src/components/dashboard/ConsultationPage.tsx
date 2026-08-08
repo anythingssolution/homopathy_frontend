@@ -33,6 +33,7 @@ import {
   getDosePreview,
   getMedicationPricingAmount,
   getMedicationRoleLabel,
+  formatConsultationMedicineText,
 } from "../../utils/prescriptionFormat";
 import { parseDoctorFormulaInput } from "../../utils/doctorFormulaParser";
 
@@ -58,18 +59,21 @@ type TextMedicine = {
   id: number;
   medicine_value: string;
   normalized_value: string;
+  is_active: number;
+  created_at: string;
+  updated_at: string;
+  remark_suggestions?: any[];
   medical_products?: any[];
-  remark_suggestions?: RemarkSuggestion[];
-  products: any[];
-  radient_pharma_products: any[];
-  handwritten_product_prices: any[];
+  products?: any[];
+  radient_pharma_products?: any[];
+  handwritten_product_prices?: any[];
 };
 
 type VariantInfo = {
   label: string;
-  price: string;
+  price: string | number;
   type: string;
-  remark_suggestions?: RemarkSuggestion[];
+  remark_suggestions?: any[];
 };
 
 type RemarkSuggestion = {
@@ -95,6 +99,7 @@ type OtherMedEntry = {
   selectedVariant?: VariantInfo | null;
   remark: string;
   amount: string;
+  quantity?: number | string;
 };
 
 type LabTestMaster = {
@@ -588,7 +593,7 @@ export default function ConsultationPage() {
     { name: "", doses: { morning: 4, afternoon: 4, night: 4 }, amount: "" },
   ]);
   const [otherMedications, setOtherMedications] = useState<OtherMedEntry[]>([
-    { name: "", remark: "", amount: "" },
+    { name: "", remark: "", amount: "", quantity: 1 },
   ]);
   const [tests, setTests] = useState<TestEntry[]>([
     { test_name: "", amount: "" },
@@ -1099,7 +1104,7 @@ export default function ConsultationPage() {
     const newIdx = otherMedications.length;
     setOtherMedications([
       ...otherMedications,
-      { name: "", remark: "", amount: "" },
+      { name: "", remark: "", amount: "", quantity: 1 },
     ]);
     setFocusTrigger({ type: "other", index: newIdx });
   };
@@ -1516,10 +1521,23 @@ export default function ConsultationPage() {
             amount: String(medicine.amount ?? 0),
           });
         } else {
+          let medVal = String(medicine.medicine_value || "").trim();
+          let parsedQty = 1;
+          const matchSuffix = medVal.match(/^(.*?)\s*[*xX]\s*(\d+)$/);
+          const matchPrefix = medVal.match(/^(\d+)\s*[*xX]\s*(.*)$/);
+          if (matchSuffix) {
+            medVal = matchSuffix[1].trim();
+            parsedQty = parseInt(matchSuffix[2]) || 1;
+          } else if (matchPrefix) {
+            parsedQty = parseInt(matchPrefix[1]) || 1;
+            medVal = matchPrefix[2].trim();
+          }
+
           textMedicineDrafts.push({
-            name: String(medicine.medicine_value || ""),
+            name: medVal,
             remark: String(medicine.remark || ""),
             amount: String(medicine.amount ?? 0),
+            quantity: parsedQty,
           });
         }
       });
@@ -1726,10 +1744,23 @@ export default function ConsultationPage() {
           amount: "",
         });
       } else {
+        let medVal = String(item.medicine_value || "").trim();
+        let parsedQty = 1;
+        const matchSuffix = medVal.match(/^(.*?)\s*[*xX]\s*(\d+)$/);
+        const matchPrefix = medVal.match(/^(\d+)\s*[*xX]\s*(.*)$/);
+        if (matchSuffix) {
+          medVal = matchSuffix[1].trim();
+          parsedQty = parseInt(matchSuffix[2]) || 1;
+        } else if (matchPrefix) {
+          parsedQty = parseInt(matchPrefix[1]) || 1;
+          medVal = matchPrefix[2].trim();
+        }
+
         textMedicineDrafts.push({
-          name: String(item.medicine_value || ""),
+          name: medVal,
           remark: String(item.remark || ""),
           amount: "",
+          quantity: parsedQty,
         });
       }
     });
@@ -1853,10 +1884,11 @@ export default function ConsultationPage() {
         for (const om of otherMedications) {
           if (!om.name.trim()) continue;
 
-          let finalMedicineValue = om.name.trim();
-          if (om.selectedVariant && om.selectedVariant.label && om.selectedVariant.label !== "N/A") {
-            finalMedicineValue += ` - ${om.selectedVariant.label}`;
-          }
+          const finalMedicineValue = formatConsultationMedicineText(
+            om.name.trim(),
+            om.selectedVariant?.label,
+            om.quantity,
+          );
 
           formattedMedications.push({
             medicine_type: "TEXT",
@@ -4242,7 +4274,7 @@ export default function ConsultationPage() {
           )}
 
           {otherMedications.length > 0 && (
-            <div className="hidden lg:grid lg:grid-cols-[minmax(220px,1.4fr)_minmax(140px,0.9fr)_minmax(200px,1.2fr)_100px_40px] gap-3 px-3">
+            <div className="hidden lg:grid lg:grid-cols-[minmax(190px,1.3fr)_minmax(120px,0.8fr)_70px_minmax(180px,1.1fr)_90px_40px] gap-3 px-3">
               {[
                 {
                   label: t(
@@ -4257,6 +4289,10 @@ export default function ConsultationPage() {
                     "Quantity / Variant",
                   ),
                   align: "text-left",
+                },
+                {
+                  label: t("consultation_modal.qty", "Qty"),
+                  align: "text-center",
                 },
                 {
                   label: t(
@@ -4380,7 +4416,7 @@ export default function ConsultationPage() {
               return (
                 <div
                   key={idx}
-                  className="grid grid-cols-1 lg:grid-cols-[minmax(220px,1.4fr)_minmax(140px,0.9fr)_minmax(200px,1.2fr)_100px_40px] gap-3 items-center bg-white border border-emerald-100 rounded-xl p-2 px-3 shadow-2xs hover:shadow-sm hover:border-[#549E9E]/30 transition-all"
+                  className="grid grid-cols-1 lg:grid-cols-[minmax(190px,1.3fr)_minmax(120px,0.8fr)_70px_minmax(180px,1.1fr)_90px_40px] gap-3 items-center bg-white border border-emerald-100 rounded-xl p-2 px-3 shadow-2xs hover:shadow-sm hover:border-[#549E9E]/30 transition-all"
                   onKeyDown={(e) => {
                     if (
                       e.altKey &&
@@ -4462,6 +4498,8 @@ export default function ConsultationPage() {
                               : [];
 
                         const defaultVariant = computedVariants.length === 1 ? computedVariants[0] : null;
+                        const qtyNum = Math.max(1, parseInt(String(om.quantity || 1)) || 1);
+                        const unitPrice = defaultVariant && defaultVariant.price ? Number(defaultVariant.price) : 0;
 
                         const updated = [...otherMedications];
                         updated[idx] = {
@@ -4473,7 +4511,7 @@ export default function ConsultationPage() {
                               ? defaultVariant.remark_suggestions
                               : medicine?.remark_suggestions,
                           ),
-                          amount: defaultVariant && defaultVariant.price ? String(defaultVariant.price) : "",
+                          amount: unitPrice ? (unitPrice * qtyNum).toFixed(2) : "",
                         };
                         setOtherMedications(updated);
                       }}
@@ -4514,6 +4552,9 @@ export default function ConsultationPage() {
                         const variant = variantOptions.find(
                           (v) => v.label === val,
                         );
+                        const qtyNum = Math.max(1, parseInt(String(om.quantity || 1)) || 1);
+                        const unitPrice = variant && variant.price ? Number(variant.price) : 0;
+
                         const updated = [...otherMedications];
                         updated[idx] = {
                           ...updated[idx],
@@ -4524,8 +4565,8 @@ export default function ConsultationPage() {
                               : selectedMedicine?.remark_suggestions,
                           ),
                           amount:
-                            variant && variant.price
-                              ? String(variant.price)
+                            unitPrice
+                              ? (unitPrice * qtyNum).toFixed(2)
                               : updated[idx].amount,
                         };
                         setOtherMedications(updated);
@@ -4540,6 +4581,32 @@ export default function ConsultationPage() {
                             )
                             : t("consultation_modal.no_variants", "No Variants"))
                       }
+                    />
+                  </div>
+                  <div>
+                    <label className="lg:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
+                      {t("consultation_modal.qty", "Qty")}
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      disabled={isReadOnly}
+                      placeholder="1"
+                      value={om.quantity ?? 1}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const qtyNum = Math.max(1, parseInt(val) || 1);
+                        const updated = [...otherMedications];
+                        const unitPrice = om.selectedVariant?.price ? Number(om.selectedVariant.price) : 0;
+                        updated[idx] = {
+                          ...updated[idx],
+                          quantity: val,
+                          amount: unitPrice ? (unitPrice * qtyNum).toFixed(2) : updated[idx].amount,
+                        };
+                        setOtherMedications(updated);
+                      }}
+                      className="w-full h-8.5 px-2 bg-[#549E9E]/[0.03] border border-[#549E9E]/20 rounded-lg focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 text-xs font-bold text-gray-800 placeholder:text-gray-400 transition-all outline-none text-center disabled:opacity-80 disabled:bg-gray-100"
                     />
                   </div>
                   <div>

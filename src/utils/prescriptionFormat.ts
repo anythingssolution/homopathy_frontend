@@ -69,3 +69,46 @@ export const getMedicationDispensingState = (pricing: any, medication: any) => {
 
 export const getMedicationRoleLabel = (medication: any) =>
   String(medication?.added_by_role || '').toUpperCase() === 'MEDICAL' ? 'Medical Added' : '';
+
+export const formatPrescriptionMedicineText = (medicineValue: string): string => {
+  if (!medicineValue) return '';
+  const trimmed = medicineValue.trim();
+
+  // If already formatted like "3 * BT-01" or "3 * Syrup - 100ml"
+  if (/^\d+\s*[*xX]\s*/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Pattern: "BT-01 * 3" or "Syrup - 100ml * 3" -> convert to "3 * BT-01" / "3 * Syrup - 100ml"
+  const suffixMatch = trimmed.match(/^(.*?)\s*[*xX]\s*(\d+)$/);
+  if (suffixMatch) {
+    const medName = suffixMatch[1].trim();
+    const qty = suffixMatch[2].trim();
+    return `${qty} * ${medName}`;
+  }
+
+  return trimmed;
+};
+
+export const formatConsultationMedicineText = (
+  name: string,
+  variant?: string | null,
+  quantity?: number | string | null
+): string => {
+  let base = (name || '').trim();
+  const v = (variant || '').trim();
+  if (v && v !== 'N/A') {
+    if (!base) {
+      base = v;
+    } else if (base.toLowerCase() !== v.toLowerCase()) {
+      base = `${base} - ${v}`;
+    }
+  }
+
+  const qtyNum = Number(quantity);
+  if (qtyNum && qtyNum > 1) {
+    return `${base} * ${qtyNum}`;
+  }
+  return base;
+};
+
