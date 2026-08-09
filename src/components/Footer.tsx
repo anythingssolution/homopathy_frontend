@@ -25,7 +25,7 @@ export default function Footer() {
         {/* Dual Clinic Cards Grid (Moved up after Logo) */}
         <div className="grid lg:grid-cols-2 gap-8 max-w-6xl mx-auto mb-20">
           {/* Card 1: Purani Basti */}
-          <div className="bg-[#FAFBFD]/80 backdrop-blur-sm rounded-[50px] p-8 shadow-sm ring-1 ring-black/5 overflow-hidden flex flex-col">
+          <div className="flex flex-col overflow-hidden rounded-[50px] bg-[#FAFBFD] p-8 shadow-sm ring-1 ring-black/5 [content-visibility:auto] [contain-intrinsic-size:auto_520px]">
             <div className="flex items-start justify-between mb-6 text-left">
               <div className="flex items-center gap-3">
                 <MapPin size={20} className="text-primary-teal" />
@@ -41,15 +41,23 @@ export default function Footer() {
             </div>
 
             {/* Mini Map */}
-            <div className="h-[200px] rounded-3xl overflow-hidden mb-8 relative group">
-              <img src="/map.png" alt="Purani Basti Clinic" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black/5" />
+            <div className="relative mb-8 h-[200px] overflow-hidden rounded-3xl group">
+              <img
+                src="/map.png"
+                alt="Purani Basti Clinic"
+                loading="lazy"
+                decoding="async"
+                width={640}
+                height={200}
+                className="h-full w-full object-cover transition-transform duration-500 ease-out will-change-transform group-hover:scale-[1.03]"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-black/5" />
               <a
                 href="https://www.google.com/maps/search/?api=1&query=Dr.Trivedis+Homeopathy+Clinic+Purani+Basti+Raipur"
                 target="_blank" rel="noopener noreferrer"
-                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 backdrop-blur-[2px]"
+                className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
               >
-                <div className="bg-white px-6 py-2 rounded-full font-bold text-primary-teal text-[10px] shadow-xl uppercase tracking-widest">{t('footer.view_map')}</div>
+                <div className="rounded-full bg-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-primary-teal shadow-lg">{t('footer.view_map')}</div>
               </a>
             </div>
 
@@ -99,7 +107,7 @@ export default function Footer() {
           </div>
 
           {/* Card 2: Pandri Clinic */}
-          <div className="bg-[#FAFBFD]/80 backdrop-blur-sm rounded-[50px] p-8 shadow-sm ring-1 ring-black/5 overflow-hidden flex flex-col">
+          <div className="flex flex-col overflow-hidden rounded-[50px] bg-[#FAFBFD] p-8 shadow-sm ring-1 ring-black/5 [content-visibility:auto] [contain-intrinsic-size:auto_520px]">
             <div className="flex items-start justify-between mb-6 text-left">
               <div className="flex items-center gap-3">
                 <MapPin size={20} className="text-[#F2D06B]" />
@@ -115,15 +123,23 @@ export default function Footer() {
             </div>
 
             {/* Mini Map */}
-            <div className="h-[200px] rounded-3xl overflow-hidden mb-8 relative group">
-              <img src="/pandri-clinic.png" alt="Pandri Clinic" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black/5" />
+            <div className="relative mb-8 h-[200px] overflow-hidden rounded-3xl group">
+              <img
+                src="/pandri-clinic.png"
+                alt="Pandri Clinic"
+                loading="lazy"
+                decoding="async"
+                width={640}
+                height={200}
+                className="h-full w-full object-cover transition-transform duration-500 ease-out will-change-transform group-hover:scale-[1.03]"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-black/5" />
               <a
                 href="https://www.google.com/maps/place/Dr.Trivedis+Homeopathy+Clinic+:+Devendra+Nagar,+Pandri/@21.261514,81.653251,14z/data=!4m6!3m5!1s0x3a28ddd8a2add937:0x5417ef7682d680f1!8m2!3d21.2615138!4d81.6532511!16s%2Fg%2F11y07h6jxb"
                 target="_blank" rel="noopener noreferrer"
-                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 backdrop-blur-[2px]"
+                className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
               >
-                <div className="bg-white px-6 py-2 rounded-full font-bold text-primary-teal text-[10px] shadow-xl uppercase tracking-widest">{t('footer.view_map')}</div>
+                <div className="rounded-full bg-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-primary-teal shadow-lg">{t('footer.view_map')}</div>
               </a>
             </div>
 

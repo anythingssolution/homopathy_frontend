@@ -79,17 +79,22 @@ function AnimatedRoutes() {
 
   useEffect(() => {
     const lenis = new Lenis({
-      duration: 1.2,
+      duration: 0.9,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       orientation: 'vertical',
       gestureOrientation: 'vertical',
       smoothWheel: true,
-      wheelMultiplier: 1,
-      touchMultiplier: 2,
+      wheelMultiplier: 0.9,
+      touchMultiplier: 1.5,
       infinite: false,
     });
 
     lenisRef.current = lenis;
+
+    const stopLenis = () => lenis.stop();
+    const startLenis = () => lenis.start();
+    window.addEventListener('lenis:stop', stopLenis);
+    window.addEventListener('lenis:start', startLenis);
 
     function raf(time: number) {
       lenis.raf(time);
@@ -99,21 +104,24 @@ function AnimatedRoutes() {
     requestAnimationFrame(raf);
 
     return () => {
+      window.removeEventListener('lenis:stop', stopLenis);
+      window.removeEventListener('lenis:start', startLenis);
       lenis.destroy();
       lenisRef.current = null;
     };
   }, []);
 
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
 
-  const isDoc = user?.role_code === 'DOC' || user?.role === 'doc' || user?.role === 'DOC' || user?.role === 'doctor';
-  const isMedical = user?.role_code === 'REC' || user?.role_code === 'MED' || 
-                 ['REC', 'MED', 'medical', 'receptionist', 'rec', 'med'].includes(user?.role || '');
-                 
   const isLiveQueue = location.pathname.toLowerCase().startsWith('/live-queue');
   const isLiveQueueReplay = location.pathname.toLowerCase().startsWith('/live-queue-replay');
   const shouldHideNavigation = isLiveQueue || isLiveQueueReplay || isBackendLogsModule;
-  const shouldHideFooter = (isAuthenticated && (isDoc || isMedical)) || isLiveQueue || isLiveQueueReplay || isBackendLogsModule;
+  // Hide clinic footer for all logged-in users (patients, doctors, staff)
+  const shouldHideFooter =
+    isAuthenticated ||
+    isLiveQueue ||
+    isLiveQueueReplay ||
+    isBackendLogsModule;
 
   // Save last visited path for authenticated users
   useEffect(() => {

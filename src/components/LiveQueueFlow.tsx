@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { connectGuestSocket } from "../services/socket";
+import { isDevendraNagarFridaySchedule } from "../utils/dateUtils";
 
 type QueueBucket = "IN_PROGRESS" | "READY" | "CALLED" | "NOT_ARRIVED";
 
@@ -796,6 +797,16 @@ export default function LiveQueueFlow() {
         {error && (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-black text-rose-600">
             {error}
+          </div>
+        )}
+
+        {isDevendraNagarFridaySchedule(
+          requestedBranchId || snapshot.branch_id,
+          appointmentDate,
+        ) && (
+          <div className="rounded-2xl border-l-4 border-amber-400 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-800">
+            Friday Schedule: Devendra Nagar (Pandri) opens at <strong>3:00 PM</strong>.
+            Token times follow the Friday schedule.
           </div>
         )}
 

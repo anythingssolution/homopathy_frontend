@@ -12,6 +12,12 @@ import { useTranslation } from 'react-i18next';
 import { getSocket } from '../services/socket';
 import { useNotifications } from '../context/NotificationContext';
 import CustomAlertDialog, { CustomAlertState } from './CustomAlertDialog';
+import {
+  formatTimeTo12Hour,
+  isDevendraNagarFridaySchedule,
+  normalizeTimeToSeconds,
+  FRIDAY_SCHEDULE_START_TIME,
+} from '../utils/dateUtils';
 
 type DoctorAppointment = {
   appointment_id: number;
@@ -268,6 +274,15 @@ export default function DoctorPortal() {
   const [slotTimingMessage, setSlotTimingMessage] = useState<string | null>(null);
   const isActiveInAnotherBranch = Boolean(isDoctorGloballyAvailable && selectedBranchId && activeSessionBranchId && activeSessionBranchId !== selectedBranchId);
   const selectedDateSlotTiming = dateSlotTimings.find((slot) => slot.slot_id === selectedTimingSlotId) || null;
+  const isFridayRecurringRule = Boolean(
+    selectedDateSlotTiming?.has_override &&
+      isDevendraNagarFridaySchedule(selectedBranchId, filterDate) &&
+      (
+        !selectedDateSlotTiming.override_id ||
+        /friday|recurring/i.test(String(selectedDateSlotTiming.reason || '')) ||
+        normalizeTimeToSeconds(selectedDateSlotTiming.effective_start_time) === FRIDAY_SCHEDULE_START_TIME
+      ),
+  );
 
   const toTimeInputValue = (value?: string | null) => String(value || '').slice(0, 5);
   const calculateShiftedEndTime = (slot: DateSlotTiming | null, startTime: string) => {
@@ -1153,11 +1168,18 @@ export default function DoctorPortal() {
             </div>
             <div className="flex items-center gap-4 shrink-0">
               {selectedDateSlotTiming && (
-                <span className={`hidden sm:inline-block px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border rounded-md ${selectedDateSlotTiming.has_override
-                    ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm'
+                <span className={`hidden sm:inline-block px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border rounded-md ${
+                  isFridayRecurringRule
+                    ? 'bg-violet-50 text-violet-700 border-violet-200 shadow-sm'
+                    : selectedDateSlotTiming.has_override
+                      ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm'
                   }`}>
-                  {selectedDateSlotTiming.has_override ? t('doctor_portal.shifted_timing', 'Shifted Timing') : t('doctor_portal.default_timing', 'Default Timing')}
+                  {isFridayRecurringRule
+                    ? t('doctor_portal.recurring_rule', 'Recurring Rule')
+                    : selectedDateSlotTiming.has_override
+                      ? t('doctor_portal.shifted_timing', 'Shifted Timing')
+                      : t('doctor_portal.default_timing', 'Default Timing')}
                 </span>
               )}
               <div className={`p-1.5 rounded-md bg-white border border-gray-200 shadow-sm transition-transform duration-300 ${isSlotTimingOpen ? 'rotate-180 bg-[#549E9E]/10 border-[#549E9E]/30 text-[#549E9E]' : 'text-gray-400'}`}>
@@ -1199,6 +1221,23 @@ export default function DoctorPortal() {
                           {toTimeInputValue(selectedDateSlotTiming?.default_start_time)} - {toTimeInputValue(selectedDateSlotTiming?.default_end_time)}
                         </div>
                       </div>
+                      {isFridayRecurringRule && selectedDateSlotTiming && (
+                        <div className="space-y-1.5 sm:col-span-2 md:col-span-4">
+                          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
+                            <span className="px-2 py-1 text-[9px] font-black uppercase tracking-widest rounded-md bg-violet-100 text-violet-800 border border-violet-200">
+                              RECURRING_RULE
+                            </span>
+                            <span className="text-xs font-black text-violet-800">
+                              {formatTimeTo12Hour(selectedDateSlotTiming.effective_start_time)} -{' '}
+                              {formatTimeTo12Hour(selectedDateSlotTiming.effective_end_time)}
+                            </span>
+                            <span className="text-[11px] font-bold text-violet-700">
+                              {selectedDateSlotTiming.reason ||
+                                'Devendra Nagar Friday Recurring Rule'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       <label className="space-y-1.5">
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('doctor_portal.new_start_time', 'New Start Time')}</span>
                         <div className="relative">

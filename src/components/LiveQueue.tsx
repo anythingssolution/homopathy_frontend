@@ -11,6 +11,7 @@ import {
   Heart,
 } from "lucide-react";
 import { motion, AnimatePresence, LayoutGroup } from "motion/react";
+import { isDevendraNagarFridaySchedule } from "../utils/dateUtils";
 
 interface BranchOption {
   id: number;
@@ -1450,6 +1451,12 @@ export default function LiveQueue() {
       {error && (
         <div className="bg-red-500 text-white px-6 py-3 text-center font-bold tracking-widest text-sm uppercase relative z-10">
           {error}
+        </div>
+      )}
+
+      {isDevendraNagarFridaySchedule(requestedBranchId, appointment_date) && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-800 px-4 py-2.5 text-center text-sm font-semibold relative z-10">
+          Friday Schedule: Devendra Nagar (Pandri) opens at <strong>3:00 PM</strong>.
         </div>
       )}
 

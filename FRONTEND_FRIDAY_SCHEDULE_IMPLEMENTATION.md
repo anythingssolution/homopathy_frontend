@@ -153,9 +153,9 @@ export const getEffectiveSlotDisplayTime = (
 
 ## 📋 4. Checklist for Frontend Developer
 
-- [ ] Add `isFridayDate` helper in `src/utils/dateUtils.ts`.
-- [ ] Add Friday schedule notice badge in Patient Booking date picker when `branch_id === 2` and date is Friday.
-- [ ] Re-fetch effective slot timings when `appointment_date` changes in Receptionist Booking Form.
-- [ ] Update Token Plate Grid timeline header to parse `effective_start_time`.
-- [ ] Add client-side validation preventing manual booking time entries before `15:00` for Branch 2 on Fridays.
+- [x] Add `isFridayDate` helper in `src/utils/dateUtils.ts`.
+- [x] Add Friday schedule notice badge in Patient Booking date picker when `branch_id === 2` and date is Friday.
+- [x] Re-fetch effective slot timings when `appointment_date` changes in Receptionist Booking Form.
+- [x] Update Token Plate Grid timeline header to parse `effective_start_time`.
+- [x] Add client-side validation preventing manual booking time entries before `15:00` for Branch 2 on Fridays.
 - [ ] Test frontend flow by selecting **2026-08-14 (Friday)** and verifying `03:00 PM` slot display.

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, Clock, User, CheckCircle2, MapPin, ChevronDown, Phone, X, Smartphone, Download, Zap, Users, Lock, Mail, Stethoscope, Eye, EyeOff, Key, MessageSquare, Link2 } from 'lucide-react';
+import { Clock, User, CheckCircle2, MapPin, ChevronDown, Phone, X, Smartphone, Download, Zap, Users, Lock, Mail, Stethoscope, Eye, EyeOff, Key, MessageSquare, Link2 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,13 @@ import { useNotifications } from '../context/NotificationContext';
 import { getSocket } from '../services/socket';
 import CustomDatePicker from './CustomDatePicker';
 import ReCAPTCHA from 'react-google-recaptcha';
+import {
+  formatTimeTo12Hour,
+  getEffectiveSlotDisplayEndTime,
+  getEffectiveSlotDisplayTime,
+  isBeforeFridayScheduleStart,
+  isDevendraNagarFridaySchedule,
+} from '../utils/dateUtils';
 const ENV_RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 const DEFAULT_TEST_SITE_KEY = '6Lc9y90sAAAAAGoF-RwPTnE1IyeMOZfe1B7HZOg6';
 
@@ -252,13 +259,19 @@ export default function Booking() {
     selected_visit_type_supported: boolean;
     tokens: BookingTokenPlateItem[];
     slot?: {
-      id: number;
+      id?: number;
+      slot_id?: number;
+      branch_id?: number;
       slot_name: string;
-      start_time: string;
-      end_time: string;
-      default_start_time: string;
-      default_end_time: string;
-      has_time_override: boolean;
+      start_time?: string;
+      end_time?: string;
+      default_start_time?: string;
+      default_end_time?: string;
+      effective_start_time?: string;
+      effective_end_time?: string;
+      has_time_override?: boolean;
+      has_override?: boolean;
+      reason?: string | null;
     };
   };
 
@@ -306,8 +319,6 @@ export default function Booking() {
     window.location.pathname.startsWith('/cross-role/receptionist');
   const isDoctor = user?.role_code === 'DOC' || user?.role?.toLowerCase() === 'doc' || user?.role?.toLowerCase() === 'doctor';
 
-  const dashboardLink = isReceptionist ? '/medical-welcome' : (isDoctor ? '/doctor-portal' : '/dashboard');
-  const dashboardLabel = isReceptionist ? 'Receptionist Portal' : (isDoctor ? 'Doctor Portal' : t('common.dashboard'));
   // Registration Fields
   const [regStep, setRegStep] = useState(1);
   const [regOtp, setRegOtp] = useState('');
@@ -1380,6 +1391,20 @@ export default function Booking() {
             setErrors({ appointment: 'The selected token slot is in the past or currently running and cannot be booked.' });
             return;
           }
+
+          if (
+            isBeforeFridayScheduleStart(
+              appointmentLocation,
+              appointmentDate,
+              selectedToken.estimated_start_at,
+            )
+          ) {
+            setErrors({
+              appointment:
+                'Devendra Nagar (Pandri) Friday schedule starts at 3:00 PM. Please select a token at or after 3:00 PM.',
+            });
+            return;
+          }
         }
       }
 
@@ -1488,55 +1513,30 @@ export default function Booking() {
     }
   };
 
+  const patientAuthToggle = (
+    <div className="flex justify-center mb-8">
+      <div className="bg-gray-100 p-1 rounded-full flex gap-1">
+        <button
+          type="button"
+          onClick={() => setIsLoginView(true)}
+          className={`px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${isLoginView ? 'bg-primary-teal text-white shadow-lg' : 'text-gray-400 hover:text-primary-teal'}`}
+        >
+          {t('booking.returning_patient')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsLoginView(false)}
+          className={`px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer ${!isLoginView ? 'bg-[#F2D06B] text-[#549E9E] shadow-lg' : 'text-gray-400 hover:text-primary-teal'}`}
+        >
+          {t('booking.new_patient')}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className={`min-h-screen bg-[#FDFDF7] ${isAuthenticated ? 'pt-0' : 'pt-12 lg:pt-16'}`}>
-      <div className="max-w-4xl mx-auto px-6 pb-24 relative">
-        {/* Title Section */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center gap-4 text-primary-teal opacity-60 mb-4">
-            <div className="w-8 h-[1px] bg-current" />
-            <Calendar size={16} />
-            <div className="w-8 h-[1px] bg-current" />
-          </div>
-
-          <h1 className={`text-3xl lg:text-5xl font-bold text-[#549E9E] ${i18n.language === 'hi' ? 'tracking-normal' : 'tracking-[0.2em]'} mb-4 text-center text-balance`}>
-            {isAuthenticated ? t('booking.appointment') : t('booking.registration')}
-          </h1>
-          <span className={`text-xs font-bold text-primary-teal/60 ${i18n.language === 'hi' ? 'tracking-normal' : 'tracking-[0.4em]'} uppercase`}>
-            {isAuthenticated ? t('booking.schedule_visit') : t('booking.join_clinic')}
-          </span>
-
-          <div className="w-12 h-1 bg-[#F2D06B] rounded-full mt-4" />
-        </div>
-
-        {/* Breadcrumb */}
-        <div className="text-sm text-gray-400 mb-6 flex gap-2 font-medium justify-center">
-          <Link to={isAuthenticated ? dashboardLink : "/"} className="hover:text-primary-teal transition-colors">
-            {isAuthenticated ? dashboardLabel : t('common.home')}
-          </Link>
-          <span>&gt;</span>
-          <span className="text-primary-teal">{isAuthenticated ? t('common.booking') : (isLoginView ? t('common.login') : t('common.register'))}</span>
-        </div>
-
-        {!isAuthenticated && (
-          <div className="flex justify-center mb-8">
-            <div className="bg-gray-100 p-1 rounded-full flex gap-1">
-              <button
-                onClick={() => setIsLoginView(true)}
-                className={`px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${isLoginView ? 'bg-primary-teal text-white shadow-lg' : 'text-gray-400 hover:text-primary-teal'}`}
-              >
-                {t('booking.returning_patient')}
-              </button>
-              <button
-                onClick={() => setIsLoginView(false)}
-                className={`px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${!isLoginView ? 'bg-[#F2D06B] text-[#549E9E] shadow-lg' : 'text-gray-400 hover:text-primary-teal'}`}
-              >
-                {t('booking.new_patient')}
-              </button>
-            </div>
-          </div>
-        )}
-
+    <div className={`min-h-screen bg-[#FDFDF7] ${isAuthenticated ? 'pt-0' : 'pt-24 lg:pt-28'}`}>
+      <div className={`max-w-4xl mx-auto px-6 relative ${isAuthenticated ? 'pb-8' : 'pb-16'}`}>
         <AnimatePresence mode="wait">
           {isAuthenticated ? (
             <motion.div
@@ -1547,7 +1547,9 @@ export default function Booking() {
               className="bg-white rounded-[50px] shadow-sm border border-gray-100 p-8 lg:p-12 mb-8"
             >
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-[#549E9E] mb-2 uppercase tracking-widest">{t('booking.schedule_visit')}</h2>
+                <h2 className="text-2xl lg:text-3xl font-bold text-[#549E9E] mb-2 tracking-wide">
+                  {t('booking.appointment')}
+                </h2>
                 <p className="text-base text-gray-400 font-medium">{t('booking.schedule_subtitle')}</p>
               </div>
 
@@ -1992,16 +1994,46 @@ export default function Booking() {
                             const activeOverride = bookingAvailability?.slot_time_overrides?.find(
                               (o: any) => Number(o.fk_slot_id) === Number(s.id)
                             );
-                            const hasOverride = !!activeOverride || (tokenPlateMeta?.slot?.id === s.id && tokenPlateMeta?.slot?.has_time_override);
-                            const startTime = activeOverride
-                              ? activeOverride.override_start_time
-                              : (hasOverride && tokenPlateMeta?.slot?.start_time ? tokenPlateMeta.slot.start_time : s.start_time);
-                            const endTime = activeOverride
-                              ? activeOverride.override_end_time
-                              : (hasOverride && tokenPlateMeta?.slot?.end_time ? tokenPlateMeta.slot.end_time : s.end_time);
+                            const plateSlot = tokenPlateMeta?.slot;
+                            const plateMatchesSlot =
+                              Number(plateSlot?.id || plateSlot?.slot_id) === Number(s.id);
+                            const hasOverride =
+                              !!activeOverride ||
+                              (plateMatchesSlot &&
+                                Boolean(plateSlot?.has_time_override || plateSlot?.has_override));
+
+                            const rawStart =
+                              activeOverride?.override_start_time ||
+                              (plateMatchesSlot &&
+                                (plateSlot?.effective_start_time || plateSlot?.start_time)) ||
+                              s.start_time;
+                            const rawEnd =
+                              activeOverride?.override_end_time ||
+                              (plateMatchesSlot &&
+                                (plateSlot?.effective_end_time || plateSlot?.end_time)) ||
+                              s.end_time;
+
+                            const startLabel =
+                              hasOverride || plateMatchesSlot
+                                ? formatTimeTo12Hour(String(rawStart || ''))
+                                : getEffectiveSlotDisplayTime(
+                                    Number(appointmentLocation),
+                                    String(s.start_time || ''),
+                                    appointmentDate,
+                                  );
+                            const endLabel =
+                              hasOverride || plateMatchesSlot
+                                ? formatTimeTo12Hour(String(rawEnd || ''))
+                                : getEffectiveSlotDisplayEndTime(
+                                    Number(appointmentLocation),
+                                    String(s.start_time || ''),
+                                    String(s.end_time || ''),
+                                    appointmentDate,
+                                  );
+
                             return {
                               id: s.id,
-                              label: `${s.slot_name} (${startTime.slice(0, 5)} - ${endTime.slice(0, 5)})`
+                              label: `${s.slot_name} (${startLabel} - ${endLabel})`,
                             };
                           }) || []
                     }
@@ -2012,6 +2044,14 @@ export default function Booking() {
                     noOptionsMessage={!appointmentLocation ? "Select location first" : "No slots available"}
                   />
                 </div>
+
+                {isDevendraNagarFridaySchedule(appointmentLocation, appointmentDate) && (
+                  <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-xl text-amber-800 text-sm">
+                    <span className="font-semibold">Friday Schedule Note:</span>{' '}
+                    First available slot for Devendra Nagar (Pandri) Branch starts at{' '}
+                    <strong>3:00 PM</strong>.
+                  </div>
+                )}
 
                 {appointmentLocation && appointmentDate && (
                   <div className={`p-4 rounded-[22px] border ${
@@ -2033,6 +2073,13 @@ export default function Booking() {
                         {bookingAvailability.leave.leave_reason}
                       </p>
                     )}
+                    {!isAvailabilityLoading &&
+                      tokenPlateMeta?.slot?.reason &&
+                      (tokenPlateMeta.slot.has_override || tokenPlateMeta.slot.has_time_override) && (
+                        <p className="text-sm mt-2 opacity-80">
+                          {tokenPlateMeta.slot.reason}
+                        </p>
+                      )}
                   </div>
                 )}
 
@@ -2048,6 +2095,35 @@ export default function Booking() {
                       <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
                         Only matching visit-type token cards are selectable.
                       </p>
+                      {(tokenPlateMeta?.slot?.effective_start_time ||
+                        tokenPlateMeta?.slot?.start_time) && (
+                        <p className="text-[11px] font-bold text-gray-500">
+                          Session starts at{' '}
+                          <span className="font-black text-gray-800">
+                            {formatTimeTo12Hour(
+                              String(
+                                tokenPlateMeta.slot.effective_start_time ||
+                                  tokenPlateMeta.slot.start_time ||
+                                  '',
+                              ),
+                            )}
+                          </span>
+                          {(tokenPlateMeta.slot.effective_end_time ||
+                            tokenPlateMeta.slot.end_time) && (
+                            <>
+                              {' '}
+                              –{' '}
+                              {formatTimeTo12Hour(
+                                String(
+                                  tokenPlateMeta.slot.effective_end_time ||
+                                    tokenPlateMeta.slot.end_time ||
+                                    '',
+                                ),
+                              )}
+                            </>
+                          )}
+                        </p>
+                      )}
                     </div>
 
                     {isTokenPlateLoading && (
@@ -2093,7 +2169,7 @@ export default function Booking() {
                                     {tokenCard.short_label}
                                   </p>
                                   <p className="mt-0.5 text-xs font-black text-gray-800">
-                                    {tokenCard.estimated_start_at}
+                                    {formatTimeTo12Hour(tokenCard.estimated_start_at)}
                                   </p>
                                   <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-gray-400">
                                     {(tokenCard.is_booked || isPastOrCurrentTimeSlot)
@@ -2317,6 +2393,7 @@ export default function Booking() {
               exit={{ opacity: 0, x: 20 }}
               className="bg-white rounded-[50px] shadow-sm border border-gray-100 p-8 lg:p-12 mb-8"
             >
+              {patientAuthToggle}
               <div className="text-center mb-8">
                 <div className="w-16 h-16 bg-primary-teal/10 rounded-2xl flex items-center justify-center text-primary-teal mx-auto mb-6">
                   <Lock size={24} />
@@ -2500,6 +2577,7 @@ export default function Booking() {
               exit={{ opacity: 0, x: -20 }}
               className="bg-white rounded-[50px] shadow-sm border border-gray-100 p-8 lg:p-12"
             >
+              {patientAuthToggle}
               <div className="text-center mb-8">
                 <h2 className="text-2xl font-bold text-[#549E9E] mb-2 uppercase tracking-widest">
                   {regStep === 1 ? t('booking.mobile_verification') : t('booking.patient_details')}

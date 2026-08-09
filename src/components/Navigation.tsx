@@ -483,7 +483,7 @@ export default function Navigation() {
                 onClick={() => setShowLogoutConfirm(true)}
                 title={t('common.logout')}
                 aria-label={t('common.logout')}
-                className={`hidden xl:flex items-center justify-center p-1.5 border border-red-200/80 bg-red-50/70 text-red-600 rounded-xl transition-all shadow-2xs hover:shadow-sm hover:border-red-300 group shrink-0 ${isLoggingOut ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
+                className={`hidden xl:flex items-center justify-center p-1.5 border border-red-200/80 bg-red-50/70 text-red-600 rounded-xl transition-all shadow-2xs hover:shadow-sm hover:border-red-300 group shrink-0 ${isLoggingOut ? 'opacity-50 grayscale cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 <div className="w-5 h-5 bg-red-100/80 group-hover:bg-red-500 group-hover:text-white rounded-lg flex items-center justify-center text-red-600 transition-colors shrink-0">
                   <LogOut size={13} />
@@ -543,7 +543,7 @@ export default function Navigation() {
               whileTap={{ scale: 0.96 }}
               onClick={toggleLanguage}
               title={i18n.language === 'en' ? 'Switch to हिन्दी' : 'Switch to English'}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200/80 bg-gray-50/80 text-[#2d8789] hover:text-[#549E9E] rounded-xl transition-all shadow-2xs hover:shadow-sm hover:border-[#549E9E]/40 group shrink-0"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200/80 bg-gray-50/80 text-[#2d8789] hover:text-[#549E9E] rounded-xl transition-all shadow-2xs hover:shadow-sm hover:border-[#549E9E]/40 group shrink-0 cursor-pointer"
             >
               <div className="w-5 h-5 bg-[#2d8789]/10 group-hover:bg-[#2d8789]/20 rounded-lg flex items-center justify-center text-[#2d8789] transition-colors shrink-0">
                 <Languages size={13} />
@@ -701,7 +701,7 @@ export default function Navigation() {
                 {/* Language Switcher (Mobile) */}
                 <button
                   onClick={toggleLanguage}
-                  className="w-full flex items-center justify-between p-3 border border-gray-100 bg-gray-50/80 text-[#2d8789] rounded-xl transition-all hover:bg-gray-100 hover:shadow-sm"
+                  className="w-full flex items-center justify-between p-3 border border-gray-100 bg-gray-50/80 text-[#2d8789] rounded-xl transition-all hover:bg-gray-100 hover:shadow-sm cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-primary-teal/5 rounded-lg flex items-center justify-center text-primary-teal">
@@ -730,7 +730,7 @@ export default function Navigation() {
                       setIsMobileMenuOpen(false);
                       setShowLogoutConfirm(true);
                     }}
-                    className="w-full flex items-center justify-center gap-3 p-3 border border-red-100 bg-red-50/40 text-red-600 rounded-xl transition-all hover:bg-red-50 hover:shadow-sm"
+                    className={`w-full flex items-center justify-center gap-3 p-3 border border-red-100 bg-red-50/40 text-red-600 rounded-xl transition-all hover:bg-red-50 hover:shadow-sm ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
                     <LogOut size={16} />
                     <span className="text-[10px] font-black uppercase tracking-widest leading-none">

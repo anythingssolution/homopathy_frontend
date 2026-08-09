@@ -18,28 +18,30 @@ export default function TreatmentsSection() {
   const [selectedTreatment, setSelectedTreatment] = useState<TreatmentItem | null>(null);
 
   useEffect(() => {
-    if (selectedTreatment) {
-      const scrollY = window.scrollY;
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.left = '0';
-      document.body.style.right = '0';
-      document.body.style.width = '100%';
-      document.body.style.overflow = 'hidden';
+    if (!selectedTreatment) return;
 
-      return () => {
-        const storedY = document.body.style.top;
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.left = '';
-        document.body.style.right = '';
-        document.body.style.width = '';
-        document.body.style.overflow = '';
-        if (storedY) {
-          window.scrollTo(0, parseInt(storedY || '0', 10) * -1);
-        }
-      };
-    }
+    const scrollY = window.scrollY;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    window.dispatchEvent(new Event('lenis:stop'));
+
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.width = '';
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      window.dispatchEvent(new Event('lenis:start'));
+      window.scrollTo(0, scrollY);
+    };
   }, [selectedTreatment]);
 
   const categoriesList = [
@@ -65,12 +67,12 @@ export default function TreatmentsSection() {
     const matchesCategory = activeCategory === "all" || item.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
+  const displayedTreatments = filteredTreatments.slice(0, 6);
 
   return (
     <section className="relative bg-[#FDFDF7] py-24 overflow-hidden border-t border-gray-100/60" id="treatments-section">
-      {/* Background Ambient Glows */}
-      <div className="absolute top-1/4 left-[-10%] w-[45%] aspect-square bg-[#549E9E]/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-10 right-[-10%] w-[45%] aspect-square bg-[#F2D06B]/10 rounded-full blur-[140px] pointer-events-none" />
+      {/* Soft background accents (no heavy blur — keeps scroll smooth over images) */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_25%,rgba(84,158,158,0.08),transparent_42%),radial-gradient(circle_at_85%_75%,rgba(242,208,107,0.10),transparent_40%)]" />
 
       <div className="max-w-7xl mx-auto px-6 relative z-10">
 
@@ -97,7 +99,7 @@ export default function TreatmentsSection() {
         </ScrollReveal>
 
         {/* Search & Category Filter Bar */}
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-6 mb-12 bg-white/70 backdrop-blur-md p-6 rounded-[35px] border border-gray-100 shadow-sm">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-6 mb-12 bg-white p-6 rounded-[35px] border border-gray-100 shadow-sm">
           {/* Search Box */}
           <div className="relative w-full lg:w-96">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -142,29 +144,32 @@ export default function TreatmentsSection() {
 
         {/* Treatments Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          <AnimatePresence mode="popLayout">
-            {filteredTreatments.map((item, idx) => (
+          <AnimatePresence initial={false}>
+            {displayedTreatments.map((item, idx) => (
               <motion.div
-                layout
                 key={item.id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ delay: (idx % 6) * 0.05 }}
-                className="group bg-white rounded-[35px] p-6 border border-gray-100 hover:border-[#549E9E]/30 shadow-sm hover:shadow-xl hover:shadow-[#549E9E]/10 transition-all duration-300 flex flex-col justify-between"
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2, delay: Math.min(idx, 8) * 0.03 }}
+                className="group flex [content-visibility:auto] [contain-intrinsic-size:auto_420px] flex-col justify-between rounded-[35px] border border-gray-100 bg-white p-6 shadow-sm transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1 hover:border-[#549E9E]/35 hover:shadow-lg hover:shadow-[#549E9E]/10"
               >
                 <div>
                   {/* Image Space Frame */}
-                  <div className="relative w-full h-48 mb-6 rounded-[24px] overflow-hidden bg-gradient-to-br from-[#EAF5F7] via-[#F5F9FA] to-[#E5F2F4] border border-[#549E9E]/15 flex items-center justify-center group-hover:border-[#549E9E]/40 transition-colors">
+                  <div className="relative mb-6 flex h-48 w-full items-center justify-center overflow-hidden rounded-[24px] border border-[#549E9E]/15 bg-gradient-to-br from-[#EAF5F7] via-[#F5F9FA] to-[#E5F2F4] transition-colors duration-300 group-hover:border-[#549E9E]/40">
                     {item.image ? (
                       <img
                         src={encodeURI(item.image)}
                         alt={item.en}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                        decoding="async"
+                        width={480}
+                        height={192}
+                        className="h-full w-full object-cover transition-transform duration-500 ease-out will-change-transform group-hover:scale-[1.04]"
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center text-center p-4">
-                        <div className="w-14 h-14 rounded-2xl bg-white/80 backdrop-blur-sm shadow-sm flex items-center justify-center text-[#549E9E] mb-2 group-hover:scale-110 transition-transform">
+                        <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm text-[#549E9E] transition-transform duration-300 group-hover:scale-110">
                           <HeartPulse size={28} className="text-[#549E9E]" />
                         </div>
                         <span className="text-[10px] font-bold text-[#549E9E]/60 uppercase tracking-widest flex items-center gap-1 bg-white/60 px-3 py-1 rounded-full border border-[#549E9E]/10">
@@ -174,8 +179,8 @@ export default function TreatmentsSection() {
                     )}
                     
                     {/* Category Badge overlay */}
-                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full border border-gray-100 shadow-sm">
-                      <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-widest">
+                    <div className="absolute top-3 right-3 inline-flex h-6 min-w-[3.25rem] items-center justify-center rounded-full border border-gray-100 bg-white px-2.5 shadow-sm">
+                      <span className="translate-x-[0.07em] text-[9px] font-black uppercase leading-none tracking-[0.14em] text-[#549E9E]">
                         {item.category}
                       </span>
                     </div>
@@ -183,7 +188,7 @@ export default function TreatmentsSection() {
 
                   {/* Header Titles */}
                   <div className="mb-3">
-                    <h3 className="text-xl font-black text-[#549E9E] uppercase tracking-tight group-hover:text-primary-teal transition-colors">
+                    <h3 className="text-xl font-black text-[#549E9E] uppercase tracking-tight transition-transform duration-300 group-hover:translate-x-1">
                       {item.en}
                     </h3>
                     <p className="text-base font-bold text-[#6A6A50]/70">
@@ -212,17 +217,29 @@ export default function TreatmentsSection() {
                 <div className="pt-4 border-t border-gray-100 flex items-center justify-between mt-2">
                   <button
                     onClick={() => setSelectedTreatment(item)}
-                    className="inline-flex items-center gap-2 text-xs font-black text-[#549E9E] uppercase tracking-widest hover:gap-3 transition-all group-hover:text-[#3B7A7A]"
+                    className="inline-flex items-center gap-2 text-xs font-black text-[#549E9E] uppercase tracking-widest transition-all duration-300 group-hover:gap-3 group-hover:text-[#3B7A7A]"
                   >
                     <span>View Treatment Details</span>
-                    <ArrowRight size={14} />
+                    <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5" />
                   </button>
-                  <Activity size={16} className="text-gray-200 group-hover:text-[#549E9E]/40 transition-colors" />
+                  <Activity size={16} className="text-gray-200 transition-colors duration-300 group-hover:text-[#549E9E]/50" />
                 </div>
               </motion.div>
             ))}
           </AnimatePresence>
         </div>
+
+        {displayedTreatments.length > 0 && (
+          <div className="mt-12 flex justify-center">
+            <Link
+              to="/treatments"
+              className="inline-flex items-center justify-center gap-2 bg-[#549E9E] hover:bg-[#438383] text-white px-10 py-4 rounded-full font-black text-xs uppercase tracking-widest shadow-lg shadow-[#549E9E]/20 transition-all cursor-pointer"
+            >
+              <span>Browse All Treatments</span>
+              <ArrowRight size={16} />
+            </Link>
+          </div>
+        )}
 
         {/* Empty State */}
         {filteredTreatments.length === 0 && (
@@ -243,7 +260,7 @@ export default function TreatmentsSection() {
           </div>
         )}
 
-        {/* View All / Explore Banner */}
+        {/* Guidance banner */}
         <ScrollReveal width="100%" direction="up" distance={30}>
           <div className="mt-16 bg-gradient-to-r from-[#549E9E] to-[#438383] rounded-[40px] p-8 lg:p-12 text-white flex flex-col md:flex-row items-center justify-between gap-8 shadow-xl">
             <div>
@@ -257,16 +274,10 @@ export default function TreatmentsSection() {
                 Our expert homeopathic physicians design customized treatment plans tailored to your exact physical and emotional symptoms.
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-4 shrink-0 w-full md:w-auto">
-              <Link
-                to="/treatments"
-                className="inline-flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 text-white border border-white/20 px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest transition-all text-center"
-              >
-                <span>Browse All Treatments</span>
-              </Link>
+            <div className="flex shrink-0 w-full md:w-auto">
               <Link
                 to="/booking"
-                className="inline-flex items-center justify-center gap-2 bg-white text-[#549E9E] hover:bg-gray-50 px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest shadow-lg shadow-black/10 transition-all text-center"
+                className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#549E9E] hover:bg-gray-50 px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest shadow-lg shadow-black/10 transition-all text-center cursor-pointer"
               >
                 <Calendar size={16} />
                 <span>Book Appointment</span>
@@ -281,7 +292,12 @@ export default function TreatmentsSection() {
       {typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {selectedTreatment && (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 lg:p-10">
+            <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden p-4 sm:p-6 lg:p-10 overscroll-none"
+              data-lenis-prevent
+              onWheel={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+            >
               {/* Backdrop */}
               <motion.div
                 initial={{ opacity: 0 }}
@@ -297,7 +313,8 @@ export default function TreatmentsSection() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
                 onClick={(e) => e.stopPropagation()}
-                className="relative w-full max-w-3xl bg-white rounded-[36px] shadow-2xl overflow-hidden flex flex-col h-[85vh] max-h-[85vh] z-10 border border-gray-100 text-left"
+                data-lenis-prevent
+                className="relative z-10 flex max-h-[min(85vh,820px)] w-full max-w-3xl flex-col overflow-hidden rounded-[36px] border border-gray-100 bg-white text-left shadow-2xl"
               >
                 {/* Fixed Header */}
                 <div className="shrink-0 relative px-6 pt-6 pb-4 md:px-8 md:pt-7 md:pb-5 border-b border-gray-100 bg-gradient-to-r from-[#FDFDF7] via-white to-[#F9FCFC] flex items-start justify-between gap-4">
@@ -325,10 +342,13 @@ export default function TreatmentsSection() {
                   </button>
                 </div>
 
-                {/* Dedicated Scrollable Body Content inside Modal Box */}
-                <div id="treatment-section-modal-scroll-area" className="flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-6 overscroll-contain">
-
-                  {/* Treatment Details & About Section */}
+                {/* Scrollable body only */}
+                <div
+                  id="treatment-section-modal-scroll-area"
+                  data-lenis-prevent
+                  className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-6 md:p-8"
+                  onWheel={(e) => e.stopPropagation()}
+                >
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 text-[#549E9E]">
                       <Sparkles size={16} className="text-[#F2D06B]" />
@@ -340,7 +360,6 @@ export default function TreatmentsSection() {
                       {selectedTreatment.description}
                     </p>
 
-                    {/* Homeopathic Remedies List */}
                     {selectedTreatment.remedies && selectedTreatment.remedies.length > 0 && (
                       <div className="p-4 bg-[#FDFDF7] rounded-2xl border border-[#F2D06B]/30">
                         <h4 className="text-[11px] font-black text-[#8A6D1B] uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -356,7 +375,6 @@ export default function TreatmentsSection() {
                       </div>
                     )}
 
-                    {/* Safety & Healing Badges */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div className="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-100/60 flex items-start gap-3">
                         <ShieldCheck className="text-[#549E9E] shrink-0 mt-0.5" size={20} />
@@ -382,9 +400,11 @@ export default function TreatmentsSection() {
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  {/* Compact Horizontal Consultation CTA Section */}
-                  <div className="bg-gradient-to-r from-[#549E9E] to-[#3E7A7A] rounded-2xl p-5 md:p-6 text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+                {/* Fixed footer CTA — always fully visible */}
+                <div className="shrink-0 border-t border-gray-100 bg-gradient-to-r from-[#549E9E] to-[#3E7A7A] p-4 md:p-5 text-white">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="space-y-1 text-center sm:text-left">
                       <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-[#F2D06B] text-[9px] font-black uppercase tracking-widest">
                         <Sparkles size={11} />
@@ -393,28 +413,18 @@ export default function TreatmentsSection() {
                       <h4 className="text-base md:text-lg font-black tracking-tight leading-snug">
                         {t('treatments_page.book_expert_consultation') || "Book your expert consultation"}
                       </h4>
-                      <p className="text-xs text-white/85 font-medium max-w-md leading-relaxed">
-                        Consult Dr. Uttkarsh Trivedi for a personalized treatment plan for <span className="font-bold underline decoration-[#F2D06B]/50">{selectedTreatment.en}</span>.
-                      </p>
                     </div>
-
-                    <div className="flex flex-col items-center sm:items-end shrink-0 w-full sm:w-auto">
-                      <button
-                        onClick={() => {
-                          setSelectedTreatment(null);
-                          navigate('/booking');
-                        }}
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#549E9E] hover:bg-emerald-50 px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-md hover:scale-102 transition-all cursor-pointer"
-                      >
-                        <Calendar size={15} />
-                        <span>{t('hero.cta_book') || "Book Appointment"}</span>
-                      </button>
-                      <span className="text-[9px] font-extrabold text-[#F2D06B] uppercase tracking-widest mt-2 bg-black/10 px-2.5 py-0.5 rounded-full">
-                        Raipur's Top Specialist
-                      </span>
-                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedTreatment(null);
+                        navigate('/booking');
+                      }}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#549E9E] hover:bg-emerald-50 px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-md transition-all cursor-pointer"
+                    >
+                      <Calendar size={15} />
+                      <span>{t('hero.cta_book') || "Book Appointment"}</span>
+                    </button>
                   </div>
-
                 </div>
               </motion.div>
             </div>

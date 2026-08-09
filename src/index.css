@@ -5,6 +5,7 @@ html {
   scrollbar-color: #549E9E transparent;
   scrollbar-width: thin;
   overflow-y: overlay;
+  scrollbar-gutter: stable;
   background-color: #F5F5F0 !important;
   font-size: 106%;
 }

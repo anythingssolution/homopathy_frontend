@@ -60,7 +60,8 @@ export default function StaffBranchSwitcher({ reloadOnChange = true }: { reloadO
   };
 
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
+    <div className="mb-6 flex sm:justify-end w-full">
+    <div className="relative inline-block text-left w-full sm:w-auto" ref={dropdownRef}>
       {/* Unified Custom Dropdown Button */}
       <button
         type="button"
@@ -132,6 +133,7 @@ export default function StaffBranchSwitcher({ reloadOnChange = true }: { reloadO
           {message}
         </div>
       )}
+    </div>
     </div>
   );
 }
