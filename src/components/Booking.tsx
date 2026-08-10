@@ -15,22 +15,13 @@ import {
   isBeforeFridayScheduleStart,
   isDevendraNagarFridaySchedule,
 } from '../utils/dateUtils';
-const ENV_RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-const DEFAULT_TEST_SITE_KEY = '6Lc9y90sAAAAAGoF-RwPTnE1IyeMOZfe1B7HZOg6';
+const RECAPTCHA_SITE_KEY = String(import.meta.env.VITE_RECAPTCHA_SITE_KEY || '');
 
-if (!ENV_RECAPTCHA_SITE_KEY) {
-  if (import.meta.env.DEV) {
-    console.warn(
-      "reCAPTCHA VITE_RECAPTCHA_SITE_KEY is not defined in the environment. Falling back to Google's public test key."
-    );
-  } else {
-    console.error(
-      "reCAPTCHA VITE_RECAPTCHA_SITE_KEY is not defined. The reCAPTCHA widget will not load correctly in production."
-    );
-  }
+if (!RECAPTCHA_SITE_KEY) {
+  console.error(
+    "reCAPTCHA VITE_RECAPTCHA_SITE_KEY is not defined. The reCAPTCHA widget will not load correctly."
+  );
 }
-
-const RECAPTCHA_SITE_KEY = ENV_RECAPTCHA_SITE_KEY || DEFAULT_TEST_SITE_KEY;
 
 const getLocalDateString = () => {
   const now = new Date();
@@ -2531,7 +2522,7 @@ export default function Booking() {
                 </div>
 
                 {/* reCAPTCHA */}
-                {!showOtpField && (
+                {!showOtpField && RECAPTCHA_SITE_KEY && (
                   <div className="flex justify-center mt-4">
                     <ReCAPTCHA
                       ref={loginCaptchaRef}
@@ -2650,7 +2641,7 @@ export default function Booking() {
                       )}
 
                       {/* reCAPTCHA */}
-                      {!showRegOtpField && (
+                      {!showRegOtpField && RECAPTCHA_SITE_KEY && (
                         <div className="flex justify-center mt-4">
                           <ReCAPTCHA
                             ref={regCaptchaRef}
