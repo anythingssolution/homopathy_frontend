@@ -203,6 +203,12 @@ export default function ReceptionistPortal() {
   const [vitalsHeightUnit, setVitalsHeightUnit] = useState<"cm" | "ft">("cm");
   const [vitalsWeightValue, setVitalsWeightValue] = useState("");
 
+  // Patient Transfer Modal State
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferAppointmentId, setTransferAppointmentId] = useState<number | null>(null);
+  const [transferNewPatientId, setTransferNewPatientId] = useState("");
+  const [isTransferring, setIsTransferring] = useState(false);
+
   // Extended History Modal State
   const [isExtendedHistoryModalOpen, setIsExtendedHistoryModalOpen] = useState(false);
   const [historyAppointment, setHistoryAppointment] = useState<any | null>(null);
@@ -889,6 +895,49 @@ export default function ReceptionistPortal() {
       console.error(err);
     } finally {
       setIsMarkingNotAvailable(false);
+    }
+  };
+
+  const handleTransfer = (appointmentId: number) => {
+    setTransferAppointmentId(appointmentId);
+    setTransferNewPatientId("");
+    setIsTransferModalOpen(true);
+  };
+
+  const confirmTransfer = async () => {
+    if (!transferAppointmentId) return;
+    if (!transferNewPatientId.trim()) {
+      addToast("Please enter a valid new patient ID", "error");
+      return;
+    }
+    setIsTransferring(true);
+    try {
+      const res = await fetch(
+        `/api/v1/receptionist/appointments/${transferAppointmentId}/transfer`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ new_patient_id: Number(transferNewPatientId) }),
+        },
+      );
+      const data = await res.json();
+      if (data.success) {
+        addToast("Patient transferred successfully", "success");
+        setIsTransferModalOpen(false);
+        setTransferAppointmentId(null);
+        setTransferNewPatientId("");
+        fetchAppointments();
+      } else {
+        addToast(data.message || "Transfer failed", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      addToast("Failed to transfer patient", "error");
+    } finally {
+      setIsTransferring(false);
     }
   };
 
@@ -1602,14 +1651,22 @@ export default function ReceptionistPortal() {
                                 )}
                                 {app.queue_bucket !== "IN_PROGRESS" &&
                                   app.queue_bucket !== "CALLED" && (
-                                    <button
-                                      onClick={() =>
-                                        handleReject(app.appointment_id)
-                                      }
-                                      className="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-red-100 flex items-center justify-center gap-1 whitespace-nowrap"
-                                    >
-                                      <XCircle size={12} /> Reject
-                                    </button>
+                                    <>
+                                      <button
+                                        onClick={() =>
+                                          handleReject(app.appointment_id)
+                                        }
+                                        className="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-red-100 flex items-center justify-center gap-1 whitespace-nowrap"
+                                      >
+                                        <XCircle size={12} /> Reject
+                                      </button>
+                                      <button
+                                        onClick={() => handleTransfer(app.appointment_id)}
+                                        className="bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-indigo-100 flex items-center justify-center gap-1 whitespace-nowrap"
+                                      >
+                                        <PhoneForwarded size={12} /> Transfer
+                                      </button>
+                                    </>
                                   )}
                               </div>
                             ) : app.reception_status ===
@@ -1637,6 +1694,12 @@ export default function ReceptionistPortal() {
                                   className="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-red-100 flex items-center justify-center gap-1 whitespace-nowrap"
                                 >
                                   <XCircle size={12} /> Reject
+                                </button>
+                                <button
+                                  onClick={() => handleTransfer(app.appointment_id)}
+                                  className="bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-indigo-100 flex items-center justify-center gap-1 whitespace-nowrap"
+                                >
+                                  <PhoneForwarded size={12} /> Transfer
                                 </button>
                                 <button
                                   onClick={() =>
@@ -2449,6 +2512,72 @@ export default function ReceptionistPortal() {
                             <RefreshCcw size={14} className="animate-spin" />
                           ) : (
                             <>Confirm</>
+                          )}
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+
+              {/* Patient Transfer Modal */}
+              <AnimatePresence>
+                {isTransferModalOpen && (
+                  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => !isTransferring && setIsTransferModalOpen(false)}
+                      className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+                    />
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                      animate={{ scale: 1, opacity: 1, y: 0 }}
+                      exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                      className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl overflow-hidden p-8 text-center"
+                    >
+                      <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <PhoneForwarded size={32} />
+                      </div>
+                      <h3 className="text-xl font-black text-gray-800 uppercase tracking-widest mb-2">
+                        Transfer Patient
+                      </h3>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">
+                        Enter the new Patient ID to transfer this appointment.
+                      </p>
+
+                      <div className="mb-6">
+                        <input
+                          type="number"
+                          placeholder="New Patient ID (e.g. 15)"
+                          value={transferNewPatientId}
+                          onChange={(e) => setTransferNewPatientId(e.target.value)}
+                          disabled={isTransferring}
+                          className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-xs font-bold text-gray-700 focus:outline-none focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/25 transition-all text-center"
+                        />
+                      </div>
+
+                      <div className="flex gap-4 pt-2">
+                        <button
+                          onClick={() => setIsTransferModalOpen(false)}
+                          disabled={isTransferring}
+                          className="flex-1 py-4 px-6 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-100 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={confirmTransfer}
+                          disabled={isTransferring || !transferNewPatientId.trim()}
+                          className={`flex-1 py-4 px-6 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-xl transition-all flex items-center justify-center gap-2 ${isTransferring || !transferNewPatientId.trim()
+                              ? "bg-gray-300 shadow-none"
+                              : "bg-[#549E9E] shadow-[#549E9E]/20 hover:bg-[#468686]"
+                            }`}
+                        >
+                          {isTransferring ? (
+                            <RefreshCcw size={14} className="animate-spin" />
+                          ) : (
+                            <>Confirm Transfer</>
                           )}
                         </button>
                       </div>
