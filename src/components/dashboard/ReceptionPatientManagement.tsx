@@ -1,16 +1,33 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Check,
+  ChevronDown,
+  ChevronUp,
   History,
   Loader2,
   Pencil,
   RefreshCcw,
   Search,
   UserRound,
+  Users,
   X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../Pagination';
+
+type FamilyMember = {
+  family_member_id: number;
+  fk_primary_patient_id?: number;
+  full_name: string;
+  age: number;
+  gender: 'male' | 'female' | 'other' | string;
+  relationship: string;
+  description?: string | null;
+  is_active?: number;
+  created_at?: string;
+  updated_at?: string;
+};
 
 type Patient = {
   patient_id: number;
@@ -22,6 +39,8 @@ type Patient = {
   total_appointments: number;
   last_appointment_date: string | null;
   updated_at: string;
+  active_family_members?: number;
+  family_members?: FamilyMember[];
 };
 
 type AuditEntry = {
@@ -32,6 +51,92 @@ type AuditEntry = {
   old_values: Record<string, string | null>;
   new_values: Record<string, string | null>;
   created_at: string;
+};
+
+type EditTarget =
+  | { type: 'SELF'; patient: Patient }
+  | { type: 'FAMILY_MEMBER'; patient: Patient; member: FamilyMember };
+
+type ThemeSelectOption = {
+  id: string;
+  label: string;
+};
+
+const ThemeSelect = ({
+  value,
+  options,
+  onChange,
+  className = '',
+  placeholder = 'Select',
+}: {
+  value: string;
+  options: ThemeSelectOption[];
+  onChange: (value: string) => void;
+  className?: string;
+  placeholder?: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((option) => option.id === value);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className={`relative ${className}`} ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className={`flex h-12 w-full items-center justify-between gap-3 rounded-2xl border bg-white px-4 text-left text-sm font-bold outline-none transition ${
+          isOpen
+            ? 'border-[#549E9E] ring-2 ring-[#549E9E]/15 text-slate-800'
+            : 'border-slate-200 text-slate-700 hover:border-[#549E9E]'
+        }`}
+      >
+        <span className="truncate">{selected?.label || placeholder}</span>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-[#549E9E] transition-transform duration-200 ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full z-[80] mt-2 overflow-hidden rounded-2xl border border-slate-100 bg-white py-2 shadow-xl">
+          {options.map((option) => {
+            const isSelected = option.id === value;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => {
+                  onChange(option.id);
+                  setIsOpen(false);
+                }}
+                className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-bold transition ${
+                  isSelected
+                    ? 'bg-[#549E9E] text-white'
+                    : 'text-slate-600 hover:bg-[#e7f5f4] hover:text-[#2d8789]'
+                }`}
+              >
+                <span>{option.label}</span>
+                {isSelected && <Check size={14} className="shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 };
 
 const formatDate = (value: string | null, includeTime = false) => {
@@ -52,6 +157,7 @@ const formatDate = (value: string | null, includeTime = false) => {
 
 const formatFieldName = (field: string) =>
   field
+    .replace(/^family_member\./, '')
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
@@ -62,21 +168,25 @@ export default function ReceptionPatientManagement() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState('');
   const [gender, setGender] = useState('');
+  const [hasFamilyOnly, setHasFamilyOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [editForm, setEditForm] = useState({
     full_name: '',
     mobile_no: '',
     gender: 'other',
+    age: '',
+    relationship: '',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
   const [history, setHistory] = useState<AuditEntry[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [expandedPatientIds, setExpandedPatientIds] = useState<Set<number>>(new Set());
 
   const fetchPatients = useCallback(async () => {
     if (!token || !branchScope?.selected_branch_id) return;
@@ -91,6 +201,7 @@ export default function ReceptionPatientManagement() {
       });
       if (search.trim()) params.set('search', search.trim());
       if (gender) params.set('gender', gender);
+      if (hasFamilyOnly) params.set('has_family', '1');
 
       const response = await fetch(`/api/v1/receptionist/patients?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -110,7 +221,7 @@ export default function ReceptionPatientManagement() {
     } finally {
       setIsLoading(false);
     }
-  }, [branchScope?.selected_branch_id, gender, page, search, token]);
+  }, [branchScope?.selected_branch_id, gender, hasFamilyOnly, page, search, token]);
 
   useEffect(() => {
     const timer = window.setTimeout(fetchPatients, 300);
@@ -119,41 +230,99 @@ export default function ReceptionPatientManagement() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, gender, branchScope?.selected_branch_id]);
+  }, [search, gender, hasFamilyOnly, branchScope?.selected_branch_id]);
 
-  const openEdit = (patient: Patient) => {
-    setEditingPatient(patient);
+  useEffect(() => {
+    setExpandedPatientIds(new Set());
+  }, [page, search, gender, hasFamilyOnly, branchScope?.selected_branch_id]);
+
+  const toggleFamilyMembers = (patientId: number) => {
+    setExpandedPatientIds((current) => {
+      const next = new Set(current);
+      if (next.has(patientId)) {
+        next.delete(patientId);
+      } else {
+        next.add(patientId);
+      }
+      return next;
+    });
+  };
+
+  const openEditPatient = (patient: Patient) => {
+    setEditTarget({ type: 'SELF', patient });
     setEditForm({
       full_name: patient.full_name,
       mobile_no: patient.mobile_no,
       gender: patient.gender,
+      age: String(patient.age || ''),
+      relationship: '',
+    });
+    setError('');
+  };
+
+  const openEditFamilyMember = (patient: Patient, member: FamilyMember) => {
+    setEditTarget({ type: 'FAMILY_MEMBER', patient, member });
+    setEditForm({
+      full_name: member.full_name,
+      mobile_no: patient.mobile_no,
+      gender: String(member.gender || 'other').toLowerCase(),
+      age: String(member.age || ''),
+      relationship: member.relationship || '',
     });
     setError('');
   };
 
   const savePatient = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!editingPatient || !token) return;
+    if (!editTarget || !token) return;
 
     setIsSaving(true);
     setError('');
 
     try {
-      const response = await fetch(`/api/v1/receptionist/patients/${editingPatient.patient_id}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+      const isFamily = editTarget.type === 'FAMILY_MEMBER';
+      const payload: Record<string, string | number> = {
+        full_name: editForm.full_name.trim(),
+        gender: editForm.gender,
+      };
+
+      if (isFamily) {
+        const parsedAge = Number(editForm.age);
+        if (!Number.isInteger(parsedAge) || parsedAge < 1 || parsedAge > 120) {
+          throw new Error('Age must be between 1 and 120');
+        }
+        if (!editForm.relationship.trim()) {
+          throw new Error('Relationship is required for family members');
+        }
+
+        payload.family_member_id = editTarget.member.family_member_id;
+        payload.age = parsedAge;
+        payload.relationship = editForm.relationship.trim();
+      } else {
+        payload.mobile_no = editForm.mobile_no;
+      }
+
+      const response = await fetch(
+        `/api/v1/receptionist/patients/${editTarget.patient.patient_id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(editForm),
-      });
+      );
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Unable to update patient');
+        throw new Error(
+          result.message ||
+            (isFamily ? 'Unable to update family member' : 'Unable to update patient'),
+        );
       }
 
-      setEditingPatient(null);
+      setEditTarget(null);
       await fetchPatients();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Unable to update patient');
@@ -189,6 +358,21 @@ export default function ReceptionPatientManagement() {
     }
   };
 
+  const isEditingFamily = editTarget?.type === 'FAMILY_MEMBER';
+
+  const genderFilterOptions = [
+    { id: '', label: t('reception_patients.all_genders', 'All genders') },
+    { id: 'male', label: t('reception_patients.male', 'Male') },
+    { id: 'female', label: t('reception_patients.female', 'Female') },
+    { id: 'other', label: t('reception_patients.other', 'Other') },
+  ];
+
+  const genderEditOptions = [
+    { id: 'male', label: 'Male' },
+    { id: 'female', label: 'Female' },
+    { id: 'other', label: 'Other' },
+  ];
+
   return (
     <div className="space-y-6">
       <section className="rounded-[28px] border border-[#d7ebea] bg-white p-6 shadow-sm sm:p-8">
@@ -200,25 +384,25 @@ export default function ReceptionPatientManagement() {
             <h1 className="mt-2 text-3xl font-black text-slate-900">
               {t('reception_patients.title', 'Patient Management')}
             </h1>
-            <p className="mt-2 text-sm font-medium text-slate-500">
+            <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">
               {t(
                 'reception_patients.subtitle',
-                'Update patient name, mobile number and gender with a complete audit history.',
+                'Update patient and family member details. Family members share the account contact number.',
               )}
             </p>
           </div>
 
-          <div className="rounded-2xl bg-[#eef8f7] px-5 py-3 text-right">
+          <div className="rounded-2xl bg-[#e7f5f4] px-5 py-4 text-center">
             <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
               {t('reception_patients.total', 'Patients')}
             </p>
-            <p className="text-2xl font-black text-slate-900">{total}</p>
+            <p className="mt-1 text-3xl font-black text-slate-900">{total}</p>
           </div>
         </div>
 
-        <div className="mt-7 grid gap-3 md:grid-cols-[1fr_220px_auto]">
-          <label className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        <div className="mt-6 flex flex-col gap-3 lg:flex-row">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -226,31 +410,63 @@ export default function ReceptionPatientManagement() {
                 'reception_patients.search_placeholder',
                 'Search name, mobile number or patient ID',
               )}
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-semibold outline-none transition focus:border-[#549E9E] focus:bg-white"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-semibold outline-none focus:border-[#549E9E]"
             />
-          </label>
+          </div>
 
-          <select
+          <ThemeSelect
             value={gender}
-            onChange={(event) => setGender(event.target.value)}
-            className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none focus:border-[#549E9E]"
+            onChange={setGender}
+            options={genderFilterOptions}
+            className="min-w-[180px]"
+            placeholder={t('reception_patients.all_genders', 'All genders')}
+          />
+
+          <button
+            type="button"
+            onClick={() => setHasFamilyOnly((current) => !current)}
+            aria-pressed={hasFamilyOnly}
+            className={`flex h-12 items-center justify-center gap-2 rounded-2xl border px-5 text-xs font-black uppercase tracking-wider transition ${
+              hasFamilyOnly
+                ? 'border-sky-300 bg-sky-50 text-sky-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:text-sky-700'
+            }`}
           >
-            <option value="">{t('reception_patients.all_genders', 'All genders')}</option>
-            <option value="male">{t('reception_patients.male', 'Male')}</option>
-            <option value="female">{t('reception_patients.female', 'Female')}</option>
-            <option value="other">{t('reception_patients.other', 'Other')}</option>
-          </select>
+            <Users size={16} />
+            {t('reception_patients.with_family', 'With Family')}
+            {hasFamilyOnly && (
+              <span className="rounded-full bg-sky-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+                On
+              </span>
+            )}
+          </button>
 
           <button
             type="button"
             onClick={fetchPatients}
-            disabled={isLoading}
-            className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-xs font-black uppercase tracking-widest text-white disabled:opacity-60"
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 px-5 text-xs font-black uppercase tracking-wider text-slate-600 hover:border-[#549E9E] hover:text-[#2d8789]"
           >
             <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
             {t('reception_patients.refresh', 'Refresh')}
           </button>
         </div>
+
+        {hasFamilyOnly && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-sky-700">
+              <Users size={13} />
+              Showing patients with family members
+              <button
+                type="button"
+                onClick={() => setHasFamilyOnly(false)}
+                className="ml-1 rounded-full p-0.5 text-sky-600 hover:bg-sky-100"
+                aria-label="Clear family filter"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          </div>
+        )}
       </section>
 
       {error && (
@@ -286,53 +502,133 @@ export default function ReceptionPatientManagement() {
                   </td>
                 </tr>
               ) : (
-                patients.map((patient) => (
-                  <tr key={patient.patient_id} className="transition hover:bg-[#f7fbfb]">
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e7f5f4] text-[#2d8789]">
-                          <UserRound size={18} />
-                        </span>
-                        <div>
-                          <p className="font-black text-slate-900">{patient.full_name}</p>
-                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            {patient.patient_uuid}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5 text-sm font-bold text-slate-700">{patient.mobile_no}</td>
-                    <td className="px-6 py-5 text-sm font-bold capitalize text-slate-700">
-                      {patient.gender} / {patient.age}
-                    </td>
-                    <td className="px-6 py-5 text-sm font-black text-slate-700">
-                      {Number(patient.total_appointments || 0)}
-                    </td>
-                    <td className="px-6 py-5 text-sm font-semibold text-slate-500">
-                      {formatDate(patient.last_appointment_date)}
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openHistory(patient)}
-                          className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 hover:border-[#549E9E] hover:text-[#2d8789]"
-                        >
-                          <History size={14} />
-                          History
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openEdit(patient)}
-                          className="flex items-center gap-2 rounded-xl bg-[#549E9E] px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white hover:bg-[#397f80]"
-                        >
-                          <Pencil size={14} />
-                          Edit
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                patients.map((patient) => {
+                  const familyMembers = patient.family_members || [];
+                  const isExpanded = expandedPatientIds.has(patient.patient_id);
+
+                  return (
+                    <React.Fragment key={patient.patient_id}>
+                      <tr className="transition hover:bg-[#f7fbfb]">
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e7f5f4] text-[#2d8789]">
+                              <UserRound size={18} />
+                            </span>
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-black text-slate-900">{patient.full_name}</p>
+                                {familyMembers.length > 0 && (
+                                  <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-sky-700">
+                                    {familyMembers.length} family
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                {patient.patient_uuid}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5 text-sm font-bold text-slate-700">{patient.mobile_no}</td>
+                        <td className="px-6 py-5 text-sm font-bold capitalize text-slate-700">
+                          {patient.gender} / {patient.age}
+                        </td>
+                        <td className="px-6 py-5 text-sm font-black text-slate-700">
+                          {Number(patient.total_appointments || 0)}
+                        </td>
+                        <td className="px-6 py-5 text-sm font-semibold text-slate-500">
+                          {formatDate(patient.last_appointment_date)}
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="flex flex-nowrap items-center justify-end gap-2 whitespace-nowrap">
+                            {familyMembers.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => toggleFamilyMembers(patient.patient_id)}
+                                aria-expanded={isExpanded}
+                                className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-2.5 py-2 text-[10px] font-black uppercase tracking-wider transition ${
+                                  isExpanded
+                                    ? 'border-sky-300 bg-sky-50 text-sky-700'
+                                    : 'border-slate-200 text-slate-600 hover:border-sky-200 hover:text-sky-700'
+                                }`}
+                              >
+                                <Users size={14} />
+                                Family
+                                {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openHistory(patient)}
+                              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 px-2.5 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 hover:border-[#549E9E] hover:text-[#2d8789]"
+                            >
+                              <History size={14} />
+                              History
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openEditPatient(patient)}
+                              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#549E9E] px-2.5 py-2 text-[10px] font-black uppercase tracking-wider text-white hover:bg-[#397f80]"
+                            >
+                              <Pencil size={14} />
+                              Edit
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {isExpanded &&
+                        familyMembers.map((member) => (
+                          <tr
+                            key={`${patient.patient_id}-fm-${member.family_member_id}`}
+                            className="bg-slate-100/90"
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3 border-l-4 border-orange-400 pl-5 sm:pl-8">
+                                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-orange-100 text-orange-600">
+                                  <Users size={16} />
+                                </span>
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="font-bold text-slate-800">{member.full_name}</p>
+                                    <span className="rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-orange-700">
+                                      {member.relationship}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-orange-500">
+                                    Family of {patient.full_name}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-sm font-semibold text-slate-600">
+                              {patient.mobile_no}
+                              <span className="mt-1 block text-[10px] font-black uppercase tracking-wider text-orange-500/80">
+                                Shared contact
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm font-bold capitalize text-slate-700">
+                              {member.gender} / {member.age}
+                            </td>
+                            <td className="px-6 py-4 text-sm font-semibold text-slate-400">—</td>
+                            <td className="px-6 py-4 text-sm font-semibold text-slate-400">—</td>
+                            <td className="px-6 py-4">
+                              <div className="flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditFamilyMember(patient, member)}
+                                  className="flex items-center gap-2 rounded-xl border border-orange-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-wider text-orange-700 hover:bg-orange-50"
+                                >
+                                  <Pencil size={14} />
+                                  Edit
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </React.Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -341,29 +637,38 @@ export default function ReceptionPatientManagement() {
         <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
       </section>
 
-      {editingPatient && (
+      {editTarget && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
           <form
             onSubmit={savePatient}
-            className="w-full max-w-lg rounded-[28px] border border-white/20 bg-white p-6 shadow-2xl sm:p-8"
+            className="w-full max-w-3xl rounded-[28px] border border-white/20 bg-white p-6 shadow-2xl sm:p-8"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#549E9E]">
-                  {editingPatient.patient_uuid}
+                  {isEditingFamily
+                    ? editTarget.member.relationship
+                    : editTarget.patient.patient_uuid}
                 </p>
-                <h2 className="mt-2 text-2xl font-black text-slate-900">Edit Patient</h2>
+                <h2 className="mt-2 text-2xl font-black text-slate-900">
+                  {isEditingFamily ? 'Edit Family Member' : 'Edit Patient'}
+                </h2>
+                {isEditingFamily && (
+                  <p className="mt-1 text-sm font-medium text-slate-500">
+                    Account: {editTarget.patient.full_name}
+                  </p>
+                )}
               </div>
               <button
                 type="button"
-                onClick={() => setEditingPatient(null)}
+                onClick={() => setEditTarget(null)}
                 className="rounded-xl bg-slate-100 p-2 text-slate-500"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="mt-7 space-y-4">
+            <div className="mt-7 grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Full Name
@@ -384,7 +689,8 @@ export default function ReceptionPatientManagement() {
                   Mobile Number
                 </span>
                 <input
-                  required
+                  required={!isEditingFamily}
+                  disabled={isEditingFamily}
                   inputMode="numeric"
                   pattern="[0-9]{10,15}"
                   value={editForm.mobile_no}
@@ -394,32 +700,77 @@ export default function ReceptionPatientManagement() {
                       mobile_no: event.target.value.replace(/\D/g, '').slice(0, 15),
                     }))
                   }
-                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E] disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
                 />
+                {isEditingFamily && (
+                  <span className="mt-2 block text-xs font-semibold text-slate-400">
+                    Shared with the primary patient account and cannot be changed here.
+                  </span>
+                )}
               </label>
+
+              {isEditingFamily && (
+                <label className="block">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Relationship
+                  </span>
+                  <input
+                    required
+                    maxLength={50}
+                    value={editForm.relationship}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        relationship: event.target.value,
+                      }))
+                    }
+                    className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                  />
+                </label>
+              )}
+
+              {isEditingFamily && (
+                <label className="block">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Age
+                  </span>
+                  <input
+                    required
+                    inputMode="numeric"
+                    min={1}
+                    max={120}
+                    value={editForm.age}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        age: event.target.value.replace(/\D/g, '').slice(0, 3),
+                      }))
+                    }
+                    className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                  />
+                </label>
+              )}
 
               <label className="block">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Gender
                 </span>
-                <select
-                  value={editForm.gender}
-                  onChange={(event) =>
-                    setEditForm((current) => ({ ...current, gender: event.target.value }))
-                  }
-                  className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
-                >
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
+                <div className="mt-2">
+                  <ThemeSelect
+                    value={editForm.gender}
+                    onChange={(nextGender) =>
+                      setEditForm((current) => ({ ...current, gender: nextGender }))
+                    }
+                    options={genderEditOptions}
+                  />
+                </div>
               </label>
             </div>
 
             <div className="mt-7 flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setEditingPatient(null)}
+                onClick={() => setEditTarget(null)}
                 className="rounded-2xl border border-slate-200 px-5 py-3 text-xs font-black uppercase tracking-wider text-slate-600"
               >
                 Cancel
@@ -480,15 +831,21 @@ export default function ReceptionPatientManagement() {
                       {entry.changed_fields.map((field) => (
                         <div
                           key={field}
-                          className="grid gap-1 rounded-xl bg-slate-50 px-4 py-3 text-sm sm:grid-cols-[120px_1fr]"
+                          className="grid gap-1 rounded-xl bg-slate-50 px-4 py-3 text-sm sm:grid-cols-[140px_1fr]"
                         >
                           <span className="font-black text-slate-500">{formatFieldName(field)}</span>
                           <span className="font-semibold text-slate-700">
                             <span className="text-red-500 line-through">
-                              {entry.old_values[field] || '—'}
+                              {entry.old_values[field.replace(/^family_member\./, '')] ||
+                                entry.old_values[field] ||
+                                '—'}
                             </span>
                             <span className="mx-2 text-slate-300">→</span>
-                            <span className="text-emerald-700">{entry.new_values[field] || '—'}</span>
+                            <span className="text-emerald-700">
+                              {entry.new_values[field.replace(/^family_member\./, '')] ||
+                                entry.new_values[field] ||
+                                '—'}
+                            </span>
                           </span>
                         </div>
                       ))}
