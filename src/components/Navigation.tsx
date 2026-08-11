@@ -32,7 +32,7 @@ import {
   X,
   ChevronDown,
   Pill,
-  FileSpreadsheet
+  FileSpreadsheet,
 } from 'lucide-react';
 
 const NavItem = ({

@@ -44,6 +44,7 @@ import DoctorLeaveCalendar from './components/dashboard/DoctorLeaveCalendar';
 import ManageCMS from './components/dashboard/ManageCMS';
 import DoctorFormulaMasterPage from './components/dashboard/DoctorFormulaMasterPage';
 import ReceptionPatientManagement from './components/dashboard/ReceptionPatientManagement';
+import PreviousManualPatients from './components/dashboard/PreviousManualPatients';
 
 function HomePage() {
   const { isAuthenticated, user } = useAuth();
@@ -200,6 +201,7 @@ function AnimatedRoutes() {
               <Route path="/reports" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorReports /></ProtectedRoute>} />
               <Route path="/book-appointment" element={<Booking />} />
               <Route path="/reception-patients" element={<ProtectedRoute allowedRoles={['REC', 'rec', 'receptionist']}><ReceptionPatientManagement /></ProtectedRoute>} />
+              <Route path="/previous-patients" element={<ProtectedRoute allowedRoles={['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist']}><PreviousManualPatients /></ProtectedRoute>} />
               <Route path="/my-appointments" element={<ProtectedRoute allowedRoles={['patient', 'PAT']}><MyAppointments /></ProtectedRoute>} />
               <Route path="/clinic-history" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorClinicHistory /></ProtectedRoute>} />
               <Route path="/patient-records" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical']}><PatientRecords /></ProtectedRoute>} />
