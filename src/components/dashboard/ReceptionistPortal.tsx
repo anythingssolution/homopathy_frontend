@@ -1788,12 +1788,14 @@ export default function ReceptionistPortal() {
                                       >
                                         <XCircle size={12} /> Reject
                                       </button>
-                                      <button
-                                        onClick={() => handleTransfer(app.appointment_id)}
-                                        className="bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-indigo-100 flex items-center justify-center gap-1 whitespace-nowrap"
-                                      >
-                                        <PhoneForwarded size={12} /> Transfer
-                                      </button>
+                                      {!app.checked_in_at && (
+                                        <button
+                                          onClick={() => handleTransfer(app.appointment_id)}
+                                          className="bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-indigo-100 flex items-center justify-center gap-1 whitespace-nowrap"
+                                        >
+                                          <PhoneForwarded size={12} /> Transfer
+                                        </button>
+                                      )}
                                     </>
                                   )}
                               </div>
@@ -1823,12 +1825,14 @@ export default function ReceptionistPortal() {
                                 >
                                   <XCircle size={12} /> Reject
                                 </button>
-                                <button
-                                  onClick={() => handleTransfer(app.appointment_id)}
-                                  className="bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-indigo-100 flex items-center justify-center gap-1 whitespace-nowrap"
-                                >
-                                  <PhoneForwarded size={12} /> Transfer
-                                </button>
+                                {!app.checked_in_at && (
+                                  <button
+                                    onClick={() => handleTransfer(app.appointment_id)}
+                                    className="bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-indigo-100 flex items-center justify-center gap-1 whitespace-nowrap"
+                                  >
+                                    <PhoneForwarded size={12} /> Transfer
+                                  </button>
+                                )}
                                 <button
                                   onClick={() =>
                                     handleApprove(app.appointment_id)
