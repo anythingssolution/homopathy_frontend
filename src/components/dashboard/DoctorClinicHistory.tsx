@@ -522,7 +522,7 @@ export default function DoctorClinicHistory() {
                       const emrSummary = getChainSummary(item.follow_up_chain);
                       return (
                         <motion.tr
-                          key={consultation.consultation_id || idx}
+                          key={appointment.appointment_id || idx}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: Math.min(idx * 0.05, 0.5) }}
