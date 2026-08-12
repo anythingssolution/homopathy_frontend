@@ -204,9 +204,28 @@ export default function ReceptionistPortal() {
   const [vitalsWeightValue, setVitalsWeightValue] = useState("");
 
   // Patient Transfer Modal State
+  type TransferPatientOption = {
+    patient_id: number;
+    patient_uuid?: string;
+    full_name: string;
+    age?: number;
+    gender?: string;
+    mobile_no?: string;
+  };
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [transferAppointmentId, setTransferAppointmentId] = useState<number | null>(null);
-  const [transferNewPatientId, setTransferNewPatientId] = useState("");
+  const [transferSelectedPatient, setTransferSelectedPatient] =
+    useState<TransferPatientOption | null>(null);
+  const [transferPatientSearch, setTransferPatientSearch] = useState("");
+  const [transferPatientResults, setTransferPatientResults] = useState<
+    TransferPatientOption[]
+  >([]);
+  const [isTransferPatientLookupLoading, setIsTransferPatientLookupLoading] =
+    useState(false);
+  const [isTransferPatientDropdownOpen, setIsTransferPatientDropdownOpen] =
+    useState(false);
+  const transferPatientDropdownRef = useRef<HTMLDivElement>(null);
+  const transferPatientListRef = useRef<HTMLDivElement>(null);
   const [isTransferring, setIsTransferring] = useState(false);
 
   // Extended History Modal State
@@ -898,16 +917,124 @@ export default function ReceptionistPortal() {
     }
   };
 
+  const resetTransferModalState = () => {
+    setTransferAppointmentId(null);
+    setTransferSelectedPatient(null);
+    setTransferPatientSearch("");
+    setTransferPatientResults([]);
+    setIsTransferPatientDropdownOpen(false);
+    setIsTransferPatientLookupLoading(false);
+  };
+
   const handleTransfer = (appointmentId: number) => {
     setTransferAppointmentId(appointmentId);
-    setTransferNewPatientId("");
+    setTransferSelectedPatient(null);
+    setTransferPatientSearch("");
+    setTransferPatientResults([]);
+    setIsTransferPatientDropdownOpen(false);
     setIsTransferModalOpen(true);
   };
 
+  useEffect(() => {
+    if (!isTransferModalOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        transferPatientDropdownRef.current &&
+        !transferPatientDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsTransferPatientDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isTransferModalOpen]);
+
+  useEffect(() => {
+    const listEl = transferPatientListRef.current;
+    if (
+      !listEl ||
+      !isTransferModalOpen ||
+      !isTransferPatientDropdownOpen ||
+      transferSelectedPatient
+    ) {
+      return;
+    }
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      listEl.scrollTop += e.deltaY;
+    };
+
+    listEl.addEventListener("wheel", onWheel, { passive: false });
+    return () => listEl.removeEventListener("wheel", onWheel);
+  }, [
+    isTransferModalOpen,
+    isTransferPatientDropdownOpen,
+    transferSelectedPatient,
+    transferPatientResults.length,
+  ]);
+
+  useEffect(() => {
+    if (!isTransferModalOpen || !token) {
+      setIsTransferPatientLookupLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      setIsTransferPatientLookupLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page: "1",
+          page_size: "50",
+        });
+        const searchValue = transferPatientSearch.trim();
+        if (searchValue) params.set("search", searchValue);
+        if (selectedBranchId) params.set("branch_id", String(selectedBranchId));
+
+        const response = await fetch(
+          `/api/v1/receptionist/patients?${params.toString()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            signal: controller.signal,
+          },
+        );
+        const result = await response.json();
+        if (!controller.signal.aborted && result.success) {
+          setTransferPatientResults(
+            Array.isArray(result.data) ? result.data : [],
+          );
+        }
+      } catch (error: any) {
+        if (error?.name !== "AbortError") {
+          console.error("Error searching patients for transfer:", error);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsTransferPatientLookupLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    isTransferModalOpen,
+    token,
+    transferPatientSearch,
+    selectedBranchId,
+  ]);
+
   const confirmTransfer = async () => {
     if (!transferAppointmentId) return;
-    if (!transferNewPatientId.trim()) {
-      addToast("Please enter a valid new patient ID", "error");
+    if (!transferSelectedPatient?.patient_id) {
+      addToast("Please select a patient to transfer to", "error");
       return;
     }
     setIsTransferring(true);
@@ -920,15 +1047,16 @@ export default function ReceptionistPortal() {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ new_patient_id: Number(transferNewPatientId) }),
+          body: JSON.stringify({
+            new_patient_id: Number(transferSelectedPatient.patient_id),
+          }),
         },
       );
       const data = await res.json();
       if (data.success) {
         addToast("Patient transferred successfully", "success");
         setIsTransferModalOpen(false);
-        setTransferAppointmentId(null);
-        setTransferNewPatientId("");
+        resetTransferModalState();
         fetchAppointments();
       } else {
         addToast(data.message || "Transfer failed", "error");
@@ -2528,39 +2656,179 @@ export default function ReceptionistPortal() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      onClick={() => !isTransferring && setIsTransferModalOpen(false)}
+                      onClick={() => {
+                        if (isTransferring) return;
+                        setIsTransferModalOpen(false);
+                        resetTransferModalState();
+                      }}
                       className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
                     />
                     <motion.div
                       initial={{ scale: 0.9, opacity: 0, y: 20 }}
                       animate={{ scale: 1, opacity: 1, y: 0 }}
                       exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                      className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl overflow-hidden p-8 text-center"
+                      className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl overflow-hidden p-8 text-center max-h-[90vh] flex flex-col"
                     >
-                      <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                      <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shrink-0">
                         <PhoneForwarded size={32} />
                       </div>
-                      <h3 className="text-xl font-black text-gray-800 uppercase tracking-widest mb-2">
+                      <h3 className="text-xl font-black text-gray-800 uppercase tracking-widest mb-2 shrink-0">
                         Transfer Patient
                       </h3>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">
-                        Enter the new Patient ID to transfer this appointment.
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6 shrink-0">
+                        Search and select the patient to transfer this appointment to.
                       </p>
 
-                      <div className="mb-6">
-                        <input
-                          type="number"
-                          placeholder="New Patient ID (e.g. 15)"
-                          value={transferNewPatientId}
-                          onChange={(e) => setTransferNewPatientId(e.target.value)}
-                          disabled={isTransferring}
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 text-xs font-bold text-gray-700 focus:outline-none focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/25 transition-all text-center"
-                        />
+                      <div
+                        className="mb-6 text-left min-h-0 flex flex-col"
+                        ref={transferPatientDropdownRef}
+                      >
+                        <div className="relative shrink-0">
+                          <Search
+                            size={14}
+                            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Search by name, phone, or ID..."
+                            value={
+                              transferSelectedPatient
+                                ? `${transferSelectedPatient.full_name} (ID: ${transferSelectedPatient.patient_id})`
+                                : transferPatientSearch
+                            }
+                            onChange={(e) => {
+                              setTransferSelectedPatient(null);
+                              setTransferPatientSearch(e.target.value);
+                              setIsTransferPatientDropdownOpen(true);
+                            }}
+                            onFocus={() => {
+                              if (transferSelectedPatient) {
+                                setTransferSelectedPatient(null);
+                                setTransferPatientSearch("");
+                              }
+                              setIsTransferPatientDropdownOpen(true);
+                            }}
+                            disabled={isTransferring}
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-10 text-xs font-bold text-gray-700 focus:outline-none focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/25 transition-all"
+                          />
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            onClick={() =>
+                              setIsTransferPatientDropdownOpen((open) => !open)
+                            }
+                            disabled={isTransferring}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-[#549E9E]"
+                          >
+                            <ChevronDown
+                              size={14}
+                              className={`transition-transform ${
+                                isTransferPatientDropdownOpen && !transferSelectedPatient
+                                  ? "rotate-180 text-[#549E9E]"
+                                  : ""
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {isTransferPatientDropdownOpen && !transferSelectedPatient && (
+                          <div className="mt-3 bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden flex flex-col min-h-0">
+                            <div className="px-4 py-2.5 border-b border-gray-100 bg-white shrink-0">
+                              <p className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest">
+                                {isTransferPatientLookupLoading
+                                  ? "Searching patients..."
+                                  : "Select patient"}
+                              </p>
+                            </div>
+                            <div
+                              ref={transferPatientListRef}
+                              className="overflow-y-auto overscroll-contain"
+                              style={{ maxHeight: "220px" }}
+                            >
+                              {transferPatientResults.length > 0 ? (
+                                transferPatientResults.map((patient) => (
+                                  <button
+                                    key={patient.patient_id}
+                                    type="button"
+                                    onClick={() => {
+                                      setTransferSelectedPatient(patient);
+                                      setTransferPatientSearch("");
+                                      setIsTransferPatientDropdownOpen(false);
+                                    }}
+                                    className="w-full text-left px-4 py-3 border-b last:border-b-0 border-gray-100 hover:bg-[#549E9E]/5 transition-colors bg-white"
+                                  >
+                                    <p className="text-xs font-black text-gray-800 uppercase tracking-wide">
+                                      {patient.full_name || "Unnamed patient"}
+                                    </p>
+                                    <p className="text-[10px] font-bold text-gray-500 mt-0.5 leading-relaxed">
+                                      <span className="text-gray-700">ID: {patient.patient_id}</span>
+                                      {patient.mobile_no ? ` • ${patient.mobile_no}` : ""}
+                                      {patient.age != null ? ` • Age ${patient.age}` : ""}
+                                      {patient.gender ? ` • ${patient.gender}` : ""}
+                                    </p>
+                                  </button>
+                                ))
+                              ) : !isTransferPatientLookupLoading ? (
+                                <div className="px-4 py-4 bg-white">
+                                  <p className="text-[11px] font-bold text-amber-600">
+                                    No patients found. Try a different search.
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="px-4 py-4 flex items-center justify-center bg-white">
+                                  <RefreshCcw
+                                    size={14}
+                                    className="animate-spin text-gray-400"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {transferSelectedPatient && (
+                          <div className="mt-3 bg-[#549E9E]/5 border border-[#549E9E]/20 rounded-xl px-4 py-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest mb-1">
+                                  Selected Patient
+                                </p>
+                                <p className="text-xs font-black text-gray-800 uppercase">
+                                  {transferSelectedPatient.full_name}
+                                </p>
+                                <p className="text-[10px] font-bold text-gray-500 mt-0.5">
+                                  ID: {transferSelectedPatient.patient_id}
+                                  {transferSelectedPatient.mobile_no
+                                    ? ` • ${transferSelectedPatient.mobile_no}`
+                                    : ""}
+                                  {transferSelectedPatient.age != null
+                                    ? ` • Age ${transferSelectedPatient.age}`
+                                    : ""}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTransferSelectedPatient(null);
+                                  setTransferPatientSearch("");
+                                  setIsTransferPatientDropdownOpen(true);
+                                }}
+                                disabled={isTransferring}
+                                className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-[#549E9E] shrink-0"
+                              >
+                                Change
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="flex gap-4 pt-2">
+                      <div className="flex gap-4 pt-2 shrink-0">
                         <button
-                          onClick={() => setIsTransferModalOpen(false)}
+                          onClick={() => {
+                            setIsTransferModalOpen(false);
+                            resetTransferModalState();
+                          }}
                           disabled={isTransferring}
                           className="flex-1 py-4 px-6 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-100 transition-colors"
                         >
@@ -2568,11 +2836,12 @@ export default function ReceptionistPortal() {
                         </button>
                         <button
                           onClick={confirmTransfer}
-                          disabled={isTransferring || !transferNewPatientId.trim()}
-                          className={`flex-1 py-4 px-6 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-xl transition-all flex items-center justify-center gap-2 ${isTransferring || !transferNewPatientId.trim()
+                          disabled={isTransferring || !transferSelectedPatient?.patient_id}
+                          className={`flex-1 py-4 px-6 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-xl transition-all flex items-center justify-center gap-2 ${
+                            isTransferring || !transferSelectedPatient?.patient_id
                               ? "bg-gray-300 shadow-none"
                               : "bg-[#549E9E] shadow-[#549E9E]/20 hover:bg-[#468686]"
-                            }`}
+                          }`}
                         >
                           {isTransferring ? (
                             <RefreshCcw size={14} className="animate-spin" />
