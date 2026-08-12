@@ -18,6 +18,7 @@ import Pagination from '../Pagination';
 type PreviousPatient = {
   previous_patient_id: number;
   full_name: string;
+  patient_id: string | null;
   age: number;
   gender: string;
   mobile_no: string;
@@ -118,6 +119,7 @@ const formatDateTime = (value: string | null) => {
 
 const emptyForm = {
   full_name: '',
+  patient_id: '',
   age: '',
   gender: 'other',
   mobile_no: '',
@@ -232,6 +234,7 @@ export default function PreviousManualPatients() {
         },
         body: JSON.stringify({
           full_name: form.full_name.trim(),
+          patient_id: form.patient_id.trim() || null,
           age,
           gender: form.gender,
           mobile_no: form.mobile_no,
@@ -305,7 +308,7 @@ export default function PreviousManualPatients() {
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t(
                 'previous_patients.search_placeholder',
-                'Search name, mobile or email',
+                'Search name, patient ID, mobile or email',
               )}
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-semibold outline-none focus:border-[#549E9E]"
             />
@@ -338,6 +341,7 @@ export default function PreviousManualPatients() {
             <thead className="bg-slate-50">
               <tr className="text-left text-[10px] font-black uppercase tracking-widest text-slate-400">
                 <th className="px-6 py-5">Patient</th>
+                <th className="px-6 py-5">Patient ID</th>
                 <th className="px-6 py-5">Mobile</th>
                 <th className="px-6 py-5">Gender / Age</th>
                 <th className="px-6 py-5">Entered By</th>
@@ -347,13 +351,13 @@ export default function PreviousManualPatients() {
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center">
+                  <td colSpan={6} className="py-16 text-center">
                     <Loader2 className="mx-auto animate-spin text-[#549E9E]" size={28} />
                   </td>
                 </tr>
               ) : patients.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center text-sm font-bold text-slate-400">
+                  <td colSpan={6} className="py-16 text-center text-sm font-bold text-slate-400">
                     No previous patients found
                   </td>
                 </tr>
@@ -374,6 +378,9 @@ export default function PreviousManualPatients() {
                           )}
                         </div>
                       </div>
+                    </td>
+                    <td className="px-6 py-5 text-sm font-bold text-slate-700">
+                      {patient.patient_id || '—'}
                     </td>
                     <td className="px-6 py-5 text-sm font-bold text-slate-700">{patient.mobile_no}</td>
                     <td className="px-6 py-5 text-sm font-bold capitalize text-slate-700">
@@ -453,6 +460,24 @@ export default function PreviousManualPatients() {
 
               <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Patient ID
+                </span>
+                <input
+                  maxLength={50}
+                  value={form.patient_id}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      patient_id: event.target.value.trimStart().slice(0, 50),
+                    }))
+                  }
+                  className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                  placeholder="Legacy / manual patient ID"
+                />
+              </label>
+
+              <label className="block sm:col-span-3">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Mobile Number *
                 </span>
                 <input
@@ -473,7 +498,7 @@ export default function PreviousManualPatients() {
                 />
               </label>
 
-              <label className="block sm:col-span-2">
+              <label className="block sm:col-span-1">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Age *
                 </span>
@@ -504,7 +529,7 @@ export default function PreviousManualPatients() {
                 </div>
               </label>
 
-              <label className="block sm:col-span-2">
+              <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Email
                 </span>
@@ -531,7 +556,7 @@ export default function PreviousManualPatients() {
                 />
               </label>
 
-              <label className="block sm:col-span-3">
+              <label className="block sm:col-span-6">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Description / Notes
                 </span>
