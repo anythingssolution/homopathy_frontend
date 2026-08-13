@@ -314,7 +314,17 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                         </span>
                                       )}
                                       <div className="text-[10px] font-bold text-gray-800">{formatPrescriptionMedicineText(m.medicine_value)}</div>
-                                      {m.remark && <div className="text-[9px] text-gray-600 font-medium">{m.remark}</div>}
+                                      {(() => {
+                                        const displayRemark = isHi
+                                          ? (m.remark_hi || m.remark)
+                                          : (m.remark || m.remark_hi);
+                                        if (!displayRemark) return null;
+                                        return (
+                                          <div className="text-[9px] text-gray-600 font-medium">
+                                            {displayRemark}
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   );
                                 })}

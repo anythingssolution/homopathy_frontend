@@ -7,7 +7,7 @@ export type FormulaDoseRow = {
 };
 
 export type FormulaRuleSnapshot = {
-  amount_strategy: 'FIXED' | 'MULTIPLY_SUFFIX';
+  amount_strategy: 'FIXED' | 'MULTIPLY_SUFFIX' | 'SUFFIX_AS_PRICE';
   fixed_amount: number | null;
   multiplier_value: number | null;
   template_code: string | null;
@@ -32,6 +32,7 @@ export type DoctorFormulaSnapshot = {
     plain_number: FormulaRuleSnapshot | null;
     slash_single_numeric: FormulaRuleSnapshot | null;
     slash_double_numeric: FormulaRuleSnapshot | null;
+    slash_price_numeric: FormulaRuleSnapshot | null;
   };
   alpha_codes: Record<string, FormulaAlphaCodeSnapshot>;
   templates: Array<{
@@ -52,7 +53,7 @@ export type ParsedQuickFormulaMedication = {
     night: number;
   };
   dosage_template_code: string | null;
-  suffix_type: 'NONE' | 'NUMERIC_SINGLE' | 'NUMERIC_DOUBLE' | 'ALPHA';
+  suffix_type: 'NONE' | 'NUMERIC_SINGLE' | 'NUMERIC_DOUBLE' | 'NUMERIC_PRICE' | 'ALPHA';
   suffix_value: string | null;
   duration_override_days: number | null;
   warnings: string[];
@@ -175,6 +176,10 @@ export const parseDoctorFormulaInput = (
       return Number(((suffixNumeric || 0) * Number(rule.multiplier_value || 0)).toFixed(2));
     }
 
+    if (rule.amount_strategy === 'SUFFIX_AS_PRICE') {
+      return Number((suffixNumeric || 0).toFixed(2));
+    }
+
     throw new Error('Unsupported amount strategy.');
   };
 
@@ -227,11 +232,16 @@ export const parseDoctorFormulaInput = (
           groupRule = snapshot.rules.slash_double_numeric;
           groupSuffixType = 'NUMERIC_DOUBLE';
         } else {
-          errors.push({
-            raw_token: token,
-            message: 'Only one-digit or two-digit numeric suffix is supported.',
-          });
-          return;
+          groupRule =
+            snapshot.rules.slash_price_numeric ||
+            ({
+              amount_strategy: 'SUFFIX_AS_PRICE',
+              fixed_amount: null,
+              multiplier_value: null,
+              template_code: snapshot.rules.plain_number?.template_code || 'DEFAULT_444',
+              doses: snapshot.rules.plain_number?.doses || [],
+            } as FormulaRuleSnapshot);
+          groupSuffixType = 'NUMERIC_PRICE';
         }
 
         try {

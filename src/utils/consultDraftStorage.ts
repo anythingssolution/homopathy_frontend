@@ -31,6 +31,7 @@ export type ConsultDraftOtherMedication = {
   remark: string;
   amount: string;
   quantity?: number | string;
+  isManualEntry?: boolean;
 };
 
 export type ConsultDraftTest = {

@@ -47,6 +47,62 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
   const numericMeds = allMeds.filter((m: any) => m.medicine_type?.toUpperCase() === 'NUMERIC');
   const textMeds = allMeds.filter((m: any) => m.medicine_type?.toUpperCase() === 'TEXT');
 
+  const hasVitalValue = (value: unknown) => {
+    const text = String(value ?? '').trim();
+    return Boolean(text) && text !== '-' && text !== '—' && text.toLowerCase() !== 'n/a';
+  };
+
+  const bloodPressure =
+    consultation.blood_pressure ||
+    appointment.details?.blood_pressure ||
+    appointment.blood_pressure ||
+    '';
+  const oxygenSaturation =
+    consultation.oxygen_saturation ||
+    appointment.details?.oxygen_saturation ||
+    appointment.oxygen_saturation ||
+    '';
+  const patientHeight =
+    consultation.patient_height ||
+    appointment.details?.patient_height ||
+    appointment.patient_height ||
+    '';
+  const patientWeight =
+    consultation.patient_weight ||
+    appointment.details?.patient_weight ||
+    appointment.patient_weight ||
+    '';
+
+  const vitalItems = [
+    {
+      key: 'mode',
+      label: isHi ? 'मोड' : 'MODE',
+      value:
+        (consultation.consultation_mode || appointment.details?.consultation_mode) === 'ON_CALL'
+          ? isHi
+            ? 'ऑन कॉल'
+            : 'On Call'
+          : isHi
+            ? 'शारीरिक'
+            : 'Physical',
+      alwaysShow: true,
+    },
+    { key: 'bp', label: 'B/P', value: bloodPressure, alwaysShow: false },
+    { key: 'spo2', label: 'SPO2', value: oxygenSaturation, alwaysShow: false },
+    {
+      key: 'height',
+      label: isHi ? 'ऊंचाई' : 'HEIGHT',
+      value: patientHeight,
+      alwaysShow: false,
+    },
+    {
+      key: 'weight',
+      label: isHi ? 'वजन' : 'WEIGHT',
+      value: patientWeight,
+      alwaysShow: false,
+    },
+  ].filter((item) => item.alwaysShow || hasVitalValue(item.value));
+
   return (
     <div className="bg-white px-2 pt-2 pb-4 max-w-4xl mx-auto font-sans text-gray-800 printable-content leading-tight text-sm flex flex-col flex-1 min-h-full w-full">
       {/* Header */}
@@ -182,36 +238,24 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                 <div className="flex items-stretch w-full gap-6">
                   {/* LEFT COLUMN: Vitals, Complaints, Findings, Diagnosis */}
                   <div className="w-[48%] flex flex-col gap-3 pr-4 border-r border-[#549E9E]/20">
-                    {/* Vitals Single Line Row */}
+                    {/* Vitals Single Line Row — only show fields that have values */}
                     <div className="flex flex-col gap-1 border-b border-[#549E9E]/20 pb-2">
-                      <div className="grid grid-cols-5 gap-1 text-left">
-                        {/* MODE */}
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">{isHi ? "मोड" : "MODE"}</span>
-                          <span className="text-[10px] font-bold text-gray-800 leading-tight">
-                            {(consultation.consultation_mode || appointment.details?.consultation_mode) === 'ON_CALL' ? (isHi ? 'ऑन कॉल' : 'On Call') : (isHi ? 'शारीरिक' : 'Physical')}
-                          </span>
-                        </div>
-                        {/* B/P */}
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">B/P</span>
-                          <span className="text-[10px] font-bold text-gray-800 leading-tight">{consultation.blood_pressure || appointment.details?.blood_pressure || appointment.blood_pressure || '—'}</span>
-                        </div>
-                        {/* SPO2 */}
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">SPO2</span>
-                          <span className="text-[10px] font-bold text-gray-800 leading-tight">{consultation.oxygen_saturation || appointment.details?.oxygen_saturation || appointment.oxygen_saturation || '—'}</span>
-                        </div>
-                        {/* HEIGHT */}
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">{isHi ? "ऊंचाई" : "HEIGHT"}</span>
-                          <span className="text-[10px] font-bold text-gray-800 leading-tight">{consultation.patient_height || appointment.details?.patient_height || appointment.patient_height || '—'}</span>
-                        </div>
-                        {/* WEIGHT */}
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">{isHi ? "वजन" : "WEIGHT"}</span>
-                          <span className="text-[10px] font-bold text-gray-800 leading-tight">{consultation.patient_weight || appointment.details?.patient_weight || appointment.patient_weight || '—'}</span>
-                        </div>
+                      <div
+                        className="grid gap-1 text-left"
+                        style={{
+                          gridTemplateColumns: `repeat(${Math.max(vitalItems.length, 1)}, minmax(0, 1fr))`,
+                        }}
+                      >
+                        {vitalItems.map((item) => (
+                          <div key={item.key} className="flex flex-col">
+                            <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">
+                              {item.label}
+                            </span>
+                            <span className="text-[10px] font-bold text-gray-800 leading-tight">
+                              {item.value}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
 
@@ -252,7 +296,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
 
                   {/* RIGHT COLUMN: Remedies and Other Medications (Right-aligned) */}
                   <div className="flex-1">
-                    <div className="p-0 flex flex-wrap gap-8 items-start justify-end bg-white text-right">
+                    <div className="p-0 flex flex-col gap-3 items-end justify-start bg-white text-right">
                       {/* Remedies */}
                       {numericMeds.length > 0 && (
                         <div className="flex flex-wrap gap-6 items-start justify-end">
@@ -291,20 +335,32 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                         </div>
                       )}
 
-                      {/* Other Medications */}
+                      {/* Other Medications — 2nd line block under numeric remedies */}
                       {textMeds.length > 0 && (
-                        <div className="flex flex-col gap-2 items-end text-right">
+                        <div className="flex flex-col gap-2 items-end text-right w-full">
                           {textMeds.map((m: any, idx: number) => {
                             const roleLabel = getMedicationRoleLabel(m);
                             return (
-                              <div key={idx} className="flex flex-col text-right items-end">
+                              <div key={idx} className="flex flex-col text-right items-end leading-tight">
                                 {roleLabel && (
                                   <span className="w-fit px-1.5 py-0.5 rounded-md bg-[#cc3333]/10 text-[#cc3333] text-[8px] font-black uppercase tracking-widest mb-0.5">
                                     {roleLabel}
                                   </span>
                                 )}
-                                <div className="text-xs font-bold text-gray-800">{formatPrescriptionMedicineText(m.medicine_value)}</div>
-                                {m.remark && <div className="text-[10px] text-gray-600 font-medium">{m.remark}</div>}
+                                <div className="text-xs font-bold text-gray-800">
+                                  {formatPrescriptionMedicineText(m.medicine_value)}
+                                </div>
+                                {(() => {
+                                  const displayRemark = isHi
+                                    ? (m.remark_hi || m.remark)
+                                    : (m.remark || m.remark_hi);
+                                  if (!displayRemark) return null;
+                                  return (
+                                    <div className="text-[10px] text-gray-600 font-medium mt-0.5">
+                                      {displayRemark}
+                                    </div>
+                                  );
+                                })()}
                                 <MedicationDispensingStatus
                                   medication={m}
                                   label={isHi ? 'दवा नहीं दी गई' : 'Not dispensed'}

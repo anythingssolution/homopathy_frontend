@@ -35,7 +35,7 @@ type FormulaAlphaCode = {
 };
 
 type FormulaRule = {
-  amount_strategy: 'FIXED' | 'MULTIPLY_SUFFIX';
+  amount_strategy: 'FIXED' | 'MULTIPLY_SUFFIX' | 'SUFFIX_AS_PRICE';
   fixed_amount: number | null | string;
   multiplier_value: number | null | string;
   template_code: string;
@@ -55,6 +55,7 @@ type FormulaSetDraft = {
     plain_number: FormulaRule;
     slash_single_numeric: FormulaRule;
     slash_double_numeric: FormulaRule;
+    slash_price_numeric: FormulaRule;
   };
   alpha_codes: FormulaAlphaCode[];
 };
@@ -91,6 +92,7 @@ const makeDefaultDraft = (): FormulaSetDraft => ({
     plain_number: { amount_strategy: 'FIXED', fixed_amount: 80, multiplier_value: null, template_code: 'DEFAULT_444', is_active: true },
     slash_single_numeric: { amount_strategy: 'MULTIPLY_SUFFIX', fixed_amount: null, multiplier_value: 100, template_code: 'DEFAULT_444', is_active: true },
     slash_double_numeric: { amount_strategy: 'MULTIPLY_SUFFIX', fixed_amount: null, multiplier_value: 10, template_code: 'DEFAULT_444', is_active: true },
+    slash_price_numeric: { amount_strategy: 'SUFFIX_AS_PRICE', fixed_amount: null, multiplier_value: null, template_code: 'DEFAULT_444', is_active: true },
   },
   alpha_codes: [
     { code: 'BD', description: 'Twice daily', fixed_amount: 80, template_code: 'BD', duration_override_days: null, is_active: true },
@@ -234,6 +236,13 @@ const normalizeDraftFromApi = (detail: any): FormulaSetDraft => ({
       template_code: detail?.rules?.slash_double_numeric?.template_code || '',
       is_active: detail?.rules?.slash_double_numeric?.is_active !== 0,
     },
+    slash_price_numeric: {
+      amount_strategy: detail?.rules?.slash_price_numeric?.amount_strategy || 'SUFFIX_AS_PRICE',
+      fixed_amount: detail?.rules?.slash_price_numeric?.fixed_amount,
+      multiplier_value: detail?.rules?.slash_price_numeric?.multiplier_value,
+      template_code: detail?.rules?.slash_price_numeric?.template_code || detail?.rules?.plain_number?.template_code || 'DEFAULT_444',
+      is_active: detail?.rules?.slash_price_numeric?.is_active !== 0,
+    },
   },
   alpha_codes: Array.isArray(detail?.alpha_codes) ? detail.alpha_codes.map((code: any) => ({
     id: code?.id,
@@ -292,6 +301,7 @@ const buildSnapshotFromDraft = (draft: FormulaSetDraft | null): DoctorFormulaSna
       plain_number: makeRule(draft.rules.plain_number),
       slash_single_numeric: makeRule(draft.rules.slash_single_numeric),
       slash_double_numeric: makeRule(draft.rules.slash_double_numeric),
+      slash_price_numeric: makeRule(draft.rules.slash_price_numeric),
     },
     alpha_codes: alphaCodes,
     templates,
@@ -350,6 +360,10 @@ export default function DoctorFormulaMasterPage() {
         {
           title: t('formula_master.help_numeric_double_title', '3. / + Two Digits (e.g. "84/20")'),
           detail: t('formula_master.help_numeric_double_detail', 'Used when typing a number with a 2-digit slash suffix (like "84/20"). "84" is the medicine code and "20" is the quantity. Total Price = Suffix (20) × Multiplier (₹10) = ₹200.'),
+        },
+        {
+          title: t('formula_master.help_numeric_price_title', '4. / + Three or More Digits (e.g. "5, 4, 6, /789")'),
+          detail: t('formula_master.help_numeric_price_detail', 'Used when the slash suffix has 3 or more digits. The suffix is treated as the total prescription price in rupees and split equally across all medicines before the slash. Example: 5, 4, 6, /789 → total ₹789, split across 3 medicines.'),
         },
       ],
     },
@@ -522,7 +536,7 @@ export default function DoctorFormulaMasterPage() {
       const alphaCodes = prev.alpha_codes.filter((code) => code.template_code !== templateCode);
       const nextDraft = { ...prev, templates, alpha_codes: alphaCodes };
 
-      (['plain_number', 'slash_single_numeric', 'slash_double_numeric'] as Array<keyof FormulaSetDraft['rules']>).forEach((ruleKey) => {
+      (['plain_number', 'slash_single_numeric', 'slash_double_numeric', 'slash_price_numeric'] as Array<keyof FormulaSetDraft['rules']>).forEach((ruleKey) => {
         if (nextDraft.rules[ruleKey].template_code === templateCode) {
           nextDraft.rules[ruleKey].template_code = templates[0]?.template_code || '';
         }
@@ -796,14 +810,16 @@ export default function DoctorFormulaMasterPage() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
                   {([
                     { key: 'plain_number', label: t('formula_master.plain_number', 'Plain Number'), hint: t('formula_master.plain_number_hint', 'Example: 30') },
                     { key: 'slash_single_numeric', label: t('formula_master.slash_single_numeric', '/ + Single Digit'), hint: t('formula_master.slash_single_numeric_hint', 'Example: 200/2') },
                     { key: 'slash_double_numeric', label: t('formula_master.slash_double_numeric', '/ + Two Digits'), hint: t('formula_master.slash_double_numeric_hint', 'Example: 84/20') },
+                    { key: 'slash_price_numeric', label: t('formula_master.slash_price_numeric', '/ + 3+ Digits (Price)'), hint: t('formula_master.slash_price_numeric_hint', 'Example: 5, 4, 6, /789') },
                   ] as const).map((ruleEntry) => {
                     const rule = draft.rules[ruleEntry.key];
                     const isFixed = rule.amount_strategy === 'FIXED';
+                    const isSuffixAsPrice = rule.amount_strategy === 'SUFFIX_AS_PRICE';
 
                     return (
                       <div key={ruleEntry.key} className="border border-gray-200/80 rounded-xl p-4 bg-gray-50/50 flex flex-col gap-3">
@@ -815,47 +831,58 @@ export default function DoctorFormulaMasterPage() {
                           </span>
                         </div>
 
-                        {/* Strategy Selector */}
-                        <CustomSelect
-                          label={t('formula_master.strategy', 'Strategy')}
-                          options={[
-                            { id: 'FIXED', label: t('formula_master.strategy_fixed', 'Flat Price (FIXED)') },
-                            { id: 'MULTIPLY_SUFFIX', label: t('formula_master.strategy_multiply_suffix', 'Multiply Suffix (×)') },
-                          ]}
-                          value={rule.amount_strategy}
-                          onChange={(val) => updateRule(ruleEntry.key, 'amount_strategy', val)}
-                          className="w-full"
-                        />
+                        {isSuffixAsPrice ? (
+                          <div className="rounded-xl border border-[#549E9E]/20 bg-[#549E9E]/5 px-3 py-2.5 text-[11px] font-semibold leading-relaxed text-[#2d8789]">
+                            {t(
+                              'formula_master.suffix_as_price_help',
+                              'Digits after / are used as the total prescription price and split equally across all medicines before the slash.',
+                            )}
+                          </div>
+                        ) : (
+                          <>
+                            {/* Strategy Selector */}
+                            <CustomSelect
+                              label={t('formula_master.strategy', 'Strategy')}
+                              options={[
+                                { id: 'FIXED', label: t('formula_master.strategy_fixed', 'Flat Price (FIXED)') },
+                                { id: 'MULTIPLY_SUFFIX', label: t('formula_master.strategy_multiply_suffix', 'Multiply Suffix (×)') },
+                              ]}
+                              value={rule.amount_strategy}
+                              onChange={(val) => updateRule(ruleEntry.key, 'amount_strategy', val)}
+                              className="w-full"
+                            />
 
-                        {/* Amount or Multiplier */}
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                            {isFixed ? t('formula_master.flat_amount', 'Flat Amount') : t('formula_master.multiplier', 'Multiplier')}
-                          </label>
-                          {isFixed ? (
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">₹</span>
-                              <input
-                                type="number"
-                                value={rule.fixed_amount ?? ''}
-                                onChange={(e) => updateRule(ruleEntry.key, 'fixed_amount', e.target.value)}
-                                className="w-full h-9 pl-7 pr-3 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:border-[#549E9E]"
-                                placeholder="80.00"
-                              />
+                            {/* Amount or Multiplier */}
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                {isFixed ? t('formula_master.flat_amount', 'Flat Amount') : t('formula_master.multiplier', 'Multiplier')}
+                              </label>
+                              {isFixed ? (
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">₹</span>
+                                  <input
+                                    type="number"
+                                    value={rule.fixed_amount ?? ''}
+                                    onChange={(e) => updateRule(ruleEntry.key, 'fixed_amount', e.target.value)}
+                                    className="w-full h-9 pl-7 pr-3 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:border-[#549E9E]"
+                                    placeholder="80.00"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">×</span>
+                                  <input
+                                    type="number"
+                                    value={rule.multiplier_value ?? ''}
+                                    onChange={(e) => updateRule(ruleEntry.key, 'multiplier_value', e.target.value)}
+                                    className="w-full h-9 pl-7 pr-3 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:border-[#549E9E]"
+                                    placeholder="100.00"
+                                  />
+                                </div>
+                              )}
                             </div>
-                          ) : (
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">×</span>
-                              <input
-                                type="number"
-                                value={rule.multiplier_value ?? ''}
-                                onChange={(e) => updateRule(ruleEntry.key, 'multiplier_value', e.target.value)}
-                                className="w-full h-9 pl-7 pr-3 bg-white border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:border-[#549E9E]"
-                                placeholder="100.00"
-                              />
-                            </div>
-                          )}
-                        </div>
+                          </>
+                        )}
 
                         {/* Template Selector */}
                         <CustomSelect
@@ -1107,7 +1134,7 @@ export default function DoctorFormulaMasterPage() {
                   onChange={(e) => setPreviewInput(e.target.value)}
                   rows={2}
                   className="w-full p-2.5 bg-gray-50/80 border border-gray-200 rounded-xl font-bold text-xs text-gray-800 outline-none focus:border-[#549E9E] resize-none"
-                  placeholder="Test inputs e.g.: 30, 200/2, 84/20, 10/BD"
+                  placeholder="Test inputs e.g.: 30, 200/2, 84/20, 5, 4, 6, /789"
                 />
 
                 {/* Quick Sample Buttons */}
@@ -1117,6 +1144,7 @@ export default function DoctorFormulaMasterPage() {
                     { label: '30', val: '30' },
                     { label: '200/2', val: '200/2' },
                     { label: '84/20', val: '84/20' },
+                    { label: '5,4,6,/789', val: '5, 4, 6, /789' },
                     { label: '10/BD', val: '10/BD' },
                     { label: 'All Combo', val: '30, 200/2, 84/20, 10/BD' },
                   ].map((sample) => (
