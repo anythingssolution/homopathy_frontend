@@ -23,6 +23,7 @@ import {
   Activity,
   UserCheck,
   Pencil,
+  Copy,
 } from "lucide-react";
 import PatientDetailsEditModal from "./PatientDetailsEditModal";
 import { useNotifications } from "../../context/NotificationContext";
@@ -43,6 +44,14 @@ import {
   saveConsultDraft,
   type ConsultDraftPayload,
 } from "../../utils/consultDraftStorage";
+import {
+  getDurationDaysFromKey,
+  getDurationKeyFromDays,
+  getDurationMultiplier,
+  isThirtyDayDuration,
+  MEDICATION_DURATION_OPTIONS,
+  normalizeDurationKey,
+} from "../../utils/medicationDuration";
 
 type MedicationEntry = {
   name: string;
@@ -578,6 +587,8 @@ export default function ConsultationPage() {
   const [diagnosis, setDiagnosis] = useState("");
   const [treatmentNotes, setTreatmentNotes] = useState("");
   const [hasNoAdvice, setHasNoAdvice] = useState(false);
+  const [isRepeat, setIsRepeat] = useState(false);
+  const [isSame, setIsSame] = useState(false);
   const [consultationMode, setConsultationMode] = useState<
     "PHYSICAL_PRESENT" | "ON_CALL"
   >("PHYSICAL_PRESENT");
@@ -586,12 +597,12 @@ export default function ConsultationPage() {
   const [heightValue, setHeightValue] = useState("");
   const [heightUnit, setHeightUnit] = useState<"cm" | "ft">("cm");
   const [weightValue, setWeightValue] = useState("");
-  const [globalDuration, setGlobalDuration] = useState("15 Days");
+  const [globalDuration, setGlobalDuration] = useState("15");
   const [thirtyDaysDoseFrequency, setThirtyDaysDoseFrequency] = useState<
     "2" | "3"
   >("3");
   const [followUpPreset, setFollowUpPreset] = useState<
-    "7" | "15" | "30" | "custom"
+    "7" | "15" | "30" | "45" | "60" | "90" | "180" | "custom"
   >("15");
   const [customFollowUpDays, setCustomFollowUpDays] = useState("");
   const [repeatedFromConsultationId, setRepeatedFromConsultationId] = useState<
@@ -728,16 +739,6 @@ export default function ConsultationPage() {
       fetchMasters();
     }
   }, [token]);
-
-  const getDurationMultiplier = (durationLabel: string) => {
-    const normalized = String(durationLabel || "")
-      .trim()
-      .toLowerCase();
-    if (normalized.startsWith("7")) return 1;
-    if (normalized.startsWith("15")) return 2;
-    if (normalized.startsWith("30")) return 4;
-    return 1;
-  };
 
   const scaleBaseAmountByDuration = (
     baseAmount: string | number,
@@ -912,11 +913,13 @@ export default function ConsultationPage() {
             setTreatmentNotes(advice);
           }
           setHasNoAdvice(isNoPrescriptionConsultation);
+          setIsRepeat(Boolean(Number(c.is_repeat)));
+          setIsSame(Boolean(Number(c.is_same)));
 
-          setGlobalDuration(`${c.medication_duration_days} Days`);
+          setGlobalDuration(getDurationKeyFromDays(Number(c.medication_duration_days || 15)));
           const loadedFollowUpDays = Number(c.follow_up_after_days || 15);
-          if ([7, 15, 30].includes(loadedFollowUpDays)) {
-            setFollowUpPreset(String(loadedFollowUpDays) as "7" | "15" | "30");
+          if ([7, 15, 30, 45, 60, 90, 180].includes(loadedFollowUpDays)) {
+            setFollowUpPreset(String(loadedFollowUpDays) as "7" | "15" | "30" | "45" | "60" | "90" | "180");
             setCustomFollowUpDays("");
           } else {
             setFollowUpPreset("custom");
@@ -1131,6 +1134,8 @@ export default function ConsultationPage() {
       setDiagnosis(draft.diagnosis || "");
       setTreatmentNotes(draft.treatmentNotes || "");
       setHasNoAdvice(Boolean(draft.hasNoAdvice));
+      setIsRepeat(Boolean(draft.isRepeat));
+      setIsSame(Boolean(draft.isSame));
       setConsultationMode(
         draft.consultationMode === "ON_CALL" ? "ON_CALL" : "PHYSICAL_PRESENT",
       );
@@ -1139,7 +1144,7 @@ export default function ConsultationPage() {
       setHeightValue(draft.heightValue || "");
       setHeightUnit(draft.heightUnit === "ft" ? "ft" : "cm");
       setWeightValue(draft.weightValue || "");
-      setGlobalDuration(draft.globalDuration || "15 Days");
+      setGlobalDuration(normalizeDurationKey(draft.globalDuration || "15"));
       setThirtyDaysDoseFrequency(
         draft.thirtyDaysDoseFrequency === "2" ? "2" : "3",
       );
@@ -1147,6 +1152,10 @@ export default function ConsultationPage() {
         draft.followUpPreset === "7" ||
         draft.followUpPreset === "15" ||
         draft.followUpPreset === "30" ||
+        draft.followUpPreset === "45" ||
+        draft.followUpPreset === "60" ||
+        draft.followUpPreset === "90" ||
+        draft.followUpPreset === "180" ||
         draft.followUpPreset === "custom"
       ) {
         setFollowUpPreset(draft.followUpPreset);
@@ -1241,6 +1250,8 @@ export default function ConsultationPage() {
       diagnosis,
       treatmentNotes,
       hasNoAdvice,
+      isRepeat,
+      isSame,
       consultationMode,
       o2Value,
       bpValue,
@@ -1297,6 +1308,8 @@ export default function ConsultationPage() {
     diagnosis,
     treatmentNotes,
     hasNoAdvice,
+    isRepeat,
+    isSame,
     consultationMode,
     o2Value,
     bpValue,
@@ -1516,7 +1529,7 @@ export default function ConsultationPage() {
     setMedications(
       quickFormulaPreview.entries.map((entry) => {
         let targetDoses = { ...entry.doses };
-        if (globalDuration.startsWith("30")) {
+        if (isThirtyDayDuration(globalDuration)) {
           if (thirtyDaysDoseFrequency === "3") {
             targetDoses = { morning: 3, afternoon: 3, night: 3 };
           } else if (thirtyDaysDoseFrequency === "2") {
@@ -1618,7 +1631,7 @@ export default function ConsultationPage() {
         }
 
         let targetDoses = med.originalDoses || med.doses;
-        if (globalDuration.startsWith("30")) {
+        if (isThirtyDayDuration(globalDuration)) {
           if (thirtyDaysDoseFrequency === "3") {
             targetDoses = { morning: 3, afternoon: 3, night: 3 };
           } else if (thirtyDaysDoseFrequency === "2") {
@@ -1942,7 +1955,7 @@ export default function ConsultationPage() {
           : [{ name: "", remark: "", amount: "", isManualEntry: false }],
       );
       if (result.data.medication_duration_days) {
-        setGlobalDuration(`${result.data.medication_duration_days} Days`);
+        setGlobalDuration(getDurationKeyFromDays(Number(result.data.medication_duration_days)));
       }
       setRepeatedFromConsultationId(Number(result.data.source_consultation_id));
       setIsPrescriptionOpen(true);
@@ -2056,7 +2069,7 @@ export default function ConsultationPage() {
         setMedications(
           parsed.entries.map((entry) => {
             let targetDoses = { ...entry.doses };
-            if (globalDuration.startsWith("30")) {
+            if (isThirtyDayDuration(globalDuration)) {
               if (thirtyDaysDoseFrequency === "3") {
                 targetDoses = { morning: 3, afternoon: 3, night: 3 };
               } else if (thirtyDaysDoseFrequency === "2") {
@@ -2210,7 +2223,7 @@ export default function ConsultationPage() {
     setIsSubmitting(true);
 
     try {
-      const durationDays = parseInt(globalDuration.split(" ")[0]) || 15;
+      const durationDays = getDurationDaysFromKey(globalDuration);
       if (
         !followUpChainClosed &&
         (!Number.isInteger(followUpAfterDays) ||
@@ -2337,6 +2350,8 @@ export default function ConsultationPage() {
             ? followUpAfterDays
             : 15,
         repeated_from_consultation_id: repeatedFromConsultationId,
+        is_repeat: isRepeat,
+        is_same: isSame,
         follow_up: followUp.trim() || null,
         follow_up_chain_closed: followUpChainClosed,
         consultation_mode: consultationMode,
@@ -2537,39 +2552,105 @@ export default function ConsultationPage() {
             </div>
           </div>
 
-          {/* Right: No Prescription Mode Switch Pill Badge */}
-          <label
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10.5px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${hasNoAdvice
-                ? "bg-amber-500 text-white border-amber-600 shadow-xs"
-                : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
-              } ${isReadOnly ? "opacity-70 cursor-default" : ""}`}
-          >
-            <input
-              type="checkbox"
-              disabled={isReadOnly}
-              checked={hasNoAdvice}
-              onChange={(e) => setHasNoAdvice(e.target.checked)}
-              className="sr-only"
-            />
-            <AlertCircle
-              size={14}
-              className={hasNoAdvice ? "text-white" : "text-amber-500"}
-            />
-            <span>
-              {t(
-                "consultation_modal.no_prescription_mode",
-                "No Prescription Mode",
-              )}
-            </span>
-            <div
-              className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${hasNoAdvice
-                  ? "bg-white text-amber-600"
-                  : "bg-gray-300 text-gray-600"
-                }`}
+          {/* Right: Repeat, Same & No Prescription toggles */}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <label
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10.5px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${isRepeat
+                  ? "bg-blue-500 text-white border-blue-600 shadow-xs"
+                  : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                } ${isReadOnly ? "opacity-70 cursor-default" : ""}`}
             >
-              {hasNoAdvice ? "✓" : ""}
-            </div>
-          </label>
+              <input
+                type="checkbox"
+                disabled={isReadOnly}
+                checked={isRepeat}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIsRepeat(checked);
+                  if (checked) setIsSame(false);
+                }}
+                className="sr-only"
+              />
+              <RotateCcw
+                size={14}
+                className={isRepeat ? "text-white" : "text-blue-500"}
+              />
+              <span>{t("consultation_modal.repeat", "Repeat")}</span>
+              <div
+                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${isRepeat
+                    ? "bg-white text-blue-600"
+                    : "bg-gray-300 text-gray-600"
+                  }`}
+              >
+                {isRepeat ? "✓" : ""}
+              </div>
+            </label>
+
+            <label
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10.5px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${isSame
+                  ? "bg-emerald-500 text-white border-emerald-600 shadow-xs"
+                  : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                } ${isReadOnly ? "opacity-70 cursor-default" : ""}`}
+            >
+              <input
+                type="checkbox"
+                disabled={isReadOnly}
+                checked={isSame}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIsSame(checked);
+                  if (checked) setIsRepeat(false);
+                }}
+                className="sr-only"
+              />
+              <Copy
+                size={14}
+                className={isSame ? "text-white" : "text-emerald-500"}
+              />
+              <span>{t("consultation_modal.same", "Same")}</span>
+              <div
+                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${isSame
+                    ? "bg-white text-emerald-600"
+                    : "bg-gray-300 text-gray-600"
+                  }`}
+              >
+                {isSame ? "✓" : ""}
+              </div>
+            </label>
+
+            <label
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10.5px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${hasNoAdvice
+                  ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                  : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                } ${isReadOnly ? "opacity-70 cursor-default" : ""}`}
+            >
+              <input
+                type="checkbox"
+                disabled={isReadOnly}
+                checked={hasNoAdvice}
+                onChange={(e) => setHasNoAdvice(e.target.checked)}
+                className="sr-only"
+              />
+              <AlertCircle
+                size={14}
+                className={hasNoAdvice ? "text-white" : "text-amber-500"}
+              />
+              <span>
+                {t(
+                  "consultation_modal.no_prescription_mode",
+                  "No Prescription Mode",
+                )}
+              </span>
+              <div
+                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${hasNoAdvice
+                    ? "bg-white text-amber-600"
+                    : "bg-gray-300 text-gray-600"
+                  }`}
+              >
+                {hasNoAdvice ? "✓" : ""}
+              </div>
+            </label>
+          </div>
         </div>
         {isLoading && (
           <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center rounded-2xl">
@@ -3991,27 +4072,26 @@ export default function ConsultationPage() {
 
 
             {/* Duration Pills */}
-            <div className="flex items-center gap-1 bg-gray-50 p-1 border border-gray-200 rounded-xl h-9">
+            <div className="flex flex-wrap items-center gap-1 bg-gray-50 p-1 border border-gray-200 rounded-xl min-h-9">
               <span className="text-[8px] font-black uppercase tracking-widest text-gray-400 px-1">
                 Duration:
               </span>
-              {["7 Days", "15 Days", "30 Days"].map((day) => (
+              {MEDICATION_DURATION_OPTIONS.map((option) => (
                 <button
-                  key={day}
+                  key={option.key}
                   type="button"
                   disabled={isReadOnly}
                   onClick={() => {
-                    const days = day.split(" ")[0] as "7" | "15" | "30";
-                    setGlobalDuration(day);
-                    setFollowUpPreset(days);
+                    setGlobalDuration(option.key);
+                    setFollowUpPreset(String(option.days) as "7" | "15" | "30" | "45" | "60" | "90" | "180");
                     setCustomFollowUpDays("");
                   }}
-                  className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-all rounded-lg cursor-pointer ${globalDuration === day
+                  className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-all rounded-lg cursor-pointer ${globalDuration === option.key
                       ? "bg-[#549E9E] text-white shadow-xs"
                       : "text-gray-400 hover:text-gray-600"
                     } disabled:opacity-70 disabled:cursor-default`}
                 >
-                  {day.split(" ")[0]}
+                  {option.label}
                 </button>
               ))}
             </div>
@@ -4028,7 +4108,7 @@ export default function ConsultationPage() {
                 setFollowUpPreset(
                   event.target.value
                     ? "custom"
-                    : (globalDuration.split(" ")[0] as "7" | "15" | "30"),
+                    : (String(getDurationDaysFromKey(globalDuration)) as "7" | "15" | "30" | "45" | "60" | "90" | "180"),
                 );
               }}
               placeholder="Custom day"
@@ -4053,7 +4133,7 @@ export default function ConsultationPage() {
           </div>
 
           {/* 30 Days Frequency Options (Sub-row if 30 days active) */}
-          {globalDuration.startsWith("30") && !isReadOnly && (
+          {isThirtyDayDuration(globalDuration) && !isReadOnly && (
             <div className="flex items-center gap-3 bg-gray-50/80 px-3 py-1.5 rounded-xl border border-[#549E9E]/20 text-[9px] font-black uppercase tracking-wider text-gray-600">
               <span className="text-[#549E9E]">30-Day Frequency:</span>
               <label className="flex items-center gap-1.5 cursor-pointer hover:text-[#549E9E]">

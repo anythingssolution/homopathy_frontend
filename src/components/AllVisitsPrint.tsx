@@ -181,6 +181,63 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                     year: 'numeric'
                   }) : 'N/A';
                   const auid = visitItem.auid || details.auid;
+                  const hasVitalValue = (value: unknown) => {
+                    const text = String(value ?? '').trim();
+                    return Boolean(text) && text !== '-' && text !== '—' && text.toLowerCase() !== 'n/a';
+                  };
+                  const isRepeat = Boolean(Number(consultation.is_repeat ?? details.is_repeat ?? 0));
+                  const isSame = Boolean(Number(consultation.is_same ?? details.is_same ?? 0));
+                  const visitVitalItems = [
+                    {
+                      key: 'mode',
+                      label: isHi ? 'मोड' : 'MODE',
+                      value:
+                        (consultation.consultation_mode || details.consultation_mode) === 'ON_CALL'
+                          ? (isHi ? 'ऑन कॉल' : 'On Call')
+                          : (isHi ? 'शारीरिक' : 'Physical'),
+                      alwaysShow: true,
+                    },
+                    {
+                      key: 'bp',
+                      label: 'B/P',
+                      value: consultation.blood_pressure || details.blood_pressure || visitItem.blood_pressure || '',
+                      alwaysShow: false,
+                    },
+                    {
+                      key: 'spo2',
+                      label: 'SPO2',
+                      value: consultation.oxygen_saturation || details.oxygen_saturation || visitItem.oxygen_saturation || '',
+                      alwaysShow: false,
+                    },
+                    {
+                      key: 'height',
+                      label: isHi ? 'ऊंचाई' : 'HEIGHT',
+                      value: consultation.patient_height || details.patient_height || visitItem.patient_height || '',
+                      alwaysShow: false,
+                    },
+                    {
+                      key: 'weight',
+                      label: isHi ? 'वजन' : 'WEIGHT',
+                      value: consultation.patient_weight || details.patient_weight || visitItem.patient_weight || '',
+                      alwaysShow: false,
+                    },
+                    ...(isRepeat
+                      ? [{
+                          key: 'repeat',
+                          label: isHi ? 'दोहराएँ' : 'REPEAT',
+                          value: formattedVisitDate,
+                          alwaysShow: true,
+                        }]
+                      : []),
+                    ...(isSame
+                      ? [{
+                          key: 'same',
+                          label: isHi ? 'समान' : 'SAME',
+                          value: formattedVisitDate,
+                          alwaysShow: true,
+                        }]
+                      : []),
+                  ].filter((item) => item.alwaysShow || hasVitalValue(item.value));
 
                   return (
                     <div key={visitIndex} className="border border-gray-200 rounded-lg p-3 bg-white shadow-xs page-break-inside-avoid">
@@ -213,29 +270,22 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                         <div className="w-[48%] flex flex-col gap-3 pr-4 border-r border-[#549E9E]/20">
                           {/* Vitals Single Line Row */}
                           <div className="flex flex-col gap-1 border-b border-[#549E9E]/20 pb-2">
-                            <div className="grid grid-cols-5 gap-1 text-left">
-                              <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">{isHi ? "मोड" : "MODE"}</span>
-                                <span className="text-[10px] font-bold text-gray-800 leading-tight">
-                                  {(consultation.consultation_mode || details.consultation_mode) === 'ON_CALL' ? (isHi ? 'ऑन कॉल' : 'On Call') : (isHi ? 'शारीरिक' : 'Physical')}
-                                </span>
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">B/P</span>
-                                <span className="text-[10px] font-bold text-gray-800 leading-tight">{consultation.blood_pressure || details.blood_pressure || visitItem.blood_pressure || '—'}</span>
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">SPO2</span>
-                                <span className="text-[10px] font-bold text-gray-800 leading-tight">{consultation.oxygen_saturation || details.oxygen_saturation || visitItem.oxygen_saturation || '—'}</span>
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">{isHi ? "ऊंचाई" : "HEIGHT"}</span>
-                                <span className="text-[10px] font-bold text-gray-800 leading-tight">{consultation.patient_height || details.patient_height || visitItem.patient_height || '—'}</span>
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">{isHi ? "वजन" : "WEIGHT"}</span>
-                                <span className="text-[10px] font-bold text-gray-800 leading-tight">{consultation.patient_weight || details.patient_weight || visitItem.patient_weight || '—'}</span>
-                              </div>
+                            <div
+                              className="grid gap-1 text-left"
+                              style={{
+                                gridTemplateColumns: `repeat(${Math.max(visitVitalItems.length, 1)}, minmax(0, 1fr))`,
+                              }}
+                            >
+                              {visitVitalItems.map((item) => (
+                                <div key={item.key} className="flex flex-col">
+                                  <span className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider">
+                                    {item.label}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-gray-800 leading-tight">
+                                    {item.value || '—'}
+                                  </span>
+                                </div>
+                              ))}
                             </div>
                           </div>
 

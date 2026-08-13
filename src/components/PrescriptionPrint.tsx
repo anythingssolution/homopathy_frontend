@@ -73,6 +73,30 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
     appointment.patient_weight ||
     '';
 
+  const isRepeat = Boolean(
+    Number(
+      consultation.is_repeat
+      ?? appointment.details?.is_repeat
+      ?? appointment.is_repeat
+      ?? 0,
+    ),
+  );
+  const isSame = Boolean(
+    Number(
+      consultation.is_same
+      ?? appointment.details?.is_same
+      ?? appointment.is_same
+      ?? 0,
+    ),
+  );
+  const visitDateLabel = new Date(
+    appointment.appointment_date || consultation.created_at || Date.now(),
+  ).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
   const vitalItems = [
     {
       key: 'mode',
@@ -101,6 +125,22 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
       value: patientWeight,
       alwaysShow: false,
     },
+    ...(isRepeat
+      ? [{
+          key: 'repeat',
+          label: isHi ? 'दोहराएँ' : 'REPEAT',
+          value: visitDateLabel,
+          alwaysShow: true,
+        }]
+      : []),
+    ...(isSame
+      ? [{
+          key: 'same',
+          label: isHi ? 'समान' : 'SAME',
+          value: visitDateLabel,
+          alwaysShow: true,
+        }]
+      : []),
   ].filter((item) => item.alwaysShow || hasVitalValue(item.value));
 
   return (

@@ -48,6 +48,8 @@ export type ConsultDraft = {
   diagnosis: string;
   treatmentNotes: string;
   hasNoAdvice: boolean;
+  isRepeat: boolean;
+  isSame: boolean;
   consultationMode: "PHYSICAL_PRESENT" | "ON_CALL";
   o2Value: string;
   bpValue: string;
@@ -56,7 +58,7 @@ export type ConsultDraft = {
   weightValue: string;
   globalDuration: string;
   thirtyDaysDoseFrequency: "2" | "3";
-  followUpPreset: "7" | "15" | "30" | "custom";
+  followUpPreset: "7" | "15" | "30" | "45" | "60" | "90" | "180" | "custom";
   customFollowUpDays: string;
   repeatedFromConsultationId: number | null;
   quickNumericInput: string;
