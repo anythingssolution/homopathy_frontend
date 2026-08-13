@@ -41,9 +41,6 @@ const formatBytes = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 };
 
-const LOG_VIEWER_PASSWORD = 'vectre@logs';
-const LOG_VIEWER_SESSION_KEY = 'backend_logs_access_granted';
-
 const getEntryAccent = (entry: string, index: number) => {
   const statusMatch = entry.match(/"statusCode":(\d+)/);
   const statusCode = statusMatch ? Number(statusMatch[1]) : null;
@@ -76,7 +73,7 @@ const getEntryAccent = (entry: string, index: number) => {
 };
 
 export default function BackendLogsModule() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [files, setFiles] = useState<LogFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -86,9 +83,7 @@ export default function BackendLogsModule() {
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [accessPassword, setAccessPassword] = useState('');
-  const [isAccessGranted, setIsAccessGranted] = useState(() => sessionStorage.getItem(LOG_VIEWER_SESSION_KEY) === 'true');
-  const [accessError, setAccessError] = useState<string | null>(null);
+  const [isAccessGranted, setIsAccessGranted] = useState(() => Boolean(token));
 
   const viewerName = user?.name || 'Operator';
 
@@ -98,9 +93,9 @@ export default function BackendLogsModule() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/v1/public/system-logs/file/${encodeURIComponent(fileName)}`, {
+      const response = await fetch(`/api/v1/ops/system-logs/file/${encodeURIComponent(fileName)}`, {
         headers: {
-          'x-log-viewer-password': LOG_VIEWER_PASSWORD,
+          Authorization: `Bearer ${token}`,
         },
       });
       const result: FileResponse = await response.json();
@@ -121,7 +116,7 @@ export default function BackendLogsModule() {
     } finally {
       setIsLoadingFile(false);
     }
-  }, [isAccessGranted]);
+  }, [isAccessGranted, token]);
 
   const fetchOverview = useCallback(async () => {
     if (!isAccessGranted) {
@@ -133,9 +128,9 @@ export default function BackendLogsModule() {
     setError(null);
 
     try {
-      const response = await fetch('/api/v1/public/system-logs/overview', {
+      const response = await fetch('/api/v1/ops/system-logs/overview', {
         headers: {
-          'x-log-viewer-password': LOG_VIEWER_PASSWORD,
+          Authorization: `Bearer ${token}`,
         },
       });
       const result: OverviewResponse = await response.json();
@@ -160,38 +155,18 @@ export default function BackendLogsModule() {
     } finally {
       setIsLoadingOverview(false);
     }
-  }, [isAccessGranted]);
+  }, [isAccessGranted, token]);
+
+  useEffect(() => {
+    setIsAccessGranted(Boolean(token));
+  }, [token]);
 
   useEffect(() => {
     fetchOverview();
   }, [fetchOverview]);
 
-  const handleAccessSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-
-    if (accessPassword !== LOG_VIEWER_PASSWORD) {
-      setAccessError('Wrong static password');
-      return;
-    }
-
-    sessionStorage.setItem(LOG_VIEWER_SESSION_KEY, 'true');
-    setAccessError(null);
-    setIsAccessGranted(true);
-    setIsLoadingOverview(true);
-  };
-
   const handleLockLogs = () => {
-    sessionStorage.removeItem(LOG_VIEWER_SESSION_KEY);
-    setIsAccessGranted(false);
-    setAccessPassword('');
-    setAccessError(null);
-    setFiles([]);
-    setSelectedFile(null);
-    setSelectedContent(null);
-    setError(null);
-    setIsSidebarCollapsed(false);
-    setIsLoadingOverview(false);
-    setIsLoadingFile(false);
+    window.location.assign('/doctor-portal');
   };
 
   const previewText = useMemo(() => {
@@ -230,36 +205,15 @@ export default function BackendLogsModule() {
             </div>
 
             <p className="mb-6 text-sm text-[#8db49a]">
-              Welcome {viewerName}. Enter the static password to unlock backend logs.
+              Welcome {viewerName}. Sign in as the authorized production operator to view backend logs.
             </p>
 
-            <form onSubmit={handleAccessSubmit} className="space-y-4">
-              <div>
-                <label className="mb-2 block text-xs font-black uppercase tracking-[0.28em] text-[#72ffa0]">
-                  Static Password
-                </label>
-                <input
-                  type="password"
-                  value={accessPassword}
-                  onChange={(event) => setAccessPassword(event.target.value)}
-                  className="w-full rounded-2xl border border-[#24452d] bg-[#07100b] px-4 py-3 font-mono text-sm text-[#d9ffe3] outline-none transition focus:border-[#60ff93]"
-                  placeholder="Enter password"
-                />
-              </div>
-
-              {accessError && (
-                <div className="rounded-2xl border border-[#633] bg-[#17090b]/90 p-3 text-sm text-[#ff8f8f]">
-                  {accessError}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#2b5d37] bg-[#08110c] px-4 py-3 text-sm font-bold uppercase tracking-[0.25em] text-[#8fffa6] transition hover:border-[#60ff93] hover:bg-[#0d1b12]"
-              >
-                Unlock Logs
-              </button>
-            </form>
+            <a
+              href="/booking"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#2b5d37] bg-[#08110c] px-4 py-3 text-sm font-bold uppercase tracking-[0.25em] text-[#8fffa6] transition hover:border-[#60ff93] hover:bg-[#0d1b12]"
+            >
+              Go to Login
+            </a>
           </div>
         </div>
       </div>
@@ -298,7 +252,7 @@ export default function BackendLogsModule() {
             onClick={handleLockLogs}
             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#5d2b2b] bg-[#14090a] px-4 py-3 text-sm font-bold uppercase tracking-[0.25em] text-[#ff9b9b] transition hover:border-[#ff8c8c] hover:bg-[#1c0c0d]"
           >
-            Lock / Logout
+            Back to Portal
           </button>
         </div>
 
