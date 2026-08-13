@@ -160,7 +160,14 @@ function AnimatedRoutes() {
             <Route path="/treatments" element={<Treatments />} />
             <Route path="/booking" element={<Booking />} />
             <Route path="/contact" element={<Contact />} />
-            <Route path="/backend-logs" element={<BackendLogsModule />} />
+            <Route
+              path="/backend-logs"
+              element={
+                <ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}>
+                  <BackendLogsModule />
+                </ProtectedRoute>
+              }
+            />
             {/* Medical Routes */}
             <Route 
               path="/medical-welcome" 
