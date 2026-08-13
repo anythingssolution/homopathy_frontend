@@ -15,6 +15,10 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         workbox: {
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+          // HTML must come from Nginx on every navigation. Hashed assets remain
+          // safe to precache, but caching the app shell can show an old UI.
+          globIgnores: ['**/index.html'],
+          navigateFallback: null,
         },
         manifest: {
           name: 'Dr. Trivedi\'s Homeopathy',
