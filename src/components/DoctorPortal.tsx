@@ -886,7 +886,8 @@ export default function DoctorPortal() {
                         state: {
                           fromDate: '2026-01-01',
                           toDate: today.toISOString().split('T')[0],
-                          filterStatus: key === 'total_consultations' ? 'Completed' : 'all'
+                          filterStatus: key === 'total_consultations' ? 'Completed' : 'all',
+                          branchId: selectedBranchId
                         }
                       });
                     }

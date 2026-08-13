@@ -37,13 +37,13 @@ import MedicationDispensingStatus from "../MedicationDispensingStatus";
 
 export default function DoctorClinicHistory() {
   const { t } = useTranslation();
-  const { token } = useAuth();
+  const { token, branchScope } = useAuth();
+  const location = useLocation();
+  const selectedBranchId = branchScope?.selected_branch_id ? Number(branchScope.selected_branch_id) : null;
 
   const [historyItems, setHistoryItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { addToast } = useNotifications();
-
-  const location = useLocation();
 
   const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState(() => {
@@ -198,6 +198,7 @@ export default function DoctorClinicHistory() {
       if (filterStatus && filterStatus !== "all")
         params.append("status", filterStatus);
       if (search.trim()) params.append("patient_search", search.trim());
+      if (selectedBranchId) params.append("branch_id", String(selectedBranchId));
 
       const res = await fetch(
         `/api/v1/doctors/consultations-history?${params.toString()}`,
@@ -220,7 +221,7 @@ export default function DoctorClinicHistory() {
 
   useEffect(() => {
     fetchHistory();
-  }, [fromDate, toDate, filterStatus, token]);
+  }, [fromDate, toDate, filterStatus, token, selectedBranchId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
