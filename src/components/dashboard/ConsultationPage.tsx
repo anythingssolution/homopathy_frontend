@@ -35,6 +35,7 @@ import {
   getMedicationPricingAmount,
   getMedicationRoleLabel,
   formatConsultationMedicineText,
+  parseConsultationMedicineText,
 } from "../../utils/prescriptionFormat";
 import { parseDoctorFormulaInput } from "../../utils/doctorFormulaParser";
 import { translateRemarkToHindi } from "../../utils/remarkHindiTranslator";
@@ -49,7 +50,9 @@ import {
   getDurationKeyFromDays,
   getDurationMultiplier,
   isThirtyDayDuration,
-  MEDICATION_DURATION_OPTIONS,
+  MEDICATION_DURATION_DAY_OPTIONS,
+  MEDICATION_DURATION_MONTH_OPTIONS,
+  isMonthDuration,
   normalizeDurationKey,
 } from "../../utils/medicationDuration";
 
@@ -76,6 +79,7 @@ type TextMedicine = {
   medicine_value: string;
   normalized_value: string;
   is_active: number;
+  is_doctor_manual?: number | boolean;
   created_at: string;
   updated_at: string;
   remark_suggestions?: any[];
@@ -117,6 +121,27 @@ type OtherMedEntry = {
   amount: string;
   quantity?: number | string;
   isManualEntry?: boolean;
+};
+
+const buildOtherMedFromSavedValue = (
+  medicineValue: string,
+  extras: Partial<OtherMedEntry> = {},
+): OtherMedEntry => {
+  const parsed = parseConsultationMedicineText(medicineValue);
+  return {
+    name: parsed.name,
+    selectedVariant: parsed.variant
+      ? {
+          label: parsed.variant,
+          price: extras.amount || "0",
+          type: "manual",
+        }
+      : extras.selectedVariant || null,
+    remark: extras.remark || "",
+    amount: extras.amount || "",
+    quantity: parsed.quantity || extras.quantity || 1,
+    isManualEntry: Boolean(extras.isManualEntry),
+  };
 };
 
 type LabTestMaster = {
@@ -337,6 +362,7 @@ function SearchableDropdown({
   disabled,
   id,
   allowCustom,
+  compact,
 }: {
   options: { label: string; value: string }[];
   value: string;
@@ -345,6 +371,7 @@ function SearchableDropdown({
   disabled?: boolean;
   id?: string;
   allowCustom?: boolean;
+  compact?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -461,9 +488,15 @@ function SearchableDropdown({
     >
       <div
         onClick={() => !disabled && setIsOpen(true)}
-        className={`w-full px-4 py-3 bg-white border rounded-lg text-sm font-bold text-gray-800 transition-all flex justify-between items-center ${disabled
+        className={`w-full bg-white border rounded-lg font-bold text-gray-800 transition-all flex justify-between items-center ${
+          compact
+            ? "h-7 px-2 py-0 text-[9px] uppercase tracking-wider"
+            : "px-4 py-3 text-sm"
+        } ${disabled
             ? "opacity-80 bg-gray-100 border-gray-200 cursor-default"
-            : "border-gray-200 cursor-text focus-within:border-[#549E9E] focus-within:ring-4 focus-within:ring-[#549E9E]/10"
+            : isOpen || (compact && Boolean(displayValue))
+              ? "border-[#549E9E] cursor-text ring-2 ring-[#549E9E]/15"
+              : "border-gray-200 cursor-text focus-within:border-[#549E9E] focus-within:ring-4 focus-within:ring-[#549E9E]/10"
           }`}
       >
         {!isOpen || disabled ? (
@@ -474,7 +507,9 @@ function SearchableDropdown({
           <input
             autoFocus
             type="text"
-            className="w-full bg-transparent outline-none text-sm font-bold text-gray-800"
+            className={`w-full bg-transparent outline-none font-bold text-gray-800 ${
+              compact ? "text-[9px] uppercase tracking-wider" : "text-sm"
+            }`}
             placeholder={placeholder}
             value={searchTerm}
             onChange={(e) => {
@@ -507,14 +542,20 @@ function SearchableDropdown({
       {isOpen && !disabled && (
         <div
           ref={listRef}
-          className="absolute z-50 mt-1 w-full bg-white border border-gray-100 rounded-xl shadow-lg max-h-48 overflow-y-auto"
+          className={`absolute z-50 mt-1 w-full min-w-[120px] bg-[#f4f8f7] border border-[#549E9E]/20 rounded-xl shadow-lg overflow-hidden ${
+            compact ? "max-h-40" : "max-h-48 overflow-y-auto"
+          } overflow-y-auto`}
         >
           {filteredOptions.length > 0 ? (
             filteredOptions.map((opt, i) => (
               <div
                 key={i}
                 onClick={() => handleSelect(opt.value)}
-                className={`px-4 py-2 hover:bg-[#549E9E]/10 hover:text-[#549E9E] cursor-pointer text-sm text-gray-700 ${i === highlightedIndex ? "bg-[#549E9E]/10 text-[#549E9E] font-bold" : ""} ${value === opt.value || value === opt.label ? "bg-[#549E9E]/5 text-[#549E9E] font-bold" : ""}`}
+                className={`hover:bg-[#549E9E]/10 hover:text-[#549E9E] cursor-pointer text-gray-700 ${
+                  compact
+                    ? "px-3 py-2 text-[11px] font-black"
+                    : "px-4 py-2 text-sm"
+                } ${i === highlightedIndex ? "bg-[#549E9E]/10 text-[#549E9E] font-bold" : ""} ${value === opt.value || value === opt.label ? "bg-[#549E9E]/5 text-[#549E9E] font-bold" : ""}`}
               >
                 {opt.label}
               </div>
@@ -710,10 +751,7 @@ export default function ConsultationPage() {
       treatmentName === "followup visit"
     );
   }, [currentApp?.treatment_name, currentApp?.visit_type_code]);
-  const followUpAfterDays =
-    followUpPreset === "custom"
-      ? Number(customFollowUpDays)
-      : Number(followUpPreset);
+  const followUpAfterDays = getDurationDaysFromKey(globalDuration);
 
   useEffect(() => {
     const fetchMasters = async () => {
@@ -917,14 +955,13 @@ export default function ConsultationPage() {
           setIsSame(Boolean(Number(c.is_same)));
 
           setGlobalDuration(getDurationKeyFromDays(Number(c.medication_duration_days || 15)));
-          const loadedFollowUpDays = Number(c.follow_up_after_days || 15);
-          if ([7, 15, 30, 45, 60, 90, 180].includes(loadedFollowUpDays)) {
-            setFollowUpPreset(String(loadedFollowUpDays) as "7" | "15" | "30" | "45" | "60" | "90" | "180");
-            setCustomFollowUpDays("");
-          } else {
-            setFollowUpPreset("custom");
-            setCustomFollowUpDays(String(loadedFollowUpDays));
-          }
+          const loadedFollowUpDays = Number(
+            c.follow_up_after_days || c.medication_duration_days || 15,
+          );
+          setFollowUpPreset(
+            String(loadedFollowUpDays) as "7" | "15" | "30" | "45" | "60" | "90" | "180",
+          );
+          setCustomFollowUpDays("");
           setRepeatedFromConsultationId(
             c.repeated_from_consultation_id
               ? Number(c.repeated_from_consultation_id)
@@ -1009,31 +1046,23 @@ export default function ConsultationPage() {
                     : "",
                 });
               } else {
-                // For TEXT type
-                let name = m.medicine_value || "";
-                let remark = m.remark || "";
-
-                // Fallback for old "name - remark" format if remark is empty
-                if (!remark && name.includes(" - ")) {
-                  const dashIdx = name.indexOf(" - ");
-                  remark = name.substring(dashIdx + 3);
-                  name = name.substring(0, dashIdx);
-                }
-
-                otherMeds.push({
-                  name,
-                  remark,
-                  amount: pricingByMedicationId.has(
-                    Number(m.consultation_medication_id),
-                  )
-                    ? String(
+                const savedAmount = pricingByMedicationId.has(
+                  Number(m.consultation_medication_id),
+                )
+                  ? String(
                       pricingByMedicationId.get(
                         Number(m.consultation_medication_id),
                       ) ?? "",
                     )
-                    : "",
-                  isManualEntry: Boolean(m.is_manual_entry),
-                });
+                  : "";
+
+                otherMeds.push(
+                  buildOtherMedFromSavedValue(m.medicine_value || "", {
+                    remark: m.remark || "",
+                    amount: savedAmount,
+                    isManualEntry: Boolean(m.is_manual_entry),
+                  }),
+                );
               }
             });
 
@@ -1155,12 +1184,11 @@ export default function ConsultationPage() {
         draft.followUpPreset === "45" ||
         draft.followUpPreset === "60" ||
         draft.followUpPreset === "90" ||
-        draft.followUpPreset === "180" ||
-        draft.followUpPreset === "custom"
+        draft.followUpPreset === "180"
       ) {
         setFollowUpPreset(draft.followUpPreset);
       }
-      setCustomFollowUpDays(draft.customFollowUpDays || "");
+      setCustomFollowUpDays("");
       setRepeatedFromConsultationId(
         draft.repeatedFromConsultationId
           ? Number(draft.repeatedFromConsultationId)
@@ -1359,7 +1387,7 @@ export default function ConsultationPage() {
   if (!currentApp) return null;
 
   const [focusTrigger, setFocusTrigger] = useState<{
-    type: "med" | "other" | "test";
+    type: "med" | "other" | "other-variant" | "test";
     index: number;
   } | null>(null);
 
@@ -1397,6 +1425,25 @@ export default function ConsultationPage() {
       },
     ]);
     setFocusTrigger({ type: "other", index: newIdx });
+  };
+
+  const addOtherMedicationVariant = (sourceIndex: number) => {
+    if (isReadOnly) return;
+    const source = otherMedications[sourceIndex];
+    if (!source?.name.trim()) return;
+
+    const nextRow: OtherMedEntry = {
+      name: source.name.trim(),
+      selectedVariant: null,
+      remark: source.remark || "",
+      amount: "",
+      quantity: 1,
+      isManualEntry: Boolean(source.isManualEntry),
+    };
+    const updated = [...otherMedications];
+    updated.splice(sourceIndex + 1, 0, nextRow);
+    setOtherMedications(updated);
+    setFocusTrigger({ type: "other-variant", index: sourceIndex + 1 });
   };
 
   const addTest = () => {
@@ -1657,7 +1704,10 @@ export default function ConsultationPage() {
 
   useEffect(() => {
     if (focusTrigger) {
-      const id = `${focusTrigger.type}-trigger-${focusTrigger.index}`;
+      const id =
+        focusTrigger.type === "other-variant"
+          ? `other-variant-trigger-${focusTrigger.index}`
+          : `${focusTrigger.type}-trigger-${focusTrigger.index}`;
       const element = document.getElementById(id);
       if (element) {
         element.focus();
@@ -1733,20 +1783,35 @@ export default function ConsultationPage() {
   );
 
   const getAvailableOtherMedicineOptions = (currentIndex: number) => {
-    const selectedMedicineNames = new Set(
+    return textMedicines.map((medicine) => ({
+      label: Number(medicine.is_doctor_manual)
+        ? `${medicine.medicine_value} (Manual)`
+        : medicine.medicine_value,
+      value: medicine.medicine_value,
+    }));
+  };
+
+  const getUsedVariantsForMedicine = (
+    medicineName: string,
+    currentIndex: number,
+  ) => {
+    const normalizedName = medicineName.trim().toLowerCase();
+    if (!normalizedName) return new Set<string>();
+
+    return new Set(
       otherMedications
-        .map((entry, index) =>
-          index === currentIndex ? "" : entry.name.trim(),
+        .filter(
+          (entry, index) =>
+            index !== currentIndex &&
+            entry.name.trim().toLowerCase() === normalizedName,
+        )
+        .map((entry) =>
+          String(entry.selectedVariant?.label || "")
+            .trim()
+            .toLowerCase(),
         )
         .filter(Boolean),
     );
-
-    return textMedicines
-      .filter((medicine) => !selectedMedicineNames.has(medicine.medicine_value))
-      .map((medicine) => ({
-        label: medicine.medicine_value,
-        value: medicine.medicine_value,
-      }));
   };
 
   const resolveTextMedicineVariants = (medicine: (typeof textMedicines)[number] | undefined) => {
@@ -1768,6 +1833,14 @@ export default function ConsultationPage() {
               label: p.size_or_weight || p.net_weight_or_size || "N/A",
               price: p.mrp_rate || "0",
               type: "radient",
+              remark_suggestions: p.remark_suggestions || [],
+            };
+          }
+          if (p.source_type === "DOCTOR_MANUAL") {
+            return {
+              label: p.packing || p.size_or_weight || p.product_name || "N/A",
+              price: p.mrp_rate || "0",
+              type: "manual",
               remark_suggestions: p.remark_suggestions || [],
             };
           }
@@ -1806,23 +1879,29 @@ export default function ConsultationPage() {
   const applyOtherMedicineSelection = (
     current: OtherMedEntry,
     medicineName: string,
+    currentIndex: number,
   ): OtherMedEntry => {
     const trimmedName = medicineName.trim();
     const medicine = textMedicines.find(
       (item) => item.medicine_value === trimmedName,
     );
-    const isManualEntry = Boolean(trimmedName) && !medicine;
+    const isManualEntry =
+      Boolean(trimmedName) &&
+      (!medicine || Boolean(Number(medicine.is_doctor_manual)));
 
-    if (isManualEntry) {
+    if (isManualEntry && !medicine) {
       return {
         ...current,
         name: trimmedName,
         isManualEntry: true,
-        selectedVariant: null,
       };
     }
 
-    const computedVariants = resolveTextMedicineVariants(medicine);
+    const usedVariants = getUsedVariantsForMedicine(trimmedName, currentIndex);
+    const computedVariants = resolveTextMedicineVariants(medicine).filter(
+      (variant) =>
+        !usedVariants.has(String(variant.label || "").trim().toLowerCase()),
+    );
     const defaultVariant =
       computedVariants.length === 1 ? computedVariants[0] : null;
     const qtyNum = Math.max(1, parseInt(String(current.quantity || 1)) || 1);
@@ -1839,7 +1918,7 @@ export default function ConsultationPage() {
     return {
       ...current,
       name: trimmedName,
-      isManualEntry: false,
+      isManualEntry,
       selectedVariant: defaultVariant,
       remark: nextRemark,
       amount: unitPrice ? (unitPrice * qtyNum).toFixed(2) : current.amount,
@@ -1916,25 +1995,13 @@ export default function ConsultationPage() {
             amount: String(medicine.amount ?? 0),
           });
         } else {
-          let medVal = String(medicine.medicine_value || "").trim();
-          let parsedQty = 1;
-          const matchSuffix = medVal.match(/^(.*?)\s*[*xX]\s*(\d+)$/);
-          const matchPrefix = medVal.match(/^(\d+)\s*[*xX]\s*(.*)$/);
-          if (matchSuffix) {
-            medVal = matchSuffix[1].trim();
-            parsedQty = parseInt(matchSuffix[2]) || 1;
-          } else if (matchPrefix) {
-            parsedQty = parseInt(matchPrefix[1]) || 1;
-            medVal = matchPrefix[2].trim();
-          }
-
-          textMedicineDrafts.push({
-            name: medVal,
-            remark: String(medicine.remark || ""),
-            amount: String(medicine.amount ?? 0),
-            quantity: parsedQty,
-            isManualEntry: Boolean(medicine.is_manual_entry),
-          });
+          textMedicineDrafts.push(
+            buildOtherMedFromSavedValue(String(medicine.medicine_value || ""), {
+              remark: String(medicine.remark || ""),
+              amount: String(medicine.amount ?? 0),
+              isManualEntry: Boolean(medicine.is_manual_entry),
+            }),
+          );
         }
       });
 
@@ -2140,25 +2207,13 @@ export default function ConsultationPage() {
           amount: "",
         });
       } else {
-        let medVal = String(item.medicine_value || "").trim();
-        let parsedQty = 1;
-        const matchSuffix = medVal.match(/^(.*?)\s*[*xX]\s*(\d+)$/);
-        const matchPrefix = medVal.match(/^(\d+)\s*[*xX]\s*(.*)$/);
-        if (matchSuffix) {
-          medVal = matchSuffix[1].trim();
-          parsedQty = parseInt(matchSuffix[2]) || 1;
-        } else if (matchPrefix) {
-          parsedQty = parseInt(matchPrefix[1]) || 1;
-          medVal = matchPrefix[2].trim();
-        }
-
-        textMedicineDrafts.push({
-          name: medVal,
-          remark: String(item.remark || ""),
-          amount: "",
-          quantity: parsedQty,
-          isManualEntry: false,
-        });
+        textMedicineDrafts.push(
+          buildOtherMedFromSavedValue(String(item.medicine_value || ""), {
+            remark: String(item.remark || ""),
+            amount: "",
+            isManualEntry: false,
+          }),
+        );
       }
     });
 
@@ -2290,6 +2345,12 @@ export default function ConsultationPage() {
           formattedMedications.push({
             medicine_type: "TEXT",
             medicine_value: finalMedicineValue,
+            master_medicine_value: om.name.trim(),
+            variant_value: om.selectedVariant?.label || null,
+            quantity: Math.max(1, parseInt(String(om.quantity || 1), 10) || 1),
+            variant_unit_price: om.selectedVariant?.price
+              ? Number(om.selectedVariant.price)
+              : null,
             remark: om.remark.trim() || null,
             remark_hi: translateRemarkToHindi(om.remark).trim() || null,
             is_manual_entry: Boolean(om.isManualEntry),
@@ -3947,13 +4008,6 @@ export default function ConsultationPage() {
             <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-1.5">
               <WandSparkles size={14} /> Quick Numeric Entry
             </label>
-            <p className="text-[10px] font-bold text-gray-400">
-              Enter codes (e.g.{" "}
-              <span className="text-[#549E9E]">
-                30, 200/2, 3q/5, 21 23 34/7, 5, 4, 6, /789
-              </span>
-              )
-            </p>
           </div>
 
           {/* Unified Horizontal Controls Row */}
@@ -3976,7 +4030,7 @@ export default function ConsultationPage() {
                       setIsQuickFormulaDropdownOpen(true);
                     }
                   }}
-                  placeholder="e.g. 30, 200/2, 84/20, 5, 4, 6, /789"
+                  placeholder=""
                   className="w-full h-9 pl-3 pr-8 bg-gray-50/80 border border-gray-200 rounded-xl focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 text-xs font-bold font-mono text-gray-800 placeholder:font-sans placeholder:text-gray-400 outline-none transition-all shadow-2xs disabled:opacity-80"
                 />
                 {prescriptionSuggestions.length > 0 && !isReadOnly && (
@@ -4071,12 +4125,12 @@ export default function ConsultationPage() {
 
 
 
-            {/* Duration Pills */}
+            {/* Duration Pills + Month Dropdown */}
             <div className="flex flex-wrap items-center gap-1 bg-gray-50 p-1 border border-gray-200 rounded-xl min-h-9">
               <span className="text-[8px] font-black uppercase tracking-widest text-gray-400 px-1">
                 Duration:
               </span>
-              {MEDICATION_DURATION_OPTIONS.map((option) => (
+              {MEDICATION_DURATION_DAY_OPTIONS.map((option) => (
                 <button
                   key={option.key}
                   type="button"
@@ -4084,7 +4138,6 @@ export default function ConsultationPage() {
                   onClick={() => {
                     setGlobalDuration(option.key);
                     setFollowUpPreset(String(option.days) as "7" | "15" | "30" | "45" | "60" | "90" | "180");
-                    setCustomFollowUpDays("");
                   }}
                   className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-all rounded-lg cursor-pointer ${globalDuration === option.key
                       ? "bg-[#549E9E] text-white shadow-xs"
@@ -4094,27 +4147,29 @@ export default function ConsultationPage() {
                   {option.label}
                 </button>
               ))}
+              <div className="relative w-[108px] shrink-0">
+                <SearchableDropdown
+                  compact
+                  disabled={isReadOnly}
+                  options={MEDICATION_DURATION_MONTH_OPTIONS.map((option) => ({
+                    label: option.label,
+                    value: option.key,
+                  }))}
+                  value={isMonthDuration(globalDuration) ? globalDuration : ""}
+                  onChange={(val) => {
+                    const option = MEDICATION_DURATION_MONTH_OPTIONS.find(
+                      (item) => item.key === val,
+                    );
+                    if (!option) return;
+                    setGlobalDuration(option.key);
+                    setFollowUpPreset(
+                      String(option.days) as "7" | "15" | "30" | "45" | "60" | "90" | "180",
+                    );
+                  }}
+                  placeholder="Month"
+                />
+              </div>
             </div>
-
-            {/* Custom Days Input */}
-            <input
-              type="number"
-              min={1}
-              max={365}
-              disabled={isReadOnly || followUpChainClosed}
-              value={customFollowUpDays}
-              onChange={(event) => {
-                setCustomFollowUpDays(event.target.value);
-                setFollowUpPreset(
-                  event.target.value
-                    ? "custom"
-                    : (String(getDurationDaysFromKey(globalDuration)) as "7" | "15" | "30" | "45" | "60" | "90" | "180"),
-                );
-              }}
-              placeholder="Custom day"
-              title="Custom follow-up days"
-              className="h-9 w-24 rounded-xl border border-gray-200 bg-gray-50/80 px-2.5 text-[10px] font-black text-gray-700 outline-none focus:border-[#549E9E] focus:bg-white disabled:bg-gray-100 disabled:opacity-60"
-            />
 
             {/* Close Case Checkbox */}
             {!isReadOnly && (
@@ -4733,6 +4788,15 @@ export default function ConsultationPage() {
             )}
           </div>
 
+          {!isReadOnly && (
+            <p className="text-[10px] font-bold text-emerald-700/80 px-1 -mt-1">
+              {t(
+                "consultation_modal.add_variant_hint",
+                "Same syrup, two sizes? Use + on the row to add another variant (e.g. 2ml and 10ml).",
+              )}
+            </p>
+          )}
+
           {otherMedications.length === 0 && (
             <p className="text-xs text-gray-500 italic py-1 px-1">
               No other medications added. Click "+ Add Other Med" to add syrups,
@@ -4741,7 +4805,7 @@ export default function ConsultationPage() {
           )}
 
           {otherMedications.length > 0 && (
-            <div className="hidden lg:grid lg:grid-cols-[minmax(190px,1.3fr)_minmax(120px,0.8fr)_70px_minmax(180px,1.1fr)_90px_40px] gap-3 px-3">
+            <div className="hidden lg:grid lg:grid-cols-[minmax(190px,1.3fr)_minmax(120px,0.8fr)_70px_minmax(180px,1.1fr)_90px_72px] gap-3 px-3">
               {[
                 {
                   label: t(
@@ -4792,61 +4856,31 @@ export default function ConsultationPage() {
               const availableOtherMedicineOptions =
                 getAvailableOtherMedicineOptions(idx);
 
-              const variantOptions =
-                selectedMedicine && selectedMedicine.medical_products?.length
-                  ? selectedMedicine.medical_products
-                    .map((p) => {
-                      if (p.source_type === "REGULAR_PRODUCT") {
-                        return {
-                          label: p.packing || "N/A",
-                          price: p.mrp_rate || "0",
-                          type: "product",
-                          remark_suggestions: p.remark_suggestions || [],
-                        };
-                      }
-                      if (p.source_type === "RADIENT_PHARMA") {
-                        return {
-                          label:
-                            p.size_or_weight || p.net_weight_or_size || "N/A",
-                          price: p.mrp_rate || "0",
-                          type: "radient",
-                          remark_suggestions: p.remark_suggestions || [],
-                        };
-                      }
-                      return {
-                        label: "N/A",
-                        price: p.price_max || p.price_min || "0",
-                        type: "medical_product_price",
-                        remark_suggestions: p.remark_suggestions || [],
-                      };
-                    })
-                    .filter((v) => v.label)
-                  : selectedMedicine
-                    ? [
-                      ...(selectedMedicine.products || []).map((p) => ({
-                        label: p.packing || "N/A",
-                        price: p.mrp_rate || "0",
-                        type: "product",
-                        remark_suggestions: p.remark_suggestions || [],
-                      })),
-                      ...(selectedMedicine.radient_pharma_products || []).map(
-                        (p) => ({
-                          label: p.net_weight_or_size || "N/A",
-                          price: p.mrp_rate || "0",
-                          type: "radient",
-                          remark_suggestions: p.remark_suggestions || [],
-                        }),
-                      ),
-                      ...(
-                        selectedMedicine.handwritten_product_prices || []
-                      ).map((p) => ({
-                        label: p.product_name || p.category || "N/A",
-                        price: p.price_max || p.price_min || "0",
-                        type: "handwritten",
-                        remark_suggestions: p.remark_suggestions || [],
-                      })),
-                    ].filter((v) => v.label)
-                    : [];
+              const usedVariants = getUsedVariantsForMedicine(om.name, idx);
+              const resolvedVariants = resolveTextMedicineVariants(selectedMedicine);
+              const variantOptions = [
+                ...resolvedVariants,
+                ...(om.selectedVariant?.label &&
+                om.selectedVariant.label !== "N/A" &&
+                !resolvedVariants.some(
+                  (option) => option.label === om.selectedVariant?.label,
+                )
+                  ? [om.selectedVariant]
+                  : []),
+              ].filter((option) => {
+                const label = String(option.label || "").trim();
+                if (!label || label === "N/A") return false;
+                const normalized = label.toLowerCase();
+                const currentLabel = String(om.selectedVariant?.label || "")
+                  .trim()
+                  .toLowerCase();
+                return normalized === currentLabel || !usedVariants.has(normalized);
+              });
+              const isContinuationVariant =
+                idx > 0 &&
+                Boolean(om.name.trim()) &&
+                otherMedications[idx - 1].name.trim().toLowerCase() ===
+                  om.name.trim().toLowerCase();
               const defaultRemarkOptions =
                 om.name?.toLowerCase().includes("syrup") ||
                   om.name?.toLowerCase().includes("syr")
@@ -4883,7 +4917,11 @@ export default function ConsultationPage() {
               return (
                 <div
                   key={idx}
-                  className="grid grid-cols-1 lg:grid-cols-[minmax(190px,1.3fr)_minmax(120px,0.8fr)_70px_minmax(180px,1.1fr)_90px_40px] gap-3 items-start bg-white border border-emerald-100 rounded-xl p-2 px-3 shadow-2xs hover:shadow-sm hover:border-[#549E9E]/30 transition-all"
+                  className={`grid grid-cols-1 lg:grid-cols-[minmax(190px,1.3fr)_minmax(120px,0.8fr)_70px_minmax(180px,1.1fr)_90px_72px] gap-3 items-start bg-white border rounded-xl p-2 px-3 shadow-2xs hover:shadow-sm transition-all ${
+                    isContinuationVariant
+                      ? "border-emerald-200/80 ml-0 lg:ml-3 bg-emerald-50/40"
+                      : "border-emerald-100 hover:border-[#549E9E]/30"
+                  }`}
                   onKeyDown={(e) => {
                     if (
                       e.altKey &&
@@ -4901,22 +4939,37 @@ export default function ConsultationPage() {
                         "Medicine / Syrup Name",
                       )}
                     </label>
-                    <SearchableDropdown
-                      id={`other-trigger-${idx}`}
-                      disabled={isReadOnly}
-                      allowCustom={true}
-                      options={availableOtherMedicineOptions}
-                      value={om.name}
-                      onChange={(val) => {
-                        const updated = [...otherMedications];
-                        updated[idx] = applyOtherMedicineSelection(updated[idx], val);
-                        setOtherMedications(updated);
-                      }}
-                      placeholder={t(
-                        "consultation_modal.search_medicine",
-                        "Search or type medicine...",
-                      )}
-                    />
+                    {isContinuationVariant ? (
+                      <div className="h-[42px] px-3 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/80 flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 shrink-0">
+                          {t("consultation_modal.same_medicine_variant", "Same")}
+                        </span>
+                        <span className="text-sm font-bold text-gray-800 truncate">
+                          {om.name}
+                        </span>
+                      </div>
+                    ) : (
+                      <SearchableDropdown
+                        id={`other-trigger-${idx}`}
+                        disabled={isReadOnly}
+                        allowCustom={true}
+                        options={availableOtherMedicineOptions}
+                        value={om.name}
+                        onChange={(val) => {
+                          const updated = [...otherMedications];
+                          updated[idx] = applyOtherMedicineSelection(
+                            updated[idx],
+                            val,
+                            idx,
+                          );
+                          setOtherMedications(updated);
+                        }}
+                        placeholder={t(
+                          "consultation_modal.search_medicine",
+                          "Search or type medicine...",
+                        )}
+                      />
+                    )}
                     {om.isManualEntry && (
                       <p className="mt-1 text-[9px] font-black uppercase tracking-widest text-amber-600">
                         {t(
@@ -4934,22 +4987,40 @@ export default function ConsultationPage() {
                       )}
                     </label>
                     <SearchableDropdown
-                      disabled={isReadOnly || variantOptions.length === 0}
-                      options={variantOptions
-                        .filter((v) => v.label !== "N/A")
-                        .map((v) => ({
-                          label: v.label,
-                          value: v.label,
-                        }))}
+                      id={`other-variant-trigger-${idx}`}
+                      disabled={isReadOnly}
+                      allowCustom={true}
+                      options={variantOptions.map((v) => ({
+                        label: v.label,
+                        value: v.label,
+                      }))}
                       value={
                         om.selectedVariant?.label === "N/A"
                           ? ""
                           : (om.selectedVariant?.label || "")
                       }
                       onChange={(val) => {
+                        const trimmedVal = val.trim();
+                        if (
+                          trimmedVal &&
+                          usedVariants.has(trimmedVal.toLowerCase())
+                        ) {
+                          addToast(
+                            "This variant is already added for the same medicine.",
+                            "error",
+                          );
+                          return;
+                        }
                         const variant = variantOptions.find(
-                          (v) => v.label === val,
-                        );
+                          (v) => v.label === trimmedVal,
+                        ) || (trimmedVal
+                          ? {
+                              label: trimmedVal,
+                              price: om.selectedVariant?.price || "0",
+                              type: "manual",
+                              remark_suggestions: [],
+                            }
+                          : null);
                         const qtyNum = Math.max(1, parseInt(String(om.quantity || 1)) || 1);
                         const unitPrice = variant && variant.price ? Number(variant.price) : 0;
 
@@ -4962,8 +5033,8 @@ export default function ConsultationPage() {
                         const updated = [...otherMedications];
                         updated[idx] = {
                           ...updated[idx],
-                          selectedVariant: variant || null,
-                          remark: nextRemark,
+                          selectedVariant: variant,
+                          remark: nextRemark || updated[idx].remark,
                           amount:
                             unitPrice
                               ? (unitPrice * qtyNum).toFixed(2)
@@ -4971,16 +5042,10 @@ export default function ConsultationPage() {
                         };
                         setOtherMedications(updated);
                       }}
-                      placeholder={
-                        om.selectedVariant?.label === "N/A"
-                          ? t("consultation_modal.no_variants", "No Variants")
-                          : (variantOptions.length > 0
-                            ? t(
-                              "consultation_modal.select_variant",
-                              "Select Variant...",
-                            )
-                            : t("consultation_modal.no_variants", "No Variants"))
-                      }
+                      placeholder={t(
+                        "consultation_modal.select_or_type_variant",
+                        "Select or type variant...",
+                      )}
                     />
                   </div>
                   <div>
@@ -5082,7 +5147,21 @@ export default function ConsultationPage() {
                     />
                   </div>
 
-                  <div className="flex justify-center h-8.5 items-center">
+                  <div className="flex justify-center h-8.5 items-center gap-1">
+                    {!isReadOnly && om.name.trim() && (
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => addOtherMedicationVariant(idx)}
+                        title={t(
+                          "consultation_modal.add_variant",
+                          "Add another variant of this medicine",
+                        )}
+                        className="p-1.5 text-[#549E9E] hover:text-white hover:bg-[#549E9E] rounded-lg transition-all cursor-pointer"
+                      >
+                        <Plus size={15} />
+                      </button>
+                    )}
                     {!isReadOnly && (
                       <button
                         tabIndex={-1}

@@ -3,7 +3,6 @@ export const MEDICATION_DURATION_OPTIONS = [
   { key: "15", label: "15", days: 15 },
   { key: "30", label: "30", days: 30 },
   { key: "45", label: "45", days: 45 },
-  { key: "1M", label: "1 Mo", days: 30 },
   { key: "2M", label: "2 Mo", days: 60 },
   { key: "3M", label: "3 Mo", days: 90 },
   { key: "6M", label: "6 Mo", days: 180 },
@@ -52,14 +51,9 @@ export function getDurationKeyFromDays(days: number): string {
   if (!Number.isFinite(numericDays) || numericDays <= 0) return "15";
 
   const dayMatch = MEDICATION_DURATION_OPTIONS.find(
-    (option) => option.key !== "1M" && option.days === numericDays,
+    (option) => option.days === numericDays,
   );
   if (dayMatch) return dayMatch.key;
-
-  if (numericDays === 30) return "30";
-  if (numericDays === 60) return "2M";
-  if (numericDays === 90) return "3M";
-  if (numericDays === 180) return "6M";
 
   return String(numericDays);
 }
@@ -71,6 +65,20 @@ export function getDurationMultiplier(value: string | null | undefined): number 
 
 export function isThirtyDayDuration(value: string | null | undefined): boolean {
   return getDurationDaysFromKey(value) === 30;
+}
+
+export const MEDICATION_DURATION_DAY_OPTIONS = MEDICATION_DURATION_OPTIONS.filter(
+  (option) => !option.key.endsWith("M"),
+);
+
+export const MEDICATION_DURATION_MONTH_OPTIONS = MEDICATION_DURATION_OPTIONS.filter(
+  (option) => option.key.endsWith("M"),
+);
+
+export function isMonthDuration(value: string | null | undefined): boolean {
+  return MEDICATION_DURATION_MONTH_OPTIONS.some(
+    (option) => option.key === normalizeDurationKey(value),
+  );
 }
 
 export function formatDurationLabel(value: string | null | undefined): string {
