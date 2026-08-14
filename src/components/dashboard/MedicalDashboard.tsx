@@ -27,7 +27,7 @@ import { useNotifications } from '../../context/NotificationContext';
 import CustomDatePicker from '../CustomDatePicker';
 import Pagination from '../Pagination';
 import { useTranslation } from 'react-i18next';
-import { formatPrescriptionMedicineText, formatConsultationMedicineText } from '../../utils/prescriptionFormat';
+import { formatConsultationMedicineText, formatNumericMedicineWithFormula } from '../../utils/prescriptionFormat';
 
 const StatusBadge = ({ status }: { status: string }) => {
   const s = status.toLowerCase();
@@ -1060,7 +1060,7 @@ export default function MedicalDashboard() {
                               }`}
                             >
                               <div className="min-w-0 flex-1">
-                                <p className="text-sm font-black text-gray-800 transition-colors group-hover/med:text-[#549E9E]">{formatPrescriptionMedicineText(med.medicine_value)}</p>
+                                <p className="text-sm font-black text-gray-800 transition-colors group-hover/med:text-[#549E9E]">{formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input)}</p>
                                 <p className="mt-1 text-[11px] font-bold leading-snug text-[#2f6f6f]">
                                   {dosePreview.parts.length > 0
                                     ? [

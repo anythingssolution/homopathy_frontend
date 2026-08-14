@@ -847,10 +847,26 @@ export default function DoctorPortal() {
                   <motion.div
                     key={key}
                     onClick={() => {
+                      const today = new Date();
+                      today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+                      const todayDate = today.toISOString().split('T')[0];
+
+                      if (key === 'today_appointments') {
+                        navigate('/clinic-history', {
+                          state: {
+                            fromDate: todayDate,
+                            toDate: todayDate,
+                            filterStatus: 'all',
+                            branchId: selectedBranchId,
+                          },
+                        });
+                        return;
+                      }
+
                       if (key === 'today_pending') setFilterStatus('Pending');
                       else if (key === 'today_completed') setFilterStatus('Completed');
-                      else if (key === 'today_appointments') setFilterStatus('all');
-                      
+                      setFilterDate(todayDate);
+
                       setTimeout(() => {
                         listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                       }, 100);

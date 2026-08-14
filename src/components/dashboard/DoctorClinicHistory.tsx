@@ -31,6 +31,7 @@ import {
   getDosePreview,
   getMedicationPricingAmount,
   getMedicationRoleLabel,
+  formatNumericMedicineWithFormula,
 } from "../../utils/prescriptionFormat";
 import { useTranslation } from "react-i18next";
 import MedicationDispensingStatus from "../MedicationDispensingStatus";
@@ -1032,7 +1033,11 @@ export default function DoctorClinicHistory() {
                                                   <div className="flex items-start justify-between gap-3">
                                                     <div>
                                                       <p className="text-xs font-black text-gray-800 uppercase tracking-wide">
-                                                        {med.medicine_value}
+                                                        {formatNumericMedicineWithFormula(
+                                                          med.medicine_value,
+                                                          chainItem.consultation
+                                                            ?.quick_formula_input,
+                                                        )}
                                                       </p>
                                                       {med.remark ? (
                                                         <p className="text-[11px] font-bold text-gray-500 mt-1">
@@ -1086,7 +1091,11 @@ export default function DoctorClinicHistory() {
                                                     <div>
                                                       <div className="flex items-center gap-2 flex-wrap">
                                                         <p className="text-xs font-black text-gray-800 uppercase tracking-wide">
-                                                          {med.medicine_value}
+                                                          {formatNumericMedicineWithFormula(
+                                                            med.medicine_value,
+                                                            chainItem.consultation
+                                                              ?.quick_formula_input,
+                                                          )}
                                                         </p>
                                                         <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest">
                                                           {getMedicationRoleLabel(

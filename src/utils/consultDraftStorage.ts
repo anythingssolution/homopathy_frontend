@@ -50,6 +50,8 @@ export type ConsultDraft = {
   hasNoAdvice: boolean;
   isRepeat: boolean;
   isSame: boolean;
+  repeatMonths: number;
+  sameMonths: number;
   consultationMode: "PHYSICAL_PRESENT" | "ON_CALL";
   o2Value: string;
   bpValue: string;
@@ -67,6 +69,7 @@ export type ConsultDraft = {
   medications: ConsultDraftMedication[];
   otherMedications: ConsultDraftOtherMedication[];
   tests: ConsultDraftTest[];
+  universalRemark: string;
   occupation: string;
   historyPresentIllness: string;
   historyPastIllness: string;

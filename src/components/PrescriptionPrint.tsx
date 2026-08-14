@@ -1,6 +1,6 @@
 import React from 'react';
 import { Mail, Phone, MapPin, Pill, Activity, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
-import { getDosePreview, getMedicationRoleLabel, formatPrescriptionMedicineText } from '../utils/prescriptionFormat';
+import { getDosePreview, getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula, getRepeatSamePrintBlocks, getPrintedUniversalRemark } from '../utils/prescriptionFormat';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
 
 interface PrescriptionPrintProps {
@@ -73,6 +73,17 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
     appointment.patient_weight ||
     '';
 
+  const durationDays =
+    consultation.medication_duration_days ||
+    appointment.medication_duration_days ||
+    appointment.details?.medication_duration_days ||
+    0;
+  const repeatMonths = Number(
+    consultation.repeat_months ?? appointment.details?.repeat_months ?? 0,
+  );
+  const sameMonths = Number(
+    consultation.same_months ?? appointment.details?.same_months ?? 0,
+  );
   const isRepeat = Boolean(
     Number(
       consultation.is_repeat
@@ -80,7 +91,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
       ?? appointment.is_repeat
       ?? 0,
     ),
-  );
+  ) || repeatMonths > 0;
   const isSame = Boolean(
     Number(
       consultation.is_same
@@ -88,13 +99,14 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
       ?? appointment.is_same
       ?? 0,
     ),
-  );
-  const visitDateLabel = new Date(
-    appointment.appointment_date || consultation.created_at || Date.now(),
-  ).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
+  ) || sameMonths > 0;
+  const repeatSameBlocks = getRepeatSamePrintBlocks({
+    isRepeat,
+    isSame,
+    repeatMonths,
+    sameMonths,
+    durationDays,
+    isHi,
   });
 
   const vitalItems = [
@@ -125,22 +137,6 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
       value: patientWeight,
       alwaysShow: false,
     },
-    ...(isRepeat
-      ? [{
-          key: 'repeat',
-          label: isHi ? 'दोहराएँ' : 'REPEAT',
-          value: visitDateLabel,
-          alwaysShow: true,
-        }]
-      : []),
-    ...(isSame
-      ? [{
-          key: 'same',
-          label: isHi ? 'समान' : 'SAME',
-          value: visitDateLabel,
-          alwaysShow: true,
-        }]
-      : []),
   ].filter((item) => item.alwaysShow || hasVitalValue(item.value));
 
   return (
@@ -268,6 +264,14 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                         {appointment.treatment_name}
                       </span>
                     )}
+                    {repeatSameBlocks.map((block) => (
+                      <span
+                        key={block.key}
+                        className="px-1.5 py-0.5 rounded-xs border border-[#549E9E]/30 bg-white text-[#549E9E] font-black uppercase tracking-wider"
+                      >
+                        {block.label} {block.value}
+                      </span>
+                    ))}
                   </div>
                   <div className="text-[9.5px] font-bold text-gray-600">
                     {appointment.doctor_full_name ? `Dr. ${appointment.doctor_full_name}` : ''}
@@ -298,6 +302,26 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                         ))}
                       </div>
                     </div>
+
+                    {repeatSameBlocks.length > 0 && (
+                      <div
+                        className="grid gap-4"
+                        style={{
+                          gridTemplateColumns: `repeat(${repeatSameBlocks.length}, minmax(0, 1fr))`,
+                        }}
+                      >
+                        {repeatSameBlocks.map((block) => (
+                          <div key={block.key}>
+                            <h3 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-1 border-b border-[#549E9E]/20 pb-0.5">
+                              {block.label}
+                            </h3>
+                            <div className="text-[10px] font-bold text-gray-800 leading-tight">
+                              {block.value}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                       {/* Chief Complaint */}
@@ -351,7 +375,12 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                               if (!groupedByDose[key]) {
                                 groupedByDose[key] = { medicines: [], medication: med };
                               }
-                              groupedByDose[key].medicines.push(String(med.medicine_value).trim());
+                              groupedByDose[key].medicines.push(
+                                formatNumericMedicineWithFormula(
+                                  String(med.medicine_value).trim(),
+                                  quickFormulaText,
+                                ),
+                              );
                             });
 
                             const doseGroups = Object.values(groupedByDose);
@@ -412,6 +441,17 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                           })}
                         </div>
                       )}
+
+                      {(() => {
+                        const printedRemark = getPrintedUniversalRemark(consultation, isHi)
+                          || getPrintedUniversalRemark(appointment, isHi);
+                        if (!printedRemark) return null;
+                        return (
+                          <div className="text-[10px] text-gray-700 font-medium leading-tight text-right w-full">
+                            {printedRemark}
+                          </div>
+                        );
+                      })()}
 
                       {/* Tests */}
                       {tests.length > 0 && (

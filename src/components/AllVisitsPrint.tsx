@@ -1,6 +1,6 @@
 import React from 'react';
 import { Activity, Mail, Phone, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
-import { getMedicationRoleLabel, formatPrescriptionMedicineText } from '../utils/prescriptionFormat';
+import { getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula, getRepeatSamePrintBlocks, getPrintedUniversalRemark } from '../utils/prescriptionFormat';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
 
 interface VisitData {
@@ -185,8 +185,19 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                     const text = String(value ?? '').trim();
                     return Boolean(text) && text !== '-' && text !== '—' && text.toLowerCase() !== 'n/a';
                   };
-                  const isRepeat = Boolean(Number(consultation.is_repeat ?? details.is_repeat ?? 0));
-                  const isSame = Boolean(Number(consultation.is_same ?? details.is_same ?? 0));
+                  const durationDays = consultation.medication_duration_days || details.medication_duration_days || visitItem.medication_duration_days || 0;
+                  const repeatMonths = Number(consultation.repeat_months ?? details.repeat_months ?? 0);
+                  const sameMonths = Number(consultation.same_months ?? details.same_months ?? 0);
+                  const isRepeat = Boolean(Number(consultation.is_repeat ?? details.is_repeat ?? 0)) || repeatMonths > 0;
+                  const isSame = Boolean(Number(consultation.is_same ?? details.is_same ?? 0)) || sameMonths > 0;
+                  const repeatSameBlocks = getRepeatSamePrintBlocks({
+                    isRepeat,
+                    isSame,
+                    repeatMonths,
+                    sameMonths,
+                    durationDays,
+                    isHi,
+                  });
                   const visitVitalItems = [
                     {
                       key: 'mode',
@@ -221,22 +232,6 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                       value: consultation.patient_weight || details.patient_weight || visitItem.patient_weight || '',
                       alwaysShow: false,
                     },
-                    ...(isRepeat
-                      ? [{
-                          key: 'repeat',
-                          label: isHi ? 'दोहराएँ' : 'REPEAT',
-                          value: formattedVisitDate,
-                          alwaysShow: true,
-                        }]
-                      : []),
-                    ...(isSame
-                      ? [{
-                          key: 'same',
-                          label: isHi ? 'समान' : 'SAME',
-                          value: formattedVisitDate,
-                          alwaysShow: true,
-                        }]
-                      : []),
                   ].filter((item) => item.alwaysShow || hasVitalValue(item.value));
 
                   return (
@@ -258,6 +253,14 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                           <span className="font-black uppercase tracking-wider text-[#549E9E]">
                             {visitItem.treatment_name || details.treatment_name || appointment.treatment_name || "Consultation"}
                           </span>
+                          {repeatSameBlocks.map((block) => (
+                            <span
+                              key={block.key}
+                              className="px-1.5 py-0.5 rounded-xs border border-[#549E9E]/30 bg-white text-[#549E9E] font-black uppercase tracking-wider"
+                            >
+                              {block.label} {block.value}
+                            </span>
+                          ))}
                         </div>
                         <div className="text-[9.5px] font-bold text-gray-600">
                           {visitItem.doctor_full_name ? `Dr. ${visitItem.doctor_full_name}` : ''}
@@ -288,6 +291,26 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                               ))}
                             </div>
                           </div>
+
+                          {repeatSameBlocks.length > 0 && (
+                            <div
+                              className="grid gap-3"
+                              style={{
+                                gridTemplateColumns: `repeat(${repeatSameBlocks.length}, minmax(0, 1fr))`,
+                              }}
+                            >
+                              {repeatSameBlocks.map((block) => (
+                                <div key={block.key}>
+                                  <h4 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-0.5 border-b border-[#549E9E]/20 pb-0.5">
+                                    {block.label}
+                                  </h4>
+                                  <div className="text-[10px] font-bold text-gray-800 leading-tight">
+                                    {block.value}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
                           {/* Chief Complaint & Clinical Findings Side-by-Side */}
                           <div className="grid grid-cols-2 gap-3">
@@ -327,7 +350,12 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                     if (!groupedByDose[key]) {
                                       groupedByDose[key] = { medicines: [], medication: med };
                                     }
-                                    groupedByDose[key].medicines.push(String(med.medicine_value).trim());
+                                    groupedByDose[key].medicines.push(
+                                      formatNumericMedicineWithFormula(
+                                        String(med.medicine_value).trim(),
+                                        quickFormulaText,
+                                      ),
+                                    );
                                   });
 
                                   const doseGroups = Object.values(groupedByDose);
@@ -380,6 +408,18 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                 })}
                               </div>
                             )}
+
+                            {(() => {
+                              const printedRemark = getPrintedUniversalRemark(consultation, isHi)
+                                || getPrintedUniversalRemark(details, isHi)
+                                || getPrintedUniversalRemark(appointment, isHi);
+                              if (!printedRemark) return null;
+                              return (
+                                <div className="text-[9px] text-gray-700 font-medium text-right w-full">
+                                  {printedRemark}
+                                </div>
+                              );
+                            })()}
 
                             {/* Tests */}
                             {tests.length > 0 && (

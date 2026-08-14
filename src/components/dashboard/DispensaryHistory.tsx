@@ -25,7 +25,7 @@ import {
 import { useNotifications } from '../../context/NotificationContext';
 import CustomDatePicker from '../CustomDatePicker';
 import Pagination from '../Pagination';
-import { getDosePreview, getMedicationPricingAmount, getMedicationRoleLabel } from '../../utils/prescriptionFormat';
+import { getDosePreview, getMedicationPricingAmount, getMedicationRoleLabel, formatNumericMedicineWithFormula } from '../../utils/prescriptionFormat';
 import { useTranslation } from 'react-i18next';
 import MedicationDispensingStatus from '../MedicationDispensingStatus';
 
@@ -436,7 +436,7 @@ export default function DispensaryHistory() {
                               <div key={idx} className="bg-white p-5 border border-gray-100 shadow-sm flex items-center justify-between gap-4 group/med transition-all">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="text-sm font-black text-gray-800">{med.medicine_value}</p>
+                                    <p className="text-sm font-black text-gray-800">{formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input)}</p>
                                     {roleLabel && (
                                       <span className="px-2 py-1 rounded-md bg-[#549E9E]/10 text-[#549E9E] text-[9px] font-black uppercase tracking-widest">
                                         {roleLabel}

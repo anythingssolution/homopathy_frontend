@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../Pagination';
-import { getDosePreview, getMedicationRoleLabel, formatPrescriptionMedicineText } from '../../utils/prescriptionFormat';
+import { getDosePreview, getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula } from '../../utils/prescriptionFormat';
 import MedicationDispensingStatus from '../MedicationDispensingStatus';
 
 interface Appointment {
@@ -842,7 +842,7 @@ export default function MyAppointments() {
                         {selectedPrescription.prescription.medications?.filter((m: any) => m.medicine_type === 'NUMERIC').map((med: any, idx: number) => (
                           <div key={idx} className="border border-gray-200 p-4 md:p-6 bg-white shadow-sm">
                             <div className="bg-gray-50/80 border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between mb-4">
-                              <span className="text-sm font-bold text-gray-700">{t('consultation_modal.remedy_no', 'Remedy No.')} {med.medicine_value}</span>
+                              <span className="text-sm font-bold text-gray-700">{t('consultation_modal.remedy_no', 'Remedy No.')} {formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input)}</span>
                               <ChevronDown size={16} className="text-gray-300" />
                             </div>
                             <MedicationDispensingStatus medication={med} />

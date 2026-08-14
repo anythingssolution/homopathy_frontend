@@ -90,6 +90,42 @@ export const formatPrescriptionMedicineText = (medicineValue: string): string =>
   return trimmed;
 };
 
+/** Map medicine number → inline alpha from quick formula (e.g. "4,5,7q/3" → { "7": "q" }). */
+export const getQuickFormulaInlineAlphaMap = (
+  quickFormulaInput?: string | null,
+): Record<string, string> => {
+  const map: Record<string, string> = {};
+  const source = String(quickFormulaInput || '').trim();
+  if (!source) return map;
+
+  String(source)
+    .split(',')
+    .forEach((segment) => {
+      const groupPart = String(segment.split('/')[0] || '');
+      [...groupPart.matchAll(/(\d{1,3})([A-Za-z]+)/g)].forEach((match) => {
+        const medicineNo = String(Number(match[1]));
+        if (!map[medicineNo]) {
+          map[medicineNo] = match[2];
+        }
+      });
+    });
+
+  return map;
+};
+
+export const formatNumericMedicineWithFormula = (
+  medicineValue: string,
+  quickFormulaInput?: string | null,
+): string => {
+  const formatted = formatPrescriptionMedicineText(medicineValue);
+  if (!formatted || !/^\d+$/.test(formatted)) {
+    return formatted;
+  }
+
+  const alpha = getQuickFormulaInlineAlphaMap(quickFormulaInput)[String(Number(formatted))];
+  return alpha ? `${formatted}${alpha}` : formatted;
+};
+
 export const formatConsultationMedicineText = (
   name: string,
   variant?: string | null,
@@ -148,4 +184,94 @@ export const parseConsultationMedicineText = (
     quantity,
   };
 };
+
+export type RepeatSamePrintBlock = {
+  key: "same" | "repeat";
+  label: string;
+  value: string;
+};
+
+const formatMonthCount = (months: number, isHi: boolean) => {
+  if (isHi) {
+    return months === 1 ? "1 माह" : `${months} माह`;
+  }
+  return months === 1 ? "1 month" : `${months} months`;
+};
+
+const formatDayCount = (days: number, isHi: boolean) => {
+  const safeDays = Number(days) || 0;
+  if (safeDays <= 0) return isHi ? "हाँ" : "Yes";
+  if (isHi) {
+    return safeDays === 1 ? "1 दिन" : `${safeDays} दिन`;
+  }
+  return safeDays === 1 ? "1 day" : `${safeDays} days`;
+};
+
+export const getRepeatSamePrintBlocks = ({
+  isRepeat,
+  isSame,
+  repeatMonths = 0,
+  sameMonths = 0,
+  durationDays,
+  isHi = false,
+}: {
+  isRepeat?: boolean;
+  isSame?: boolean;
+  repeatMonths?: number | string | null;
+  sameMonths?: number | string | null;
+  durationDays?: number | string | null;
+  isHi?: boolean;
+}): RepeatSamePrintBlock[] => {
+  const repeatCount = Number(repeatMonths || 0);
+  const sameCount = Number(sameMonths || 0);
+  const showRepeat = Boolean(isRepeat) || repeatCount > 0;
+  const showSame = Boolean(isSame) || sameCount > 0;
+  const blocks: RepeatSamePrintBlock[] = [];
+
+  if (showSame) {
+    blocks.push({
+      key: "same",
+      label: isHi ? "समान" : "SAME",
+      value:
+        sameCount > 0
+          ? formatMonthCount(sameCount, Boolean(isHi))
+          : formatDayCount(Number(durationDays || 0), Boolean(isHi)),
+    });
+  }
+
+  if (showRepeat) {
+    blocks.push({
+      key: "repeat",
+      label: isHi ? "दोहराएँ" : "REPEAT",
+      value:
+        repeatCount > 0
+          ? formatMonthCount(repeatCount, Boolean(isHi))
+          : formatDayCount(Number(durationDays || 0), Boolean(isHi)),
+    });
+  }
+
+  return blocks;
+};
+
+export const getPrintedUniversalRemark = (
+  source: any,
+  isHi = false,
+): string => {
+  const english = String(
+    source?.universal_remark
+    || source?.prescription?.universal_remark
+    || source?.details?.universal_remark
+    || '',
+  ).trim();
+  const hindi = String(
+    source?.universal_remark_hi
+    || source?.prescription?.universal_remark_hi
+    || source?.details?.universal_remark_hi
+    || '',
+  ).trim();
+
+  if (isHi) return hindi || english;
+  return english || hindi;
+};
+
 

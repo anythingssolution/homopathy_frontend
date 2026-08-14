@@ -36,6 +36,7 @@ import {
   getMedicationRoleLabel,
   formatConsultationMedicineText,
   parseConsultationMedicineText,
+  formatNumericMedicineWithFormula,
 } from "../../utils/prescriptionFormat";
 import { parseDoctorFormulaInput } from "../../utils/doctorFormulaParser";
 import { translateRemarkToHindi } from "../../utils/remarkHindiTranslator";
@@ -53,6 +54,7 @@ import {
   MEDICATION_DURATION_DAY_OPTIONS,
   MEDICATION_DURATION_MONTH_OPTIONS,
   isMonthDuration,
+  getDurationMonths,
   normalizeDurationKey,
 } from "../../utils/medicationDuration";
 
@@ -630,6 +632,8 @@ export default function ConsultationPage() {
   const [hasNoAdvice, setHasNoAdvice] = useState(false);
   const [isRepeat, setIsRepeat] = useState(false);
   const [isSame, setIsSame] = useState(false);
+  const [repeatMonths, setRepeatMonths] = useState(0);
+  const [sameMonths, setSameMonths] = useState(0);
   const [consultationMode, setConsultationMode] = useState<
     "PHYSICAL_PRESENT" | "ON_CALL"
   >("PHYSICAL_PRESENT");
@@ -666,6 +670,7 @@ export default function ConsultationPage() {
   const [tests, setTests] = useState<TestEntry[]>([
     { test_name: "", amount: "" },
   ]);
+  const [universalRemark, setUniversalRemark] = useState("");
   const [textMedicines, setTextMedicines] = useState<TextMedicine[]>([]);
   const [labTests, setLabTests] = useState<LabTestMaster[]>([]);
   const [prescriptionSuggestions, setPrescriptionSuggestions] = useState<
@@ -752,6 +757,50 @@ export default function ConsultationPage() {
     );
   }, [currentApp?.treatment_name, currentApp?.visit_type_code]);
   const followUpAfterDays = getDurationDaysFromKey(globalDuration);
+  const durationMonths = getDurationMonths(globalDuration);
+
+  const applyMedicationDuration = (option: { key: string; days: number }) => {
+    setGlobalDuration(option.key);
+    setFollowUpPreset(
+      String(option.days) as "7" | "15" | "30" | "45" | "60" | "90" | "180",
+    );
+    const months = getDurationMonths(option.key);
+    if (months === 0) {
+      setRepeatMonths(0);
+      setSameMonths(0);
+      if (isRepeat && isSame) {
+        setIsSame(false);
+      }
+      return;
+    }
+    setRepeatMonths(0);
+    setSameMonths(0);
+    setIsRepeat(false);
+    setIsSame(false);
+  };
+
+  const adjustMonthSplit = (kind: "repeat" | "same", delta: number) => {
+    if (durationMonths <= 0) return;
+    let nextRepeat = repeatMonths;
+    let nextSame = sameMonths;
+    if (kind === "repeat") {
+      nextRepeat = Math.max(0, Math.min(durationMonths, repeatMonths + delta));
+    } else {
+      nextSame = Math.max(0, Math.min(durationMonths, sameMonths + delta));
+    }
+    if (nextRepeat + nextSame > durationMonths) {
+      const overflow = nextRepeat + nextSame - durationMonths;
+      if (kind === "repeat") {
+        nextSame = Math.max(0, nextSame - overflow);
+      } else {
+        nextRepeat = Math.max(0, nextRepeat - overflow);
+      }
+    }
+    setRepeatMonths(nextRepeat);
+    setSameMonths(nextSame);
+    setIsRepeat(nextRepeat > 0);
+    setIsSame(nextSame > 0);
+  };
 
   useEffect(() => {
     const fetchMasters = async () => {
@@ -953,6 +1002,8 @@ export default function ConsultationPage() {
           setHasNoAdvice(isNoPrescriptionConsultation);
           setIsRepeat(Boolean(Number(c.is_repeat)));
           setIsSame(Boolean(Number(c.is_same)));
+          setRepeatMonths(Number(c.repeat_months || 0));
+          setSameMonths(Number(c.same_months || 0));
 
           setGlobalDuration(getDurationKeyFromDays(Number(c.medication_duration_days || 15)));
           const loadedFollowUpDays = Number(
@@ -995,6 +1046,7 @@ export default function ConsultationPage() {
           if (c.disease) setDisease(c.disease);
           if (c.mental_mind_status) setMentalMindStatus(c.mental_mind_status);
           setQuickNumericInput(c.quick_formula_input || "");
+          setUniversalRemark(c.universal_remark || "");
           setLastAppliedQuickFormulaVersion(
             c.formula_version_used ? Number(c.formula_version_used) : null,
           );
@@ -1165,6 +1217,8 @@ export default function ConsultationPage() {
       setHasNoAdvice(Boolean(draft.hasNoAdvice));
       setIsRepeat(Boolean(draft.isRepeat));
       setIsSame(Boolean(draft.isSame));
+      setRepeatMonths(Number(draft.repeatMonths || 0));
+      setSameMonths(Number(draft.sameMonths || 0));
       setConsultationMode(
         draft.consultationMode === "ON_CALL" ? "ON_CALL" : "PHYSICAL_PRESENT",
       );
@@ -1226,6 +1280,7 @@ export default function ConsultationPage() {
           ? draft.tests
           : [{ test_name: "", amount: "" }],
       );
+      setUniversalRemark(draft.universalRemark || "");
       setOccupation(draft.occupation || "");
       setHistoryPresentIllness(draft.historyPresentIllness || "");
       setHistoryPastIllness(draft.historyPastIllness || "");
@@ -1280,6 +1335,8 @@ export default function ConsultationPage() {
       hasNoAdvice,
       isRepeat,
       isSame,
+      repeatMonths,
+      sameMonths,
       consultationMode,
       o2Value,
       bpValue,
@@ -1297,6 +1354,7 @@ export default function ConsultationPage() {
       medications,
       otherMedications,
       tests,
+      universalRemark,
       occupation,
       historyPresentIllness,
       historyPastIllness,
@@ -1338,6 +1396,8 @@ export default function ConsultationPage() {
     hasNoAdvice,
     isRepeat,
     isSame,
+    repeatMonths,
+    sameMonths,
     consultationMode,
     o2Value,
     bpValue,
@@ -1355,6 +1415,7 @@ export default function ConsultationPage() {
     medications,
     otherMedications,
     tests,
+    universalRemark,
     occupation,
     historyPresentIllness,
     historyPastIllness,
@@ -2025,6 +2086,7 @@ export default function ConsultationPage() {
         setGlobalDuration(getDurationKeyFromDays(Number(result.data.medication_duration_days)));
       }
       setRepeatedFromConsultationId(Number(result.data.source_consultation_id));
+      setUniversalRemark(String(result.data.universal_remark || ""));
       setIsPrescriptionOpen(true);
       addToast(
         "Previous treatment copied as a draft. Review it before saving.",
@@ -2374,7 +2436,8 @@ export default function ConsultationPage() {
         finalDiagnosis ||
         finalTreatmentAdvice ||
         formattedMedications.length > 0 ||
-        formattedTests.length > 0,
+        formattedTests.length > 0 ||
+        universalRemark.trim(),
       );
 
       if (!hasNoAdvice && !finalSymptoms) {
@@ -2411,8 +2474,10 @@ export default function ConsultationPage() {
             ? followUpAfterDays
             : 15,
         repeated_from_consultation_id: repeatedFromConsultationId,
-        is_repeat: isRepeat,
-        is_same: isSame,
+        is_repeat: durationMonths > 0 ? repeatMonths > 0 : isRepeat,
+        is_same: durationMonths > 0 ? sameMonths > 0 : isSame,
+        repeat_months: durationMonths > 0 ? repeatMonths : 0,
+        same_months: durationMonths > 0 ? sameMonths : 0,
         follow_up: followUp.trim() || null,
         follow_up_chain_closed: followUpChainClosed,
         consultation_mode: consultationMode,
@@ -2429,6 +2494,8 @@ export default function ConsultationPage() {
         formula_version_used:
           lastAppliedQuickFormulaVersion || formulaSnapshot?.version_no || null,
         quick_formula_input: quickNumericInput.trim() || null,
+        universal_remark: universalRemark.trim() || null,
+        universal_remark_hi: translateRemarkToHindi(universalRemark).trim() || null,
         total_amount: Number(totalAmount),
         medications: formattedMedications,
         tests: formattedTests,
@@ -2613,72 +2680,8 @@ export default function ConsultationPage() {
             </div>
           </div>
 
-          {/* Right: Repeat, Same & No Prescription toggles */}
+          {/* Right: No Prescription Mode */}
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <label
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10.5px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${isRepeat
-                  ? "bg-blue-500 text-white border-blue-600 shadow-xs"
-                  : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
-                } ${isReadOnly ? "opacity-70 cursor-default" : ""}`}
-            >
-              <input
-                type="checkbox"
-                disabled={isReadOnly}
-                checked={isRepeat}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setIsRepeat(checked);
-                  if (checked) setIsSame(false);
-                }}
-                className="sr-only"
-              />
-              <RotateCcw
-                size={14}
-                className={isRepeat ? "text-white" : "text-blue-500"}
-              />
-              <span>{t("consultation_modal.repeat", "Repeat")}</span>
-              <div
-                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${isRepeat
-                    ? "bg-white text-blue-600"
-                    : "bg-gray-300 text-gray-600"
-                  }`}
-              >
-                {isRepeat ? "✓" : ""}
-              </div>
-            </label>
-
-            <label
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10.5px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${isSame
-                  ? "bg-emerald-500 text-white border-emerald-600 shadow-xs"
-                  : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
-                } ${isReadOnly ? "opacity-70 cursor-default" : ""}`}
-            >
-              <input
-                type="checkbox"
-                disabled={isReadOnly}
-                checked={isSame}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setIsSame(checked);
-                  if (checked) setIsRepeat(false);
-                }}
-                className="sr-only"
-              />
-              <Copy
-                size={14}
-                className={isSame ? "text-white" : "text-emerald-500"}
-              />
-              <span>{t("consultation_modal.same", "Same")}</span>
-              <div
-                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${isSame
-                    ? "bg-white text-emerald-600"
-                    : "bg-gray-300 text-gray-600"
-                  }`}
-              >
-                {isSame ? "✓" : ""}
-              </div>
-            </label>
-
             <label
               className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10.5px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${hasNoAdvice
                   ? "bg-amber-500 text-white border-amber-600 shadow-xs"
@@ -2965,7 +2968,10 @@ export default function ConsultationPage() {
                                         <div className="flex items-start justify-between gap-3">
                                           <div>
                                             <p className="text-xs font-black text-gray-800 uppercase tracking-wide">
-                                              {med.medicine_value}
+                                              {formatNumericMedicineWithFormula(
+                                                med.medicine_value,
+                                                item.consultation?.quick_formula_input,
+                                              )}
                                             </p>
                                             {med.remark ? (
                                               <p className="text-[11px] font-bold text-gray-500 mt-0.5">
@@ -3012,7 +3018,10 @@ export default function ConsultationPage() {
                                           <div>
                                             <div className="flex items-center gap-2 flex-wrap">
                                               <p className="text-xs font-black text-gray-800 uppercase tracking-wide">
-                                                {med.medicine_value}
+                                                {formatNumericMedicineWithFormula(
+                                                  med.medicine_value,
+                                                  item.consultation?.quick_formula_input,
+                                                )}
                                               </p>
                                               <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest">
                                                 {getMedicationRoleLabel(med) ||
@@ -4008,6 +4017,12 @@ export default function ConsultationPage() {
             <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-1.5">
               <WandSparkles size={14} /> Quick Numeric Entry
             </label>
+            {isLoadingSuggestions && !isReadOnly && (
+              <span className="text-[9px] font-bold text-gray-400 flex items-center gap-1">
+                <RefreshCcw size={11} className="animate-spin text-[#549E9E]" />
+                Matching formulas…
+              </span>
+            )}
           </div>
 
           {/* Unified Horizontal Controls Row */}
@@ -4135,10 +4150,7 @@ export default function ConsultationPage() {
                   key={option.key}
                   type="button"
                   disabled={isReadOnly}
-                  onClick={() => {
-                    setGlobalDuration(option.key);
-                    setFollowUpPreset(String(option.days) as "7" | "15" | "30" | "45" | "60" | "90" | "180");
-                  }}
+                  onClick={() => applyMedicationDuration(option)}
                   className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-wider transition-all rounded-lg cursor-pointer ${globalDuration === option.key
                       ? "bg-[#549E9E] text-white shadow-xs"
                       : "text-gray-400 hover:text-gray-600"
@@ -4161,10 +4173,7 @@ export default function ConsultationPage() {
                       (item) => item.key === val,
                     );
                     if (!option) return;
-                    setGlobalDuration(option.key);
-                    setFollowUpPreset(
-                      String(option.days) as "7" | "15" | "30" | "45" | "60" | "90" | "180",
-                    );
+                    applyMedicationDuration(option);
                   }}
                   placeholder="Month"
                 />
@@ -4184,6 +4193,151 @@ export default function ConsultationPage() {
                   Close Case
                 </span>
               </label>
+            )}
+
+            {durationMonths > 0 ? (
+              <div className="w-full flex flex-wrap items-center justify-end gap-1.5">
+                <div
+                  className={`inline-flex items-center gap-2 px-2.5 h-9 rounded-xl border text-[10.5px] font-black uppercase tracking-wider ${
+                    repeatMonths > 0
+                      ? "bg-blue-500 text-white border-blue-600 shadow-xs"
+                      : "bg-gray-50 text-gray-600 border-gray-200"
+                  }`}
+                >
+                  <RotateCcw
+                    size={14}
+                    className={repeatMonths > 0 ? "text-white" : "text-blue-500"}
+                  />
+                  <span>{t("consultation_modal.repeat", "Repeat")}</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={isReadOnly || repeatMonths <= 0}
+                      onClick={() => adjustMonthSplit("repeat", -1)}
+                      className="w-5 h-5 rounded-md bg-black/10 hover:bg-black/20 flex items-center justify-center disabled:opacity-40 cursor-pointer"
+                    >
+                      <Minus size={11} />
+                    </button>
+                    <span className="min-w-6 text-center">{repeatMonths}</span>
+                    <button
+                      type="button"
+                      disabled={isReadOnly || repeatMonths >= durationMonths}
+                      onClick={() => adjustMonthSplit("repeat", 1)}
+                      className="w-5 h-5 rounded-md bg-black/10 hover:bg-black/20 flex items-center justify-center disabled:opacity-40 cursor-pointer"
+                    >
+                      <Plus size={11} />
+                    </button>
+                    <span className="normal-case tracking-normal text-[9px] opacity-80">
+                      Mo
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  className={`inline-flex items-center gap-2 px-2.5 h-9 rounded-xl border text-[10.5px] font-black uppercase tracking-wider ${
+                    sameMonths > 0
+                      ? "bg-emerald-500 text-white border-emerald-600 shadow-xs"
+                      : "bg-gray-50 text-gray-600 border-gray-200"
+                  }`}
+                >
+                  <Copy
+                    size={14}
+                    className={sameMonths > 0 ? "text-white" : "text-emerald-500"}
+                  />
+                  <span>{t("consultation_modal.same", "Same")}</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={isReadOnly || sameMonths <= 0}
+                      onClick={() => adjustMonthSplit("same", -1)}
+                      className="w-5 h-5 rounded-md bg-black/10 hover:bg-black/20 flex items-center justify-center disabled:opacity-40 cursor-pointer"
+                    >
+                      <Minus size={11} />
+                    </button>
+                    <span className="min-w-6 text-center">{sameMonths}</span>
+                    <button
+                      type="button"
+                      disabled={isReadOnly || sameMonths >= durationMonths}
+                      onClick={() => adjustMonthSplit("same", 1)}
+                      className="w-5 h-5 rounded-md bg-black/10 hover:bg-black/20 flex items-center justify-center disabled:opacity-40 cursor-pointer"
+                    >
+                      <Plus size={11} />
+                    </button>
+                    <span className="normal-case tracking-normal text-[9px] opacity-80">
+                      Mo
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+                  {repeatMonths + sameMonths}/{durationMonths} Mo
+                </span>
+              </div>
+            ) : (
+              <div className="w-full flex flex-wrap items-center justify-end gap-1.5">
+                <label
+                  className={`inline-flex items-center gap-2 px-3 h-9 rounded-xl border text-[10.5px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${isRepeat
+                      ? "bg-blue-500 text-white border-blue-600 shadow-xs"
+                      : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                    } ${isReadOnly ? "opacity-70 cursor-default" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    disabled={isReadOnly}
+                    checked={isRepeat}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsRepeat(checked);
+                      if (checked) setIsSame(false);
+                    }}
+                    className="sr-only"
+                  />
+                  <RotateCcw
+                    size={14}
+                    className={isRepeat ? "text-white" : "text-blue-500"}
+                  />
+                  <span>{t("consultation_modal.repeat", "Repeat")}</span>
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${isRepeat
+                        ? "bg-white text-blue-600"
+                        : "bg-gray-300 text-gray-600"
+                      }`}
+                  >
+                    {isRepeat ? "✓" : ""}
+                  </div>
+                </label>
+
+                <label
+                  className={`inline-flex items-center gap-2 px-3 h-9 rounded-xl border text-[10.5px] font-black uppercase tracking-wider transition-all select-none cursor-pointer ${isSame
+                      ? "bg-emerald-500 text-white border-emerald-600 shadow-xs"
+                      : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                    } ${isReadOnly ? "opacity-70 cursor-default" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    disabled={isReadOnly}
+                    checked={isSame}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsSame(checked);
+                      if (checked) setIsRepeat(false);
+                    }}
+                    className="sr-only"
+                  />
+                  <Copy
+                    size={14}
+                    className={isSame ? "text-white" : "text-emerald-500"}
+                  />
+                  <span>{t("consultation_modal.same", "Same")}</span>
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black ${isSame
+                        ? "bg-white text-emerald-600"
+                        : "bg-gray-300 text-gray-600"
+                      }`}
+                  >
+                    {isSame ? "✓" : ""}
+                  </div>
+                </label>
+              </div>
             )}
           </div>
 
@@ -4618,151 +4772,6 @@ export default function ConsultationPage() {
           )}
         </div>
 
-        {/* Previous Prescription Suggestions Panel */}
-        {(prescriptionSuggestions.length > 0 || isLoadingSuggestions) && !isReadOnly && (
-          <div className="space-y-3 bg-gradient-to-r from-teal-50/80 via-emerald-50/50 to-teal-50/80 border border-[#549E9E]/30 rounded-2xl p-4 shadow-sm transition-all">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#549E9E]/15 pb-2.5">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-[#549E9E] text-white rounded-lg shadow-xs">
-                  <WandSparkles size={16} />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black uppercase tracking-widest text-[#549E9E]">
-                    Previous Prescription Suggestions
-                  </h4>
-                  <p className="text-[10px] text-gray-500 font-bold">
-                    Matching combinations based on entered symptoms/diagnosis
-                  </p>
-                </div>
-              </div>
-
-              {suggestionBasis && (
-                <span
-                  className={`px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full border shadow-2xs ${
-                    suggestionBasis === "PATIENT_HISTORY"
-                      ? "bg-emerald-100/90 text-emerald-800 border-emerald-300"
-                      : "bg-amber-100/90 text-amber-800 border-amber-300"
-                  }`}
-                >
-                  {suggestionBasis === "PATIENT_HISTORY"
-                    ? "Based on Patient's History"
-                    : "Based on Global History"}
-                </span>
-              )}
-            </div>
-
-            {isLoadingSuggestions ? (
-              <div className="flex items-center gap-2 py-4 px-2 text-xs font-bold text-gray-500">
-                <RefreshCcw size={14} className="animate-spin text-[#549E9E]" />
-                <span>Fetching matching prescription suggestions...</span>
-              </div>
-            ) : prescriptionSuggestions.length > 0 ? (
-              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
-                {prescriptionSuggestions.map((suggestionSet, setIdx) => {
-                  const isStringSet =
-                    typeof suggestionSet === "string" ||
-                    typeof suggestionSet === "number";
-
-                  if (isStringSet) {
-                    const formulaStr = String(suggestionSet);
-                    return (
-                      <div
-                        key={setIdx}
-                        onClick={() => handleApplySuggestionSet(suggestionSet)}
-                        className="group relative bg-white border border-gray-200 hover:border-[#549E9E] hover:shadow-md rounded-xl p-3 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="px-2 py-0.5 bg-[#549E9E]/10 group-hover:bg-[#549E9E] text-[#549E9E] group-hover:text-white text-[10px] font-black rounded-md transition-colors">
-                            Formula #{setIdx + 1}
-                          </span>
-                          <span className="text-xs font-black text-gray-900 group-hover:text-[#549E9E] font-mono tracking-wide transition-colors">
-                            {formulaStr}
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="shrink-0 px-3 py-1.5 bg-[#549E9E]/10 group-hover:bg-[#549E9E] text-[#549E9E] group-hover:text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 self-end sm:self-center"
-                        >
-                          <Plus size={13} />
-                          Apply to Quick Entry
-                        </button>
-                      </div>
-                    );
-                  }
-
-                  const medList = suggestionSet as PrescriptionSuggestionItem[];
-
-                  return (
-                    <div
-                      key={setIdx}
-                      onClick={() => handleApplySuggestionSet(suggestionSet)}
-                      className="group relative bg-white border border-gray-200 hover:border-[#549E9E] hover:shadow-md rounded-xl p-3 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                    >
-                      <div className="space-y-1.5 flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2 py-0.5 bg-gray-100 group-hover:bg-[#549E9E] group-hover:text-white text-gray-700 text-[10px] font-black rounded-md transition-colors">
-                            Option #{setIdx + 1}
-                          </span>
-                          <span className="text-xs font-black text-gray-800 group-hover:text-[#549E9E] transition-colors">
-                            {medList.length} Medicine{medList.length > 1 ? "s" : ""}
-                          </span>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {medList.map((med, medIdx) => {
-                            const dosesSummary = (med.doses || [])
-                              .filter((d) => (d.balls_per_dose || 0) > 0)
-                              .map(
-                                (d) =>
-                                  `${d.dose_label || ""}: ${d.balls_per_dose}`,
-                              )
-                              .join(", ");
-
-                            return (
-                              <span
-                                key={medIdx}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 group-hover:bg-[#549E9E]/10 border border-gray-200 group-hover:border-[#549E9E]/30 rounded-lg text-[11px] font-bold text-gray-700 transition-colors"
-                              >
-                                <span className="font-black text-gray-900">
-                                  {med.medicine_value}
-                                </span>
-                                {med.medicine_type && med.medicine_type !== "NUMERIC" && (
-                                  <span className="text-[9px] font-medium text-gray-500">
-                                    ({med.medicine_type})
-                                  </span>
-                                )}
-                                {dosesSummary && (
-                                  <span className="text-[9px] font-semibold text-[#549E9E]">
-                                    [{dosesSummary}]
-                                  </span>
-                                )}
-                                {med.remark && (
-                                  <span className="text-[9px] italic text-gray-500">
-                                    • "{med.remark}"
-                                  </span>
-                                )}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        className="shrink-0 px-3 py-1.5 bg-[#549E9E]/10 group-hover:bg-[#549E9E] text-[#549E9E] group-hover:text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 self-end sm:self-center"
-                      >
-                        <Plus size={13} />
-                        Apply Suggestion
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-        )}
-
         <div className="space-y-2.5 pt-2 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-3.5 shadow-sm">
           <div className="flex justify-between items-center pb-2 border-b border-emerald-200/50">
             <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-2">
@@ -5177,6 +5186,39 @@ export default function ConsultationPage() {
               );
             })}
           </div>
+        </div>
+
+        <div className="space-y-2 bg-white border border-[#549E9E]/15 rounded-2xl p-3.5 shadow-sm">
+          <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+            {t(
+              "consultation_modal.remark_instructions",
+              "Remark / Instructions",
+            )}
+          </label>
+          <SearchableDropdown
+            id="universal-remark-trigger"
+            disabled={isReadOnly}
+            allowCustom={true}
+            options={[
+              { label: "20 drop for 3 times in a day", value: "20 drop for 3 times in a day" },
+              { label: "30 drop for 2 times in a day", value: "30 drop for 2 times in a day" },
+              { label: "1 spoon", value: "1 spoon" },
+              { label: "2 spoon", value: "2 spoon" },
+              { label: "3 spoon", value: "3 spoon" },
+            ]}
+            value={universalRemark}
+            onChange={setUniversalRemark}
+            placeholder={t(
+              "consultation_modal.remark_placeholder",
+              "e.g. Take after meals, Apply twice daily...",
+            )}
+          />
+          {translateRemarkToHindi(universalRemark) && (
+            <p className="text-[10px] font-bold text-[#549E9E] leading-snug">
+              {t("consultation_modal.remark_hi_preview", "Hindi")}:{" "}
+              {translateRemarkToHindi(universalRemark)}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2.5 pt-2 bg-purple-50/60 border border-purple-200/80 rounded-2xl p-3.5 shadow-sm">

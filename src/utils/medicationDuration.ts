@@ -75,10 +75,21 @@ export const MEDICATION_DURATION_MONTH_OPTIONS = MEDICATION_DURATION_OPTIONS.fil
   (option) => option.key.endsWith("M"),
 );
 
+export function getDurationMonths(value: string | number | null | undefined): number {
+  if (typeof value === "number") {
+    if (value === 60) return 2;
+    if (value === 90) return 3;
+    if (value === 180) return 6;
+    return 0;
+  }
+
+  const key = normalizeDurationKey(value);
+  const option = MEDICATION_DURATION_MONTH_OPTIONS.find((item) => item.key === key);
+  return option ? Math.round(option.days / 30) : 0;
+}
+
 export function isMonthDuration(value: string | null | undefined): boolean {
-  return MEDICATION_DURATION_MONTH_OPTIONS.some(
-    (option) => option.key === normalizeDurationKey(value),
-  );
+  return getDurationMonths(value) > 0;
 }
 
 export function formatDurationLabel(value: string | null | undefined): string {
