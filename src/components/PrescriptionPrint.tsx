@@ -1,6 +1,6 @@
 import React from 'react';
 import { Mail, Phone, MapPin, Pill, Activity, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
-import { getDosePreview, getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula, getRepeatSamePrintBlocks, getPrintedUniversalRemark } from '../utils/prescriptionFormat';
+import { getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedDoseTimesText } from '../utils/prescriptionFormat';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
 
 interface PrescriptionPrintProps {
@@ -8,37 +8,6 @@ interface PrescriptionPrintProps {
   appointment: any;
   lang?: 'en' | 'hi';
 }
-
-const DoseVisual = ({ medication }: { medication: any }) => {
-  const doses = Array.isArray(medication?.doses) ? medication.doses : [];
-  const validDoses = doses.filter((d: any) => Number(d.balls_per_dose) > 0);
-
-  if (validDoses.length === 0) {
-    return <span className="font-black text-[10px] text-[#cc3333] uppercase tracking-widest">No dose details</span>;
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center">
-        {validDoses.map((dose: any, idx: number) => {
-          const balls = Number(dose.balls_per_dose);
-          return (
-            <React.Fragment key={idx}>
-              <div className="flex items-center justify-center w-[16px] h-[16px] rounded-full border-[1.5px] border-black bg-white z-10 shrink-0 shadow-sm">
-                <span className="text-[9px] font-black text-black leading-none tracking-tight mt-[1px]">
-                  {balls}
-                </span>
-              </div>
-              {idx < validDoses.length - 1 && (
-                <div className="w-2 h-[1.5px] bg-black -mx-[1px] z-0"></div>
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
 
 export default function PrescriptionPrint({ consultation, appointment, lang = 'en' }: PrescriptionPrintProps) {
   const isHi = lang === 'hi';
@@ -109,20 +78,17 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
     isHi,
   });
 
+  const consultationModeValue =
+    (consultation.consultation_mode || appointment.details?.consultation_mode) === 'ON_CALL'
+      ? isHi
+        ? 'ऑन कॉल'
+        : 'On Call'
+      : isHi
+        ? 'शारीरिक'
+        : 'Physical';
+  const modeLabel = isHi ? 'मोड' : 'MODE';
+
   const vitalItems = [
-    {
-      key: 'mode',
-      label: isHi ? 'मोड' : 'MODE',
-      value:
-        (consultation.consultation_mode || appointment.details?.consultation_mode) === 'ON_CALL'
-          ? isHi
-            ? 'ऑन कॉल'
-            : 'On Call'
-          : isHi
-            ? 'शारीरिक'
-            : 'Physical',
-      alwaysShow: true,
-    },
     { key: 'bp', label: 'B/P', value: bloodPressure, alwaysShow: false },
     { key: 'spo2', label: 'SPO2', value: oxygenSaturation, alwaysShow: false },
     {
@@ -273,8 +239,16 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                       </span>
                     ))}
                   </div>
-                  <div className="text-[9.5px] font-bold text-gray-600">
-                    {appointment.doctor_full_name ? `Dr. ${appointment.doctor_full_name}` : ''}
+                  <div className="flex items-center gap-3 shrink-0 text-right">
+                    {appointment.doctor_full_name ? (
+                      <span className="text-[9.5px] font-bold text-gray-600">
+                        {`Dr. ${appointment.doctor_full_name}`}
+                      </span>
+                    ) : null}
+                    <span className="text-[10px] font-black uppercase tracking-wider">
+                      <span className="text-black">{modeLabel}</span>{' '}
+                      <span className="text-[#549E9E]">{consultationModeValue}</span>
+                    </span>
                   </div>
                 </div>
 
@@ -283,6 +257,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                   {/* LEFT COLUMN: Vitals, Complaints, Findings, Diagnosis */}
                   <div className="w-[48%] flex flex-col gap-3 pr-4 border-r border-[#549E9E]/20">
                     {/* Vitals Single Line Row — only show fields that have values */}
+                    {vitalItems.length > 0 && (
                     <div className="flex flex-col gap-1 border-b border-[#549E9E]/20 pb-2">
                       <div
                         className="grid gap-1 text-left"
@@ -302,6 +277,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                         ))}
                       </div>
                     </div>
+                    )}
 
                     {repeatSameBlocks.length > 0 && (
                       <div
@@ -394,8 +370,8 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                                   <div className="text-xs font-mono font-bold text-[#1a2b4c]">
                                     {formulaLabel}
                                   </div>
-                                  <div className="mt-0.5">
-                                    <DoseVisual medication={group.medication} />
+                                  <div className="mt-0.5 text-[10px] font-bold text-gray-800 leading-tight">
+                                    {getPrintedDoseTimesText(group.medication, isHi)}
                                   </div>
                                 </div>
                               );

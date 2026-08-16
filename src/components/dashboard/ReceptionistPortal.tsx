@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -34,6 +34,8 @@ import CustomDatePicker from "../CustomDatePicker";
 import { getLocalDateString } from "../../utils/date";
 import Pagination from "../Pagination";
 import { useNotifications } from "../../context/NotificationContext";
+import { useCoalescedCallback } from "../../hooks/useCoalescedCallback";
+import { dedupedFetch } from "../../utils/dedupedFetch";
 import TokenLayoutManager from "./TokenLayoutManager";
 
 const FilterDropdown = ({
@@ -364,13 +366,12 @@ export default function ReceptionistPortal() {
   const [showNotificationsDropdown, setShowNotificationsDropdown] =
     useState(false);
 
-  // Listen to global refresh trigger
+  // Socket/notification refresh only — initial load is handled by the date/tab effects below.
   useEffect(() => {
-    if (token) {
-      if (activeTab === "queue") fetchAppointments();
-      if (activeTab === "billing") fetchBills();
-    }
-  }, [refreshTrigger, token, activeTab]);
+    if (!token || refreshTrigger === 0) return;
+    if (activeTab === "queue") fetchAppointments();
+    if (activeTab === "billing") fetchBills();
+  }, [refreshTrigger]);
 
   useEffect(() => {
     if (activeTab === "queue") {
@@ -420,7 +421,7 @@ export default function ReceptionistPortal() {
       if (billStatusFilter !== "ALL")
         url += `payment_status=${billStatusFilter}&`;
 
-      const res = await fetch(url, {
+      const res = await dedupedFetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -434,16 +435,19 @@ export default function ReceptionistPortal() {
     }
   };
 
-  const fetchAppointments = async () => {
+  const appointmentsRequestIdRef = useRef(0);
+  const fetchAppointments = useCallback(async () => {
+    const requestId = ++appointmentsRequestIdRef.current;
     setIsLoadingAppointments(true);
     try {
-      const res = await fetch(
+      const res = await dedupedFetch(
         `/api/v1/receptionist/appointments?appointment_date=${dateStr}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },
       );
       const data = await res.json();
+      if (requestId !== appointmentsRequestIdRef.current) return;
       if (data.success) {
         setAppointments(
           (data.data || []).filter(
@@ -456,9 +460,15 @@ export default function ReceptionistPortal() {
     } catch (err) {
       console.error(err);
     } finally {
-      setIsLoadingAppointments(false);
+      if (requestId === appointmentsRequestIdRef.current) {
+        setIsLoadingAppointments(false);
+      }
     }
-  };
+  }, [dateStr, token]);
+
+  const scheduleQueueRefresh = useCoalescedCallback(() => {
+    void fetchAppointments();
+  }, 700);
 
   const openVitalsModal = (appointment: any) => {
     const rawHeight = String(appointment?.patient_height || "").trim();
@@ -552,7 +562,7 @@ export default function ReceptionistPortal() {
         "[ReceptionistPortal] Received queue-updated event:",
         payload,
       );
-      fetchAppointments();
+      scheduleQueueRefresh();
     };
 
     socket.on("queue-updated", handleQueueUpdated);

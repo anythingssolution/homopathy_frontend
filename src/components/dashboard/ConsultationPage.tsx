@@ -30,6 +30,7 @@ import { useNotifications } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
 import { useDoctorFormulaMaster } from "../../context/DoctorFormulaMasterContext";
 import { useTranslation } from "react-i18next";
+import { dedupedFetch } from "../../utils/dedupedFetch";
 import {
   getDosePreview,
   getMedicationPricingAmount,
@@ -805,7 +806,7 @@ export default function ConsultationPage() {
   useEffect(() => {
     const fetchMasters = async () => {
       try {
-        const res = await fetch("/api/v1/doctors/masters/text-medicines", {
+        const res = await dedupedFetch("/api/v1/doctors/masters/text-medicines", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const result = await res.json();
@@ -2143,6 +2144,7 @@ export default function ConsultationPage() {
       return;
     }
 
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       setIsLoadingSuggestions(true);
       try {
@@ -2156,6 +2158,7 @@ export default function ConsultationPage() {
           `/api/v1/doctors/consultations/prescription-suggestions?${queryParams}`,
           {
             headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
           },
         );
 
@@ -2167,16 +2170,22 @@ export default function ConsultationPage() {
           setPrescriptionSuggestions([]);
           setSuggestionBasis(null);
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
         console.error("Failed to fetch prescription suggestions:", err);
         setPrescriptionSuggestions([]);
         setSuggestionBasis(null);
       } finally {
-        setIsLoadingSuggestions(false);
+        if (!controller.signal.aborted) {
+          setIsLoadingSuggestions(false);
+        }
       }
-    }, 500);
+    }, 750);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [
     chiefComplaints,
     diagnosis,

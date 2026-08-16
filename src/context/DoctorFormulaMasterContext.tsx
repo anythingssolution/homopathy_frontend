@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useAuth } from './AuthContext';
 import type { DoctorFormulaSnapshot } from '../utils/doctorFormulaParser';
 import { getSocket } from '../services/socket';
+import { dedupedFetch } from '../utils/dedupedFetch';
 
 type DoctorFormulaMasterContextType = {
   snapshot: DoctorFormulaSnapshot | null;
@@ -15,6 +16,7 @@ const DoctorFormulaMasterContext = createContext<DoctorFormulaMasterContextType 
 
 const STORAGE_PREFIX = 'doctorFormulaMasterSnapshot';
 const BROADCAST_EVENT_KEY = 'doctorFormulaMasterBroadcast';
+const FORMULA_CACHE_TTL_MS = 10 * 60 * 1000;
 
 const isDoctorRole = (roleCode?: string, role?: string) => {
   const normalizedRoleCode = String(roleCode || '').toUpperCase();
@@ -37,6 +39,7 @@ export const DoctorFormulaMasterProvider: React.FC<{ children: React.ReactNode }
 
     if (nextSnapshot && user?.id) {
       localStorage.setItem(storageKey, JSON.stringify(nextSnapshot));
+      localStorage.setItem(`${storageKey}:cachedAt`, String(Date.now()));
       localStorage.setItem(BROADCAST_EVENT_KEY, JSON.stringify({
         doctor_id: user.id,
         snapshot: nextSnapshot,
@@ -44,6 +47,7 @@ export const DoctorFormulaMasterProvider: React.FC<{ children: React.ReactNode }
       }));
     } else if (user?.id) {
       localStorage.removeItem(storageKey);
+      localStorage.removeItem(`${storageKey}:cachedAt`);
     }
   }, [storageKey, user?.id]);
 
@@ -58,7 +62,7 @@ export const DoctorFormulaMasterProvider: React.FC<{ children: React.ReactNode }
     setError(null);
 
     try {
-      const response = await fetch('/api/v1/doctors/formula-master/bootstrap', {
+      const response = await dedupedFetch('/api/v1/doctors/formula-master/bootstrap', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -88,6 +92,7 @@ export const DoctorFormulaMasterProvider: React.FC<{ children: React.ReactNode }
     }
 
     const saved = localStorage.getItem(storageKey);
+    const savedAt = Number(localStorage.getItem(`${storageKey}:cachedAt`) || 0);
     if (saved) {
       try {
         setSnapshot(JSON.parse(saved));
@@ -96,7 +101,10 @@ export const DoctorFormulaMasterProvider: React.FC<{ children: React.ReactNode }
       }
     }
 
-    void refreshFormulaMaster();
+    const cacheIsFresh = Boolean(saved) && Date.now() - savedAt < FORMULA_CACHE_TTL_MS;
+    if (!cacheIsFresh) {
+      void refreshFormulaMaster();
+    }
   }, [isDoctor, refreshFormulaMaster, storageKey, user?.id]);
 
   useEffect(() => {

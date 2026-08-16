@@ -1,3 +1,33 @@
+export const getPrintedDoseTimesText = (
+  medication: any,
+  isHi = false,
+): string => {
+  const doses = Array.isArray(medication?.doses) ? medication.doses : [];
+  const validDoses = doses.filter((dose: any) => Number(dose?.balls_per_dose) > 0);
+
+  if (validDoses.length === 0) {
+    return isHi ? 'खुराक दर्ज नहीं' : 'No dose details';
+  }
+
+  const times = validDoses.reduce(
+    (sum: number, dose: any) => sum + (Number(dose?.times_per_day) || 1),
+    0,
+  );
+  const ballCounts = validDoses.map((dose: any) => Number(dose.balls_per_dose) || 0);
+  const allSameBalls = ballCounts.every((count: number) => count === ballCounts[0]);
+  const balls = allSameBalls ? ballCounts[0] : Math.max(...ballCounts);
+
+  if (isHi) {
+    const timesLabel = times === 1 ? '1 बार' : `${times} बार`;
+    const ballsLabel = balls === 1 ? '1 गोली' : `${balls} गोलियाँ`;
+    return `${ballsLabel} दिन में ${timesLabel}`;
+  }
+
+  const timesLabel = times === 1 ? '1 time' : `${times} times`;
+  const ballsLabel = balls === 1 ? '1 ball' : `${balls} balls`;
+  return `${ballsLabel} ${timesLabel} a day`;
+};
+
 export const getDosePreview = (medication: any, durationDays: number | string) => {
   const doseLabelMap: Record<string, string> = {
     MORNING: 'M',

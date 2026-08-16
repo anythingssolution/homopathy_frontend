@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { connectSocket, disconnectSocket } from '../services/socket';
+import { dedupedFetch } from '../utils/dedupedFetch';
 
 interface Notification {
   notification_id: number;
@@ -57,7 +58,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     try {
-      const res = await fetch('/api/v1/notifications', {
+      const res = await dedupedFetch('/api/v1/notifications', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();

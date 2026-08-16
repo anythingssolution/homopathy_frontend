@@ -1,6 +1,6 @@
 import React from 'react';
 import { Activity, Mail, Phone, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
-import { getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula, getRepeatSamePrintBlocks, getPrintedUniversalRemark } from '../utils/prescriptionFormat';
+import { getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedDoseTimesText } from '../utils/prescriptionFormat';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
 
 interface VisitData {
@@ -30,37 +30,6 @@ interface AllVisitsPrintProps {
   visits: VisitData[];
   lang?: 'en' | 'hi';
 }
-
-const DoseVisual = ({ medication }: { medication: any }) => {
-  const doses = Array.isArray(medication?.doses) ? medication.doses : [];
-  const validDoses = doses.filter((d: any) => Number(d.balls_per_dose) > 0);
-
-  if (validDoses.length === 0) {
-    return <span className="font-black text-[9px] text-[#cc3333] uppercase tracking-widest">No dose details</span>;
-  }
-
-  return (
-    <div className="flex items-center gap-1.5 justify-center">
-      <div className="flex items-center">
-        {validDoses.map((dose: any, idx: number) => {
-          const balls = Number(dose.balls_per_dose);
-          return (
-            <React.Fragment key={idx}>
-              <div className="flex items-center justify-center w-[15px] h-[15px] rounded-full border-[1.5px] border-black bg-white z-10 shrink-0 shadow-xs">
-                <span className="text-[8.5px] font-black text-black leading-none tracking-tight mt-[0.5px]">
-                  {balls}
-                </span>
-              </div>
-              {idx < validDoses.length - 1 && (
-                <div className="w-1.5 h-[1.5px] bg-black -mx-[1px] z-0"></div>
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
 
 export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisitsPrintProps) {
   const isHi = lang === 'hi';
@@ -198,16 +167,12 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                     durationDays,
                     isHi,
                   });
+                  const visitModeValue =
+                    (consultation.consultation_mode || details.consultation_mode) === 'ON_CALL'
+                      ? (isHi ? 'ऑन कॉल' : 'On Call')
+                      : (isHi ? 'शारीरिक' : 'Physical');
+                  const visitModeLabel = isHi ? 'मोड' : 'MODE';
                   const visitVitalItems = [
-                    {
-                      key: 'mode',
-                      label: isHi ? 'मोड' : 'MODE',
-                      value:
-                        (consultation.consultation_mode || details.consultation_mode) === 'ON_CALL'
-                          ? (isHi ? 'ऑन कॉल' : 'On Call')
-                          : (isHi ? 'शारीरिक' : 'Physical'),
-                      alwaysShow: true,
-                    },
                     {
                       key: 'bp',
                       label: 'B/P',
@@ -262,8 +227,16 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                             </span>
                           ))}
                         </div>
-                        <div className="text-[9.5px] font-bold text-gray-600">
-                          {visitItem.doctor_full_name ? `Dr. ${visitItem.doctor_full_name}` : ''}
+                        <div className="flex items-center gap-3 shrink-0 text-right">
+                          {visitItem.doctor_full_name ? (
+                            <span className="text-[9.5px] font-bold text-gray-600">
+                              {`Dr. ${visitItem.doctor_full_name}`}
+                            </span>
+                          ) : null}
+                          <span className="text-[10px] font-black uppercase tracking-wider">
+                            <span className="text-black">{visitModeLabel}</span>{' '}
+                            <span className="text-[#549E9E]">{visitModeValue}</span>
+                          </span>
                         </div>
                       </div>
 
@@ -272,6 +245,7 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                         {/* LEFT COLUMN: Vitals, Complaints, Findings */}
                         <div className="w-[48%] flex flex-col gap-3 pr-4 border-r border-[#549E9E]/20">
                           {/* Vitals Single Line Row */}
+                          {visitVitalItems.length > 0 && (
                           <div className="flex flex-col gap-1 border-b border-[#549E9E]/20 pb-2">
                             <div
                               className="grid gap-1 text-left"
@@ -291,6 +265,7 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                               ))}
                             </div>
                           </div>
+                          )}
 
                           {repeatSameBlocks.length > 0 && (
                             <div
@@ -369,8 +344,8 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                         <div className="text-[11px] font-mono font-bold text-[#1a2b4c]">
                                           {formulaLabel}
                                         </div>
-                                        <div className="mt-0.5">
-                                          <DoseVisual medication={group.medication} />
+                                        <div className="mt-0.5 text-[9px] font-bold text-gray-800 leading-tight">
+                                          {getPrintedDoseTimesText(group.medication, isHi)}
                                         </div>
                                       </div>
                                     );

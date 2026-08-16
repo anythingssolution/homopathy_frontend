@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { dedupedFetch } from '../utils/dedupedFetch';
 
 type Role = 'patient' | 'doctor' | 'receptionist' | 'medical_staff' | 'doc' | 'receptionist' | 'medical' | 'DOC' | 'PAT' | 'REC' | 'MED';
 
@@ -86,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('--- Fetching Profile ---');
       console.log('URL: /api/v1/auth/me');
       
-      const response = await fetch('/api/v1/auth/me', {
+      const response = await dedupedFetch('/api/v1/auth/me', {
         headers: {
           'Authorization': `Bearer ${savedToken}`,
           'Content-Type': 'application/json'

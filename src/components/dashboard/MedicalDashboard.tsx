@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,6 +24,7 @@ import {
   Hash
 } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
+import { dedupedFetch } from '../../utils/dedupedFetch';
 import CustomDatePicker from '../CustomDatePicker';
 import Pagination from '../Pagination';
 import { useTranslation } from 'react-i18next';
@@ -255,7 +256,7 @@ export default function MedicalDashboard() {
   useEffect(() => {
     const fetchTextMedicines = async () => {
       try {
-        const response = await fetch('/api/v1/medical/masters/text-medicines', {
+        const response = await dedupedFetch('/api/v1/medical/masters/text-medicines', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const result = await response.json();
@@ -316,7 +317,9 @@ export default function MedicalDashboard() {
     return { parts, durationDays: normalizedDuration };
   };
 
-  const fetchPrescriptions = async () => {
+  const prescriptionsRequestIdRef = useRef(0);
+  const fetchPrescriptions = useCallback(async () => {
+    const requestId = ++prescriptionsRequestIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -326,13 +329,14 @@ export default function MedicalDashboard() {
       if (patientSearch.trim()) params.append('patient_search', patientSearch.trim());
 
       const url = `/api/v1/medical/prescriptions${params.toString() ? '?' + params.toString() : ''}`;
-      const response = await fetch(url, {
+      const response = await dedupedFetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
       const result = await response.json();
+      if (requestId !== prescriptionsRequestIdRef.current) return;
 
       if (result.success) {
         setPrescriptions(result.data || []);
@@ -340,18 +344,22 @@ export default function MedicalDashboard() {
         setError(result.message || 'Failed to fetch prescriptions');
       }
     } catch (err) {
+      if (requestId !== prescriptionsRequestIdRef.current) return;
       setError('Network error. Please try again.');
       console.error(err);
     } finally {
-      setIsLoading(false);
+      if (requestId === prescriptionsRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [filterDate, filterStatus, patientSearch, token]);
 
   useEffect(() => {
-    if (token) {
-      fetchPrescriptions();
-    }
-  }, [token, filterDate, filterStatus]);
+    if (!token) return;
+    const delay = patientSearch.trim() ? 500 : 0;
+    const timer = window.setTimeout(() => { void fetchPrescriptions(); }, delay);
+    return () => window.clearTimeout(timer);
+  }, [token, fetchPrescriptions, patientSearch]);
 
   // Close payment dropdown on outside click
   useEffect(() => {
@@ -363,14 +371,6 @@ export default function MedicalDashboard() {
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
-
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (token) fetchPrescriptions();
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [patientSearch]);
 
   useEffect(() => {
     setCurrentPage(1);

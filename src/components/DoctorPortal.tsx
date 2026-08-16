@@ -11,6 +11,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getSocket } from '../services/socket';
 import { useNotifications } from '../context/NotificationContext';
+import { useCoalescedCallback } from '../hooks/useCoalescedCallback';
+import { dedupedFetch } from '../utils/dedupedFetch';
 import CustomAlertDialog, { CustomAlertState } from './CustomAlertDialog';
 import {
   formatTimeTo12Hour,
@@ -308,7 +310,7 @@ export default function DoctorPortal() {
         branch_id: String(selectedBranchId),
         appointment_date: filterDate,
       });
-      const response = await fetch(`/api/v1/doctors/slot-time-overrides?${params}`, {
+      const response = await dedupedFetch(`/api/v1/doctors/slot-time-overrides?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const result = await response.json();
@@ -449,7 +451,7 @@ export default function DoctorPortal() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch('/api/v1/doctors/session/status', {
+        const res = await dedupedFetch('/api/v1/doctors/session/status', {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         const data = await res.json();
@@ -561,7 +563,11 @@ export default function DoctorPortal() {
     });
   };
 
+  const appointmentsRequestIdRef = useRef(0);
+  const dashboardRequestIdRef = useRef(0);
+
   const fetchAppointments = useCallback(async () => {
+    const requestId = ++appointmentsRequestIdRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -572,10 +578,11 @@ export default function DoctorPortal() {
       if (patientSearch.trim()) params.append('patient_search', patientSearch.trim());
 
       const url = `/api/v1/doctors/appointments${params.toString() ? '?' + params.toString() : ''}`;
-      const response = await fetch(url, {
+      const response = await dedupedFetch(url, {
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
       });
       const result = await response.json();
+      if (requestId !== appointmentsRequestIdRef.current) return;
       if (result.success) {
         setAppointments(
           (result.data || []).filter((appointment: DoctorAppointment) =>
@@ -586,23 +593,29 @@ export default function DoctorPortal() {
         setError(result.message || 'Failed to fetch appointments');
       }
     } catch {
+      if (requestId !== appointmentsRequestIdRef.current) return;
       setError('Network error. Please try again.');
     } finally {
-      setIsLoading(false);
+      if (requestId === appointmentsRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [filterDate, filterStatus, patientSearch, selectedBranchId, token]);
 
   const [dashboardStats, setDashboardStats] = useState<any>(null);
 
   const fetchDashboardStats = useCallback(async () => {
+    const requestId = ++dashboardRequestIdRef.current;
     try {
       const params = new URLSearchParams();
       if (filterDate && filterDate !== 'all') params.append('date', filterDate);
+      params.append('summary_only', 'true');
 
-      const response = await fetch(`/api/v1/doctors/dashboard${params.toString() ? '?' + params.toString() : ''}`, {
+      const response = await dedupedFetch(`/api/v1/doctors/dashboard${params.toString() ? '?' + params.toString() : ''}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const result = await response.json();
+      if (requestId !== dashboardRequestIdRef.current) return;
       if (result.success && result.data && result.data.summary) {
         setDashboardStats(result.data.summary);
       }
@@ -612,15 +625,19 @@ export default function DoctorPortal() {
   }, [filterDate, token]);
 
   useEffect(() => {
-    fetchAppointments();
     fetchDashboardStats();
-  }, [token, filterDate, filterStatus, fetchDashboardStats]);
+  }, [fetchDashboardStats]);
 
-  // Debounced patient search
   useEffect(() => {
-    const timer = setTimeout(() => { fetchAppointments(); }, 500);
-    return () => clearTimeout(timer);
+    const delay = patientSearch.trim() ? 500 : 0;
+    const timer = window.setTimeout(() => { void fetchAppointments(); }, delay);
+    return () => window.clearTimeout(timer);
   }, [fetchAppointments, patientSearch]);
+
+  const scheduleSocketListSync = useCoalescedCallback(() => {
+    void fetchAppointments();
+    void fetchDashboardStats();
+  }, 800);
 
   // Real-time socket updates for appointments list and queue changes
   useEffect(() => {
@@ -671,16 +688,14 @@ export default function DoctorPortal() {
     // Listen to appointment changes for doctors (e.g. receptionist booking)
     const handleDoctorAppointmentsUpdated = (payload: any) => {
       console.log("[DoctorPortal] Received doctor.appointments.updated event:", payload);
-      fetchAppointments();
-      fetchDashboardStats();
+      scheduleSocketListSync();
     };
 
     // Listen to any live queue status change (e.g. check-in, check-out, skip, complete)
     const handleQueueUpdated = (payload: any) => {
       console.log("[DoctorPortal] Received queue-updated event:", payload);
       patchAppointmentsFromQueuePayload(payload);
-      fetchAppointments();
-      fetchDashboardStats();
+      scheduleSocketListSync();
     };
 
     // Listen to real-time doctor session updates
@@ -729,7 +744,7 @@ export default function DoctorPortal() {
         });
       }
     };
-  }, [fetchAppointments, fetchDashboardStats, filterDate, selectedBranchId, trackedDoctorId]);
+  }, [filterDate, selectedBranchId, trackedDoctorId, scheduleSocketListSync]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);

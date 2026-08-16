@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { motion, AnimatePresence } from "motion/react";
@@ -23,6 +23,7 @@ import {
   Ticket,
 } from "lucide-react";
 import { useNotifications } from "../../context/NotificationContext";
+import { dedupedFetch } from "../../utils/dedupedFetch";
 import CustomDatePicker from "../CustomDatePicker";
 import Pagination from "../Pagination";
 import PrescriptionPrint from "../PrescriptionPrint";
@@ -190,7 +191,7 @@ export default function DoctorClinicHistory() {
     );
   };
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -201,7 +202,7 @@ export default function DoctorClinicHistory() {
       if (search.trim()) params.append("patient_search", search.trim());
       if (selectedBranchId) params.append("branch_id", String(selectedBranchId));
 
-      const res = await fetch(
+      const res = await dedupedFetch(
         `/api/v1/doctors/consultations-history?${params.toString()}`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -218,18 +219,13 @@ export default function DoctorClinicHistory() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fromDate, toDate, filterStatus, search, selectedBranchId, token, addToast]);
 
   useEffect(() => {
-    fetchHistory();
-  }, [fromDate, toDate, filterStatus, token, selectedBranchId]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchHistory();
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [search]);
+    const delay = search.trim() ? 500 : 0;
+    const timer = window.setTimeout(() => { void fetchHistory(); }, delay);
+    return () => window.clearTimeout(timer);
+  }, [fetchHistory, search]);
 
   useEffect(() => {
     setCurrentPage(1);
