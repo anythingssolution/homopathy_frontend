@@ -6,10 +6,10 @@ import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
-  const backendTarget = env.VITE_BACKEND_TARGET || "https://drtrivedi_api.vectre.in";
+  const backendTarget = env.VITE_BACKEND_TARGET || "https://api.anythingssolution.com";
   return {
     plugins: [
-      react(), 
+      react(),
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
