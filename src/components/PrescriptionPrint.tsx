@@ -1,6 +1,6 @@
 import React from 'react';
 import { Mail, Phone, MapPin, Pill, Activity, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
-import { getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedDoseTimesText } from '../utils/prescriptionFormat';
+import { getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedDoseTimesText, getPrintedDoseUnitKind } from '../utils/prescriptionFormat';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
 
 interface PrescriptionPrintProps {
@@ -339,7 +339,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                     <div className="p-0 flex flex-col gap-3 items-end justify-start bg-white text-right">
                       {/* Remedies */}
                       {numericMeds.length > 0 && (
-                        <div className="flex flex-wrap gap-6 items-start justify-end">
+                        <div className="flex flex-col gap-2 items-end text-right w-full">
                           {(() => {
                             const quickFormulaText = consultation?.quick_formula_input || appointment?.quick_formula_input || consultation?.prescription?.quick_formula_input || '';
                             const duration = consultation?.medication_duration_days || appointment?.medication_duration_days || 7;
@@ -347,7 +347,11 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
 
                             numericMeds.forEach((med: any) => {
                               const doses = Array.isArray(med.doses) ? med.doses : [];
-                              const key = JSON.stringify(doses.map((d: any) => Number(d.balls_per_dose)));
+                              const kind = getPrintedDoseUnitKind(med.medicine_value, quickFormulaText);
+                              const key = JSON.stringify({
+                                kind,
+                                balls: doses.map((d: any) => Number(d.balls_per_dose)),
+                              });
                               if (!groupedByDose[key]) {
                                 groupedByDose[key] = { medicines: [], medication: med };
                               }
@@ -366,12 +370,12 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                                 ? quickFormulaText
                                 : `${group.medicines.join(',')},/${duration}`;
                               return (
-                                <div key={idx} className="flex flex-col gap-1 items-end text-right">
+                                <div key={idx} className="flex flex-col gap-0.5 items-end text-right">
                                   <div className="text-xs font-mono font-bold text-[#1a2b4c]">
                                     {formulaLabel}
                                   </div>
-                                  <div className="mt-0.5 text-[10px] font-bold text-gray-800 leading-tight">
-                                    {getPrintedDoseTimesText(group.medication, isHi)}
+                                  <div className="text-[10px] font-bold text-gray-800 leading-tight">
+                                    {getPrintedDoseTimesText(group.medication, isHi, quickFormulaText)}
                                   </div>
                                 </div>
                               );
@@ -380,32 +384,31 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                         </div>
                       )}
 
-                      {/* Other Medications — 2nd line block under numeric remedies */}
+                      {/* Other Medications — name and dosage on the same line */}
                       {textMeds.length > 0 && (
-                        <div className="flex flex-col gap-2 items-end text-right w-full">
+                        <div className="flex flex-col gap-1.5 items-end text-right w-full">
                           {textMeds.map((m: any, idx: number) => {
                             const roleLabel = getMedicationRoleLabel(m);
+                            const displayRemark = isHi
+                              ? (m.remark_hi || m.remark)
+                              : (m.remark || m.remark_hi);
                             return (
-                              <div key={idx} className="flex flex-col text-right items-end leading-tight">
+                              <div key={idx} className="flex flex-col items-end text-right leading-tight w-full">
                                 {roleLabel && (
                                   <span className="w-fit px-1.5 py-0.5 rounded-md bg-[#cc3333]/10 text-[#cc3333] text-[8px] font-black uppercase tracking-widest mb-0.5">
                                     {roleLabel}
                                   </span>
                                 )}
-                                <div className="text-xs font-bold text-gray-800">
-                                  {formatPrescriptionMedicineText(m.medicine_value)}
-                                </div>
-                                {(() => {
-                                  const displayRemark = isHi
-                                    ? (m.remark_hi || m.remark)
-                                    : (m.remark || m.remark_hi);
-                                  if (!displayRemark) return null;
-                                  return (
-                                    <div className="text-[10px] text-gray-600 font-medium mt-0.5">
+                                <div className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-right">
+                                  <span className="text-xs font-bold text-gray-800">
+                                    {formatPrescriptionMedicineText(m.medicine_value)}
+                                  </span>
+                                  {displayRemark ? (
+                                    <span className="text-[10px] text-gray-600 font-medium">
                                       {displayRemark}
-                                    </div>
-                                  );
-                                })()}
+                                    </span>
+                                  ) : null}
+                                </div>
                                 <MedicationDispensingStatus
                                   medication={m}
                                   label={isHi ? 'दवा नहीं दी गई' : 'Not dispensed'}

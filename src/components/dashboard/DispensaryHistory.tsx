@@ -30,7 +30,7 @@ import { useTranslation } from 'react-i18next';
 import MedicationDispensingStatus from '../MedicationDispensingStatus';
 
 export default function DispensaryHistory() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { token, branchScope } = useAuth();
   const { addToast } = useNotifications();
   const [patientSearch, setPatientSearch] = useState('');
@@ -428,7 +428,12 @@ export default function DispensaryHistory() {
                             const medAmount = getMedicationPricingAmount(selectedPrescription.prescription?.pricing, med);
                             const dosePreview = getDosePreview(
                               med,
-                              selectedPrescription.prescription?.medication_duration_days
+                              selectedPrescription.prescription?.medication_duration_days,
+                              {
+                                isHi: i18n.language === 'hi',
+                                quickFormulaInput: selectedPrescription.prescription?.quick_formula_input,
+                                style: 'full',
+                              },
                             );
                             const roleLabel = getMedicationRoleLabel(med);
 
@@ -444,8 +449,8 @@ export default function DispensaryHistory() {
                                     )}
                                   </div>
                                   <div className="flex items-center gap-3 mt-1 flex-wrap">
-                                    <span className="text-[9px] font-black text-[#549E9E]/70 uppercase tracking-widest">
-                                      {dosePreview || 'No dose details'}
+                                    <span className="text-[9px] font-black text-[#549E9E]/70 tracking-wide">
+                                      {dosePreview || t('dispense.no_dose_details', 'No dose details')}
                                     </span>
                                     {med.remark && (
                                       <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">

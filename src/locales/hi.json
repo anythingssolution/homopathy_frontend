@@ -1166,7 +1166,8 @@
     "payment_mode": "भुगतान विधान",
     "transaction_ref": "लेनदेन संदर्भ",
     "payment_note": "भुगतान नोट",
-    "confirm_dispensed": "पुष्टि करें और वितरित के रूप में चिह्नित करें"
+    "confirm_dispensed": "पुष्टि करें और वितरित के रूप में चिह्नित करें",
+    "no_dose_details": "खुराक दर्ज नहीं"
   },
   "doctor_leave": {
     "selected_branch": "चयनित शाखा",

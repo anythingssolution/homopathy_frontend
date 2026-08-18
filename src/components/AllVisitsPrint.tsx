@@ -1,6 +1,6 @@
 import React from 'react';
 import { Activity, Mail, Phone, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
-import { getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedDoseTimesText } from '../utils/prescriptionFormat';
+import { getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedDoseTimesText, getPrintedDoseUnitKind } from '../utils/prescriptionFormat';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
 
 interface VisitData {
@@ -310,10 +310,10 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
 
                         {/* RIGHT COLUMN: Prescribed Remedies & Other Meds (Right-aligned) */}
                         <div className="flex-1">
-                          <div className="p-0 flex flex-wrap gap-6 items-start justify-end bg-white text-right">
+                          <div className="p-0 flex flex-col gap-2 items-end justify-start bg-white text-right">
                             {/* Remedies */}
                             {numericMeds.length > 0 && (
-                              <div className="flex flex-wrap gap-5 items-start justify-end">
+                              <div className="flex flex-col gap-1.5 items-end text-right w-full">
                                 {(() => {
                                   const quickFormulaText = consultation?.quick_formula_input || details?.quick_formula_input || appointment?.quick_formula_input || '';
                                   const duration = consultation?.medication_duration_days || details?.medication_duration_days || appointment?.medication_duration_days || 7;
@@ -321,7 +321,11 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
 
                                   numericMeds.forEach((med: any) => {
                                     const doses = Array.isArray(med.doses) ? med.doses : [];
-                                    const key = JSON.stringify(doses.map((d: any) => Number(d.balls_per_dose)));
+                                    const kind = getPrintedDoseUnitKind(med.medicine_value, quickFormulaText);
+                                    const key = JSON.stringify({
+                                      kind,
+                                      balls: doses.map((d: any) => Number(d.balls_per_dose)),
+                                    });
                                     if (!groupedByDose[key]) {
                                       groupedByDose[key] = { medicines: [], medication: med };
                                     }
@@ -344,8 +348,8 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                         <div className="text-[11px] font-mono font-bold text-[#1a2b4c]">
                                           {formulaLabel}
                                         </div>
-                                        <div className="mt-0.5 text-[9px] font-bold text-gray-800 leading-tight">
-                                          {getPrintedDoseTimesText(group.medication, isHi)}
+                                        <div className="text-[9px] font-bold text-gray-800 leading-tight">
+                                          {getPrintedDoseTimesText(group.medication, isHi, quickFormulaText)}
                                         </div>
                                       </div>
                                     );
@@ -356,9 +360,12 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
 
                             {/* Text Meds */}
                             {textMeds.length > 0 && (
-                              <div className="flex flex-col gap-1 items-end text-right">
+                              <div className="flex flex-col gap-1 items-end text-right w-full">
                                 {textMeds.map((m: any, idx: number) => {
                                   const roleLabel = getMedicationRoleLabel(m);
+                                  const displayRemark = isHi
+                                    ? (m.remark_hi || m.remark)
+                                    : (m.remark || m.remark_hi);
                                   return (
                                     <div key={idx} className="flex flex-col text-right items-end">
                                       {roleLabel && (
@@ -366,18 +373,14 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                           {roleLabel}
                                         </span>
                                       )}
-                                      <div className="text-[10px] font-bold text-gray-800">{formatPrescriptionMedicineText(m.medicine_value)}</div>
-                                      {(() => {
-                                        const displayRemark = isHi
-                                          ? (m.remark_hi || m.remark)
-                                          : (m.remark || m.remark_hi);
-                                        if (!displayRemark) return null;
-                                        return (
-                                          <div className="text-[9px] text-gray-600 font-medium">
+                                      <div className="flex flex-wrap items-baseline justify-end gap-x-2">
+                                        <span className="text-[10px] font-bold text-gray-800">{formatPrescriptionMedicineText(m.medicine_value)}</span>
+                                        {displayRemark ? (
+                                          <span className="text-[9px] text-gray-600 font-medium">
                                             {displayRemark}
-                                          </div>
-                                        );
-                                      })()}
+                                          </span>
+                                        ) : null}
+                                      </div>
                                     </div>
                                   );
                                 })}

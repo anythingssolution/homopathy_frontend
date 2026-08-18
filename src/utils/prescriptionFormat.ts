@@ -1,14 +1,48 @@
 import { createQuickFormulaMedicineTokenRe } from './doctorFormulaParser';
 
+export const getNumericMedicineAlphaCode = (
+  medicineValue: string,
+  quickFormulaInput?: string | null,
+): string => {
+  const formatted = formatPrescriptionMedicineText(medicineValue);
+  const parsed = parseNumericMedicineDisplayToken(formatted);
+  if (!parsed) {
+    return '';
+  }
+
+  const annotation = getQuickFormulaMedicineAnnotationMap(quickFormulaInput)[parsed.medicineNo];
+  return String(parsed.alpha || annotation?.alpha || '').trim().toUpperCase();
+};
+
+export const getPrintedDoseUnitKind = (
+  medicineValue: string,
+  quickFormulaInput?: string | null,
+): 'DROP' | 'WEEKLY_MORNING' | 'BALL' => {
+  const alpha = getNumericMedicineAlphaCode(medicineValue, quickFormulaInput);
+  if (alpha === 'Q') return 'DROP';
+  if (alpha === 'CM' || alpha === 'M') return 'WEEKLY_MORNING';
+  return 'BALL';
+};
+
 export const getPrintedDoseTimesText = (
   medication: any,
-  isHi = false,
+  _isHi = false,
+  quickFormulaInput?: string | null,
 ): string => {
+  const kind = getPrintedDoseUnitKind(
+    String(medication?.medicine_value || ''),
+    quickFormulaInput,
+  );
+
+  if (kind === 'WEEKLY_MORNING') {
+    return 'सप्ताह में केवल सुबह';
+  }
+
   const doses = Array.isArray(medication?.doses) ? medication.doses : [];
   const validDoses = doses.filter((dose: any) => Number(dose?.balls_per_dose) > 0);
 
   if (validDoses.length === 0) {
-    return isHi ? 'खुराक दर्ज नहीं' : 'No dose details';
+    return 'खुराक दर्ज नहीं';
   }
 
   const times = validDoses.reduce(
@@ -19,43 +53,92 @@ export const getPrintedDoseTimesText = (
   const allSameBalls = ballCounts.every((count: number) => count === ballCounts[0]);
   const balls = allSameBalls ? ballCounts[0] : Math.max(...ballCounts);
 
-  if (isHi) {
-    const timesLabel = times === 1 ? '1 बार' : `${times} बार`;
-    const ballsLabel = balls === 1 ? '1 गोली' : `${balls} गोलियाँ`;
-    return `${ballsLabel} दिन में ${timesLabel}`;
-  }
-
-  const timesLabel = times === 1 ? '1 time' : `${times} times`;
-  const ballsLabel = balls === 1 ? '1 ball' : `${balls} balls`;
-  return `${ballsLabel} ${timesLabel} a day`;
+  const timesLabel = times === 1 ? '1 बार' : `${times} बार`;
+  const unitLabel = kind === 'DROP'
+    ? (balls === 1 ? '1 बूँद' : `${balls} बूँद`)
+    : (balls === 1 ? '1 गोली' : `${balls} गोलियाँ`);
+  return `${unitLabel} दिन में ${timesLabel}`;
 };
 
-export const getDosePreview = (medication: any, durationDays: number | string) => {
-  const doseLabelMap: Record<string, string> = {
-    MORNING: 'M',
-    AFTERNOON: 'A',
-    NIGHT: 'E',
+export const getDosePreview = (
+  medication: any,
+  durationDays: number | string,
+  options?: {
+    isHi?: boolean;
+    quickFormulaInput?: string | null;
+    style?: 'short' | 'full';
+  },
+) => {
+  const isHi = Boolean(options?.isHi);
+  const style = options?.style || 'short';
+  const kind = getPrintedDoseUnitKind(
+    String(medication?.medicine_value || ''),
+    options?.quickFormulaInput,
+  );
+  const normalizedDuration = Number(durationDays) || 0;
+  const durationLabel = normalizedDuration > 0
+    ? (isHi
+      ? `${normalizedDuration} दिन`
+      : `${normalizedDuration} ${normalizedDuration === 1 ? 'day' : 'days'}`)
+    : '';
+
+  if (kind === 'WEEKLY_MORNING') {
+    const weeklyLabel = isHi
+      ? 'सप्ताह में केवल सुबह'
+      : 'Dosage only at morning in a week';
+    return [weeklyLabel, durationLabel].filter(Boolean).join(' • ');
+  }
+
+  const fullDoseLabelMap: Record<string, string> = isHi
+    ? { MORNING: 'सुबह', AFTERNOON: 'दोपहर', NIGHT: 'शाम', EVENING: 'शाम' }
+    : { MORNING: 'Morning', AFTERNOON: 'Afternoon', NIGHT: 'Evening', EVENING: 'Evening' };
+  const shortDoseLabelMap: Record<string, string> = isHi
+    ? { MORNING: 'सुबह', AFTERNOON: 'दोपहर', NIGHT: 'शाम', EVENING: 'शाम' }
+    : { MORNING: 'M', AFTERNOON: 'A', NIGHT: 'E', EVENING: 'E' };
+  const doseLabelMap = style === 'full' ? fullDoseLabelMap : shortDoseLabelMap;
+
+  const getUnitLabel = (count: number) => {
+    if (kind === 'DROP') {
+      if (isHi) return `${count} बूँद`;
+      return count === 1 ? '1 drop' : `${count} drops`;
+    }
+    if (isHi) return count === 1 ? '1 गोली' : `${count} गोलियाँ`;
+    return count === 1 ? '1 ball' : `${count} balls`;
   };
 
-  const normalizedDuration = Number(durationDays) || 0;
   const doses = Array.isArray(medication?.doses) ? medication.doses : [];
 
   if (doses.length === 0) {
-    return normalizedDuration > 0 ? `${normalizedDuration} days` : '';
+    return durationLabel;
   }
 
-  return doses
+  const parts = doses
     .map((dose: any) => {
-      const shortLabel =
-        doseLabelMap[String(dose?.dose_label || '').toUpperCase()] ||
-        String(dose?.dose_label || '').charAt(0).toUpperCase();
+      const rawLabel = String(dose?.dose_label || '').toUpperCase();
+      const label =
+        doseLabelMap[rawLabel] ||
+        String(dose?.dose_label || '')
+          .toLowerCase()
+          .replace(/^\w/, (c: string) => c.toUpperCase());
       const balls = Number(dose?.balls_per_dose) || 0;
 
-      if (!shortLabel || !balls) return null;
-      return `${shortLabel} ${balls} balls ${normalizedDuration} days`;
+      if (!label || !balls) return null;
+      if (style === 'full') {
+        return `${label} ${getUnitLabel(balls)}`;
+      }
+      return `${label} ${getUnitLabel(balls)}${durationLabel ? ` ${durationLabel}` : ''}`;
     })
-    .filter(Boolean)
-    .join(' • ');
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return durationLabel;
+  }
+
+  if (style === 'full') {
+    return [...parts, durationLabel].filter(Boolean).join(' • ');
+  }
+
+  return parts.join(' • ');
 };
 
 export const getMedicationPricingAmount = (pricing: any, medication: any) => {

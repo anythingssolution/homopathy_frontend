@@ -1106,7 +1106,8 @@
     "payment_mode": "Payment Mode",
     "transaction_ref": "Transaction Reference",
     "payment_note": "Payment Note",
-    "confirm_dispensed": "Confirm & Mark as Dispensed"
+    "confirm_dispensed": "Confirm & Mark as Dispensed",
+    "no_dose_details": "No dose details"
   },
   "doctor_leave": {
     "selected_branch": "Selected Branch",

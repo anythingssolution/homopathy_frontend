@@ -28,7 +28,7 @@ import { dedupedFetch } from '../../utils/dedupedFetch';
 import CustomDatePicker from '../CustomDatePicker';
 import Pagination from '../Pagination';
 import { useTranslation } from 'react-i18next';
-import { formatConsultationMedicineText, formatNumericMedicineWithFormula } from '../../utils/prescriptionFormat';
+import { formatConsultationMedicineText, formatNumericMedicineWithFormula, getDosePreview } from '../../utils/prescriptionFormat';
 
 const StatusBadge = ({ status }: { status: string }) => {
   const s = status.toLowerCase();
@@ -242,7 +242,7 @@ function SearchableDropdown({
 }
 
 export default function MedicalDashboard() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { token, user } = useAuth();
   const { addToast } = useNotifications();
   const [patientSearch, setPatientSearch] = useState('');
@@ -289,33 +289,7 @@ export default function MedicalDashboard() {
     return today.toISOString().split('T')[0];
   });
 
-  const getDosePreviewParts = (medication: any, durationDays: number | string) => {
-    const doseLabelMap: Record<string, string> = {
-      MORNING: 'Morning',
-      AFTERNOON: 'Afternoon',
-      NIGHT: 'Evening',
-      EVENING: 'Evening',
-    };
-
-    const normalizedDuration = Number(durationDays) || 0;
-    const doses = Array.isArray(medication?.doses) ? medication.doses : [];
-
-    const parts = doses
-      .map((dose: any) => {
-        const rawLabel = String(dose?.dose_label || '').toUpperCase();
-        const label =
-          doseLabelMap[rawLabel] ||
-          String(dose?.dose_label || '')
-            .toLowerCase()
-            .replace(/^\w/, (c: string) => c.toUpperCase());
-        const balls = Number(dose?.balls_per_dose) || 0;
-        if (!label || !balls) return null;
-        return { label, balls };
-      })
-      .filter(Boolean) as Array<{ label: string; balls: number }>;
-
-    return { parts, durationDays: normalizedDuration };
-  };
+  const isHi = i18n.language === 'hi';
 
   const prescriptionsRequestIdRef = useRef(0);
   const fetchPrescriptions = useCallback(async () => {
@@ -1039,9 +1013,14 @@ export default function MedicalDashboard() {
                     {(selectedPrescription.prescription?.medications || []).length > 0 ? (
                       <div className="space-y-2">
                         {selectedPrescription.prescription.medications.filter((med: any) => med.added_by_role !== 'MEDICAL').map((med: any, idx: number) => {
-                          const dosePreview = getDosePreviewParts(
+                          const dosePreview = getDosePreview(
                             med,
-                            selectedPrescription.prescription?.medication_duration_days
+                            selectedPrescription.prescription?.medication_duration_days,
+                            {
+                              isHi,
+                              quickFormulaInput: selectedPrescription.prescription?.quick_formula_input,
+                              style: 'full',
+                            },
                           );
                           const itemState = medItemStates[idx] || {
                             dispense_status: 'ACTIVE',
@@ -1062,20 +1041,7 @@ export default function MedicalDashboard() {
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-black text-gray-800 transition-colors group-hover/med:text-[#549E9E]">{formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input)}</p>
                                 <p className="mt-1 text-[11px] font-bold leading-snug text-[#2f6f6f]">
-                                  {dosePreview.parts.length > 0
-                                    ? [
-                                        ...dosePreview.parts.map(
-                                          (part) => `${part.label} ${part.balls} balls`,
-                                        ),
-                                        dosePreview.durationDays > 0
-                                          ? `${dosePreview.durationDays} days`
-                                          : null,
-                                      ]
-                                        .filter(Boolean)
-                                        .join(' • ')
-                                    : dosePreview.durationDays > 0
-                                      ? `${dosePreview.durationDays} days`
-                                      : 'No dose details'}
+                                  {dosePreview || t('dispense.no_dose_details', 'No dose details')}
                                 </p>
                                 {itemState.dispense_status === 'VOID' && (
                                   <div className="mt-2 rounded-lg border border-red-100 bg-white px-2.5 py-1.5">

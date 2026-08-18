@@ -186,7 +186,7 @@ export default function ReceptionistPortal() {
     payment_mode: "CASH",
     amount: "",
     transaction_reference: "",
-    remark: "Consultation fee",
+    remark: "",
   });
   const [isApproving, setIsApproving] = useState(false);
   const [checkInPromptAppointmentId, setCheckInPromptAppointmentId] = useState<
@@ -643,16 +643,16 @@ export default function ReceptionistPortal() {
 
   const openConsultationPaymentModal = (appointment: any, amount?: number) => {
     setApprovingId(Number(appointment.appointment_id));
+    const resolvedAmount =
+      amount !== undefined ? Number(amount) : Number(appointment?.consultation_fee);
     setPaymentData({
       payment_mode: "CASH",
       amount:
-        amount !== undefined
-          ? String(amount)
-          : appointment.consultation_fee
-            ? String(appointment.consultation_fee)
-            : "",
+        Number.isFinite(resolvedAmount) && resolvedAmount > 0
+          ? String(resolvedAmount)
+          : "",
       transaction_reference: "",
-      remark: "Consultation fee",
+      remark: "",
     });
     setIsPaymentModalOpen(true);
   };
@@ -737,7 +737,12 @@ export default function ReceptionistPortal() {
         ) || { appointment_id: appointmentId };
         setIsCheckInPromptOpen(false);
         setCheckInPromptAppointmentId(null);
-        openConsultationPaymentModal(appointment, Number(data.data?.amount) || 0);
+        openConsultationPaymentModal(
+          appointment,
+          Number.isFinite(Number(data.data?.amount)) && Number(data.data?.amount) > 0
+            ? Number(data.data?.amount)
+            : undefined,
+        );
         addToast(data.message || "Consultation payment is required before check-in", "warning");
         fetchAppointments();
         return false;
@@ -753,8 +758,23 @@ export default function ReceptionistPortal() {
     }
   };
 
+  const paymentAmountValue = Number(paymentData.amount);
+  const hasAmount =
+    String(paymentData.amount || "").trim() !== "" &&
+    Number.isFinite(paymentAmountValue) &&
+    paymentAmountValue >= 0;
+  const hasRemark = Boolean(paymentData.remark.trim());
+  const canConfirmPayment =
+    (hasAmount || hasRemark) &&
+    (paymentData.payment_mode !== "ONLINE" ||
+      Boolean(paymentData.transaction_reference.trim()));
+
   const confirmPayment = async () => {
     if (!approvingId) return;
+    if (!hasAmount && !hasRemark) {
+      addToast("Please enter amount or remark", "warning");
+      return;
+    }
     if (
       paymentData.payment_mode === "ONLINE" &&
       !paymentData.transaction_reference.trim()
@@ -3002,11 +3022,18 @@ export default function ReceptionistPortal() {
                             {t("receptionist.amount", "Amount")}
                           </label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             value={paymentData.amount}
-                            onChange={(e) =>
-                              setPaymentData({ ...paymentData, amount: e.target.value })
-                            }
+                            onChange={(e) => {
+                              const nextValue = e.target.value.replace(/[^\d.]/g, "");
+                              const [whole, ...rest] = nextValue.split(".");
+                              const sanitized =
+                                rest.length > 0
+                                  ? `${whole}.${rest.join("").slice(0, 2)}`
+                                  : whole;
+                              setPaymentData({ ...paymentData, amount: sanitized });
+                            }}
                             placeholder="e.g. 500"
                             className="w-full bg-gray-50 border-none rounded-[24px] py-4 px-6 outline-none text-gray-700 font-medium focus:ring-2 focus:ring-[#549E9E]/20 transition-all"
                           />
@@ -3043,7 +3070,7 @@ export default function ReceptionistPortal() {
 
                         <div className="space-y-1">
                           <label className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest pl-4">
-                            {t("receptionist.remark_optional", "Remark (Optional)")}
+                            {t("receptionist.remark", "Remark")}
                           </label>
                           <input
                             type="text"
@@ -3051,6 +3078,7 @@ export default function ReceptionistPortal() {
                             onChange={(e) =>
                               setPaymentData({ ...paymentData, remark: e.target.value })
                             }
+                            placeholder={t("receptionist.consultation_fee", "Consultation fee")}
                             className="w-full bg-gray-50 border-none rounded-[24px] py-4 px-6 outline-none text-gray-700 font-medium focus:ring-2 focus:ring-[#549E9E]/20 transition-all"
                           />
                         </div>
@@ -3065,9 +3093,9 @@ export default function ReceptionistPortal() {
                           </button>
                           <button
                             onClick={confirmPayment}
-                            disabled={isApproving || !paymentData.amount}
-                            className={`flex-1 py-4 px-6 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-xl transition-all flex items-center justify-center gap-2 ${isApproving || !paymentData.amount
-                                ? "bg-gray-300 shadow-none"
+                            disabled={isApproving || !canConfirmPayment}
+                            className={`flex-1 py-4 px-6 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-xl transition-all flex items-center justify-center gap-2 ${isApproving || !canConfirmPayment
+                                ? "bg-gray-300 shadow-none cursor-not-allowed"
                                 : "bg-[#549E9E] shadow-[#549E9E]/20 hover:bg-[#468686]"
                               }`}
                           >
