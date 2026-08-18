@@ -67,6 +67,27 @@ export type ParsedQuickFormulaResult = {
   errors: Array<{ raw_token: string; message: string }>;
 };
 
+export const NUMERIC_MEDICINE_MIN = 3;
+export const NUMERIC_MEDICINE_MAX = 200;
+
+/** number, optional [power], optional alpha, optional [power] after alpha — e.g. 12, 12[14], 7Q, 12[14]Q */
+export const createQuickFormulaMedicineTokenRe = () =>
+  /(\d{1,3})(?:\[(\d{1,4})\])?([A-Za-z]*)(?:\[(\d{1,4})\])?/g;
+
+export const looksLikeNumericMedicineValue = (value: string): boolean =>
+  /^(\d{1,3})(?:\[(\d{1,4})\])?$/.test(String(value || "").trim());
+
+export const getNumericMedicineBaseValue = (value: string): string => {
+  const match = String(value || "").trim().match(/^(\d{1,3})(?:\[(\d{1,4})\])?$/);
+  return match ? String(Number(match[1])) : String(value || "").trim();
+};
+
+export const getNumericMedicineDropdownOptions = (): string[] =>
+  Array.from(
+    { length: NUMERIC_MEDICINE_MAX - NUMERIC_MEDICINE_MIN + 1 },
+    (_, i) => String(i + NUMERIC_MEDICINE_MIN),
+  );
+
 const toCurrencyAmount = (value: number | null | undefined) => {
   const parsed = Number(value ?? 0);
   if (!Number.isFinite(parsed) || parsed < 0) {
@@ -198,13 +219,15 @@ export const parseDoctorFormulaInput = (
       return;
     }
 
-    const medicineMatches = [...groupPart.matchAll(/(\d{1,3})([A-Za-z]*)/g)];
+    const medicineMatches = [...groupPart.matchAll(createQuickFormulaMedicineTokenRe())];
 
-    const validateGroup = groupPart.replace(/(\d{1,3})([A-Za-z]*)/g, '').replace(/[\s\-+,]/g, '');
-    if (validateGroup !== '') {
+    const validateGroup = groupPart
+      .replace(createQuickFormulaMedicineTokenRe(), "")
+      .replace(/[\s\-+,]/g, "");
+    if (validateGroup !== "") {
       errors.push({
         raw_token: token,
-        message: `Invalid characters found in medicine group: ${validateGroup}. Only numbers, letters, spaces, dashes, commas or pluses allowed before the slash.`,
+        message: `Invalid characters found in medicine group: ${validateGroup}. Only numbers, optional [power], letters, spaces, dashes, commas or pluses allowed before the slash.`,
       });
       return;
     }
@@ -296,26 +319,28 @@ export const parseDoctorFormulaInput = (
 
     medicineMatches.forEach(match => {
       const medicineNo = Number(match[1]);
-      const inlineAlphaCode = match[2] ? match[2].trim().toUpperCase() : null;
+      const powerValue = match[2] || match[4] || null;
+      const inlineAlphaCode = match[3] ? match[3].trim().toUpperCase() : null;
       const derivedToken = `${match[0]}${suffix ? `/${suffix}` : ''}`;
 
-      if (!Number.isInteger(medicineNo) || medicineNo < 1 || medicineNo > 999) {
+      if (!Number.isInteger(medicineNo) || medicineNo < 1 || medicineNo > NUMERIC_MEDICINE_MAX) {
         errors.push({
           raw_token: derivedToken,
-          message: `Medicine number ${medicineNo} must be between 1 and 999.`,
+          message: `Medicine number ${medicineNo} must be between 1 and ${NUMERIC_MEDICINE_MAX}.`,
         });
         return;
       }
 
-      const medicineValue = String(medicineNo);
-      if (seenMedicineValues.has(medicineValue)) {
+      const medicineKey = String(medicineNo);
+      const medicineValue = powerValue ? `${medicineNo}[${powerValue}]` : medicineKey;
+      if (seenMedicineValues.has(medicineKey)) {
         errors.push({
           raw_token: derivedToken,
-          message: `Duplicate medicine number ${medicineValue} is not allowed.`,
+          message: `Duplicate medicine number ${medicineKey} is not allowed.`,
         });
         return;
       }
-      seenMedicineValues.add(medicineValue);
+      seenMedicineValues.add(medicineKey);
 
       let rows = groupRule?.doses || [];
       let templateCode = groupRule?.template_code || null;

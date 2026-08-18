@@ -39,7 +39,12 @@ import {
   parseConsultationMedicineText,
   formatNumericMedicineWithFormula,
 } from "../../utils/prescriptionFormat";
-import { parseDoctorFormulaInput } from "../../utils/doctorFormulaParser";
+import {
+  getNumericMedicineBaseValue,
+  getNumericMedicineDropdownOptions,
+  looksLikeNumericMedicineValue,
+  parseDoctorFormulaInput,
+} from "../../utils/doctorFormulaParser";
 import { translateRemarkToHindi } from "../../utils/remarkHindiTranslator";
 import {
   clearConsultDraft,
@@ -199,8 +204,7 @@ function NumberDropdown({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const numbers =
-    options || Array.from({ length: 148 }, (_, i) => (i + 3).toString());
+  const numbers = options || getNumericMedicineDropdownOptions();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -2013,12 +2017,12 @@ export default function ConsultationPage() {
     const selectedMedicineValues = new Set(
       medications
         .map((entry, index) =>
-          index === currentIndex ? "" : entry.name.trim(),
+          index === currentIndex ? "" : getNumericMedicineBaseValue(entry.name),
         )
         .filter(Boolean),
     );
 
-    return Array.from({ length: 148 }, (_, i) => (i + 3).toString()).filter(
+    return getNumericMedicineDropdownOptions().filter(
       (value) => !selectedMedicineValues.has(value),
     );
   };
@@ -2249,7 +2253,7 @@ export default function ConsultationPage() {
       const typeLower = String(item.medicine_type || "").toLowerCase();
       const isNumeric =
         typeLower === "numeric" ||
-        (/^\d+$/.test(String(item.medicine_value || "").trim()) &&
+        (looksLikeNumericMedicineValue(String(item.medicine_value || "")) &&
           (!item.remark || !item.remark.trim()));
 
       if (isNumeric) {

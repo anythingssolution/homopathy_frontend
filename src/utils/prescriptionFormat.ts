@@ -1,3 +1,5 @@
+import { createQuickFormulaMedicineTokenRe } from './doctorFormulaParser';
+
 export const getPrintedDoseTimesText = (
   medication: any,
   isHi = false,
@@ -120,11 +122,29 @@ export const formatPrescriptionMedicineText = (medicineValue: string): string =>
   return trimmed;
 };
 
-/** Map medicine number → inline alpha from quick formula (e.g. "4,5,7q/3" → { "7": "q" }). */
-export const getQuickFormulaInlineAlphaMap = (
+type QuickFormulaMedicineAnnotation = {
+  alpha?: string;
+  power?: string;
+};
+
+const parseNumericMedicineDisplayToken = (value: string) => {
+  const match = String(value || '').trim().match(
+    /^(\d{1,3})(?:\[(\d{1,4})\])?([A-Za-z]*)(?:\[(\d{1,4})\])?$/,
+  );
+  if (!match) return null;
+
+  return {
+    medicineNo: String(Number(match[1])),
+    power: match[2] || match[4] || '',
+    alpha: match[3] || '',
+  };
+};
+
+/** Map medicine number → inline alpha / [power] from quick formula (e.g. "12[14],7q/8"). */
+export const getQuickFormulaMedicineAnnotationMap = (
   quickFormulaInput?: string | null,
-): Record<string, string> => {
-  const map: Record<string, string> = {};
+): Record<string, QuickFormulaMedicineAnnotation> => {
+  const map: Record<string, QuickFormulaMedicineAnnotation> = {};
   const source = String(quickFormulaInput || '').trim();
   if (!source) return map;
 
@@ -132,14 +152,37 @@ export const getQuickFormulaInlineAlphaMap = (
     .split(',')
     .forEach((segment) => {
       const groupPart = String(segment.split('/')[0] || '');
-      [...groupPart.matchAll(/(\d{1,3})([A-Za-z]+)/g)].forEach((match) => {
+      [...groupPart.matchAll(createQuickFormulaMedicineTokenRe())].forEach((match) => {
         const medicineNo = String(Number(match[1]));
+        const power = match[2] || match[4] || '';
+        const alpha = match[3] || '';
         if (!map[medicineNo]) {
-          map[medicineNo] = match[2];
+          map[medicineNo] = {};
+        }
+        if (power && !map[medicineNo].power) {
+          map[medicineNo].power = power;
+        }
+        if (alpha && !map[medicineNo].alpha) {
+          map[medicineNo].alpha = alpha;
         }
       });
     });
 
+  return map;
+};
+
+/** Map medicine number → inline alpha from quick formula (e.g. "4,5,7q/3" → { "7": "q" }). */
+export const getQuickFormulaInlineAlphaMap = (
+  quickFormulaInput?: string | null,
+): Record<string, string> => {
+  const map: Record<string, string> = {};
+  Object.entries(getQuickFormulaMedicineAnnotationMap(quickFormulaInput)).forEach(
+    ([medicineNo, annotation]) => {
+      if (annotation.alpha) {
+        map[medicineNo] = annotation.alpha;
+      }
+    },
+  );
   return map;
 };
 
@@ -148,12 +191,16 @@ export const formatNumericMedicineWithFormula = (
   quickFormulaInput?: string | null,
 ): string => {
   const formatted = formatPrescriptionMedicineText(medicineValue);
-  if (!formatted || !/^\d+$/.test(formatted)) {
+  const parsed = parseNumericMedicineDisplayToken(formatted);
+  if (!parsed) {
     return formatted;
   }
 
-  const alpha = getQuickFormulaInlineAlphaMap(quickFormulaInput)[String(Number(formatted))];
-  return alpha ? `${formatted}${alpha}` : formatted;
+  const annotation = getQuickFormulaMedicineAnnotationMap(quickFormulaInput)[parsed.medicineNo];
+  const power = parsed.power || annotation?.power || '';
+  const alpha = parsed.alpha || annotation?.alpha || '';
+
+  return `${parsed.medicineNo}${power ? `[${power}]` : ''}${alpha}`;
 };
 
 export const formatConsultationMedicineText = (
