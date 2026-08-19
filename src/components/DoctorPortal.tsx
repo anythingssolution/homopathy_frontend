@@ -608,7 +608,8 @@ export default function DoctorPortal() {
       if (requestId !== appointmentsRequestIdRef.current) return;
       if (!hasLoadedAppointmentsRef.current) {
         setError('Network error. Please try again.');
-      } finally {
+      }
+    } finally {
       if (requestId === appointmentsRequestIdRef.current) {
         setIsLoading(false);
       }
