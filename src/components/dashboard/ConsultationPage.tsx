@@ -122,6 +122,23 @@ const getLatestRemarkSuggestion = (
     })[0]?.remark_value?.trim() || "";
 };
 
+const toHindiRemarkOption = (value: string) => {
+  const trimmed = String(value || "").trim();
+  return {
+    label: translateRemarkToHindi(trimmed) || trimmed,
+    value: trimmed,
+  };
+};
+
+const HINDI_REMARK_PLACEHOLDER = "उदा. भोजन के बाद लें, दिन में दो बार लगाएं...";
+const DEFAULT_UNIVERSAL_REMARK_OPTIONS = [
+  "20 drop for 3 times in a day",
+  "30 drop for 2 times in a day",
+  "1 spoon",
+  "2 spoon",
+  "3 spoon",
+].map(toHindiRemarkOption);
+
 type OtherMedEntry = {
   name: string;
   selectedVariant?: VariantInfo | null;
@@ -401,9 +418,13 @@ function SearchableDropdown({
     };
   }, []);
 
-  const filteredOptions = options.filter((opt) =>
-    opt.label.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const filteredOptions = options.filter((opt) => {
+    const query = searchTerm.toLowerCase();
+    return (
+      opt.label.toLowerCase().includes(query) ||
+      opt.value.toLowerCase().includes(query)
+    );
+  });
 
   const showCustomOption =
     allowCustom &&
@@ -4906,27 +4927,18 @@ export default function ConsultationPage() {
               const defaultRemarkOptions =
                 om.name?.toLowerCase().includes("syrup") ||
                   om.name?.toLowerCase().includes("syr")
-                  ? [
-                    { label: "2 spoon", value: "2 spoon" },
-                    { label: "3 spoon", value: "3 spoon" },
-                  ]
+                  ? ["2 spoon", "3 spoon"].map(toHindiRemarkOption)
                   : [
-                    {
-                      label: "20 drop for 3 times in a day",
-                      value: "20 drop for 3 times in a day",
-                    },
-                    {
-                      label: "30 drop for 2 times in a day",
-                      value: "30 drop for 2 times in a day",
-                    },
-                  ];
+                      "20 drop for 3 times in a day",
+                      "30 drop for 2 times in a day",
+                    ].map(toHindiRemarkOption);
               const savedRemarkSuggestions = om.selectedVariant
                 ? om.selectedVariant.remark_suggestions || []
                 : selectedMedicine?.remark_suggestions || [];
               const savedVariantRemarkOptions = savedRemarkSuggestions
                 .map((remark) => String(remark.remark_value || "").trim())
                 .filter(Boolean)
-                .map((remark) => ({ label: remark, value: remark }));
+                .map(toHindiRemarkOption);
               const remarkOptions = Array.from(
                 new Map(
                   [
@@ -5114,10 +5126,7 @@ export default function ConsultationPage() {
                         updated[idx] = applyOtherMedicineRemark(updated[idx], val);
                         setOtherMedications(updated);
                       }}
-                      placeholder={t(
-                        "consultation_modal.remark_placeholder",
-                        "e.g. Take after meals, Apply twice daily...",
-                      )}
+                      placeholder={HINDI_REMARK_PLACEHOLDER}
                     />
                     {translateRemarkToHindi(om.remark) && (
                       <p className="mt-1 text-[10px] font-bold text-[#549E9E] leading-snug">
@@ -5212,19 +5221,10 @@ export default function ConsultationPage() {
             id="universal-remark-trigger"
             disabled={isReadOnly}
             allowCustom={true}
-            options={[
-              { label: "20 drop for 3 times in a day", value: "20 drop for 3 times in a day" },
-              { label: "30 drop for 2 times in a day", value: "30 drop for 2 times in a day" },
-              { label: "1 spoon", value: "1 spoon" },
-              { label: "2 spoon", value: "2 spoon" },
-              { label: "3 spoon", value: "3 spoon" },
-            ]}
+            options={DEFAULT_UNIVERSAL_REMARK_OPTIONS}
             value={universalRemark}
             onChange={setUniversalRemark}
-            placeholder={t(
-              "consultation_modal.remark_placeholder",
-              "e.g. Take after meals, Apply twice daily...",
-            )}
+            placeholder={HINDI_REMARK_PLACEHOLDER}
           />
           {translateRemarkToHindi(universalRemark) && (
             <p className="text-[10px] font-bold text-[#549E9E] leading-snug">
