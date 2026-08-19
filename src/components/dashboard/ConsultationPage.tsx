@@ -1932,8 +1932,8 @@ export default function ConsultationPage() {
             };
           }
           return {
-            label: "N/A",
-            price: p.price_max || p.price_min || "0",
+            label: p.packing || p.size_or_weight || p.product_name || "N/A",
+            price: p.mrp_rate || p.price_max || p.price_min || "0",
             type: "medical_product_price",
             remark_suggestions: p.remark_suggestions || [],
           };
