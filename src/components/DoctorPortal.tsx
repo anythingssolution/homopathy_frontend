@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import {
   Clock, Users, Search, CheckCircle2, Calendar, History,
   RefreshCcw, AlertCircle, MapPin, Stethoscope, Tag,
@@ -216,6 +216,13 @@ const FilterDropdown = ({
 };
 
 import CustomDatePicker from './CustomDatePicker';
+
+const queueSpring = {
+  type: 'spring',
+  stiffness: 420,
+  damping: 34,
+  mass: 0.85,
+} as const;
 
 export default function DoctorPortal() {
   const { t, i18n } = useTranslation();
@@ -565,11 +572,14 @@ export default function DoctorPortal() {
 
   const appointmentsRequestIdRef = useRef(0);
   const dashboardRequestIdRef = useRef(0);
+  const hasLoadedAppointmentsRef = useRef(false);
 
   const fetchAppointments = useCallback(async () => {
     const requestId = ++appointmentsRequestIdRef.current;
-    setIsLoading(true);
     setError(null);
+    if (!hasLoadedAppointmentsRef.current) {
+      setIsLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       if (selectedBranchId) params.append('branch_id', String(selectedBranchId));
@@ -584,18 +594,21 @@ export default function DoctorPortal() {
       const result = await response.json();
       if (requestId !== appointmentsRequestIdRef.current) return;
       if (result.success) {
+        hasLoadedAppointmentsRef.current = true;
+        setError(null);
         setAppointments(
           (result.data || []).filter((appointment: DoctorAppointment) =>
             appointment?.status !== 'Cancelled' && Number(appointment?.is_active ?? 1) === 1
           )
         );
-      } else {
+      } else if (!hasLoadedAppointmentsRef.current) {
         setError(result.message || 'Failed to fetch appointments');
       }
     } catch {
       if (requestId !== appointmentsRequestIdRef.current) return;
-      setError('Network error. Please try again.');
-    } finally {
+      if (!hasLoadedAppointmentsRef.current) {
+        setError('Network error. Please try again.');
+      } finally {
       if (requestId === appointmentsRequestIdRef.current) {
         setIsLoading(false);
       }
@@ -1355,14 +1368,19 @@ export default function DoctorPortal() {
         </motion.div>
       ) : (
         <div className="bg-white border border-gray-200 shadow-sm overflow-hidden rounded-2xl sm:rounded-none">
+          <LayoutGroup id="doctor-dashboard-queue">
           {/* === MOBILE CARD VIEW === */}
           <div className="sm:hidden divide-y divide-gray-100">
-            {appointments.map((app, idx) => (
+            <AnimatePresence mode="popLayout" initial={false}>
+            {appointments.map((app) => (
               <motion.div
                 key={app.appointment_id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.03 }}
+                layout
+                layoutId={`doctor-queue-${app.appointment_id}`}
+                initial={{ opacity: 0, y: 28, scale: 0.985 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -24, scale: 0.985 }}
+                transition={queueSpring}
                 className="p-4 active:bg-[#549E9E]/[0.03] transition-colors"
                 onClick={() => setExpandedId(expandedId === app.appointment_id ? null : app.appointment_id)}
               >
@@ -1467,6 +1485,7 @@ export default function DoctorPortal() {
                 </AnimatePresence>
               </motion.div>
             ))}
+            </AnimatePresence>
           </div>
           {/* === DESKTOP TABLE VIEW === */}
           <div className="hidden sm:block overflow-x-auto">
@@ -1485,10 +1504,16 @@ export default function DoctorPortal() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {appointments.map((app, idx) => (
+                <AnimatePresence mode="popLayout" initial={false}>
+                {appointments.map((app) => (
                   <React.Fragment key={app.appointment_id}>
                     <motion.tr
-                      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }}
+                      layout
+                      layoutId={`doctor-queue-row-${app.appointment_id}`}
+                      initial={{ opacity: 0, y: 28 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -24 }}
+                      transition={queueSpring}
                       className="hover:bg-[#549E9E]/[0.02] transition-colors group cursor-pointer"
                       onClick={() => setExpandedId(expandedId === app.appointment_id ? null : app.appointment_id)}
                     >
@@ -1712,9 +1737,11 @@ export default function DoctorPortal() {
                     </AnimatePresence>
                   </React.Fragment>
                 ))}
+                </AnimatePresence>
               </tbody>
             </table>
           </div>
+          </LayoutGroup>
         </div>
 
       )}
