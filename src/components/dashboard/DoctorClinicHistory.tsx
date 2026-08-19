@@ -167,6 +167,9 @@ export default function DoctorClinicHistory() {
     );
   };
 
+  const isPendingStatus = (status?: string) =>
+    String(status || "").trim().toLowerCase() === "pending";
+
   const StatusBadge = ({ status }: { status: string }) => {
     const s = status.toLowerCase();
     const styles: Record<string, string> = {
@@ -369,14 +372,18 @@ export default function DoctorClinicHistory() {
                 .map((item, idx) => {
                   const { appointment, consultation } = item;
                   const emrSummary = getChainSummary(item.follow_up_chain);
+                  const isPending = isPendingStatus(appointment.status);
                   return (
                     <motion.div
                       key={consultation?.consultation_id || idx}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: Math.min(idx * 0.05, 0.5) }}
-                      className="p-4 hover:bg-[#549E9E]/5 transition-colors group cursor-pointer"
-                      onClick={() => setSelectedConsultation(item)}
+                      className={`p-4 transition-colors group ${isPending ? "cursor-not-allowed" : "hover:bg-[#549E9E]/5 cursor-pointer"}`}
+                      onClick={() => {
+                        if (isPending) return;
+                        setSelectedConsultation(item);
+                      }}
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
@@ -457,20 +464,34 @@ export default function DoctorClinicHistory() {
 
                       <div className="mt-4 pt-3 border-t border-gray-50 flex gap-2">
                         <button
+                          type="button"
+                          disabled={isPending}
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (isPending) return;
                             setSelectedConsultation(item);
                           }}
-                          className="flex-1 text-[10px] font-black text-[#549E9E] bg-[#549E9E]/10 py-2.5 rounded-xl uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-colors cursor-pointer text-center"
+                          className={`flex-1 text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest transition-colors text-center ${
+                            isPending
+                              ? "text-gray-400 bg-gray-100 cursor-not-allowed"
+                              : "text-[#549E9E] bg-[#549E9E]/10 hover:bg-[#549E9E] hover:text-white cursor-pointer"
+                          }`}
                         >
                           {t("clinic_history.table.view_details", "View Details")}
                         </button>
                         <button
+                          type="button"
+                          disabled={isPending}
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (isPending) return;
                             setShowPrescriptionPreview(item);
                           }}
-                          className="flex-1 text-[10px] font-black text-white bg-amber-500 py-2.5 rounded-xl uppercase tracking-widest hover:bg-amber-600 transition-colors cursor-pointer flex items-center justify-center gap-1"
+                          className={`flex-1 text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest transition-colors flex items-center justify-center gap-1 ${
+                            isPending
+                              ? "text-gray-400 bg-gray-200 cursor-not-allowed"
+                              : "text-white bg-amber-500 hover:bg-amber-600 cursor-pointer"
+                          }`}
                           title={t("clinic_history.table.view_prescription", "View Prescription")}
                         >
                           <Eye size={12} /> {t("clinic_history.table.view_prescription", "View Prescription")}
@@ -518,14 +539,18 @@ export default function DoctorClinicHistory() {
                     .map((item, idx) => {
                       const { appointment, consultation } = item;
                       const emrSummary = getChainSummary(item.follow_up_chain);
+                      const isPending = isPendingStatus(appointment.status);
                       return (
                         <motion.tr
                           key={appointment.appointment_id || idx}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: Math.min(idx * 0.05, 0.5) }}
-                          className="hover:bg-[#549E9E]/5 transition-colors group cursor-pointer"
-                          onClick={() => setSelectedConsultation(item)}
+                          className={`transition-colors group ${isPending ? "cursor-not-allowed" : "hover:bg-[#549E9E]/5 cursor-pointer"}`}
+                          onClick={() => {
+                            if (isPending) return;
+                            setSelectedConsultation(item);
+                          }}
                         >
                           <td className="px-5 py-4">
                             <div className="flex flex-col">
@@ -616,11 +641,18 @@ export default function DoctorClinicHistory() {
                           <td className="px-5 py-4 text-center">
                             <div className="flex items-center justify-center gap-2">
                               <button
+                                type="button"
+                                disabled={isPending}
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  if (isPending) return;
                                   setSelectedConsultation(item);
                                 }}
-                                className="text-[10px] font-black text-[#549E9E] bg-[#549E9E]/10 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-colors cursor-pointer"
+                                className={`text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest transition-colors ${
+                                  isPending
+                                    ? "text-gray-400 bg-gray-100 cursor-not-allowed"
+                                    : "text-[#549E9E] bg-[#549E9E]/10 hover:bg-[#549E9E] hover:text-white cursor-pointer"
+                                }`}
                               >
                                 {t(
                                   "clinic_history.table.view_details",
@@ -628,11 +660,18 @@ export default function DoctorClinicHistory() {
                                 )}
                               </button>
                               <button
+                                type="button"
+                                disabled={isPending}
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  if (isPending) return;
                                   setShowPrescriptionPreview(item);
                                 }}
-                                className="text-[10px] font-black text-white bg-amber-500 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-amber-600 transition-colors cursor-pointer flex items-center gap-1"
+                                className={`text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest transition-colors flex items-center gap-1 ${
+                                  isPending
+                                    ? "text-gray-400 bg-gray-200 cursor-not-allowed"
+                                    : "text-white bg-amber-500 hover:bg-amber-600 cursor-pointer"
+                                }`}
                                 title={t(
                                   "clinic_history.table.view_prescription",
                                   "View Prescription",
