@@ -160,8 +160,8 @@ export default function Bills() {
 
   const [activeTab, setActiveTab] = useState<ActiveBillingTab>('BILLS');
   const [bills, setBills] = useState<any[]>([]);
-  const [consultantRevenue, setConsultantRevenue] = useState<any[]>([]);
-  const [medicineRevenue, setMedicineRevenue] = useState<any[]>([]);
+  const [consultantRevenue, setConsultantRevenue] = useState<any>({ data: { morning: [], evening: [] }, meta: { report_keys: [] } });
+  const [medicineRevenue, setMedicineRevenue] = useState<any>({ data: { morning: [], evening: [] }, meta: { report_keys: [] } });
   const [isLoading, setIsLoading] = useState(false);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -222,8 +222,8 @@ export default function Bills() {
         }),
       ]);
       const [jsonDoc, jsonMed] = await Promise.all([resDoc.json(), resMed.json()]);
-      if (jsonDoc.success) setConsultantRevenue(jsonDoc.data || []);
-      if (jsonMed.success) setMedicineRevenue(jsonMed.data || []);
+      if (jsonDoc.success) setConsultantRevenue({ data: jsonDoc.data || { morning: [], evening: [] }, meta: jsonDoc.meta || { report_keys: [] } });
+      if (jsonMed.success) setMedicineRevenue({ data: jsonMed.data || { morning: [], evening: [] }, meta: jsonMed.meta || { report_keys: [] } });
     } catch (err) {
       console.error('Error fetching revenue reports:', err);
     } finally {
@@ -945,40 +945,57 @@ export default function Bills() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            {consultantRevenue.length > 0 ? (
-              <table className="w-full text-left border-collapse whitespace-nowrap">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/50">
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Doctor / Consultant</th>
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Consultations</th>
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Consultation Revenue</th>
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Prescribed Medicine Revenue</th>
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total Gross Revenue</th>
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Paid Revenue</th>
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Pending Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
-                  {consultantRevenue.map((doc: any) => (
-                    <tr key={doc.doctor_id} className="hover:bg-[#549E9E]/[0.02] transition-colors">
-                      <td className="py-4 px-5">
-                        <div className="font-extrabold text-gray-800 text-sm">{doc.doctor_name}</div>
-                        {doc.doctor_uuid && (
-                          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{doc.doctor_uuid}</div>
-                        )}
-                      </td>
-                      <td className="py-4 px-5 text-center font-black text-gray-800 text-sm">{doc.total_consultations}</td>
-                      <td className="py-4 px-5 text-right font-bold text-gray-700">₹ {Number(doc.consultation_revenue || 0).toFixed(2)}</td>
-                      <td className="py-4 px-5 text-right font-bold text-violet-600">₹ {Number(doc.medication_revenue || 0).toFixed(2)}</td>
-                      <td className="py-4 px-5 text-right font-black text-[#549E9E] text-base">₹ {Number(doc.total_gross_revenue || 0).toFixed(2)}</td>
-                      <td className="py-4 px-5 text-right font-bold text-emerald-600">₹ {Number(doc.total_paid_revenue || 0).toFixed(2)}</td>
-                      <td className="py-4 px-5 text-right font-bold text-amber-500">₹ {Number(doc.total_pending_revenue || 0).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
+          <div className="space-y-8">
+            {(consultantRevenue.meta?.report_keys || []).map((slotKey: string) => {
+              const list = consultantRevenue.data?.[slotKey] || [];
+              return (
+                <div key={slotKey} className="space-y-4">
+                  <div className="bg-[#549E9E]/10 border border-[#549E9E]/20 px-4 py-2 text-xs font-black uppercase tracking-widest text-[#549E9E] rounded-lg">
+                    {slotKey} Session
+                  </div>
+                  <div className="overflow-x-auto">
+                    {list.length > 0 ? (
+                      <table className="w-full text-left border-collapse whitespace-nowrap">
+                        <thead>
+                          <tr className="border-b border-gray-100 bg-gray-50/50">
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Doctor / Consultant</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Consultations</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Consultation Revenue</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Prescribed Medicine Revenue</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total Gross Revenue</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Paid Revenue</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Pending Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
+                          {list.map((doc: any) => (
+                            <tr key={doc.doctor_id} className="hover:bg-[#549E9E]/[0.02] transition-colors">
+                              <td className="py-4 px-5">
+                                <div className="font-extrabold text-gray-800 text-sm">{doc.doctor_name}</div>
+                                {doc.doctor_uuid && (
+                                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{doc.doctor_uuid}</div>
+                                )}
+                              </td>
+                              <td className="py-4 px-5 text-center font-black text-gray-800 text-sm">{doc.total_consultations}</td>
+                              <td className="py-4 px-5 text-right font-bold text-gray-700">₹ {Number(doc.consultation_revenue || 0).toFixed(2)}</td>
+                              <td className="py-4 px-5 text-right font-bold text-violet-600">₹ {Number(doc.medication_revenue || 0).toFixed(2)}</td>
+                              <td className="py-4 px-5 text-right font-black text-[#549E9E] text-base">₹ {Number(doc.total_gross_revenue || 0).toFixed(2)}</td>
+                              <td className="py-4 px-5 text-right font-bold text-emerald-600">₹ {Number(doc.total_paid_revenue || 0).toFixed(2)}</td>
+                              <td className="py-4 px-5 text-right font-bold text-amber-500">₹ {Number(doc.total_pending_revenue || 0).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="p-8 text-center text-gray-400 text-xs font-bold uppercase tracking-widest bg-gray-50/50 rounded-xl">
+                        No consultant revenue records found for {slotKey} session
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {(!consultantRevenue.meta?.report_keys || consultantRevenue.meta.report_keys.length === 0) && (
               <div className="p-16 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
                 {isReportLoading ? 'Loading consultant revenue data...' : 'No consultant revenue records found for this period'}
               </div>
@@ -1008,36 +1025,53 @@ export default function Bills() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            {medicineRevenue.length > 0 ? (
-              <table className="w-full text-left border-collapse whitespace-nowrap">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/50">
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Medicine Name</th>
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Bills Count</th>
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Total Quantity Sold</th>
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Avg Unit Selling Price</th>
-                    <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Gross Revenue</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
-                  {medicineRevenue.map((med: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-emerald-50/30 transition-colors">
-                      <td className="py-4 px-5 font-black text-gray-800 flex items-center gap-3">
-                        <span className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center text-xs font-black border border-emerald-100">
-                          #{idx + 1}
-                        </span>
-                        <span className="text-sm font-black text-gray-800">{med.medicine_name}</span>
-                      </td>
-                      <td className="py-4 px-5 text-center font-bold text-gray-700 text-sm">{med.total_bills}</td>
-                      <td className="py-4 px-5 text-center font-black text-[#549E9E] text-base">{med.total_quantity_sold}</td>
-                      <td className="py-4 px-5 text-right font-bold text-gray-700">₹ {Number(med.average_unit_price || 0).toFixed(2)}</td>
-                      <td className="py-4 px-5 text-right font-black text-emerald-600 text-base">₹ {Number(med.gross_revenue || 0).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
+          <div className="space-y-8">
+            {(medicineRevenue.meta?.report_keys || []).map((slotKey: string) => {
+              const list = medicineRevenue.data?.[slotKey] || [];
+              return (
+                <div key={slotKey} className="space-y-4">
+                  <div className="bg-[#549E9E]/10 border border-[#549E9E]/20 px-4 py-2 text-xs font-black uppercase tracking-widest text-[#549E9E] rounded-lg">
+                    {slotKey} Session
+                  </div>
+                  <div className="overflow-x-auto">
+                    {list.length > 0 ? (
+                      <table className="w-full text-left border-collapse whitespace-nowrap">
+                        <thead>
+                          <tr className="border-b border-gray-100 bg-gray-50/50">
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Medicine Name</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Bills Count</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Total Quantity Sold</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Avg Unit Selling Price</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Gross Revenue</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
+                          {list.map((med: any, idx: number) => (
+                            <tr key={idx} className="hover:bg-emerald-50/30 transition-colors">
+                              <td className="py-4 px-5 font-black text-gray-800 flex items-center gap-3">
+                                <span className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center text-xs font-black border border-emerald-100">
+                                  #{idx + 1}
+                                </span>
+                                <span className="text-sm font-black text-gray-800">{med.medicine_name}</span>
+                              </td>
+                              <td className="py-4 px-5 text-center font-bold text-gray-700 text-sm">{med.total_bills}</td>
+                              <td className="py-4 px-5 text-center font-black text-[#549E9E] text-base">{med.total_quantity_sold}</td>
+                              <td className="py-4 px-5 text-right font-bold text-gray-700">₹ {Number(med.average_unit_price || 0).toFixed(2)}</td>
+                              <td className="py-4 px-5 text-right font-black text-emerald-600 text-base">₹ {Number(med.gross_revenue || 0).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="p-8 text-center text-gray-400 text-xs font-bold uppercase tracking-widest bg-gray-50/50 rounded-xl">
+                        No medicine revenue records found for {slotKey} session
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {(!medicineRevenue.meta?.report_keys || medicineRevenue.meta.report_keys.length === 0) && (
               <div className="p-16 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
                 {isReportLoading ? 'Loading medicine revenue data...' : 'No medicine revenue records found for this period'}
               </div>
