@@ -67,19 +67,87 @@ export type ParsedQuickFormulaResult = {
   errors: Array<{ raw_token: string; message: string }>;
 };
 
-export const NUMERIC_MEDICINE_MIN = 3;
+export const NUMERIC_MEDICINE_MIN = 1;
 export const NUMERIC_MEDICINE_MAX = 200;
 
-/** number, optional [power], optional alpha, optional [power] after alpha — e.g. 12, 12[14], 7Q, 12[14]Q */
+/** one or more 1–4 digit powers, comma-separated — e.g. 14 or 5,12,34 */
+const NUMERIC_POWER_LIST = String.raw`\d{1,4}(?:\s*,\s*\d{1,4})*`;
+
+/** number, optional [power list], optional alpha, optional [power list] after alpha — e.g. 12, 12[14], 2[5,12,34], 7Q */
 export const createQuickFormulaMedicineTokenRe = () =>
-  /(\d{1,3})(?:\[(\d{1,4})\])?([A-Za-z]*)(?:\[(\d{1,4})\])?/g;
+  new RegExp(
+    `(\\d{1,3})(?:\\[(${NUMERIC_POWER_LIST})\\])?([A-Za-z]*)(?:\\[(${NUMERIC_POWER_LIST})\\])?`,
+    "g",
+  );
+
+export const createNumericMedicineDisplayTokenRe = () =>
+  new RegExp(
+    `^(\\d{1,3})(?:\\[(${NUMERIC_POWER_LIST})\\])?([A-Za-z]*)(?:\\[(${NUMERIC_POWER_LIST})\\])?$`,
+  );
 
 export const looksLikeNumericMedicineValue = (value: string): boolean =>
-  /^(\d{1,3})(?:\[(\d{1,4})\])?$/.test(String(value || "").trim());
+  createNumericMedicineDisplayTokenRe().test(String(value || "").trim());
+
+export const normalizeNumericMedicinePower = (power?: string | null): string | null => {
+  if (!power) return null;
+
+  const parts = String(power)
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const n = Number(part);
+      return Number.isInteger(n) ? String(n) : null;
+    });
+
+  if (parts.length === 0 || parts.some((part) => part == null)) {
+    return null;
+  }
+
+  return parts.join(",");
+};
 
 export const getNumericMedicineBaseValue = (value: string): string => {
-  const match = String(value || "").trim().match(/^(\d{1,3})(?:\[(\d{1,4})\])?$/);
+  const match = String(value || "").trim().match(createNumericMedicineDisplayTokenRe());
   return match ? String(Number(match[1])) : String(value || "").trim();
+};
+
+export const buildNumericMedicineStoredValue = (
+  medicineNo: number,
+  power?: string | null,
+  alpha?: string | null,
+): string => {
+  const powerPart = normalizeNumericMedicinePower(power);
+  const alphaPart = String(alpha || "").trim();
+  return `${medicineNo}${powerPart ? `[${powerPart}]` : ""}${alphaPart}`;
+};
+
+/** Split formula tokens on commas, keeping commas inside [power lists]. */
+export const splitQuickFormulaCommaItems = (source: string): string[] => {
+  const items: string[] = [];
+  let current = "";
+  let bracketDepth = 0;
+
+  for (const ch of String(source || "")) {
+    if (ch === "[") {
+      bracketDepth += 1;
+    } else if (ch === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+    }
+
+    if (ch === "," && bracketDepth === 0) {
+      const trimmed = current.trim();
+      if (trimmed) items.push(trimmed);
+      current = "";
+      continue;
+    }
+
+    current += ch;
+  }
+
+  const trimmed = current.trim();
+  if (trimmed) items.push(trimmed);
+  return items;
 };
 
 export const getNumericMedicineDropdownOptions = (): string[] =>
@@ -153,10 +221,7 @@ export const parseDoctorFormulaInput = (
     };
   }
 
-  const rawCommaItems = source
-    .split(',')
-    .map((token) => token.trim())
-    .filter(Boolean);
+  const rawCommaItems = splitQuickFormulaCommaItems(source);
 
   const tokens: string[] = [];
   let pendingGroupItems: string[] = [];
@@ -227,7 +292,7 @@ export const parseDoctorFormulaInput = (
     if (validateGroup !== "") {
       errors.push({
         raw_token: token,
-        message: `Invalid characters found in medicine group: ${validateGroup}. Only numbers, optional [power], letters, spaces, dashes, commas or pluses allowed before the slash.`,
+        message: `Invalid characters found in medicine group: ${validateGroup}. Only numbers, optional [power] (including comma lists like 2[5,12,34]), letters, spaces, dashes, commas or pluses allowed before the slash.`,
       });
       return;
     }
@@ -319,20 +384,21 @@ export const parseDoctorFormulaInput = (
 
     medicineMatches.forEach(match => {
       const medicineNo = Number(match[1]);
-      const powerValue = match[2] || match[4] || null;
-      const inlineAlphaCode = match[3] ? match[3].trim().toUpperCase() : null;
+      const powerValue = normalizeNumericMedicinePower(match[2] || match[4] || null);
+      const inlineAlphaRaw = match[3] ? match[3].trim() : "";
+      const inlineAlphaCode = inlineAlphaRaw ? inlineAlphaRaw.toUpperCase() : null;
       const derivedToken = `${match[0]}${suffix ? `/${suffix}` : ''}`;
 
-      if (!Number.isInteger(medicineNo) || medicineNo < 1 || medicineNo > NUMERIC_MEDICINE_MAX) {
+      if (!Number.isInteger(medicineNo) || medicineNo < NUMERIC_MEDICINE_MIN || medicineNo > NUMERIC_MEDICINE_MAX) {
         errors.push({
           raw_token: derivedToken,
-          message: `Medicine number ${medicineNo} must be between 1 and ${NUMERIC_MEDICINE_MAX}.`,
+          message: `Medicine number ${medicineNo} must be between ${NUMERIC_MEDICINE_MIN} and ${NUMERIC_MEDICINE_MAX}.`,
         });
         return;
       }
 
       const medicineKey = String(medicineNo);
-      const medicineValue = powerValue ? `${medicineNo}[${powerValue}]` : medicineKey;
+      const medicineValue = buildNumericMedicineStoredValue(medicineNo, powerValue, inlineAlphaRaw);
       if (seenMedicineValues.has(medicineKey)) {
         errors.push({
           raw_token: derivedToken,

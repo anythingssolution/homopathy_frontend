@@ -1619,6 +1619,30 @@ export default function ConsultationPage() {
   const lastAutoAppliedQuickFormulaKeyRef = useRef<string | null>(null);
   const quickFormulaDebounceTimerRef = useRef<number | null>(null);
 
+  const emptyNumericMedication = (): MedicationEntry => ({
+    name: "",
+    doses: { morning: 4, afternoon: 4, night: 4 },
+    amount: "",
+  });
+
+  const resetQuickFormulaDerivedMedications = () => {
+    lastAutoAppliedQuickFormulaKeyRef.current = "";
+    setLastAppliedQuickFormulaVersion(null);
+    setLastAppliedQuickFormulaSetId(null);
+    setMedications((prev) => {
+      const hasFormulaDerived = prev.some((med) => med.isQuickFormulaDerived);
+      if (!hasFormulaDerived) {
+        return prev;
+      }
+
+      const remaining = prev.filter(
+        (med) => !med.isQuickFormulaDerived && String(med.name || "").trim(),
+      );
+
+      return remaining.length > 0 ? remaining : [emptyNumericMedication()];
+    });
+  };
+
   const applyQuickNumericFormula = async ({
     silent = false,
   }: { silent?: boolean } = {}) => {
@@ -1636,9 +1660,7 @@ export default function ConsultationPage() {
     }
 
     if (!quickNumericInput.trim()) {
-      if (!silent) {
-        addToast("Please enter quick numeric medicines first.", "error");
-      }
+      resetQuickFormulaDerivedMedications();
       return;
     }
 
@@ -1701,10 +1723,14 @@ export default function ConsultationPage() {
 
   useEffect(() => {
     if (isReadOnly) return;
-    if (!formulaSnapshot) return;
 
     const trimmedInput = quickNumericInput.trim();
-    if (!trimmedInput) return;
+    if (!trimmedInput) {
+      resetQuickFormulaDerivedMedications();
+      return;
+    }
+
+    if (!formulaSnapshot) return;
     if (
       quickFormulaPreview.errors.length > 0 ||
       quickFormulaPreview.entries.length === 0
@@ -4623,7 +4649,10 @@ export default function ConsultationPage() {
                             !med.name)
                         }
                         options={getAvailableNumericMedicineOptions(idx)}
-                        value={med.name}
+                        value={formatNumericMedicineWithFormula(
+                          med.name,
+                          quickNumericInput,
+                        )}
                         onChange={(val) => updateMedication(idx, "name", val)}
                         placeholder={
                           getAvailableNumericMedicineOptions(idx).length > 0

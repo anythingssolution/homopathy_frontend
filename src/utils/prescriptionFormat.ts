@@ -1,4 +1,8 @@
-import { createQuickFormulaMedicineTokenRe } from './doctorFormulaParser';
+import {
+  createNumericMedicineDisplayTokenRe,
+  createQuickFormulaMedicineTokenRe,
+  splitQuickFormulaCommaItems,
+} from './doctorFormulaParser';
 
 export const getNumericMedicineAlphaCode = (
   medicineValue: string,
@@ -212,7 +216,7 @@ type QuickFormulaMedicineAnnotation = {
 
 const parseNumericMedicineDisplayToken = (value: string) => {
   const match = String(value || '').trim().match(
-    /^(\d{1,3})(?:\[(\d{1,4})\])?([A-Za-z]*)(?:\[(\d{1,4})\])?$/,
+    createNumericMedicineDisplayTokenRe(),
   );
   if (!match) return null;
 
@@ -231,25 +235,23 @@ export const getQuickFormulaMedicineAnnotationMap = (
   const source = String(quickFormulaInput || '').trim();
   if (!source) return map;
 
-  String(source)
-    .split(',')
-    .forEach((segment) => {
-      const groupPart = String(segment.split('/')[0] || '');
-      [...groupPart.matchAll(createQuickFormulaMedicineTokenRe())].forEach((match) => {
-        const medicineNo = String(Number(match[1]));
-        const power = match[2] || match[4] || '';
-        const alpha = match[3] || '';
-        if (!map[medicineNo]) {
-          map[medicineNo] = {};
-        }
-        if (power && !map[medicineNo].power) {
-          map[medicineNo].power = power;
-        }
-        if (alpha && !map[medicineNo].alpha) {
-          map[medicineNo].alpha = alpha;
-        }
-      });
+  splitQuickFormulaCommaItems(source).forEach((segment) => {
+    const groupPart = String(segment.split('/')[0] || '');
+    [...groupPart.matchAll(createQuickFormulaMedicineTokenRe())].forEach((match) => {
+      const medicineNo = String(Number(match[1]));
+      const power = match[2] || match[4] || '';
+      const alpha = match[3] || '';
+      if (!map[medicineNo]) {
+        map[medicineNo] = {};
+      }
+      if (power && !map[medicineNo].power) {
+        map[medicineNo].power = power;
+      }
+      if (alpha && !map[medicineNo].alpha) {
+        map[medicineNo].alpha = alpha;
+      }
     });
+  });
 
   return map;
 };
