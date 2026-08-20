@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import {
   Clock, Users, Search, CheckCircle2, Calendar, History,
   RefreshCcw, AlertCircle, MapPin, Stethoscope, Tag,
   XCircle, ChevronDown, ChevronLeft, ChevronRight, Copy, Check, User, Phone, Mail,
-  FileText, Filter, Ticket, Hash, UserCheck, UserX, X, Pill, Plus, Trash2, Minus, PhoneForwarded, Layout, WandSparkles
+  FileText, Filter, Ticket, Hash, UserCheck, UserX, X, Pill, Plus, Trash2, Minus, PhoneForwarded, Layout, WandSparkles, MessageSquare, Settings
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -262,7 +262,6 @@ export default function DoctorPortal() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [isCallingNext, setIsCallingNext] = useState(false);
   const [startingConsultationId, setStartingConsultationId] = useState<number | null>(null);
-
 
   // Session status & real-time clock
   const [isAtDesk, setIsAtDesk] = useState(false);
@@ -623,6 +622,8 @@ export default function DoctorPortal() {
     try {
       const params = new URLSearchParams();
       if (filterDate && filterDate !== 'all') params.append('date', filterDate);
+      if (selectedBranchId) params.append('branch_id', String(selectedBranchId));
+      if (selectedTimingSlotId) params.append('slot_id', String(selectedTimingSlotId));
       params.append('summary_only', 'true');
 
       const response = await dedupedFetch(`/api/v1/doctors/dashboard${params.toString() ? '?' + params.toString() : ''}`, {
@@ -636,7 +637,7 @@ export default function DoctorPortal() {
     } catch (e) {
       console.error("Failed to fetch dashboard stats", e);
     }
-  }, [filterDate, token]);
+  }, [filterDate, selectedBranchId, selectedTimingSlotId, token]);
 
   useEffect(() => {
     fetchDashboardStats();
@@ -855,7 +856,7 @@ export default function DoctorPortal() {
       {/* Header Stats */}
       {dashboardStats && (() => {
         const entries = Object.entries(dashboardStats).filter(
-          ([key]) => key !== 'unique_patients' && !key.includes('cancelled')
+          ([key]) => key !== 'unique_patients' && !key.includes('cancelled') && key !== 'slot_id' && key !== 'slot_name'
         );
 
         const todayColors: Record<string, string> = {
@@ -872,6 +873,8 @@ export default function DoctorPortal() {
 
               if (isToday && todayBg) {
                 const label = key.replace('today_', '').replace(/_/g, ' ');
+                const slotLabel = dashboardStats?.slot_name ? getLocalizedSlotName(dashboardStats.slot_name) : t('doctor_portal.today');
+
                 return (
                   <motion.div
                     key={key}
@@ -910,8 +913,12 @@ export default function DoctorPortal() {
                       <div className="text-xl sm:text-3xl lg:text-4xl font-black text-white mb-1">
                         {value === null || value === undefined ? '0' : String(value)}
                       </div>
-                      <div className="text-[8px] font-black text-white/50 uppercase tracking-widest">{t('doctor_portal.today')}</div>
-                      <div className="text-[10px] font-black text-white uppercase tracking-widest capitalize">{t(`doctor_portal.stats.${key.replace('today_', '')}`, label)}</div>
+                      <div className="text-[8px] font-black text-white/50 uppercase tracking-widest truncate">
+                        {slotLabel}
+                      </div>
+                      <div className="text-[10px] font-black text-white uppercase tracking-widest capitalize truncate">
+                        {t(`doctor_portal.stats.${key.replace('today_', '')}`, label)}
+                      </div>
                     </div>
                   </motion.div>
                 );
