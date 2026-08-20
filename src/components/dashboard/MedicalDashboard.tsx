@@ -247,6 +247,7 @@ export default function MedicalDashboard() {
   const { addToast } = useNotifications();
   const [patientSearch, setPatientSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const pageSize = 8;
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -301,6 +302,8 @@ export default function MedicalDashboard() {
       if (filterDate && filterDate !== 'all') params.append('appointment_date', filterDate);
       if (filterStatus && filterStatus !== 'all') params.append('status', filterStatus);
       if (patientSearch.trim()) params.append('patient_search', patientSearch.trim());
+      params.append('page', String(currentPage));
+      params.append('page_size', String(pageSize));
 
       const url = `/api/v1/medical/prescriptions${params.toString() ? '?' + params.toString() : ''}`;
       const response = await dedupedFetch(url, {
@@ -314,6 +317,7 @@ export default function MedicalDashboard() {
 
       if (result.success) {
         setPrescriptions(result.data || []);
+        setTotalPages(Number(result.meta?.total_pages || 1));
       } else {
         setError(result.message || 'Failed to fetch prescriptions');
       }
@@ -326,7 +330,7 @@ export default function MedicalDashboard() {
         setIsLoading(false);
       }
     }
-  }, [filterDate, filterStatus, patientSearch, token]);
+  }, [filterDate, filterStatus, patientSearch, token, currentPage, pageSize]);
 
   useEffect(() => {
     if (!token) return;
@@ -779,7 +783,7 @@ export default function MedicalDashboard() {
         {/* === MOBILE CARD VIEW === */}
         <div className="sm:hidden divide-y divide-gray-100">
           {prescriptions.length > 0 ? (
-            prescriptions.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((p, idx) => (
+            prescriptions.map((p, idx) => (
               <div key={p.consultation_id || idx} className="p-4 hover:bg-gray-50/50 transition-colors">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-3">
@@ -863,7 +867,7 @@ export default function MedicalDashboard() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {prescriptions.length > 0 ? (
-                prescriptions.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((p, idx) => (
+                prescriptions.map((p, idx) => (
                   <motion.tr
                     key={p.consultation_id || idx}
                     initial={{ opacity: 0, y: 10 }}
@@ -956,7 +960,7 @@ export default function MedicalDashboard() {
             </tbody>
           </table>
         </div>
-        <Pagination currentPage={currentPage} totalPages={Math.ceil(prescriptions.length / pageSize)} onPageChange={setCurrentPage} />
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
       </div>
 
       {/* Dispensing Modal (Matches Portal Aesthetics) */}

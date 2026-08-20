@@ -21,6 +21,7 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const pageSize = 8;
 
   const [dateFilter, setDateFilter] = useState('all_time');
@@ -77,6 +78,12 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
       const params = new URLSearchParams();
       if (search.trim()) params.append('search', search.trim());
       if (filterType !== 'all') params.append('type', filterType);
+      if (dateFilter !== 'all_time' && fromDate) params.append('from_date', fromDate);
+      if (dateFilter !== 'all_time' && toDate) params.append('to_date', toDate);
+      const selectedBranchId = branchScope?.selected_branch_id;
+      if (selectedBranchId) params.append('branch_id', String(selectedBranchId));
+      params.append('page', String(page));
+      params.append('page_size', String(pageSize));
 
       const res = await fetch(`/api/v1/doctors/patient?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -84,6 +91,7 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
       const data = await res.json();
       if (data.success) {
         setPatients(data.data || []);
+        setTotalPages(Number(data.meta?.total_pages || 1));
       } else {
         setError(data.message || 'Failed to fetch patients');
       }
@@ -99,17 +107,9 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
   }, [search, filterType, dateFilter, customDateRange]);
 
   useEffect(() => {
-    const timer = setTimeout(() => { fetchPatients(); }, 500);
+    const timer = setTimeout(() => { fetchPatients(); }, search.trim() ? 500 : 0);
     return () => clearTimeout(timer);
-  }, [search, filterType, token]);
-
-  // Client-side date filter based on patient's last visit date
-  const filteredByDatePatients = patients.filter((p: any) => {
-    if (dateFilter === 'all_time') return true;
-    if (!p.last_appointment_date) return false;
-    const lastDateStr = p.last_appointment_date.slice(0, 10);
-    return lastDateStr >= fromDate && lastDateStr <= toDate;
-  });
+  }, [search, filterType, token, page, fromDate, toDate, dateFilter, branchScope?.selected_branch_id]);
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -223,7 +223,7 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
         <div className="flex-1 flex justify-center items-center min-h-[300px]"><motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}><RefreshCcw className="text-[#549E9E] w-10 h-10" /></motion.div></div>
       ) : error ? (
         <div className="bg-red-50 text-red-600 p-4 rounded-xl flex items-center gap-3 text-sm font-bold"><AlertCircle size={18} /> {error}</div>
-      ) : filteredByDatePatients.length === 0 ? (
+      ) : patients.length === 0 ? (
         <div className="flex-1 text-center py-20 border border-gray-100 rounded-xl bg-gray-50/30">
           <Users className="mx-auto text-gray-200 mb-4" size={48} />
           <h3 className="text-lg font-black text-gray-700 uppercase tracking-widest">No Patients Found</h3>
@@ -250,7 +250,7 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredByDatePatients.slice((page - 1) * pageSize, page * pageSize).map((p, idx) => (
+                {patients.map((p, idx) => (
                   <motion.tr
                     key={p.patient_id || p.id || Math.random()}
                     initial={{ opacity: 0 }}
@@ -302,7 +302,7 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
               </tbody>
             </table>
           </div>
-          <Pagination currentPage={page} totalPages={Math.ceil(filteredByDatePatients.length / pageSize)} onPageChange={setPage} />
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
         </div>
       )}
     </div>

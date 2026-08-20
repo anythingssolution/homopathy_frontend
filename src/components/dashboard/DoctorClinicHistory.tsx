@@ -75,6 +75,7 @@ export default function DoctorClinicHistory() {
     setExpandedHistoryChainAppointmentId,
   ] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const pageSize = 8;
 
   const getChainSummary = (chain: any[] = []) => {
@@ -204,6 +205,8 @@ export default function DoctorClinicHistory() {
         params.append("status", filterStatus);
       if (search.trim()) params.append("patient_search", search.trim());
       if (selectedBranchId) params.append("branch_id", String(selectedBranchId));
+      params.append("page", String(currentPage));
+      params.append("page_size", String(pageSize));
 
       const res = await dedupedFetch(
         `/api/v1/doctors/consultations-history?${params.toString()}`,
@@ -214,6 +217,7 @@ export default function DoctorClinicHistory() {
       const data = await res.json();
       if (data.success) {
         setHistoryItems(data.data || []);
+        setTotalPages(Number(data.meta?.total_pages || 1));
       } else {
         addToast(data.message || "Failed to fetch history", "error");
       }
@@ -222,7 +226,7 @@ export default function DoctorClinicHistory() {
     } finally {
       setIsLoading(false);
     }
-  }, [fromDate, toDate, filterStatus, search, selectedBranchId, token, addToast]);
+  }, [fromDate, toDate, filterStatus, search, selectedBranchId, token, addToast, currentPage, pageSize]);
 
   useEffect(() => {
     const delay = search.trim() ? 500 : 0;
@@ -368,7 +372,6 @@ export default function DoctorClinicHistory() {
             {/* === MOBILE CARD VIEW === */}
             <div className="sm:hidden divide-y divide-gray-100">
               {historyItems
-                .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                 .map((item, idx) => {
                   const { appointment, consultation } = item;
                   const emrSummary = getChainSummary(item.follow_up_chain);
@@ -535,7 +538,6 @@ export default function DoctorClinicHistory() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {historyItems
-                    .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                     .map((item, idx) => {
                       const { appointment, consultation } = item;
                       const emrSummary = getChainSummary(item.follow_up_chain);
@@ -705,7 +707,7 @@ export default function DoctorClinicHistory() {
             </div>
             <Pagination
               currentPage={currentPage}
-              totalPages={Math.ceil(historyItems.length / pageSize)}
+              totalPages={totalPages}
               onPageChange={setCurrentPage}
             />
           </div>

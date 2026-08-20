@@ -356,6 +356,7 @@ export default function ReceptionistPortal() {
   const [bills, setBills] = useState<any[]>([]);
   const [isLoadingBills, setIsLoadingBills] = useState(false);
   const [billsPage, setBillsPage] = useState(1);
+  const [billsTotalPages, setBillsTotalPages] = useState(1);
   const [billTypeFilter, setBillTypeFilter] = useState<
     "ALL" | "CONSULTATION" | "MEDICATION"
   >("ALL");
@@ -402,11 +403,14 @@ export default function ReceptionistPortal() {
   }, []);
 
   useEffect(() => {
+    setBillsPage(1);
+  }, [billTypeFilter, billStatusFilter]);
+
+  useEffect(() => {
     if (activeTab === "billing") {
       fetchBills();
-      setBillsPage(1);
     }
-  }, [billTypeFilter, billStatusFilter, token, activeTab]);
+  }, [billTypeFilter, billStatusFilter, token, activeTab, billsPage]);
 
   useEffect(() => {
     setSelectedAppointmentIds([]);
@@ -416,17 +420,20 @@ export default function ReceptionistPortal() {
   const fetchBills = async () => {
     setIsLoadingBills(true);
     try {
-      let url = `/api/v1/bills?`;
-      if (billTypeFilter !== "ALL") url += `type=${billTypeFilter}&`;
-      if (billStatusFilter !== "ALL")
-        url += `payment_status=${billStatusFilter}&`;
+      const params = new URLSearchParams({
+        page: String(billsPage),
+        page_size: String(pageSize),
+      });
+      if (billTypeFilter !== "ALL") params.set("type", billTypeFilter);
+      if (billStatusFilter !== "ALL") params.set("payment_status", billStatusFilter);
 
-      const res = await dedupedFetch(url, {
+      const res = await dedupedFetch(`/api/v1/bills?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.success) {
         setBills(data.data || []);
+        setBillsTotalPages(Number(data.meta?.total_pages || 1));
       }
     } catch (err) {
       console.error(err);
@@ -1961,7 +1968,6 @@ export default function ReceptionistPortal() {
                     <div className="p-8 text-center text-gray-400 font-bold">No bills found.</div>
                   ) : (
                     bills
-                      .slice((billsPage - 1) * pageSize, billsPage * pageSize)
                       .map((bill) => (
                         <div key={bill.bill_id} className="p-4 hover:bg-gray-50/50 transition-colors">
                           <div className="flex justify-between items-start mb-2">
@@ -2033,7 +2039,6 @@ export default function ReceptionistPortal() {
                         </tr>
                       ) : (
                         bills
-                          .slice((billsPage - 1) * pageSize, billsPage * pageSize)
                           .map((bill) => (
                             <tr
                               key={bill.bill_id}
@@ -2113,7 +2118,7 @@ export default function ReceptionistPortal() {
                 </div>
                 <Pagination
                   currentPage={billsPage}
-                  totalPages={Math.ceil(bills.length / pageSize)}
+                  totalPages={billsTotalPages}
                   onPageChange={setBillsPage}
                 />
               </div>

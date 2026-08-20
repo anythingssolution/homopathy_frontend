@@ -215,6 +215,12 @@ export default function MyAppointments() {
   const [appointmentToCancel, setAppointmentToCancel] = useState<number | null>(null);
   const [selectedPrescription, setSelectedPrescription] = useState<any | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [filterOptions, setFilterOptions] = useState<{
+    branches: string[];
+    treatments: string[];
+    dates: string[];
+  }>({ branches: [], treatments: [], dates: [] });
   const pageSize = 8;
 
   // Prevent background scrolling when modal is open
@@ -231,14 +237,29 @@ export default function MyAppointments() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/v1/appointments/my', {
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        page_size: String(pageSize),
+      });
+      if (searchQuery.trim()) params.set('search', searchQuery.trim());
+      if (filterBranch !== 'all') params.set('branch_name', filterBranch);
+      if (filterTreatment !== 'all') params.set('treatment_name', filterTreatment);
+      if (filterDate !== 'all') params.set('appointment_date', filterDate);
+
+      const response = await fetch(`/api/v1/appointments/my?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       const result = await response.json();
       if (result.success) {
-        setAppointments(result.data);
+        setAppointments(result.data || []);
+        setTotalPages(Number(result.meta?.total_pages || 1));
+        setFilterOptions({
+          branches: result.meta?.filter_options?.branches || [],
+          treatments: result.meta?.filter_options?.treatments || [],
+          dates: result.meta?.filter_options?.dates || [],
+        });
       } else {
         setError(result.message || 'Failed to fetch appointments');
       }
@@ -250,8 +271,12 @@ export default function MyAppointments() {
   };
 
   useEffect(() => {
-    fetchAppointments();
-  }, [token]);
+    const delay = searchQuery.trim() ? 400 : 0;
+    const timer = window.setTimeout(() => {
+      void fetchAppointments();
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [token, currentPage, searchQuery, filterBranch, filterTreatment, filterDate]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -288,21 +313,9 @@ export default function MyAppointments() {
     }
   };
 
-  const filteredAppointments = appointments.filter(app => {
-    const matchesSearch = app.treatment_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.auid.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.token_number.toString().includes(searchQuery);
-    const matchesBranch = filterBranch === 'all' || app.branch_name === filterBranch;
-    const matchesTreatment = filterTreatment === 'all' || app.treatment_name === filterTreatment;
-    const matchesDate = filterDate === 'all' || app.appointment_date.split('T')[0] === filterDate;
-
-    return matchesSearch && matchesBranch && matchesTreatment && matchesDate;
-  });
-
-  // Extract unique values for filters
-  const uniqueBranches = Array.from(new Set(appointments.map(a => a.branch_name))) as string[];
-  const uniqueTreatments = Array.from(new Set(appointments.map(a => a.treatment_name))) as string[];
-  const uniqueDates = Array.from(new Set(appointments.map(a => a.appointment_date.split('T')[0]))) as string[];
+  const uniqueBranches = filterOptions.branches;
+  const uniqueTreatments = filterOptions.treatments;
+  const uniqueDates = filterOptions.dates;
 
   if (isLoading) {
     return (
@@ -417,7 +430,7 @@ export default function MyAppointments() {
           <div className="bg-white border border-gray-200 shadow-sm overflow-hidden rounded-xl sm:rounded-none">
             {/* === MOBILE CARD VIEW === */}
             <div className="sm:hidden divide-y divide-gray-100">
-              {filteredAppointments.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((app, idx) => (
+              {appointments.map((app, idx) => (
                 <div key={app.appointment_id} className="p-4 hover:bg-gray-50/50 transition-colors">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-3">
@@ -535,7 +548,7 @@ export default function MyAppointments() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filteredAppointments.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((app, idx) => (
+                  {appointments.map((app, idx) => (
                     <motion.tr
                       key={app.appointment_id}
                       initial={{ opacity: 0, y: 10 }}
@@ -666,7 +679,7 @@ export default function MyAppointments() {
                 </tbody>
               </table>
             </div>
-            <Pagination currentPage={currentPage} totalPages={Math.ceil(filteredAppointments.length / pageSize)} onPageChange={setCurrentPage} />
+            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
           </div>
         )}
       </AnimatePresence>
