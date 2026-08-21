@@ -26,7 +26,25 @@ import { useTranslation } from 'react-i18next';
 
 type BillFilterType = 'ALL' | 'CONSULTATION' | 'MEDICATION';
 type BillFilterStatus = 'ALL' | 'UNPAID' | 'PAID' | 'PARTIAL';
+type BillFilterPaymentMode = 'ALL' | 'CASH' | 'ONLINE';
 type ActiveBillingTab = 'BILLS' | 'CONSULTANT_REVENUE' | 'MEDICINE_REVENUE';
+
+const PaymentModeBadge = ({ mode }: { mode?: string | null }) => {
+  const normalized = String(mode || '').toUpperCase();
+  if (!normalized || normalized === 'NULL' || normalized === 'UNPAID') {
+    return (
+      <span className="inline-flex px-2.5 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest bg-gray-50 text-gray-400 border-gray-100">
+        —
+      </span>
+    );
+  }
+  const isCash = normalized === 'CASH';
+  return (
+    <span className={`inline-flex px-2.5 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${isCash ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+      {normalized}
+    </span>
+  );
+};
 
 const PaymentStatusBadge = ({ status }: { status: string }) => {
   const normalized = String(status || '').toUpperCase();
@@ -152,6 +170,7 @@ export default function Bills() {
   const [patientSearch, setPatientSearch] = useState('');
   const [billType, setBillType] = useState<BillFilterType>('ALL');
   const [paymentStatus, setPaymentStatus] = useState<BillFilterStatus>('ALL');
+  const [paymentMode, setPaymentMode] = useState<BillFilterPaymentMode>('ALL');
   const [filterDate, setFilterDate] = useState<string>(() => {
     const today = new Date();
     today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
@@ -181,6 +200,8 @@ export default function Bills() {
       if (patientSearch.trim()) params.append('patient_search', patientSearch.trim());
       if (billType !== 'ALL') params.append('type', billType);
       if (paymentStatus !== 'ALL') params.append('payment_status', paymentStatus);
+      if (paymentMode !== 'ALL') params.append('payment_mode', paymentMode);
+      params.append('limit', '1000');
 
       const response = await fetch(`/api/v1/bills?${params.toString()}`, {
         headers: {
@@ -236,7 +257,7 @@ export default function Bills() {
       fetchBills();
       fetchRevenueReports();
     }
-  }, [token, filterDate, billType, paymentStatus]);
+  }, [token, filterDate, billType, paymentStatus, paymentMode]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -266,6 +287,8 @@ export default function Bills() {
           booked_for_type: bill.booked_for_type,
           family_member_relationship: bill.family_member_relationship,
           primary_patient_full_name: bill.primary_patient_full_name,
+          payment_mode: bill.payment_mode || null,
+          consultation_completed_at: bill.consultation_completed_at || bill.created_at || null,
           bills: [],
           grand_total: 0,
           grand_paid: 0,
@@ -274,6 +297,12 @@ export default function Bills() {
       }
 
       const entry = grouped.get(appointmentId);
+      if (!entry.payment_mode && bill.payment_mode) {
+        entry.payment_mode = bill.payment_mode;
+      }
+      if (!entry.consultation_completed_at && bill.consultation_completed_at) {
+        entry.consultation_completed_at = bill.consultation_completed_at;
+      }
       entry.bills.push(bill);
       entry.grand_total += Number(bill.total_amount || 0);
       entry.grand_paid += Number(bill.paid_amount || 0);
@@ -288,8 +317,48 @@ export default function Bills() {
         grand_pending: Number(entry.grand_pending.toFixed(2)),
         overall_payment_status: deriveOverallPaymentStatus(entry.grand_paid, entry.grand_pending, entry.grand_total),
       }))
-      .sort((a, b) => new Date(b.appointment_date || 0).getTime() - new Date(a.appointment_date || 0).getTime());
+      .sort((a, b) => {
+        const timeB = new Date(b.consultation_completed_at || b.appointment_date || 0).getTime();
+        const timeA = new Date(a.consultation_completed_at || a.appointment_date || 0).getTime();
+        return timeB - timeA;
+      });
   }, [bills]);
+
+  const billsTotals = useMemo(() => {
+    let grandTotal = 0;
+    let grandPaid = 0;
+    let grandPending = 0;
+    let cashTotal = 0;
+    let onlineTotal = 0;
+    let totalAppointments = appointmentSummaries.length;
+    let totalBills = bills.length;
+
+    appointmentSummaries.forEach((entry) => {
+      grandTotal += Number(entry.grand_total || 0);
+      grandPaid += Number(entry.grand_paid || 0);
+      grandPending += Number(entry.grand_pending || 0);
+    });
+
+    bills.forEach((bill) => {
+      const mode = String(bill.payment_mode || '').toUpperCase();
+      const paid = Number(bill.paid_amount || 0);
+      if (mode === 'CASH') {
+        cashTotal += paid;
+      } else if (mode === 'ONLINE') {
+        onlineTotal += paid;
+      }
+    });
+
+    return {
+      grandTotal: Number(grandTotal.toFixed(2)),
+      grandPaid: Number(grandPaid.toFixed(2)),
+      grandPending: Number(grandPending.toFixed(2)),
+      cashTotal: Number(cashTotal.toFixed(2)),
+      onlineTotal: Number(onlineTotal.toFixed(2)),
+      totalAppointments,
+      totalBills,
+    };
+  }, [appointmentSummaries, bills]);
 
   const selectedSummaryBreakdown = useMemo(() => {
     if (!selectedSummary) return null;
@@ -438,7 +507,7 @@ export default function Bills() {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-100 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-100 items-end">
           <CustomDatePicker label={t('bills.filters.appointment_date', 'Appointment Date')} value={filterDate} onChange={setFilterDate} />
 
           <FilterDropdown
@@ -465,6 +534,18 @@ export default function Bills() {
               { id: 'PARTIAL', label: t('bills.filters.partial', 'Partial') }
             ]}
           />
+
+          <FilterDropdown
+            label={t('bills.filters.payment_mode', 'Payment Mode')}
+            icon={Wallet}
+            value={paymentMode}
+            onChange={(v) => setPaymentMode(v as BillFilterPaymentMode)}
+            options={[
+              { id: 'ALL', label: t('bills.filters.all_modes', 'All Modes') },
+              { id: 'CASH', label: t('bills.filters.cash', 'Cash') },
+              { id: 'ONLINE', label: t('bills.filters.online', 'Online') }
+            ]}
+          />
         </div>
       </div>
 
@@ -480,6 +561,36 @@ export default function Bills() {
 
       {activeTab === 'BILLS' ? (
         <>
+          {appointmentSummaries.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+              <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm relative overflow-hidden">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Grand Total</p>
+                <p className="text-xl sm:text-2xl font-black text-gray-800">₹ {billsTotals.grandTotal.toFixed(2)}</p>
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1">{billsTotals.totalAppointments} Appointments</p>
+              </div>
+              <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm relative overflow-hidden">
+                <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest mb-1">Total Paid</p>
+                <p className="text-xl sm:text-2xl font-black text-emerald-600">₹ {billsTotals.grandPaid.toFixed(2)}</p>
+                <p className="text-[9px] font-bold text-emerald-600/70 uppercase tracking-wider mt-1">{billsTotals.totalBills} Bills</p>
+              </div>
+              <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm relative overflow-hidden">
+                <p className="text-[10px] font-black text-orange-500/70 uppercase tracking-widest mb-1">Total Pending</p>
+                <p className="text-xl sm:text-2xl font-black text-orange-500">₹ {billsTotals.grandPending.toFixed(2)}</p>
+                <p className="text-[9px] font-bold text-orange-500/70 uppercase tracking-wider mt-1">Due Amount</p>
+              </div>
+              <div className="bg-white border border-emerald-100 bg-emerald-50/20 p-4 rounded-xl shadow-sm relative overflow-hidden">
+                <p className="text-[10px] font-black text-emerald-700/80 uppercase tracking-widest mb-1">Cash Collection</p>
+                <p className="text-xl sm:text-2xl font-black text-emerald-700">₹ {billsTotals.cashTotal.toFixed(2)}</p>
+                <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mt-1">Paid in Cash</p>
+              </div>
+              <div className="bg-white border border-blue-100 bg-blue-50/20 p-4 rounded-xl shadow-sm relative overflow-hidden">
+                <p className="text-[10px] font-black text-blue-700/80 uppercase tracking-widest mb-1">Online Collection</p>
+                <p className="text-xl sm:text-2xl font-black text-blue-700">₹ {billsTotals.onlineTotal.toFixed(2)}</p>
+                <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wider mt-1">UPI / Digital</p>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white border border-gray-200 shadow-sm overflow-hidden relative">
             {isLoading && (
               <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-10 flex items-center justify-center">
@@ -490,7 +601,6 @@ export default function Bills() {
               </div>
             )}
 
-
         <div className="overflow-x-auto">
           <table className="w-full text-left whitespace-nowrap">
             <thead>
@@ -498,6 +608,7 @@ export default function Bills() {
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.appointment', 'Appointment')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.patient', 'Patient')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.date', 'Date')}</th>
+                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.payment_mode', 'Payment Mode')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.grand_total', 'Grand Total')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.grand_paid', 'Grand Paid')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.grand_pending', 'Grand Pending')}</th>
@@ -550,6 +661,9 @@ export default function Bills() {
                         </div>
                       </div>
                     </td>
+                    <td className="px-5 py-4">
+                      <PaymentModeBadge mode={entry.payment_mode} />
+                    </td>
                     <td className="px-5 py-4 text-sm font-black text-gray-800">₹ {Number(entry.grand_total || 0).toFixed(2)}</td>
                     <td className="px-5 py-4 text-sm font-black text-emerald-600">₹ {Number(entry.grand_paid || 0).toFixed(2)}</td>
                     <td className="px-5 py-4 text-sm font-black text-orange-500">₹ {Number(entry.grand_pending || 0).toFixed(2)}</td>
@@ -568,7 +682,7 @@ export default function Bills() {
                 ))
               ) : !isLoading && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-20">
+                  <td colSpan={9} className="px-5 py-20">
                     <div className="flex flex-col items-center justify-center text-center space-y-4">
                       <div className="w-16 h-16 bg-gray-50 text-gray-200 rounded-full flex items-center justify-center">
                         <Receipt size={32} />
@@ -582,6 +696,31 @@ export default function Bills() {
                 </tr>
               )}
             </tbody>
+            {appointmentSummaries.length > 0 && (
+              <tfoot className="border-t-2 border-gray-200 bg-[#549E9E]/[0.04]">
+                <tr>
+                  <td colSpan={4} className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">
+                    <div className="flex items-center gap-2">
+                      <Receipt size={16} className="text-[#549E9E]" />
+                      <span>{t('bills.table.grand_total_summary', 'Grand Total Summary')} ({billsTotals.totalAppointments} Appointments • {billsTotals.totalBills} Bills)</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-sm font-black text-gray-900">
+                    ₹ {billsTotals.grandTotal.toFixed(2)}
+                  </td>
+                  <td className="px-5 py-4 text-sm font-black text-emerald-600">
+                    ₹ {billsTotals.grandPaid.toFixed(2)}
+                  </td>
+                  <td className="px-5 py-4 text-sm font-black text-orange-500">
+                    ₹ {billsTotals.grandPending.toFixed(2)}
+                  </td>
+                  <td colSpan={2} className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-wider text-right">
+                    <span className="text-emerald-700 font-extrabold mr-3">Cash: ₹ {billsTotals.cashTotal.toFixed(2)}</span>
+                    <span className="text-blue-700 font-extrabold">Online: ₹ {billsTotals.onlineTotal.toFixed(2)}</span>
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
@@ -959,6 +1098,7 @@ export default function Bills() {
                         <thead>
                           <tr className="border-b border-gray-100 bg-gray-50/50">
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Doctor / Consultant</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Payment Mode</th>
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Consultations</th>
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Consultation Revenue</th>
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Prescribed Medicine Revenue</th>
@@ -968,13 +1108,16 @@ export default function Bills() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
-                          {list.map((doc: any) => (
-                            <tr key={doc.doctor_id} className="hover:bg-[#549E9E]/[0.02] transition-colors">
+                          {list.map((doc: any, docIdx: number) => (
+                            <tr key={`${doc.doctor_id}-${doc.payment_mode || docIdx}`} className="hover:bg-[#549E9E]/[0.02] transition-colors">
                               <td className="py-4 px-5">
                                 <div className="font-extrabold text-gray-800 text-sm">{doc.doctor_name}</div>
                                 {doc.doctor_uuid && (
                                   <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{doc.doctor_uuid}</div>
                                 )}
+                              </td>
+                              <td className="py-4 px-5 text-center">
+                                <PaymentModeBadge mode={doc.payment_mode} />
                               </td>
                               <td className="py-4 px-5 text-center font-black text-gray-800 text-sm">{doc.total_consultations}</td>
                               <td className="py-4 px-5 text-right font-bold text-gray-700">₹ {Number(doc.consultation_revenue || 0).toFixed(2)}</td>
@@ -985,6 +1128,29 @@ export default function Bills() {
                             </tr>
                           ))}
                         </tbody>
+                        {list.length > 0 && (() => {
+                          const totalConsults = list.reduce((sum: number, doc: any) => sum + Number(doc.total_consultations || 0), 0);
+                          const totalConsultRev = list.reduce((sum: number, doc: any) => sum + Number(doc.consultation_revenue || 0), 0);
+                          const totalMedRev = list.reduce((sum: number, doc: any) => sum + Number(doc.medication_revenue || 0), 0);
+                          const totalGross = list.reduce((sum: number, doc: any) => sum + Number(doc.total_gross_revenue || 0), 0);
+                          const totalPaid = list.reduce((sum: number, doc: any) => sum + Number(doc.total_paid_revenue || 0), 0);
+                          const totalPending = list.reduce((sum: number, doc: any) => sum + Number(doc.total_pending_revenue || 0), 0);
+                          return (
+                            <tfoot className="border-t-2 border-gray-200 bg-[#549E9E]/[0.04]">
+                              <tr>
+                                <td colSpan={2} className="py-4 px-5 text-xs font-black text-gray-800 uppercase tracking-widest">
+                                  {slotKey} Total ({list.length} Records)
+                                </td>
+                                <td className="py-4 px-5 text-center font-black text-gray-800 text-sm">{totalConsults}</td>
+                                <td className="py-4 px-5 text-right font-black text-gray-800">₹ {totalConsultRev.toFixed(2)}</td>
+                                <td className="py-4 px-5 text-right font-black text-violet-700">₹ {totalMedRev.toFixed(2)}</td>
+                                <td className="py-4 px-5 text-right font-black text-[#549E9E] text-base">₹ {totalGross.toFixed(2)}</td>
+                                <td className="py-4 px-5 text-right font-black text-emerald-600">₹ {totalPaid.toFixed(2)}</td>
+                                <td className="py-4 px-5 text-right font-black text-amber-600">₹ {totalPending.toFixed(2)}</td>
+                              </tr>
+                            </tfoot>
+                          );
+                        })()}
                       </table>
                     ) : (
                       <div className="p-8 text-center text-gray-400 text-xs font-bold uppercase tracking-widest bg-gray-50/50 rounded-xl">
@@ -1039,6 +1205,7 @@ export default function Bills() {
                         <thead>
                           <tr className="border-b border-gray-100 bg-gray-50/50">
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Medicine Name</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Payment Mode</th>
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Bills Count</th>
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Total Quantity Sold</th>
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Avg Unit Selling Price</th>
@@ -1054,6 +1221,9 @@ export default function Bills() {
                                 </span>
                                 <span className="text-sm font-black text-gray-800">{med.medicine_name}</span>
                               </td>
+                              <td className="py-4 px-5 text-center">
+                                <PaymentModeBadge mode={med.payment_mode} />
+                              </td>
                               <td className="py-4 px-5 text-center font-bold text-gray-700 text-sm">{med.total_bills}</td>
                               <td className="py-4 px-5 text-center font-black text-[#549E9E] text-base">{med.total_quantity_sold}</td>
                               <td className="py-4 px-5 text-right font-bold text-gray-700">₹ {Number(med.average_unit_price || 0).toFixed(2)}</td>
@@ -1061,6 +1231,24 @@ export default function Bills() {
                             </tr>
                           ))}
                         </tbody>
+                        {list.length > 0 && (() => {
+                          const totalBillsCount = list.reduce((sum: number, med: any) => sum + Number(med.total_bills || 0), 0);
+                          const totalQuantity = list.reduce((sum: number, med: any) => sum + Number(med.total_quantity_sold || 0), 0);
+                          const totalGross = list.reduce((sum: number, med: any) => sum + Number(med.gross_revenue || 0), 0);
+                          return (
+                            <tfoot className="border-t-2 border-gray-200 bg-[#549E9E]/[0.04]">
+                              <tr>
+                                <td colSpan={2} className="py-4 px-5 text-xs font-black text-gray-800 uppercase tracking-widest">
+                                  {slotKey} Total ({list.length} Medicines)
+                                </td>
+                                <td className="py-4 px-5 text-center font-black text-gray-800 text-sm">{totalBillsCount}</td>
+                                <td className="py-4 px-5 text-center font-black text-[#549E9E] text-base">{totalQuantity}</td>
+                                <td className="py-4 px-5 text-right text-gray-400 font-bold text-xs">—</td>
+                                <td className="py-4 px-5 text-right font-black text-emerald-600 text-base">₹ {totalGross.toFixed(2)}</td>
+                              </tr>
+                            </tfoot>
+                          );
+                        })()}
                       </table>
                     ) : (
                       <div className="p-8 text-center text-gray-400 text-xs font-bold uppercase tracking-widest bg-gray-50/50 rounded-xl">
