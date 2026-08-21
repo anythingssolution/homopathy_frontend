@@ -20,7 +20,9 @@ import {
   Stethoscope,
   MapPin,
   XCircle,
-  Hash
+  Hash,
+  FlaskConical,
+  Printer
 } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import CustomDatePicker from '../CustomDatePicker';
@@ -28,6 +30,136 @@ import Pagination from '../Pagination';
 import { getDosePreview, getMedicationPricingAmount, getMedicationRoleLabel, formatNumericMedicineWithFormula } from '../../utils/prescriptionFormat';
 import { useTranslation } from 'react-i18next';
 import MedicationDispensingStatus from '../MedicationDispensingStatus';
+
+const RepeatMedicineInvoice = ({ record }: { record: any }) => {
+  const medicines = record?.prescription?.medications || [];
+  const tests = record?.prescription?.tests || [];
+  const pricing = record?.prescription?.pricing || {};
+  const deliveryMode = record?.prescription?.delivery_mode === 'COURIER' ? 'Courier' : 'Hand Delivery';
+  const deliveryDetails = record?.prescription?.delivery_details || {};
+  const courierCharge = Number(record?.prescription?.courier_charge || 0);
+  const billNumber = record?.appointment?.auid || record?.bill_number || '-';
+  const billDate = record?.appointment?.appointment_date || record?.created_at;
+  const isRepeat = Boolean(record?.is_repeat_medicine);
+
+  return (
+    <div className="repeat-invoice-print-only hidden bg-white text-gray-900 font-sans p-8">
+      <div className="border-b-2 border-gray-900 pb-4 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-wide">Dr. Trivedi's Homeopathy</h1>
+          <p className="text-xs font-bold uppercase tracking-widest mt-1">
+            {isRepeat ? 'Repeat Medicine Invoice' : 'Dispensary Invoice'}
+          </p>
+        </div>
+        <div className="text-right text-xs font-bold">
+          <p>Bill No: {billNumber}</p>
+          <p>Date: {billDate ? new Date(billDate).toLocaleDateString('en-GB') : '-'}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6 py-5 text-sm">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Patient</p>
+          <p className="font-black mt-1">{record?.patient?.full_name || '-'}</p>
+          <p className="font-bold text-gray-600">{record?.patient?.mobile_no || '-'}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Delivery</p>
+          <p className="font-black mt-1">{isRepeat ? deliveryMode : 'Hand Delivery'}</p>
+          {isRepeat && record?.prescription?.delivery_mode === 'COURIER' && (
+            <div className="font-bold text-gray-600 leading-relaxed">
+              <p>{deliveryDetails.courier_address || '-'}</p>
+              {deliveryDetails.tracking_no && <p>Tracking: {deliveryDetails.tracking_no}</p>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">Item</th>
+            <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">Type</th>
+            <th className="border border-gray-300 px-3 py-2 text-right text-[10px] font-black uppercase tracking-widest">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {medicines.map((medicine: any, index: number) => (
+            <tr key={medicine.consultation_medication_id || index}>
+              <td className="border border-gray-300 px-3 py-2 font-bold">{medicine.medicine_value}</td>
+              <td className="border border-gray-300 px-3 py-2 font-bold">
+                {String(medicine.added_by_role || '').toUpperCase() === 'MEDICAL' ? 'Medical Added' : 'Prescribed'}
+              </td>
+              <td className="border border-gray-300 px-3 py-2 text-right font-black">
+                ₹ {Number(getMedicationPricingAmount(pricing, medicine) || 0).toFixed(2)}
+              </td>
+            </tr>
+          ))}
+          {tests.map((test: any, index: number) => (
+            <tr key={test.consultation_test_id || index}>
+              <td className="border border-gray-300 px-3 py-2 font-bold">{test.test_name}</td>
+              <td className="border border-gray-300 px-3 py-2 font-bold">Test / Lab</td>
+              <td className="border border-gray-300 px-3 py-2 text-right font-black">
+                ₹ {Number(test.amount || 0).toFixed(2)}
+              </td>
+            </tr>
+          ))}
+          {courierCharge > 0 && (
+            <tr>
+              <td className="border border-gray-300 px-3 py-2 font-bold">Courier Charge</td>
+              <td className="border border-gray-300 px-3 py-2 font-bold">Delivery</td>
+              <td className="border border-gray-300 px-3 py-2 text-right font-black">₹ {courierCharge.toFixed(2)}</td>
+            </tr>
+          )}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={2} className="border border-gray-300 px-3 py-3 text-right font-black uppercase tracking-widest">Total</td>
+            <td className="border border-gray-300 px-3 py-3 text-right text-lg font-black">
+              ₹ {Number(pricing.total_amount || 0).toFixed(2)}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div className="mt-5 text-xs font-bold text-gray-600">
+        <p>Payment Status: {record?.prescription?.payment_status || 'PAID'}</p>
+        {isRepeat && record?.prescription?.delivery_details?.delivery_remark && (
+          <p>Delivery Remark: {record.prescription.delivery_details.delivery_remark}</p>
+        )}
+        {pricing.remark && <p>Remark: {pricing.remark}</p>}
+      </div>
+
+      <div className="mt-12 flex justify-between text-xs font-bold">
+        <span>Generated by Medical</span>
+        <span>Authorised Signatory</span>
+      </div>
+
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          .repeat-invoice-print-only,
+          .repeat-invoice-print-only * {
+            visibility: visible !important;
+          }
+          .repeat-invoice-print-only {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+          }
+          @page {
+            size: A4;
+            margin: 14mm;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
 
 export default function DispensaryHistory() {
   const { t, i18n } = useTranslation();
@@ -112,6 +244,42 @@ export default function DispensaryHistory() {
     const pricingAmount = p.prescription?.pricing?.total_amount;
     setAmount(pricingAmount ? pricingAmount.toString() : '0');
     setRemark(p.prescription?.pricing?.remark || 'No dispensing notes provided.');
+  };
+
+  const getDispensaryStatus = (record: any) => {
+    if (record?.is_repeat_medicine) {
+      return {
+        label: 'Completed',
+        icon: CheckCircle2,
+        className: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+      };
+    }
+
+    if (String(record?.workflow_status || '').toUpperCase() === 'PROCESSED_BY_MEDICAL') {
+      return {
+        label: 'Completed',
+        icon: CheckCircle2,
+        className: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+      };
+    }
+
+    return {
+      label: 'Pending Dispensary',
+      icon: Clock,
+      className: 'bg-amber-50 text-amber-700 border-amber-100',
+    };
+  };
+
+  const DispensaryStatusBadge = ({ record }: { record: any }) => {
+    const status = getDispensaryStatus(record);
+    const Icon = status.icon;
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest ${status.className}`}>
+        <Icon size={11} />
+        {status.label}
+      </span>
+    );
   };
 
   const FilterDropdown = ({
@@ -225,18 +393,30 @@ export default function DispensaryHistory() {
         <div className="sm:hidden divide-y divide-gray-100">
           {prescriptions.length > 0 ? (
             prescriptions.map((p, idx) => (
-              <div key={p.consultation_id || idx} className="p-4 hover:bg-gray-50/50 transition-colors">
+              <div key={p.consultation_id || p.bill_id || idx} className="p-4 hover:bg-gray-50/50 transition-colors">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-3">
-                    <div className="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-gray-50 rounded-lg">
-                      <span className="text-lg font-black text-[#549E9E]">
-                        #{p.appointment?.display_token_display || p.appointment?.token_number || '-'}
-                      </span>
-                    </div>
+                    {p.is_repeat_medicine ? (
+                      <div className="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg">
+                        <RefreshCcw size={16} />
+                        <span className="text-[8px] font-black uppercase tracking-widest mt-1">Repeat</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-gray-50 rounded-lg">
+                        <span className="text-lg font-black text-[#549E9E]">
+                          #{p.appointment?.display_token_display || p.appointment?.token_number || '-'}
+                        </span>
+                      </div>
+                    )}
                     <div>
                       <p className="text-sm font-black text-[#2d8789] uppercase tracking-wide">
                         {p.patient?.full_name}
                       </p>
+                      {p.is_repeat_medicine && (
+                        <span className="inline-flex mt-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-md text-[9px] font-black uppercase tracking-widest">
+                          Repeat Medicine
+                        </span>
+                      )}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] font-black text-gray-500 tracking-wider bg-gray-100 px-2 py-1 rounded-md">{p.appointment?.auid}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(p.appointment?.auid); }} className="text-gray-400 p-1">
@@ -245,7 +425,10 @@ export default function DispensaryHistory() {
                       </div>
                     </div>
                   </div>
-                  <span className="text-xs font-black text-gray-300">{((page - 1) * 20 + idx + 1).toString().padStart(2, '0')}</span>
+                  <div className="flex flex-col items-end gap-2">
+                    <span className="text-xs font-black text-gray-300">{((page - 1) * 20 + idx + 1).toString().padStart(2, '0')}</span>
+                    <DispensaryStatusBadge record={p} />
+                  </div>
                 </div>
                 
                 <div className="flex flex-col gap-1 mb-3 mt-2">
@@ -295,6 +478,7 @@ export default function DispensaryHistory() {
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.patient', 'Patient')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.date_slot', 'Date & Slot')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.branch', 'Branch')}</th>
+                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.status', 'Status')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">{t('dispensary_history.table.action', 'Action')}</th>
               </tr>
             </thead>
@@ -302,7 +486,7 @@ export default function DispensaryHistory() {
               {prescriptions.length > 0 ? (
                 prescriptions.map((p, idx) => (
                   <motion.tr
-                    key={p.consultation_id || idx}
+                    key={p.consultation_id || p.bill_id || idx}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.03 }}
@@ -312,10 +496,17 @@ export default function DispensaryHistory() {
                       <span className="text-xs font-black text-gray-300">{((page - 1) * 20 + idx + 1).toString().padStart(2, '0')}</span>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="w-12 h-12 flex items-center justify-center text-gray-800 relative group/token">
-                        <Ticket size={40} className="absolute text-red-500/20 -rotate-12 transition-transform group-hover/token:rotate-0" fill="currentColor" />
-                        <span className="relative z-10 text-base font-black tracking-tight">{p.appointment?.display_token_display || p.appointment?.token_number}</span>
-                      </div>
+                      {p.is_repeat_medicine ? (
+                        <div className="inline-flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg">
+                          <RefreshCcw size={14} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Repeat</span>
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 flex items-center justify-center text-gray-800 relative group/token">
+                          <Ticket size={40} className="absolute text-red-500/20 -rotate-12 transition-transform group-hover/token:rotate-0" fill="currentColor" />
+                          <span className="relative z-10 text-base font-black tracking-tight">{p.appointment?.display_token_display || p.appointment?.token_number}</span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
@@ -330,6 +521,11 @@ export default function DispensaryHistory() {
                       <div>
                         <p className="text-sm font-black text-[#2d8789] uppercase tracking-wide">{p.patient?.full_name}</p>
                         <p className="text-[10px] text-gray-400 font-bold">{p.patient?.mobile_no}</p>
+                        {p.is_repeat_medicine && (
+                          <span className="inline-flex mt-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-md text-[9px] font-black uppercase tracking-widest">
+                            Repeat Medicine
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
@@ -349,6 +545,9 @@ export default function DispensaryHistory() {
                         <MapPin size={13} className="text-[#E6C682]" />
                         {p.appointment?.branch_name}
                       </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      <DispensaryStatusBadge record={p} />
                     </td>
                     <td className="px-5 py-4 text-center">
                       <button
@@ -397,26 +596,40 @@ export default function DispensaryHistory() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-5xl bg-white rounded-none border-2 border-gray-100 shadow-2xl overflow-hidden"
+              className="relative w-full max-w-5xl h-[90vh] bg-white rounded-none border-2 border-gray-100 shadow-2xl overflow-hidden flex flex-col"
             >
-              <div className="p-8">
-                <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100 bg-white flex-shrink-0">
                   <div>
                     <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight">Prescription Details</h2>
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Patient: {selectedPrescription.patient?.full_name}</p>
+                    {selectedPrescription.is_repeat_medicine && (
+                      <span className="inline-flex mt-2 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 text-[9px] font-black uppercase tracking-widest">
+                        Repeat Medicine
+                      </span>
+                    )}
                   </div>
-                  <button
-                    onClick={() => setSelectedPrescription(null)}
-                    className="w-10 h-10 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => window.print()}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-[#549E9E] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#438787] transition-colors"
+                    >
+                      <Printer size={14} />
+                      Print Invoice
+                    </button>
+                    <button
+                      onClick={() => setSelectedPrescription(null)}
+                      className="w-10 h-10 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
                 </div>
 
+              <div className="flex-1 min-h-0 overflow-y-scroll overscroll-contain p-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                   {/* Left Side: Medication List */}
-                  <div className="space-y-6">
-                    <div className="bg-gray-50 border border-gray-100 p-6 space-y-4 h-full min-h-[400px]">
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 border border-gray-100 p-6 space-y-4">
                       <h3 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-2">
                         <Pill size={14} />
                         Medication List
@@ -477,6 +690,31 @@ export default function DispensaryHistory() {
                         </div>
                       )}
                     </div>
+
+                    {(selectedPrescription.prescription?.tests || []).length > 0 && (
+                      <div className="bg-amber-50/60 border border-amber-100 p-6 space-y-4">
+                        <h3 className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2">
+                          <FlaskConical size={14} />
+                          Tests / Lab
+                        </h3>
+
+                        <div className="space-y-3">
+                          {selectedPrescription.prescription.tests.map((test: any, idx: number) => (
+                            <div key={test.consultation_test_id || idx} className="bg-white p-4 border border-amber-100 shadow-sm flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black">
+                                  {idx + 1}
+                                </span>
+                                <p className="text-sm font-black text-gray-800 truncate">{test.test_name}</p>
+                              </div>
+                              <div className="text-xs font-black text-amber-700 whitespace-nowrap">
+                                ₹ {Number(test.amount || 0).toFixed(2)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Right Side: Billing Summary & Remarks */}
@@ -494,7 +732,9 @@ export default function DispensaryHistory() {
                         </div>
                         <div className="text-right">
                           <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest block mb-1">Items</span>
-                          <span className="bg-[#549E9E]/10 text-[#549E9E] px-2 py-1 rounded-md text-[10px] font-black">{(selectedPrescription.prescription?.medications || []).length}</span>
+                          <span className="bg-[#549E9E]/10 text-[#549E9E] px-2 py-1 rounded-md text-[10px] font-black">
+                            {(selectedPrescription.prescription?.medications || []).length + (selectedPrescription.prescription?.tests || []).length}
+                          </span>
                         </div>
                       </div>
 
@@ -504,11 +744,37 @@ export default function DispensaryHistory() {
                           {remark}
                         </div>
                       </div>
+
+                      {selectedPrescription.is_repeat_medicine && (
+                        <div className="bg-white border-2 border-gray-100 p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Delivery</span>
+                            <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest">
+                              {selectedPrescription.prescription?.delivery_mode === 'COURIER' ? 'Courier' : 'Hand Delivery'}
+                            </span>
+                          </div>
+                          {selectedPrescription.prescription?.delivery_mode === 'COURIER' && (
+                            <div className="text-xs font-bold text-gray-600 leading-relaxed space-y-1">
+                              <p>{selectedPrescription.prescription?.delivery_details?.courier_address || 'No address'}</p>
+                              {Number(selectedPrescription.prescription?.courier_charge || 0) > 0 && (
+                                <p>Courier Charge: ₹ {Number(selectedPrescription.prescription.courier_charge || 0).toFixed(2)}</p>
+                              )}
+                              {selectedPrescription.prescription?.delivery_details?.tracking_no && (
+                                <p>Tracking: {selectedPrescription.prescription.delivery_details.tracking_no}</p>
+                              )}
+                              {selectedPrescription.prescription?.delivery_details?.delivery_remark && (
+                                <p>{selectedPrescription.prescription.delivery_details.delivery_remark}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
             </motion.div>
+            <RepeatMedicineInvoice record={selectedPrescription} />
           </div>
         )}
       </AnimatePresence>

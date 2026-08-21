@@ -13,15 +13,17 @@ import {
   CalendarPlus,
   AlertTriangle,
   FileSpreadsheet,
+  Repeat2,
 } from 'lucide-react';
 import ReceptionistPortal from './ReceptionistPortal';
 import MedicalDashboard from './MedicalDashboard';
 import DispensaryHistory from './DispensaryHistory';
 import MedicalProductMaster from './MedicalProductMaster';
 import MedicalProductImport from './MedicalProductImport';
+import RepeatMedicine from './RepeatMedicine';
 import Booking from '../Booking';
 
-type MedicalTab = 'prescriptions' | 'dispensary-history' | 'product-master' | 'product-import';
+type MedicalTab = 'prescriptions' | 'repeat-medicine' | 'dispensary-history' | 'product-master' | 'product-import';
 type ReceptionistTab = 'queue-billing' | 'book-appointment';
 
 export default function CrossRolePortal({ targetRole }: { targetRole: 'medical' | 'receptionist' }) {
@@ -67,6 +69,7 @@ export default function CrossRolePortal({ targetRole }: { targetRole: 'medical' 
     }
     const tabs: { id: MedicalTab; label: string; icon: React.ElementType }[] = [
       { id: 'prescriptions', label: t('cross_role.prescriptions', 'Prescriptions'), icon: Pill },
+      { id: 'repeat-medicine', label: t('cross_role.repeat_medicine', 'Repeat Medicine'), icon: Repeat2 },
       { id: 'dispensary-history', label: t('cross_role.dispensary_history', 'Dispensary History'), icon: History },
       { id: 'product-master', label: t('cross_role.product_master', 'Product Master'), icon: Pill },
       { id: 'product-import', label: t('cross_role.product_import', 'Product Import'), icon: FileSpreadsheet },
@@ -133,6 +136,7 @@ export default function CrossRolePortal({ targetRole }: { targetRole: 'medical' 
 
         {/* Tab Content */}
         {medicalTab === 'prescriptions' && <MedicalDashboard />}
+        {medicalTab === 'repeat-medicine' && <RepeatMedicine />}
         {medicalTab === 'dispensary-history' && <DispensaryHistory />}
         {medicalTab === 'product-master' && <MedicalProductMaster />}
         {medicalTab === 'product-import' && <MedicalProductImport />}

@@ -39,8 +39,9 @@ const PaymentModeBadge = ({ mode }: { mode?: string | null }) => {
     );
   }
   const isCash = normalized === 'CASH';
+  const isMixed = normalized === 'MIXED';
   return (
-    <span className={`inline-flex px-2.5 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${isCash ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+    <span className={`inline-flex px-2.5 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${isMixed ? 'bg-violet-50 text-violet-700 border-violet-200' : isCash ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
       {normalized}
     </span>
   );
@@ -1070,7 +1071,7 @@ export default function Bills() {
                 <UserCheck size={20} className="text-[#549E9E]" /> Doctor / Consultant Revenue Breakdown
               </h3>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
-                Consultation fees and prescribed medicine revenue per doctor
+                Consultation fees, medicine, test/lab and courier revenue per doctor
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -1101,7 +1102,11 @@ export default function Bills() {
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Payment Mode</th>
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Consultations</th>
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Consultation Revenue</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Prescribed Medicine Revenue</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Counter / Hand Medicine</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Test / Lab Revenue</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Courier Medicine</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Courier Charge</th>
+                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total Courier Revenue</th>
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total Gross Revenue</th>
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Paid Revenue</th>
                             <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Pending Amount</th>
@@ -1122,6 +1127,10 @@ export default function Bills() {
                               <td className="py-4 px-5 text-center font-black text-gray-800 text-sm">{doc.total_consultations}</td>
                               <td className="py-4 px-5 text-right font-bold text-gray-700">₹ {Number(doc.consultation_revenue || 0).toFixed(2)}</td>
                               <td className="py-4 px-5 text-right font-bold text-violet-600">₹ {Number(doc.medication_revenue || 0).toFixed(2)}</td>
+                              <td className="py-4 px-5 text-right font-bold text-amber-600">₹ {Number(doc.test_lab_revenue || 0).toFixed(2)}</td>
+                              <td className="py-4 px-5 text-right font-bold text-blue-600">₹ {Number(doc.courier_medicine_revenue || 0).toFixed(2)}</td>
+                              <td className="py-4 px-5 text-right font-bold text-sky-600">₹ {Number(doc.courier_charge_revenue || 0).toFixed(2)}</td>
+                              <td className="py-4 px-5 text-right font-black text-cyan-700">₹ {Number(doc.courier_revenue || 0).toFixed(2)}</td>
                               <td className="py-4 px-5 text-right font-black text-[#549E9E] text-base">₹ {Number(doc.total_gross_revenue || 0).toFixed(2)}</td>
                               <td className="py-4 px-5 text-right font-bold text-emerald-600">₹ {Number(doc.total_paid_revenue || 0).toFixed(2)}</td>
                               <td className="py-4 px-5 text-right font-bold text-amber-500">₹ {Number(doc.total_pending_revenue || 0).toFixed(2)}</td>
@@ -1132,6 +1141,10 @@ export default function Bills() {
                           const totalConsults = list.reduce((sum: number, doc: any) => sum + Number(doc.total_consultations || 0), 0);
                           const totalConsultRev = list.reduce((sum: number, doc: any) => sum + Number(doc.consultation_revenue || 0), 0);
                           const totalMedRev = list.reduce((sum: number, doc: any) => sum + Number(doc.medication_revenue || 0), 0);
+                          const totalTestLabRev = list.reduce((sum: number, doc: any) => sum + Number(doc.test_lab_revenue || 0), 0);
+                          const totalCourierMedRev = list.reduce((sum: number, doc: any) => sum + Number(doc.courier_medicine_revenue || 0), 0);
+                          const totalCourierChargeRev = list.reduce((sum: number, doc: any) => sum + Number(doc.courier_charge_revenue || 0), 0);
+                          const totalCourierRev = list.reduce((sum: number, doc: any) => sum + Number(doc.courier_revenue || 0), 0);
                           const totalGross = list.reduce((sum: number, doc: any) => sum + Number(doc.total_gross_revenue || 0), 0);
                           const totalPaid = list.reduce((sum: number, doc: any) => sum + Number(doc.total_paid_revenue || 0), 0);
                           const totalPending = list.reduce((sum: number, doc: any) => sum + Number(doc.total_pending_revenue || 0), 0);
@@ -1144,6 +1157,10 @@ export default function Bills() {
                                 <td className="py-4 px-5 text-center font-black text-gray-800 text-sm">{totalConsults}</td>
                                 <td className="py-4 px-5 text-right font-black text-gray-800">₹ {totalConsultRev.toFixed(2)}</td>
                                 <td className="py-4 px-5 text-right font-black text-violet-700">₹ {totalMedRev.toFixed(2)}</td>
+                                <td className="py-4 px-5 text-right font-black text-amber-700">₹ {totalTestLabRev.toFixed(2)}</td>
+                                <td className="py-4 px-5 text-right font-black text-blue-700">₹ {totalCourierMedRev.toFixed(2)}</td>
+                                <td className="py-4 px-5 text-right font-black text-sky-700">₹ {totalCourierChargeRev.toFixed(2)}</td>
+                                <td className="py-4 px-5 text-right font-black text-cyan-700">₹ {totalCourierRev.toFixed(2)}</td>
                                 <td className="py-4 px-5 text-right font-black text-[#549E9E] text-base">₹ {totalGross.toFixed(2)}</td>
                                 <td className="py-4 px-5 text-right font-black text-emerald-600">₹ {totalPaid.toFixed(2)}</td>
                                 <td className="py-4 px-5 text-right font-black text-amber-600">₹ {totalPending.toFixed(2)}</td>

@@ -33,6 +33,7 @@ import {
   ChevronDown,
   Pill,
   FileSpreadsheet,
+  Repeat2,
 } from 'lucide-react';
 
 const NavItem = ({
@@ -235,6 +236,7 @@ export default function Navigation() {
     { to: '/dashboard', icon: LayoutDashboard, label: t('dashboard.menu.dashboard'), subLabel: t('dashboard.menu_sub.dashboard'), roles: ['PAT', 'patient'] },
     { to: '/doctor-portal', icon: LayoutDashboard, label: t('dashboard.menu.dashboard'), subLabel: t('dashboard.menu_sub.dashboard'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/medical-welcome', icon: LayoutDashboard, label: t('dashboard.menu.dashboard'), subLabel: t('dashboard.menu_sub.dashboard'), roles: ['REC', 'MED', 'rec', 'med', 'medical', 'receptionist'] },
+    { to: '/repeat-medicine', icon: Repeat2, label: t('dashboard.menu.repeat_medicine', 'Repeat Medicine'), subLabel: t('dashboard.menu_sub.repeat_medicine', 'Last Rx repeat'), roles: ['MED', 'med', 'medical'] },
     { to: '/dispensary-history', icon: History, label: t('dashboard.menu.dispensary_history'), subLabel: t('dashboard.menu_sub.dispensary_history'), roles: ['MED', 'med', 'medical'] },
     { to: '/medical-product-master', icon: Pill, label: t('dashboard.menu.medical_product_master', 'Product Master'), subLabel: t('dashboard.menu_sub.medical_product_master', 'Medicine CRUD'), roles: ['MED', 'med', 'medical'] },
     { to: '/medical-product-import', icon: FileSpreadsheet, label: t('dashboard.menu.medical_product_import', 'Product Import'), subLabel: t('dashboard.menu_sub.medical_product_import', 'Excel master'), roles: ['MED', 'med', 'medical'] },

@@ -36,6 +36,7 @@ import PatientRecords from './components/dashboard/PatientRecords';
 import DispensaryHistory from './components/dashboard/DispensaryHistory';
 import MedicalProductMaster from './components/dashboard/MedicalProductMaster';
 import MedicalProductImport from './components/dashboard/MedicalProductImport';
+import RepeatMedicine from './components/dashboard/RepeatMedicine';
 import CrossRolePortal from './components/dashboard/CrossRolePortal';
 import StaffAccess from './components/dashboard/StaffAccess';
 import FamilyMembers from './components/dashboard/FamilyMembers';
@@ -213,6 +214,7 @@ function AnimatedRoutes() {
               <Route path="/clinic-history" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorClinicHistory /></ProtectedRoute>} />
               <Route path="/patient-records" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical']}><PatientRecords /></ProtectedRoute>} />
               <Route path="/dispensary-history" element={<ProtectedRoute allowedRoles={['MED', 'med', 'medical', 'DOC', 'doc', 'doctor']}><DispensaryHistory /></ProtectedRoute>} />
+              <Route path="/repeat-medicine" element={<ProtectedRoute allowedRoles={['MED', 'med', 'medical', 'DOC', 'doc', 'doctor']}><RepeatMedicine /></ProtectedRoute>} />
               <Route path="/medical-product-master" element={<ProtectedRoute allowedRoles={['MED', 'med', 'medical', 'doc', 'DOC', 'doctor']}><MedicalProductMaster /></ProtectedRoute>} />
               <Route path="/medical-product-import" element={<ProtectedRoute allowedRoles={['MED', 'med', 'medical', 'doc', 'DOC', 'doctor']}><MedicalProductImport /></ProtectedRoute>} />
               <Route path="/bills" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><Bills /></ProtectedRoute>} />

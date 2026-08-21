@@ -198,7 +198,7 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
                     <UserCheck size={18} className="text-[#549E9E]" /> Revenue by Consultant
                   </h4>
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
-                    Doctor-wise consultation fee & prescribed medicine revenue breakdown
+                    Doctor-wise consultation fee, medicine, test/lab and courier revenue breakdown
                   </p>
                 </div>
                 {data?.revenue_by_consultant && data.revenue_by_consultant.length > 0 && (
@@ -216,7 +216,11 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
                         <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Doctor / Consultant</th>
                         <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Consultations</th>
                         <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Consultation Revenue</th>
-                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Medication Revenue</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Counter / Hand Medicine</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Test / Lab Revenue</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Courier Medicine</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Courier Charge</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total Courier Revenue</th>
                         <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total Gross Revenue</th>
                         <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Paid Revenue</th>
                         <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Pending</th>
@@ -234,6 +238,10 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
                           <td className="py-3 px-4 text-center font-extrabold text-gray-700">{doc.total_consultations}</td>
                           <td className="py-3 px-4 text-right font-bold text-gray-700">₹ {Number(doc.consultation_revenue || 0).toFixed(2)}</td>
                           <td className="py-3 px-4 text-right font-bold text-violet-600">₹ {Number(doc.medication_revenue || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-bold text-amber-600">₹ {Number(doc.test_lab_revenue || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-bold text-blue-600">₹ {Number(doc.courier_medicine_revenue || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-bold text-sky-600">₹ {Number(doc.courier_charge_revenue || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right font-black text-cyan-700">₹ {Number(doc.courier_revenue || 0).toFixed(2)}</td>
                           <td className="py-3 px-4 text-right font-black text-[#549E9E] text-sm">₹ {Number(doc.total_gross_revenue || 0).toFixed(2)}</td>
                           <td className="py-3 px-4 text-right font-bold text-emerald-600">₹ {Number(doc.total_paid_revenue || 0).toFixed(2)}</td>
                           <td className="py-3 px-4 text-right font-bold text-amber-500">₹ {Number(doc.total_pending_revenue || 0).toFixed(2)}</td>
