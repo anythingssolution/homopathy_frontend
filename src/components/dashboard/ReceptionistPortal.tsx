@@ -1544,6 +1544,12 @@ export default function ReceptionistPortal() {
                               <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{app.status}</span>
                             ) : app.reception_status === "APPROVED_BY_RECEPTION" ? (
                               <>
+                                <button onClick={() => openVitalsModal(app)} className="bg-sky-50 text-sky-600 hover:bg-sky-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-sky-100 flex items-center gap-1">
+                                  <Activity size={12} /> Vitals
+                                </button>
+                                <button onClick={() => openExtendedHistoryModal(app)} className="bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-teal-100 flex items-center gap-1">
+                                  <ClipboardList size={12} /> History
+                                </button>
                                 <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg uppercase tracking-widest">
                                   {app.checked_in_at ? `Checked In: ${new Date(app.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Approved"}
                                 </span>
@@ -1800,6 +1806,19 @@ export default function ReceptionistPortal() {
                             ) : app.reception_status ===
                               "APPROVED_BY_RECEPTION" ? (
                               <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => openVitalsModal(app)}
+                                  className="bg-sky-50 text-sky-600 hover:bg-sky-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-sky-100 flex items-center justify-center gap-1 whitespace-nowrap"
+                                >
+                                  <Activity size={12} /> Vitals
+                                </button>
+                                <button
+                                  onClick={() => openExtendedHistoryModal(app)}
+                                  className="bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-teal-100 flex items-center justify-center gap-1 whitespace-nowrap"
+                                  title="Extended Patient History & Examination"
+                                >
+                                  <ClipboardList size={12} /> History
+                                </button>
                                 <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg uppercase tracking-widest">
                                   {app.checked_in_at ? `Checked In: ${new Date(app.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Approved"}
                                 </span>

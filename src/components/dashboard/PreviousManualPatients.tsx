@@ -125,6 +125,10 @@ const emptyForm = {
   mobile_no: '',
   email: '',
   address: '',
+  ward_no: '',
+  vidhan_sabha: '',
+  pincode: '',
+  city: '',
   description: '',
 };
 
@@ -220,6 +224,10 @@ export default function PreviousManualPatients() {
       setFormError('Mobile number must be exactly 10 digits and start with 6, 7, 8 or 9');
       return;
     }
+    if (form.pincode.trim() && !/^\d{6}$/.test(form.pincode.trim())) {
+      setFormError('Pincode must be exactly 6 digits');
+      return;
+    }
 
     setIsSaving(true);
     setFormError('');
@@ -240,6 +248,10 @@ export default function PreviousManualPatients() {
           mobile_no: form.mobile_no,
           email: form.email.trim() || null,
           address: form.address.trim() || null,
+          ward_no: form.ward_no.trim() || null,
+          vidhan_sabha: form.vidhan_sabha.trim() || null,
+          pincode: form.pincode.trim() || null,
+          city: form.city.trim() || null,
           description: form.description.trim() || null,
         }),
       });
@@ -422,7 +434,7 @@ export default function PreviousManualPatients() {
                     Add Previous Patient
                   </h2>
                   <p className="mt-1 text-xs font-medium text-slate-500 sm:text-sm">
-                    Same basic details as patient registration. Mobile must not already exist.
+                    Same address details as patient registration. Existing mobile numbers are linked automatically.
                   </p>
                 </div>
                 <button
@@ -545,12 +557,70 @@ export default function PreviousManualPatients() {
 
               <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  Address
+                  Area / Mohalla / Colony
                 </span>
                 <input
                   value={form.address}
                   onChange={(event) =>
                     setForm((current) => ({ ...current, address: event.target.value }))
+                  }
+                  className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                />
+              </label>
+
+              <label className="block sm:col-span-3">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Ward No
+                </span>
+                <input
+                  value={form.ward_no}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, ward_no: event.target.value }))
+                  }
+                  className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Vidhan Sabha
+                </span>
+                <input
+                  value={form.vidhan_sabha}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, vidhan_sabha: event.target.value }))
+                  }
+                  className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Pincode
+                </span>
+                <input
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={form.pincode}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      pincode: event.target.value.replace(/\D/g, '').slice(0, 6),
+                    }))
+                  }
+                  className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  City
+                </span>
+                <input
+                  value={form.city}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, city: event.target.value }))
                   }
                   className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
                 />

@@ -321,6 +321,10 @@ export default function Booking() {
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [regAddress, setRegAddress] = useState('');
+  const [regWardNo, setRegWardNo] = useState('');
+  const [regVidhanSabha, setRegVidhanSabha] = useState('');
+  const [regPincode, setRegPincode] = useState('');
+  const [regCity, setRegCity] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [otpSessionToken, setOtpSessionToken] = useState('');
@@ -899,6 +903,16 @@ export default function Booking() {
 
     if (!regGender) newErrors.gender = t('booking.errors.gender_req');
 
+    if (!regAddress.trim()) newErrors.address = 'Area / Mohalla / Colony is required';
+
+    if (!regPincode.trim()) {
+      newErrors.pincode = 'Pincode is required';
+    } else if (!/^\d{6}$/.test(regPincode.trim())) {
+      newErrors.pincode = 'Pincode must be 6 digits';
+    }
+
+    if (!regCity.trim()) newErrors.city = 'City is required';
+
     if (!regPassword) {
       newErrors.password = t('booking.errors.pass_req');
     } else if (regPassword.length < 8) {
@@ -999,6 +1013,10 @@ export default function Booking() {
             mobile_no: phone,
             password: regPassword,
             address: regAddress || undefined,
+            ward_no: regWardNo || undefined,
+            vidhan_sabha: regVidhanSabha || undefined,
+            pincode: regPincode || undefined,
+            city: regCity || undefined,
             registration_token: registrationToken,
             captcha_token: regCaptchaToken
           };
@@ -2773,16 +2791,78 @@ export default function Booking() {
                       </div>
 
                       {/* Address */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">Address (Optional)</label>
-                        <div className="relative">
-                          <MapPin size={18} className="absolute left-4 top-4 text-gray-300" />
-                          <textarea
-                            placeholder="Enter your full address"
-                            value={regAddress}
-                            onChange={(e) => setRegAddress(e.target.value)}
-                            className="w-full bg-gray-50 border-none rounded-[30px] py-4 pl-12 pr-6 outline-none text-[#6A6A50] font-medium min-h-[100px] focus:ring-2 focus:ring-primary-teal/20 transition-all"
+                      <div className="grid md:grid-cols-2 gap-8">
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">
+                            Area / Mohalla / Colony <span className="text-red-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <MapPin size={18} className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${errors.address ? 'text-red-400' : 'text-gray-300'}`} />
+                            <input
+                              type="text"
+                              placeholder="Area / Mohalla / Colony"
+                              value={regAddress}
+                              onChange={(e) => {
+                                setRegAddress(e.target.value);
+                                if (errors.address) setErrors(prev => { const n = { ...prev }; delete n.address; return n; });
+                              }}
+                              className={`w-full bg-gray-50 border-none rounded-full py-4 pl-12 pr-6 focus:ring-2 transition-all outline-none text-[#6A6A50] font-medium ${errors.address ? 'ring-2 ring-red-100 bg-red-50/30' : 'focus:ring-primary-teal/20'}`}
+                            />
+                            {errors.address && <p className="text-[10px] text-red-500 font-bold mt-2 ml-4 uppercase tracking-widest">{errors.address}</p>}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">Ward No</label>
+                          <input
+                            type="text"
+                            placeholder="Ward No"
+                            value={regWardNo}
+                            onChange={(e) => setRegWardNo(e.target.value)}
+                            className="w-full bg-gray-50 border-none rounded-full py-4 px-6 focus:ring-2 transition-all outline-none text-[#6A6A50] font-medium focus:ring-primary-teal/20"
                           />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">Vidhan Sabha</label>
+                          <input
+                            type="text"
+                            placeholder="Vidhan Sabha"
+                            value={regVidhanSabha}
+                            onChange={(e) => setRegVidhanSabha(e.target.value)}
+                            className="w-full bg-gray-50 border-none rounded-full py-4 px-6 focus:ring-2 transition-all outline-none text-[#6A6A50] font-medium focus:ring-primary-teal/20"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">
+                            Pincode <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="6 digit pincode"
+                            value={regPincode}
+                            onChange={(e) => {
+                              setRegPincode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                              if (errors.pincode) setErrors(prev => { const n = { ...prev }; delete n.pincode; return n; });
+                            }}
+                            className={`w-full bg-gray-50 border-none rounded-full py-4 px-6 focus:ring-2 transition-all outline-none text-[#6A6A50] font-medium ${errors.pincode ? 'ring-2 ring-red-100 bg-red-50/30' : 'focus:ring-primary-teal/20'}`}
+                          />
+                          {errors.pincode && <p className="text-[10px] text-red-500 font-bold mt-2 ml-2 uppercase tracking-widest">{errors.pincode}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">
+                            City <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="City"
+                            value={regCity}
+                            onChange={(e) => {
+                              setRegCity(e.target.value);
+                              if (errors.city) setErrors(prev => { const n = { ...prev }; delete n.city; return n; });
+                            }}
+                            className={`w-full bg-gray-50 border-none rounded-full py-4 px-6 focus:ring-2 transition-all outline-none text-[#6A6A50] font-medium ${errors.city ? 'ring-2 ring-red-100 bg-red-50/30' : 'focus:ring-primary-teal/20'}`}
+                          />
+                          {errors.city && <p className="text-[10px] text-red-500 font-bold mt-2 ml-2 uppercase tracking-widest">{errors.city}</p>}
                         </div>
                       </div>
 
