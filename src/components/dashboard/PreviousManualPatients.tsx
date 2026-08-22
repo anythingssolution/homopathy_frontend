@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   ClipboardList,
+  Edit2,
   Loader2,
   Plus,
   RefreshCcw,
@@ -24,6 +25,11 @@ type PreviousPatient = {
   mobile_no: string;
   email: string | null;
   address: string | null;
+  area_name: string | null;
+  ward_no: string | null;
+  vidhan_sabha: string | null;
+  pincode: string | null;
+  city: string | null;
   description: string | null;
   entered_by_user_id: number;
   entered_by_role: string;
@@ -146,6 +152,7 @@ export default function PreviousManualPatients() {
   const [success, setSuccess] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [editingPatient, setEditingPatient] = useState<PreviousPatient | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const genderOptions = [
@@ -197,6 +204,28 @@ export default function PreviousManualPatients() {
 
   const openForm = () => {
     setForm(emptyForm);
+    setEditingPatient(null);
+    setFormError('');
+    setSuccess('');
+    setIsFormOpen(true);
+  };
+
+  const openEditForm = (patient: PreviousPatient) => {
+    setForm({
+      full_name: patient.full_name || '',
+      patient_id: patient.patient_id || '',
+      age: patient.age ? String(patient.age) : '',
+      gender: patient.gender || 'other',
+      mobile_no: patient.mobile_no || '',
+      email: patient.email || '',
+      address: patient.area_name || patient.address || '',
+      ward_no: patient.ward_no || '',
+      vidhan_sabha: patient.vidhan_sabha || '',
+      pincode: patient.pincode || '',
+      city: patient.city || '',
+      description: patient.description || '',
+    });
+    setEditingPatient(patient);
     setFormError('');
     setSuccess('');
     setIsFormOpen(true);
@@ -204,6 +233,7 @@ export default function PreviousManualPatients() {
 
   const closeForm = () => {
     setIsFormOpen(false);
+    setEditingPatient(null);
     setFormError('');
   };
 
@@ -234,8 +264,8 @@ export default function PreviousManualPatients() {
     setSuccess('');
 
     try {
-      const response = await fetch('/api/v1/previous-patients', {
-        method: 'POST',
+      const response = await fetch(editingPatient ? `/api/v1/previous-patients/${editingPatient.previous_patient_id}` : '/api/v1/previous-patients', {
+        method: editingPatient ? 'PUT' : 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -261,9 +291,10 @@ export default function PreviousManualPatients() {
         throw new Error(result.message || 'Unable to save previous patient');
       }
 
-      setSuccess('Previous patient recorded successfully');
+      setSuccess(editingPatient ? 'Previous patient updated successfully' : 'Previous patient recorded successfully');
       setIsFormOpen(false);
       setForm(emptyForm);
+      setEditingPatient(null);
       setFormError('');
       await fetchPatients();
     } catch (saveError) {
@@ -358,18 +389,19 @@ export default function PreviousManualPatients() {
                 <th className="px-6 py-5">Gender / Age</th>
                 <th className="px-6 py-5">Entered By</th>
                 <th className="px-6 py-5">Entered At</th>
+                <th className="px-6 py-5 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center">
+                  <td colSpan={7} className="py-16 text-center">
                     <Loader2 className="mx-auto animate-spin text-[#549E9E]" size={28} />
                   </td>
                 </tr>
               ) : patients.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-sm font-bold text-slate-400">
+                  <td colSpan={7} className="py-16 text-center text-sm font-bold text-slate-400">
                     No previous patients found
                   </td>
                 </tr>
@@ -409,6 +441,16 @@ export default function PreviousManualPatients() {
                     <td className="px-6 py-5 text-sm font-semibold text-slate-500">
                       {formatDateTime(patient.created_at)}
                     </td>
+                    <td className="px-6 py-5 text-center">
+                      <button
+                        type="button"
+                        onClick={() => openEditForm(patient)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition hover:bg-blue-100"
+                        title="Edit previous patient"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -431,10 +473,12 @@ export default function PreviousManualPatients() {
                     Manual Entry
                   </p>
                   <h2 className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
-                    Add Previous Patient
+                    {editingPatient ? 'Edit Previous Patient' : 'Add Previous Patient'}
                   </h2>
                   <p className="mt-1 text-xs font-medium text-slate-500 sm:text-sm">
-                    Same address details as patient registration. Existing mobile numbers are linked automatically.
+                    {editingPatient
+                      ? 'Update corrected patient details. Mobile and patient ID cannot belong to another patient.'
+                      : 'Same address details as patient registration. Existing mobile numbers are linked automatically.'}
                   </p>
                 </div>
                 <button
@@ -644,7 +688,7 @@ export default function PreviousManualPatients() {
             <div className="flex shrink-0 flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
               <p className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                 <ClipboardList size={14} />
-                Entry is logged with your staff account
+                {editingPatient ? 'Correction is saved with your staff account' : 'Entry is logged with your staff account'}
               </p>
               <div className="flex gap-3">
                 <button
@@ -660,7 +704,7 @@ export default function PreviousManualPatients() {
                   className="flex min-w-36 items-center justify-center gap-2 rounded-2xl bg-[#549E9E] px-5 py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-60"
                 >
                   {isSaving && <Loader2 size={15} className="animate-spin" />}
-                  Save Record
+                  {editingPatient ? 'Update Record' : 'Save Record'}
                 </button>
               </div>
             </div>
