@@ -595,6 +595,12 @@ export default function DoctorPortal() {
       if (result.success) {
         hasLoadedAppointmentsRef.current = true;
         setError(null);
+        const resolvedSlotId = Number(result.meta?.filters?.resolved_slot_id || 0);
+        if (resolvedSlotId) {
+          setSelectedTimingSlotId((current) =>
+            current === resolvedSlotId ? current : resolvedSlotId,
+          );
+        }
         setAppointments(
           (result.data || []).filter((appointment: DoctorAppointment) =>
             appointment?.status !== 'Cancelled' && Number(appointment?.is_active ?? 1) === 1
