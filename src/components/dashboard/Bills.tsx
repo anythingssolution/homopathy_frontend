@@ -90,6 +90,23 @@ const deriveOverallPaymentStatus = (paid: number, pending: number, total: number
 
 const formatCurrency = (value: number | string | null | undefined) => `₹ ${Number(value || 0).toFixed(2)}`;
 
+const getDateOrder = (value?: string | null) => {
+  if (!value) return 0;
+  const date = new Date(String(value).replace(' ', 'T'));
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
+const getTimeOrder = (value?: string | null) => {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  return (Number(match[1]) * 60) + Number(match[2]);
+};
+
+const getTokenOrder = (value?: number | string | null) => {
+  const token = Number(value || 0);
+  return Number.isFinite(token) && token > 0 ? token : Number.MAX_SAFE_INTEGER;
+};
+
 const getPaymentPlaceLabel = (payment: any) => {
   const paymentFor = String(payment?.payment_for || '').toUpperCase();
   const billType = String(payment?.bill_type || '').toUpperCase();
@@ -281,6 +298,7 @@ export default function Bills() {
           appointment_date: bill.appointment_date,
           token_number: bill.token_number,
           display_token_display: bill.display_token_display,
+          start_time: bill.start_time,
           patient_full_name: bill.patient_full_name,
           patient_mobile_no: bill.patient_mobile_no,
           treatment_name: bill.treatment_name,
@@ -289,7 +307,7 @@ export default function Bills() {
           family_member_relationship: bill.family_member_relationship,
           primary_patient_full_name: bill.primary_patient_full_name,
           payment_mode: bill.payment_mode || null,
-          consultation_completed_at: bill.consultation_completed_at || bill.created_at || null,
+          consultation_completed_at: bill.consultation_completed_at || null,
           bills: [],
           grand_total: 0,
           grand_paid: 0,
@@ -319,9 +337,19 @@ export default function Bills() {
         overall_payment_status: deriveOverallPaymentStatus(entry.grand_paid, entry.grand_pending, entry.grand_total),
       }))
       .sort((a, b) => {
-        const timeB = new Date(b.consultation_completed_at || b.appointment_date || 0).getTime();
-        const timeA = new Date(a.consultation_completed_at || a.appointment_date || 0).getTime();
-        return timeB - timeA;
+        const completionDiff = getDateOrder(b.consultation_completed_at) - getDateOrder(a.consultation_completed_at);
+        if (completionDiff !== 0) return completionDiff;
+
+        const dateDiff = getDateOrder(b.appointment_date) - getDateOrder(a.appointment_date);
+        if (dateDiff !== 0) return dateDiff;
+
+        const slotDiff = getTimeOrder(a.start_time) - getTimeOrder(b.start_time);
+        if (slotDiff !== 0) return slotDiff;
+
+        const tokenDiff = getTokenOrder(a.token_number) - getTokenOrder(b.token_number);
+        if (tokenDiff !== 0) return tokenDiff;
+
+        return Number(a.appointment_id || 0) - Number(b.appointment_id || 0);
       });
   }, [bills]);
 
