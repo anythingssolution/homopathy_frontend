@@ -61,6 +61,7 @@ interface TokenItem {
 interface QueueGroup {
   branch_id: number;
   slot_id: number;
+  next_in_line_token?: TokenItem | null;
   tokens?: TokenItem[];
 }
 
@@ -159,6 +160,29 @@ const sortRuntimeQueueItems = (items: TokenItem[] = []) =>
 const isSameToken = (left?: TokenItem | null, right?: TokenItem | null) =>
   Boolean(left?.appointment_id && right?.appointment_id) &&
   Number(left?.appointment_id) === Number(right?.appointment_id);
+
+const getGroupActivityScore = (group: QueueGroup) => {
+  const tokens = group.tokens || [];
+
+  return tokens.reduce((score, token) => {
+    if (token.queue_bucket === "IN_PROGRESS") return score + 10000;
+    if (token.queue_bucket === "READY" && !token.is_on_hold) return score + 1000;
+    if (token.queue_bucket === "CALLED" && !token.is_on_hold) return score + 500;
+    if (token.queue_bucket === "READY") return score + 100;
+    if (token.queue_bucket === "NOT_ARRIVED") return score + 1;
+    return score;
+  }, group.next_in_line_token ? 250 : 0);
+};
+
+const selectBestQueueGroup = (groups: QueueGroup[]) =>
+  groups
+    .filter((group) => group.branch_id && group.slot_id)
+    .sort((left, right) => {
+      const scoreDiff = getGroupActivityScore(right) - getGroupActivityScore(left);
+      if (scoreDiff !== 0) return scoreDiff;
+
+      return Number(right.slot_id) - Number(left.slot_id);
+    })[0] || null;
 
 const timeText = (value?: string | null) => {
   if (!value) return null;
@@ -421,9 +445,7 @@ export default function LiveQueueFlow() {
         `/api/v1/live-queue/current-date-tokens?${params.toString()}`,
       );
       const groups = Array.isArray(json.data?.groups) ? json.data.groups : [];
-      const firstGroup =
-        groups.find((group) => Number(group.tokens?.length || 0) > 0) ||
-        groups[0];
+      const firstGroup = selectBestQueueGroup(groups);
 
       if (firstGroup?.branch_id && firstGroup?.slot_id) {
         return fetchSlotSnapshot(
