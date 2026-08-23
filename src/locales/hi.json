@@ -923,7 +923,8 @@
       "all_status": "सभी स्थिति",
       "unpaid": "अवैतनिक",
       "paid": "भुगतान किया गया",
-      "partial": "आंशिक"
+      "partial": "आंशिक",
+      "outstanding": "सभी बकाया राशि"
     },
     "table": {
       "appointment": "अपॉइंटमेंट",
@@ -1068,6 +1069,7 @@
       "date_slot": "तिथि और स्लॉट",
       "branch": "शाखा",
       "action": "कार्रवाई",
+      "view_prescription": "पर्चा देखें",
       "dispense": "वितरित करें"
     },
     "no_records": {
@@ -1090,7 +1092,8 @@
       "date_slot": "तिथि और स्लॉट",
       "branch": "शाखा",
       "action": "कार्रवाई",
-      "view": "देखें"
+      "view": "देखें",
+      "view_prescription": "पर्चा देखें"
     },
     "no_records": {
       "title": "कोई इतिहास नहीं मिला",
@@ -1134,7 +1137,8 @@
     "partial": "आंशिक",
     "bill_id_type": "बिल आईडी और प्रकार",
     "patient_details": "मरीज़ और विवरण",
-    "date": "तिथि"
+    "date": "तिथि",
+    "view_prescription": "पर्चा देखें"
   },
   "cross_role": {
     "access_denied": "प्रवेश अस्वीकृत",
@@ -1167,7 +1171,10 @@
     "transaction_ref": "लेनदेन संदर्भ",
     "payment_note": "भुगतान नोट",
     "confirm_dispensed": "पुष्टि करें और वितरित के रूप में चिह्नित करें",
-    "no_dose_details": "खुराक दर्ज नहीं"
+    "no_dose_details": "खुराक दर्ज नहीं",
+    "previous_pending": "पिछली बकाया राशि",
+    "amount_received": "प्राप्त राशि",
+    "borrow_hint": "आज के बिल से कम राशि दर्ज करें तो शेष राशि उधार रहेगी।"
   },
   "doctor_leave": {
     "selected_branch": "चयनित शाखा",

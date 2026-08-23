@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -29,6 +30,7 @@ import {
   Tags,
   Stethoscope,
   IndianRupee,
+  Download,
 } from "lucide-react";
 import CustomDatePicker from "../CustomDatePicker";
 import { getLocalDateString } from "../../utils/date";
@@ -37,6 +39,7 @@ import { useNotifications } from "../../context/NotificationContext";
 import { useCoalescedCallback } from "../../hooks/useCoalescedCallback";
 import { dedupedFetch } from "../../utils/dedupedFetch";
 import TokenLayoutManager from "./TokenLayoutManager";
+import PrescriptionPrint from "../PrescriptionPrint";
 
 const FilterDropdown = ({
   label,
@@ -229,6 +232,9 @@ export default function ReceptionistPortal() {
   const transferPatientDropdownRef = useRef<HTMLDivElement>(null);
   const transferPatientListRef = useRef<HTMLDivElement>(null);
   const [isTransferring, setIsTransferring] = useState(false);
+  const [previewPrescription, setPreviewPrescription] = useState<any | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
 
   // Extended History Modal State
   const [isExtendedHistoryModalOpen, setIsExtendedHistoryModalOpen] = useState(false);
@@ -1113,6 +1119,37 @@ export default function ReceptionistPortal() {
     app.consultation_payment_status === "PAID" &&
     ["BOOKED", "WAITING"].includes(app.queue_status);
 
+  const openPrescriptionPreview = async (consultationId?: number | string | null) => {
+    if (!token || !consultationId) return;
+    setIsPreviewLoading(true);
+    try {
+      const response = await fetch(`/api/v1/receptionist/prescriptions/${consultationId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Unable to load prescription");
+      }
+      setPreviewPrescription({ consultation: result.data, appointment: result.data });
+    } catch (previewError: any) {
+      addToast(previewError.message || "Unable to load prescription", "error");
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const renderViewPrescriptionButton = (app: any) =>
+    app.consultation_id ? (
+      <button
+        type="button"
+        onClick={() => openPrescriptionPreview(app.consultation_id)}
+        disabled={isPreviewLoading}
+        className="bg-amber-50 text-amber-700 hover:bg-amber-500 hover:text-white disabled:opacity-60 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-amber-100 flex items-center gap-1 whitespace-nowrap"
+      >
+        <FileText size={12} /> {t("receptionist.view_prescription", "View Prescription")}
+      </button>
+    ) : null;
+
   const isTerminalQueueItem = (app: any) =>
     app.status === "Completed" ||
     ["COMPLETED", "CANCELLED", "NO_SHOW", "SKIPPED"].includes(
@@ -1541,9 +1578,13 @@ export default function ReceptionistPortal() {
 
                           <div className="mt-3 pt-3 border-t border-gray-50 flex flex-wrap gap-2">
                             {["Cancelled", "Completed"].includes(app.status) ? (
-                              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{app.status}</span>
+                              <>
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{app.status}</span>
+                                {/* {renderViewPrescriptionButton(app)} */}
+                              </>
                             ) : app.reception_status === "APPROVED_BY_RECEPTION" ? (
                               <>
+                                {/* {renderViewPrescriptionButton(app)} */}
                                 <button onClick={() => openVitalsModal(app)} className="bg-sky-50 text-sky-600 hover:bg-sky-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-sky-100 flex items-center gap-1">
                                   <Activity size={12} /> Vitals
                                 </button>
@@ -1800,12 +1841,16 @@ export default function ReceptionistPortal() {
                           </td>
                           <td className="px-5 py-4 text-center">
                             {["Cancelled", "Completed"].includes(app.status) ? (
-                              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                {app.status}
-                              </span>
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                  {app.status}
+                                </span>
+                                {/* {renderViewPrescriptionButton(app)} */}
+                              </div>
                             ) : app.reception_status ===
                               "APPROVED_BY_RECEPTION" ? (
                               <div className="flex items-center justify-center gap-2">
+                                {/* {renderViewPrescriptionButton(app)} */}
                                 <button
                                   onClick={() => openVitalsModal(app)}
                                   className="bg-sky-50 text-sky-600 hover:bg-sky-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-sky-100 flex items-center justify-center gap-1 whitespace-nowrap"
@@ -3137,6 +3182,69 @@ export default function ReceptionistPortal() {
                   </div>
                 )}
               </AnimatePresence>
+
+      {previewPrescription && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/80 p-4 backdrop-blur-md no-print">
+          <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">{t("patient_records.modal.prescription_preview", "Prescription Preview")}</h3>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t("patient_records.modal.saved_prescription_sub", "Saved doctor consultation prescription")}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPrescriptionLang("en")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                      prescriptionLang === "en"
+                        ? "bg-[#549E9E] text-white shadow-xs"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
+                    }`}
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrescriptionLang("hi")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                      prescriptionLang === "hi"
+                        ? "bg-[#549E9E] text-white shadow-xs"
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
+                    }`}
+                  >
+                    हिंदी (Hindi)
+                  </button>
+                </div>
+                <button onClick={() => window.print()} className="flex items-center gap-2 rounded-xl bg-[#549E9E] px-6 py-2.5 text-xs font-black uppercase tracking-widest text-white hover:bg-[#458b8b]">
+                  <Download size={16} /> {t("patient_records.modal.action.print", "Print")}
+                </button>
+                <button onClick={() => setPreviewPrescription(null)} className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
-          );
+            <div className="flex flex-1 items-start justify-center overflow-auto bg-gray-200/50 p-4 md:p-12" data-lenis-prevent>
+              <div className="mx-auto flex min-h-[297mm] w-[210mm] shrink-0 flex-col rounded-sm border border-gray-100 bg-white p-0 shadow-xl md:p-8">
+                <PrescriptionPrint consultation={previewPrescription.consultation} appointment={previewPrescription.appointment} lang={prescriptionLang} />
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+      <div className="print-only">
+        {previewPrescription && <PrescriptionPrint consultation={previewPrescription.consultation} appointment={previewPrescription.appointment} lang={prescriptionLang} />}
+      </div>
+      <style>{`
+        @media screen {
+          .print-only { display: none; }
+        }
+        @media print {
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+        }
+      `}</style>
+    </div>
+  );
 }

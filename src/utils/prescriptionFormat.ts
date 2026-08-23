@@ -415,6 +415,68 @@ export const getRepeatSamePrintBlocks = ({
   return blocks;
 };
 
+export const compactPrintedQuickFormula = (value?: string | null): string =>
+  String(value || '')
+    .replace(/\s*,\s*/g, ',')
+    .replace(/\s*\/\s*/g, '/')
+    .trim();
+
+export const formatPrintedNumericFormulaLine = (
+  medicines: string[],
+  duration?: number | string | null,
+): string => {
+  const names = medicines
+    .map((medicine) => String(medicine || '').trim())
+    .filter(Boolean);
+  if (names.length === 0) {
+    return '';
+  }
+
+  const durationText = String(duration ?? '').trim();
+  if (!durationText) {
+    return names.join(',');
+  }
+
+  return `${names.join(',')}/${durationText}`;
+};
+
+export const getPrintedNumericFormulaDisplay = ({
+  numericMeds,
+  quickFormulaText,
+  durationDays,
+  isHi = false,
+}: {
+  numericMeds?: any[] | null;
+  quickFormulaText?: string | null;
+  durationDays?: number | string | null;
+  isHi?: boolean;
+}): { formulaLabel: string; doseLines: string[] } => {
+  const medicines = Array.isArray(numericMeds) ? numericMeds : [];
+  const formulaFromResponse = compactPrintedQuickFormula(quickFormulaText);
+  const formulaLabel = formulaFromResponse || formatPrintedNumericFormulaLine(
+    medicines.map((med) =>
+      formatNumericMedicineWithFormula(
+        String(med?.medicine_value || '').trim(),
+        quickFormulaText,
+      ),
+    ),
+    durationDays,
+  );
+
+  const doseLines: string[] = [];
+  const seen = new Set<string>();
+  medicines.forEach((med) => {
+    const line = getPrintedDoseTimesText(med, isHi, quickFormulaText);
+    if (!line || seen.has(line)) {
+      return;
+    }
+    seen.add(line);
+    doseLines.push(line);
+  });
+
+  return { formulaLabel, doseLines };
+};
+
 export const getPrintedUniversalRemark = (
   source: any,
   isHi = false,

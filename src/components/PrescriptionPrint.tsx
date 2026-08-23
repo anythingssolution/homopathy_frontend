@@ -1,6 +1,7 @@
 import React from 'react';
 import { Mail, Phone, MapPin, Pill, Activity, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
-import { getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedDoseTimesText, getPrintedDoseUnitKind } from '../utils/prescriptionFormat';
+import { getMedicationRoleLabel, formatPrescriptionMedicineText, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedNumericFormulaDisplay } from '../utils/prescriptionFormat';
+import { formatPrintDurationLabel, getMedicationPeriodDates } from '../utils/medicationDuration';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
 
 interface PrescriptionPrintProps {
@@ -47,6 +48,11 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
     appointment.medication_duration_days ||
     appointment.details?.medication_duration_days ||
     0;
+  const durationLabel = formatPrintDurationLabel(durationDays, isHi);
+  const medicationPeriod = getMedicationPeriodDates(
+    appointment.appointment_date || appointment.details?.appointment_date || consultation.created_at,
+    durationDays,
+  );
   const repeatMonths = Number(
     consultation.repeat_months ?? appointment.details?.repeat_months ?? 0,
   );
@@ -230,6 +236,16 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                         {appointment.treatment_name}
                       </span>
                     )}
+                    {durationLabel && (
+                      <span className="px-1.5 py-0.5 rounded-xs border border-[#549E9E]/30 bg-white text-[#549E9E] font-black uppercase tracking-wider">
+                        {isHi ? 'अवधि' : 'DURATION'} {durationLabel}
+                      </span>
+                    )}
+                    {medicationPeriod && (
+                      <span className="font-bold text-[#1a2b4c]">
+                        {medicationPeriod.fromDate} – {medicationPeriod.toDate}
+                      </span>
+                    )}
                     {repeatSameBlocks.map((block) => (
                       <span
                         key={block.key}
@@ -277,6 +293,29 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                         ))}
                       </div>
                     </div>
+                    )}
+
+                    {durationLabel && (
+                      <div className={`grid gap-4 ${medicationPeriod ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                        <div>
+                          <h3 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-1 border-b border-[#549E9E]/20 pb-0.5">
+                            {isHi ? 'अवधि' : 'DURATION'}
+                          </h3>
+                          <div className="text-[10px] font-bold text-gray-800 leading-tight">
+                            {durationLabel}
+                          </div>
+                        </div>
+                        {medicationPeriod && (
+                          <div>
+                            <h3 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-1 border-b border-[#549E9E]/20 pb-0.5">
+                              {isHi ? 'दवा तिथि' : 'MEDICATION DATES'}
+                            </h3>
+                            <div className="text-[10px] font-bold text-gray-800 leading-tight">
+                              {medicationPeriod.fromDate} – {medicationPeriod.toDate}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {repeatSameBlocks.length > 0 && (
@@ -343,43 +382,27 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                           {(() => {
                             const quickFormulaText = consultation?.quick_formula_input || appointment?.quick_formula_input || consultation?.prescription?.quick_formula_input || '';
                             const duration = consultation?.medication_duration_days || appointment?.medication_duration_days || 7;
-                            const groupedByDose: { [key: string]: { medicines: string[]; medication: any } } = {};
-
-                            numericMeds.forEach((med: any) => {
-                              const doses = Array.isArray(med.doses) ? med.doses : [];
-                              const kind = getPrintedDoseUnitKind(med.medicine_value, quickFormulaText);
-                              const key = JSON.stringify({
-                                kind,
-                                balls: doses.map((d: any) => Number(d.balls_per_dose)),
-                              });
-                              if (!groupedByDose[key]) {
-                                groupedByDose[key] = { medicines: [], medication: med };
-                              }
-                              groupedByDose[key].medicines.push(
-                                formatNumericMedicineWithFormula(
-                                  String(med.medicine_value).trim(),
-                                  quickFormulaText,
-                                ),
-                              );
+                            const { formulaLabel, doseLines } = getPrintedNumericFormulaDisplay({
+                              numericMeds,
+                              quickFormulaText,
+                              durationDays: duration,
+                              isHi,
                             });
 
-                            const doseGroups = Object.values(groupedByDose);
-
-                            return doseGroups.map((group, idx) => {
-                              const formulaLabel = doseGroups.length === 1 && quickFormulaText
-                                ? quickFormulaText
-                                : `${group.medicines.join(',')},/${duration}`;
-                              return (
-                                <div key={idx} className="flex flex-col gap-0.5 items-end text-right">
+                            return (
+                              <div className="flex flex-col gap-0.5 items-end text-right">
+                                {formulaLabel ? (
                                   <div className="text-xs font-mono font-bold text-[#1a2b4c]">
                                     {formulaLabel}
                                   </div>
-                                  <div className="text-[10px] font-bold text-gray-800 leading-tight">
-                                    {getPrintedDoseTimesText(group.medication, isHi, quickFormulaText)}
+                                ) : null}
+                                {doseLines.map((line) => (
+                                  <div key={line} className="text-[10px] font-bold text-gray-800 leading-tight">
+                                    {line}
                                   </div>
-                                </div>
-                              );
-                            });
+                                ))}
+                              </div>
+                            );
                           })()}
                         </div>
                       )}

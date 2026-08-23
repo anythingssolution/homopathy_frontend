@@ -25,7 +25,7 @@ import CustomDatePicker from '../CustomDatePicker';
 import { useTranslation } from 'react-i18next';
 
 type BillFilterType = 'ALL' | 'CONSULTATION' | 'MEDICATION';
-type BillFilterStatus = 'ALL' | 'UNPAID' | 'PAID' | 'PARTIAL';
+type BillFilterStatus = 'ALL' | 'UNPAID' | 'PAID' | 'PARTIAL' | 'OUTSTANDING';
 type BillFilterPaymentMode = 'ALL' | 'CASH' | 'ONLINE';
 type ActiveBillingTab = 'BILLS' | 'CONSULTANT_REVENUE' | 'MEDICINE_REVENUE';
 
@@ -182,7 +182,7 @@ const FilterDropdown = ({
 
 export default function Bills() {
   const { t } = useTranslation();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { addToast } = useNotifications();
 
   const [patientSearch, setPatientSearch] = useState('');
@@ -205,19 +205,31 @@ export default function Bills() {
   const [selectedSummary, setSelectedSummary] = useState<any>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [expandedChargeType, setExpandedChargeType] = useState<string | null>(null);
+  const [collectAmount, setCollectAmount] = useState('');
+  const [collectMode, setCollectMode] = useState<'CASH' | 'ONLINE'>('CASH');
+  const [collectReference, setCollectReference] = useState('');
+  const [collectRemark, setCollectRemark] = useState('');
+  const [collectingBillId, setCollectingBillId] = useState<number | null>(null);
+  const userRole = String(user?.role_code || user?.role || '').toLowerCase();
+  const canCollectMedication = userRole.includes('med');
+  const canCollectConsultation = userRole.includes('rec') || userRole === 'receptionist';
 
   const fetchBills = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (filterDate && filterDate !== 'all') {
+      if (filterDate && filterDate !== 'all' && paymentStatus !== 'OUTSTANDING') {
         params.append('from_date', filterDate);
         params.append('to_date', filterDate);
       }
       if (patientSearch.trim()) params.append('patient_search', patientSearch.trim());
       if (billType !== 'ALL') params.append('type', billType);
-      if (paymentStatus !== 'ALL') params.append('payment_status', paymentStatus);
+      if (paymentStatus === 'OUTSTANDING') {
+        params.append('outstanding', 'true');
+      } else if (paymentStatus !== 'ALL') {
+        params.append('payment_status', paymentStatus);
+      }
       if (paymentMode !== 'ALL') params.append('payment_mode', paymentMode);
       params.append('limit', '1000');
 
@@ -285,23 +297,26 @@ export default function Bills() {
   }, [patientSearch]);
 
   const appointmentSummaries = useMemo(() => {
-    const grouped = new Map<number, any>();
+    const grouped = new Map<string, any>();
 
     bills.forEach((bill) => {
       const appointmentId = Number(bill.appointment_id);
-      if (!appointmentId) return;
+      const groupKey = appointmentId ? `apt-${appointmentId}` : `bill-${bill.bill_id}`;
 
-      if (!grouped.has(appointmentId)) {
-        grouped.set(appointmentId, {
-          appointment_id: appointmentId,
-          auid: bill.auid,
+      if (!grouped.has(groupKey)) {
+        grouped.set(groupKey, {
+          group_key: groupKey,
+          appointment_id: appointmentId || null,
+          is_repeat_medicine: !appointmentId,
+          auid: bill.auid || bill.bill_number,
           appointment_date: bill.appointment_date,
           token_number: bill.token_number,
           display_token_display: bill.display_token_display,
           start_time: bill.start_time,
+          patient_id: bill.patient_id,
           patient_full_name: bill.patient_full_name,
           patient_mobile_no: bill.patient_mobile_no,
-          treatment_name: bill.treatment_name,
+          treatment_name: bill.treatment_name || (!appointmentId ? 'Repeat Medicine' : null),
           branch_name: bill.branch_name,
           booked_for_type: bill.booked_for_type,
           family_member_relationship: bill.family_member_relationship,
@@ -315,7 +330,7 @@ export default function Bills() {
         });
       }
 
-      const entry = grouped.get(appointmentId);
+      const entry = grouped.get(groupKey);
       if (!entry.payment_mode && bill.payment_mode) {
         entry.payment_mode = bill.payment_mode;
       }
@@ -455,27 +470,156 @@ export default function Bills() {
     };
   }, [selectedSummary]);
 
-  const handleViewSummary = async (appointmentId: number) => {
+  const handleViewSummary = async (entry: any) => {
     setIsDetailLoading(true);
     setExpandedChargeType(null);
+    setCollectAmount('');
+    setCollectMode('CASH');
+    setCollectReference('');
+    setCollectRemark('');
     try {
-      const response = await fetch(`/api/v1/bills/appointment/${appointmentId}/summary`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+      const billIds = (entry?.bills || []).map((bill: any) => Number(bill.bill_id)).filter(Boolean);
+      if (billIds.length === 0 && entry?.appointment_id) {
+        const response = await fetch(`/api/v1/bills/appointment/${entry.appointment_id}/summary`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        const result = await response.json();
+        if (result.success) {
+          setSelectedSummary(result.data);
+        } else {
+          addToast(result.message || 'Failed to fetch appointment billing summary', 'error');
+        }
+        return;
+      }
+
+      const detailedBills = await Promise.all(billIds.map(async (billId: number) => {
+        const response = await fetch(`/api/v1/bills/${billId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        const result = await response.json();
+        return result.success ? result.data : (entry.bills || []).find((bill: any) => Number(bill.bill_id) === billId);
+      }));
+      const billsList = detailedBills.filter(Boolean);
+      const payments = billsList.flatMap((bill: any) => (bill.payments || []).map((payment: any) => ({
+        ...payment,
+        bill_id: bill.bill_id,
+        bill_number: bill.bill_number,
+        bill_type: bill.bill_type,
+      })));
+      const grandTotal = billsList.reduce((sum: number, bill: any) => sum + Number(bill.total_amount || 0), 0);
+      const grandPaid = billsList.reduce((sum: number, bill: any) => sum + Number(bill.paid_amount || 0), 0);
+      const grandPending = billsList.reduce((sum: number, bill: any) => sum + Number(bill.pending_amount || 0), 0);
+
+      setSelectedSummary({
+        appointment: {
+          appointment_id: entry.appointment_id || billsList[0]?.appointment_id || null,
+          auid: entry.auid,
+          display_token_display: entry.display_token_display || (entry.is_repeat_medicine ? 'Repeat' : null),
+          token_number: entry.token_number,
+          patient_full_name: entry.patient_full_name,
+          patient_mobile_no: entry.patient_mobile_no,
+          booked_for_type: entry.booked_for_type,
+          family_member_relationship: entry.family_member_relationship,
+          primary_patient_full_name: entry.primary_patient_full_name,
+          branch_name: entry.branch_name,
+          treatment_name: entry.treatment_name,
+        },
+        bills: billsList,
+        payments,
+        summary: {
+          grand_total: Number(grandTotal.toFixed(2)),
+          grand_paid: Number(grandPaid.toFixed(2)),
+          grand_pending: Number(grandPending.toFixed(2)),
+          overall_payment_status: deriveOverallPaymentStatus(grandPaid, grandPending, grandTotal),
         },
       });
-      const result = await response.json();
-      if (result.success) {
-        setSelectedSummary(result.data);
-      } else {
-        addToast(result.message || 'Failed to fetch appointment billing summary', 'error');
-      }
     } catch (err) {
       console.error(err);
       addToast('Network error while fetching appointment billing summary', 'error');
     } finally {
       setIsDetailLoading(false);
+    }
+  };
+
+  const handleCollectBillPayment = async (bill: any) => {
+    const pending = Number(bill.pending_amount || 0);
+    const amount = Number(collectAmount || 0);
+    const billType = String(bill.bill_type || '').toUpperCase();
+    if (amount <= 0) {
+      addToast('Enter an amount to collect', 'warning');
+      return;
+    }
+    if (amount > pending) {
+      addToast('Amount cannot be greater than pending amount', 'warning');
+      return;
+    }
+    if (collectMode === 'ONLINE' && !collectReference.trim()) {
+      addToast('Transaction reference is required for online payment', 'warning');
+      return;
+    }
+    if (billType === 'MEDICATION' && !canCollectMedication) {
+      addToast('Only medical staff can collect medication dues', 'warning');
+      return;
+    }
+    if (billType === 'CONSULTATION' && !canCollectConsultation) {
+      addToast('Only receptionist can collect consultation dues', 'warning');
+      return;
+    }
+
+    const endpoint = billType === 'CONSULTATION'
+      ? `/api/v1/bills/consultation/${bill.bill_id}/collect-payment`
+      : `/api/v1/bills/medication/${bill.bill_id}/collect-payment`;
+
+    setCollectingBillId(Number(bill.bill_id));
+    try {
+      const response = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          payment_mode: collectMode,
+          amount,
+          transaction_reference: collectReference.trim() || null,
+          remark: collectRemark.trim() || null,
+        }),
+      });
+      const result = await response.json();
+      if (!result.success) {
+        addToast(result.message || 'Failed to collect payment', 'error');
+        return;
+      }
+      addToast('Payment collected successfully', 'success');
+      setCollectAmount('');
+      setCollectReference('');
+      setCollectRemark('');
+      await fetchBills();
+      await handleViewSummary({
+        appointment_id: selectedSummary?.appointment?.appointment_id || bill.appointment_id || null,
+        auid: selectedSummary?.appointment?.auid,
+        display_token_display: selectedSummary?.appointment?.display_token_display,
+        token_number: selectedSummary?.appointment?.token_number,
+        patient_full_name: selectedSummary?.appointment?.patient_full_name,
+        patient_mobile_no: selectedSummary?.appointment?.patient_mobile_no,
+        booked_for_type: selectedSummary?.appointment?.booked_for_type,
+        family_member_relationship: selectedSummary?.appointment?.family_member_relationship,
+        primary_patient_full_name: selectedSummary?.appointment?.primary_patient_full_name,
+        branch_name: selectedSummary?.appointment?.branch_name,
+        treatment_name: selectedSummary?.appointment?.treatment_name,
+        bills: selectedSummary?.bills?.length ? selectedSummary.bills : [{ bill_id: bill.bill_id }],
+      });
+    } catch (error) {
+      console.error(error);
+      addToast('Network error while collecting payment', 'error');
+    } finally {
+      setCollectingBillId(null);
     }
   };
 
@@ -560,7 +704,8 @@ export default function Bills() {
               { id: 'ALL', label: t('bills.filters.all_status', 'All Status') },
               { id: 'UNPAID', label: t('bills.filters.unpaid', 'Unpaid') },
               { id: 'PAID', label: t('bills.filters.paid', 'Paid') },
-              { id: 'PARTIAL', label: t('bills.filters.partial', 'Partial') }
+              { id: 'PARTIAL', label: t('bills.filters.partial', 'Partial') },
+              { id: 'OUTSTANDING', label: t('bills.filters.outstanding', 'All Pending Dues') }
             ]}
           />
 
@@ -649,7 +794,7 @@ export default function Bills() {
               {appointmentSummaries.length > 0 ? (
                 appointmentSummaries.map((entry) => (
                   <motion.tr
-                    key={entry.appointment_id}
+                    key={entry.group_key || entry.appointment_id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="hover:bg-[#549E9E]/[0.02] transition-colors"
@@ -701,7 +846,7 @@ export default function Bills() {
                     </td>
                     <td className="px-5 py-4 text-center">
                       <button
-                        onClick={() => handleViewSummary(entry.appointment_id)}
+                        onClick={() => handleViewSummary(entry)}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-[#549E9E] hover:bg-[#438787] text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
                       >
                         <FileText size={14} /> {t('bills.table.view_summary', 'View Summary')}
@@ -968,6 +1113,54 @@ export default function Bills() {
                             <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{bill.remark || 'No remarks added.'}</p>
                           </div>
                         </div>
+
+                        {Number(bill.pending_amount || 0) > 0 && (
+                          ((String(bill.bill_type || '').toUpperCase() === 'MEDICATION' && canCollectMedication)
+                            || (String(bill.bill_type || '').toUpperCase() === 'CONSULTATION' && canCollectConsultation)) && (
+                            <div className="bg-orange-50/70 border border-orange-100 p-4 space-y-3">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-orange-600">Collect remaining / borrowed amount</p>
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={collectAmount}
+                                  onChange={(e) => setCollectAmount(e.target.value)}
+                                  placeholder={`Max ${Number(bill.pending_amount || 0).toFixed(2)}`}
+                                  className="bg-white border border-orange-100 px-3 py-2 text-xs font-bold outline-none"
+                                />
+                                <select
+                                  value={collectMode}
+                                  onChange={(e) => setCollectMode(e.target.value as 'CASH' | 'ONLINE')}
+                                  className="bg-white border border-orange-100 px-3 py-2 text-xs font-black outline-none"
+                                >
+                                  <option value="CASH">Cash</option>
+                                  <option value="ONLINE">Online</option>
+                                </select>
+                                <input
+                                  value={collectReference}
+                                  onChange={(e) => setCollectReference(e.target.value)}
+                                  placeholder={collectMode === 'ONLINE' ? 'Txn reference *' : 'Reference (optional)'}
+                                  className="bg-white border border-orange-100 px-3 py-2 text-xs font-bold outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleCollectBillPayment(bill)}
+                                  disabled={collectingBillId === Number(bill.bill_id)}
+                                  className="bg-[#549E9E] text-white px-3 py-2 text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+                                >
+                                  {collectingBillId === Number(bill.bill_id) ? 'Collecting...' : 'Collect'}
+                                </button>
+                              </div>
+                              <input
+                                value={collectRemark}
+                                onChange={(e) => setCollectRemark(e.target.value)}
+                                placeholder="Collection note (optional)"
+                                className="w-full bg-white border border-orange-100 px-3 py-2 text-xs font-bold outline-none"
+                              />
+                            </div>
+                          )
+                        )}
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           <div className="space-y-3">

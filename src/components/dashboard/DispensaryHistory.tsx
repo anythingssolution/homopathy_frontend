@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -22,7 +23,8 @@ import {
   XCircle,
   Hash,
   FlaskConical,
-  Printer
+  Printer,
+  Download
 } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import CustomDatePicker from '../CustomDatePicker';
@@ -30,6 +32,7 @@ import Pagination from '../Pagination';
 import { getDosePreview, getMedicationPricingAmount, getMedicationRoleLabel, formatNumericMedicineWithFormula } from '../../utils/prescriptionFormat';
 import { useTranslation } from 'react-i18next';
 import MedicationDispensingStatus from '../MedicationDispensingStatus';
+import PrescriptionPrint from '../PrescriptionPrint';
 
 const RepeatMedicineInvoice = ({ record }: { record: any }) => {
   const medicines = record?.prescription?.medications || [];
@@ -123,7 +126,10 @@ const RepeatMedicineInvoice = ({ record }: { record: any }) => {
       </table>
 
       <div className="mt-5 text-xs font-bold text-gray-600">
-        <p>Payment Status: {record?.prescription?.payment_status || 'PAID'}</p>
+        <p>Payment Status: {record?.medication_bill?.payment_status || record?.prescription?.payment_status || 'PAID'}</p>
+        {Number(record?.medication_bill?.pending_amount || record?.prescription?.pending_amount || 0) > 0 && (
+          <p>Pending Amount: ₹ {Number(record?.medication_bill?.pending_amount || record?.prescription?.pending_amount || 0).toFixed(2)}</p>
+        )}
         {isRepeat && record?.prescription?.delivery_details?.delivery_remark && (
           <p>Delivery Remark: {record.prescription.delivery_details.delivery_remark}</p>
         )}
@@ -163,13 +169,16 @@ const RepeatMedicineInvoice = ({ record }: { record: any }) => {
 
 export default function DispensaryHistory() {
   const { t, i18n } = useTranslation();
-  const { token, branchScope } = useAuth();
+  const { token, user, branchScope } = useAuth();
   const { addToast } = useNotifications();
   const [patientSearch, setPatientSearch] = useState('');
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
+  const [previewPrescription, setPreviewPrescription] = useState<any | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
   const [amount, setAmount] = useState('');
   const [remark, setRemark] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -244,6 +253,29 @@ export default function DispensaryHistory() {
     const pricingAmount = p.prescription?.pricing?.total_amount;
     setAmount(pricingAmount ? pricingAmount.toString() : '0');
     setRemark(p.prescription?.pricing?.remark || 'No dispensing notes provided.');
+  };
+
+  const openPrescriptionPreview = async (consultationId?: number | string | null) => {
+    if (!token || !consultationId) return;
+    setIsPreviewLoading(true);
+    try {
+      const roleCode = String(user?.role_code || '').toUpperCase();
+      const role = String(user?.role || '').toLowerCase();
+      const isReceptionist = roleCode === 'REC' || role === 'rec' || role === 'receptionist';
+      const endpoint = isReceptionist
+        ? `/api/v1/receptionist/prescriptions/${consultationId}`
+        : `/api/v1/medical/prescriptions/${consultationId}`;
+      const response = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to load prescription');
+      }
+      setPreviewPrescription({ consultation: result.data, appointment: result.data });
+    } catch (previewError: any) {
+      addToast(previewError.message || 'Unable to load prescription', 'error');
+    } finally {
+      setIsPreviewLoading(false);
+    }
   };
 
   const getDispensaryStatus = (record: any) => {
@@ -412,6 +444,11 @@ export default function DispensaryHistory() {
                       <p className="text-sm font-black text-[#2d8789] uppercase tracking-wide">
                         {p.patient?.full_name}
                       </p>
+                      {Number(p.medication_bill?.pending_amount || p.prescription?.pending_amount || 0) > 0 && (
+                        <span className="inline-flex mt-1 px-2 py-0.5 bg-orange-50 text-orange-600 border border-orange-100 rounded-md text-[9px] font-black uppercase tracking-widest">
+                          Pending ₹ {Number(p.medication_bill?.pending_amount || p.prescription?.pending_amount || 0).toFixed(2)}
+                        </span>
+                      )}
                       {p.is_repeat_medicine && (
                         <span className="inline-flex mt-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-md text-[9px] font-black uppercase tracking-widest">
                           Repeat Medicine
@@ -446,7 +483,16 @@ export default function DispensaryHistory() {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-gray-50">
+                <div className="mt-4 pt-3 border-t border-gray-50 flex flex-col gap-2">
+                  {p.consultation_id && (
+                    <button
+                      onClick={() => openPrescriptionPreview(p.consultation_id)}
+                      disabled={isPreviewLoading}
+                      className="w-full inline-flex justify-center items-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                    >
+                      <FileText size={16} /> {t('dispensary_history.table.view_prescription', 'View Prescription')}
+                    </button>
+                  )}
                   <button
                     onClick={() => handleViewDetails(p)}
                     className="w-full inline-flex justify-center items-center gap-2 px-4 py-3 bg-[#549E9E] hover:bg-[#438787] text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
@@ -521,6 +567,11 @@ export default function DispensaryHistory() {
                       <div>
                         <p className="text-sm font-black text-[#2d8789] uppercase tracking-wide">{p.patient?.full_name}</p>
                         <p className="text-[10px] text-gray-400 font-bold">{p.patient?.mobile_no}</p>
+                        {Number(p.medication_bill?.pending_amount || p.prescription?.pending_amount || 0) > 0 && (
+                          <span className="inline-flex mt-1 px-2 py-0.5 bg-orange-50 text-orange-600 border border-orange-100 rounded-md text-[9px] font-black uppercase tracking-widest">
+                            Pending ₹ {Number(p.medication_bill?.pending_amount || p.prescription?.pending_amount || 0).toFixed(2)}
+                          </span>
+                        )}
                         {p.is_repeat_medicine && (
                           <span className="inline-flex mt-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-md text-[9px] font-black uppercase tracking-widest">
                             Repeat Medicine
@@ -550,12 +601,23 @@ export default function DispensaryHistory() {
                       <DispensaryStatusBadge record={p} />
                     </td>
                     <td className="px-5 py-4 text-center">
-                      <button
-                        onClick={() => handleViewDetails(p)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#549E9E] hover:bg-[#438787] text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
-                      >
-                        <FileText size={14} /> {t('dispensary_history.table.view', 'View')}
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        {p.consultation_id && (
+                          <button
+                            onClick={() => openPrescriptionPreview(p.consultation_id)}
+                            disabled={isPreviewLoading}
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                          >
+                            <FileText size={14} /> {t('dispensary_history.table.view_prescription', 'View Prescription')}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleViewDetails(p)}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-[#549E9E] hover:bg-[#438787] text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                        >
+                          <FileText size={14} /> {t('dispensary_history.table.view', 'View')}
+                        </button>
+                      </div>
                     </td>
                   </motion.tr>
                 ))
@@ -609,6 +671,16 @@ export default function DispensaryHistory() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    {selectedPrescription.consultation_id && (
+                      <button
+                        onClick={() => openPrescriptionPreview(selectedPrescription.consultation_id)}
+                        disabled={isPreviewLoading}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-colors disabled:bg-gray-200"
+                      >
+                        <FileText size={14} />
+                        {t('dispensary_history.table.view_prescription', 'View Prescription')}
+                      </button>
+                    )}
                     <button
                       onClick={() => window.print()}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-[#549E9E] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#438787] transition-colors"
@@ -774,10 +846,74 @@ export default function DispensaryHistory() {
                 </div>
               </div>
             </motion.div>
-            <RepeatMedicineInvoice record={selectedPrescription} />
+            {selectedPrescription && !previewPrescription && (
+              <RepeatMedicineInvoice record={selectedPrescription} />
+            )}
           </div>
         )}
       </AnimatePresence>
+
+      {previewPrescription && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/80 p-4 backdrop-blur-md no-print">
+          <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">{t('patient_records.modal.prescription_preview', 'Prescription Preview')}</h3>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('patient_records.modal.saved_prescription_sub', 'Saved doctor consultation prescription')}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPrescriptionLang('en')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                      prescriptionLang === 'en'
+                        ? 'bg-[#549E9E] text-white shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                    }`}
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrescriptionLang('hi')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                      prescriptionLang === 'hi'
+                        ? 'bg-[#549E9E] text-white shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                    }`}
+                  >
+                    हिंदी (Hindi)
+                  </button>
+                </div>
+                <button onClick={() => window.print()} className="flex items-center gap-2 rounded-xl bg-[#549E9E] px-6 py-2.5 text-xs font-black uppercase tracking-widest text-white hover:bg-[#458b8b]">
+                  <Download size={16} /> {t('patient_records.modal.action.print', 'Print')}
+                </button>
+                <button onClick={() => setPreviewPrescription(null)} className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500">
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-1 items-start justify-center overflow-auto bg-gray-200/50 p-4 md:p-12" data-lenis-prevent>
+              <div className="mx-auto flex min-h-[297mm] w-[210mm] shrink-0 flex-col rounded-sm border border-gray-100 bg-white p-0 shadow-xl md:p-8">
+                <PrescriptionPrint consultation={previewPrescription.consultation} appointment={previewPrescription.appointment} lang={prescriptionLang} />
+              </div>
+            </div>
+          </div>
+        </div>, document.body)}
+
+      <div className="print-only">
+        {previewPrescription && <PrescriptionPrint consultation={previewPrescription.consultation} appointment={previewPrescription.appointment} lang={prescriptionLang} />}
+      </div>
+      <style>{`
+        @media screen {
+          .print-only { display: none; }
+        }
+        @media print {
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+        }
+      `}</style>
     </div>
   );
 }

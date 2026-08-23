@@ -56,6 +56,8 @@ import {
   getDurationDaysFromKey,
   getDurationKeyFromDays,
   getDurationMultiplier,
+  getDrops30MlQuantity,
+  isDrops30MlSelection,
   isThirtyDayDuration,
   MEDICATION_DURATION_DAY_OPTIONS,
   MEDICATION_DURATION_MONTH_OPTIONS,
@@ -102,7 +104,28 @@ type VariantInfo = {
   price: string | number;
   type: string;
   remark_suggestions?: any[];
+  category?: string;
+  packing?: string;
+  product_type?: string;
 };
+
+const toTextMedicineVariant = (
+  product: any,
+  label: string,
+  type: string,
+): VariantInfo => ({
+  label,
+  price: product.mrp_rate || product.price_max || product.price_min || "0",
+  type,
+  remark_suggestions: product.remark_suggestions || [],
+  category: product.category || "",
+  packing:
+    product.packing ||
+    product.size_or_weight ||
+    product.net_weight_or_size ||
+    "",
+  product_type: product.product_type || "",
+});
 
 type RemarkSuggestion = {
   remark_value: string;
@@ -131,13 +154,24 @@ const toHindiRemarkOption = (value: string) => {
 };
 
 const HINDI_REMARK_PLACEHOLDER = "उदा. भोजन के बाद लें, दिन में दो बार लगाएं...";
-const DEFAULT_UNIVERSAL_REMARK_OPTIONS = [
+const DEFAULT_UNIVERSAL_REMARKS = [
   "20 drop for 3 times in a day",
   "30 drop for 2 times in a day",
   "1 spoon",
   "2 spoon",
   "3 spoon",
-].map(toHindiRemarkOption);
+];
+
+const mergeUniversalRemarkOptions = (values: Array<string | null | undefined>) =>
+  Array.from(
+    new Map(
+      values
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .map(toHindiRemarkOption)
+        .map((option) => [option.value.toLowerCase(), option]),
+    ).values(),
+  );
 
 type OtherMedEntry = {
   name: string;
@@ -652,7 +686,9 @@ export default function ConsultationPage() {
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [isVitalsOpen, setIsVitalsOpen] = useState(false);
 
-  const [chiefComplaints, setChiefComplaints] = useState(app?.symptoms || "");
+  const [chiefComplaints, setChiefComplaints] = useState<string>(
+    app?.symptoms || "",
+  );
   const [diagnosis, setDiagnosis] = useState("");
   const [treatmentNotes, setTreatmentNotes] = useState("");
   const [hasNoAdvice, setHasNoAdvice] = useState(false);
@@ -697,6 +733,9 @@ export default function ConsultationPage() {
     { test_name: "", amount: "" },
   ]);
   const [universalRemark, setUniversalRemark] = useState("");
+  const [universalRemarkSuggestions, setUniversalRemarkSuggestions] = useState<
+    string[]
+  >([]);
   const [textMedicines, setTextMedicines] = useState<TextMedicine[]>([]);
   const [labTests, setLabTests] = useState<LabTestMaster[]>([]);
   const [prescriptionSuggestions, setPrescriptionSuggestions] = useState<
@@ -740,19 +779,39 @@ export default function ConsultationPage() {
 
   // Extended History Fields
   const [isExtendedHistoryOpen, setIsExtendedHistoryOpen] = useState(false);
-  const [occupation, setOccupation] = useState(app?.occupation || "");
-  const [historyPresentIllness, setHistoryPresentIllness] = useState(app?.history_present_illness || "");
-  const [historyPastIllness, setHistoryPastIllness] = useState(app?.history_past_illness || "");
-  const [familyHistory, setFamilyHistory] = useState(app?.family_history || "");
-  const [allergiesHistory, setAllergiesHistory] = useState(app?.allergies_history || "");
-  const [gynecologicalHistory, setGynecologicalHistory] = useState(app?.gynecological_history || "");
-  const [personalSocialHistory, setPersonalSocialHistory] = useState(app?.personal_social_history || "");
-  const [generalExamination, setGeneralExamination] = useState(app?.general_examination || "");
-  const [systematicExamination, setSystematicExamination] = useState(app?.systematic_examination || "");
-  const [differentialDiagnosis, setDifferentialDiagnosis] = useState(app?.differential_diagnosis || "");
-  const [followUp, setFollowUp] = useState(app?.follow_up || "");
-  const [mentalMindStatus, setMentalMindStatus] = useState(app?.mental_mind_status || "");
-  const [disease, setDisease] = useState(app?.disease || "");
+  const [occupation, setOccupation] = useState<string>(app?.occupation || "");
+  const [historyPresentIllness, setHistoryPresentIllness] = useState<string>(
+    app?.history_present_illness || "",
+  );
+  const [historyPastIllness, setHistoryPastIllness] = useState<string>(
+    app?.history_past_illness || "",
+  );
+  const [familyHistory, setFamilyHistory] = useState<string>(
+    app?.family_history || "",
+  );
+  const [allergiesHistory, setAllergiesHistory] = useState<string>(
+    app?.allergies_history || "",
+  );
+  const [gynecologicalHistory, setGynecologicalHistory] = useState<string>(
+    app?.gynecological_history || "",
+  );
+  const [personalSocialHistory, setPersonalSocialHistory] = useState<string>(
+    app?.personal_social_history || "",
+  );
+  const [generalExamination, setGeneralExamination] = useState<string>(
+    app?.general_examination || "",
+  );
+  const [systematicExamination, setSystematicExamination] = useState<string>(
+    app?.systematic_examination || "",
+  );
+  const [differentialDiagnosis, setDifferentialDiagnosis] = useState<string>(
+    app?.differential_diagnosis || "",
+  );
+  const [followUp, setFollowUp] = useState<string>(app?.follow_up || "");
+  const [mentalMindStatus, setMentalMindStatus] = useState<string>(
+    app?.mental_mind_status || "",
+  );
+  const [disease, setDisease] = useState<string>(app?.disease || "");
 
   const [isPatientEditOpen, setIsPatientEditOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -842,6 +901,15 @@ export default function ConsultationPage() {
           if (Array.isArray(result.data.lab_tests)) {
             setLabTests(result.data.lab_tests);
           }
+          if (Array.isArray(result.data.universal_remarks)) {
+            setUniversalRemarkSuggestions(
+              result.data.universal_remarks
+                .map((remark: { remark_value?: string }) =>
+                  String(remark.remark_value || "").trim(),
+                )
+                .filter(Boolean),
+            );
+          }
         }
       } catch (err) {
         console.error("Failed to fetch doctor masters:", err);
@@ -887,6 +955,16 @@ export default function ConsultationPage() {
 
     return (medicationTotal + otherMedicationTotal + testsTotal).toFixed(2);
   }, [medications, otherMedications, tests]);
+
+  const universalRemarkOptions = useMemo(
+    () =>
+      mergeUniversalRemarkOptions([
+        ...universalRemarkSuggestions,
+        ...DEFAULT_UNIVERSAL_REMARKS,
+        universalRemark,
+      ]),
+    [universalRemark, universalRemarkSuggestions],
+  );
 
   const quickFormulaPreview = useMemo(
     () => parseDoctorFormulaInput(quickNumericInput, formulaSnapshot),
@@ -1934,59 +2012,123 @@ export default function ConsultationPage() {
       return medicine.medical_products
         .map((p: any) => {
           if (p.source_type === "REGULAR_PRODUCT") {
-            return {
-              label: p.packing || "N/A",
-              price: p.mrp_rate || "0",
-              type: "product",
-              remark_suggestions: p.remark_suggestions || [],
-            };
+            return toTextMedicineVariant(p, p.packing || "N/A", "product");
           }
           if (p.source_type === "RADIENT_PHARMA") {
-            return {
-              label: p.size_or_weight || p.net_weight_or_size || "N/A",
-              price: p.mrp_rate || "0",
-              type: "radient",
-              remark_suggestions: p.remark_suggestions || [],
-            };
+            return toTextMedicineVariant(
+              p,
+              p.size_or_weight || p.net_weight_or_size || "N/A",
+              "radient",
+            );
           }
           if (p.source_type === "DOCTOR_MANUAL") {
-            return {
-              label: p.packing || p.size_or_weight || p.product_name || "N/A",
-              price: p.mrp_rate || "0",
-              type: "manual",
-              remark_suggestions: p.remark_suggestions || [],
-            };
+            return toTextMedicineVariant(
+              p,
+              p.packing || p.size_or_weight || p.product_name || "N/A",
+              "manual",
+            );
           }
-          return {
-            label: p.packing || p.size_or_weight || "N/A",
-            price: p.mrp_rate || p.price_max || p.price_min || "0",
-            type: "medical_product_price",
-            remark_suggestions: p.remark_suggestions || [],
-          };
+          return toTextMedicineVariant(
+            p,
+            p.packing || p.size_or_weight || "N/A",
+            "medical_product_price",
+          );
         })
-        .filter((v: any) => v.label);
+        .filter((v: VariantInfo) => v.label);
     }
 
     return [
-      ...(medicine.products || []).map((p: any) => ({
-        label: p.packing || "N/A",
-        price: p.mrp_rate || "0",
-        type: "product",
-        remark_suggestions: p.remark_suggestions || [],
-      })),
-      ...(medicine.radient_pharma_products || []).map((p: any) => ({
-        label: p.net_weight_or_size || "N/A",
-        price: p.mrp_rate || "0",
-        type: "radient",
-        remark_suggestions: p.remark_suggestions || [],
-      })),
-      ...(medicine.handwritten_product_prices || []).map((p: any) => ({
-        label: p.product_name || p.category || "N/A",
-        price: p.price_max || p.price_min || "0",
-        type: "handwritten",
-        remark_suggestions: p.remark_suggestions || [],
-      })),
+      ...(medicine.products || []).map((p: any) =>
+        toTextMedicineVariant(p, p.packing || "N/A", "product"),
+      ),
+      ...(medicine.radient_pharma_products || []).map((p: any) =>
+        toTextMedicineVariant(
+          p,
+          p.net_weight_or_size || "N/A",
+          "radient",
+        ),
+      ),
+      ...(medicine.handwritten_product_prices || []).map((p: any) =>
+        toTextMedicineVariant(
+          p,
+          p.product_name || p.category || "N/A",
+          "handwritten",
+        ),
+      ),
     ].filter((v) => v.label);
+  };
+
+  const getOtherMedProductFields = (
+    medicineName: string,
+    variant: VariantInfo | null | undefined,
+  ) => {
+    if (!variant) return null;
+
+    const fromVariant = {
+      category: variant.category,
+      product_type: variant.product_type,
+      packing: variant.packing,
+      size_or_weight: variant.packing,
+      label: variant.label,
+    };
+    if (isDrops30MlSelection(fromVariant)) return fromVariant;
+
+    const medicine = textMedicines.find(
+      (item) => item.medicine_value === medicineName,
+    );
+    if (!medicine) return fromVariant;
+
+    const products = [
+      ...(medicine.medical_products || []),
+      ...(medicine.products || []),
+      ...(medicine.radient_pharma_products || []),
+      ...(medicine.handwritten_product_prices || []),
+    ];
+    const normalizedLabel = String(variant.label || "")
+      .trim()
+      .toLowerCase();
+    const match = products.find((product: any) =>
+      [
+        product.packing,
+        product.size_or_weight,
+        product.net_weight_or_size,
+        product.product_name,
+      ]
+        .map((value) => String(value || "").trim().toLowerCase())
+        .includes(normalizedLabel),
+    );
+
+    if (!match) return fromVariant;
+
+    return {
+      category: match.category,
+      product_type: match.product_type,
+      packing: match.packing,
+      size_or_weight: match.size_or_weight || match.net_weight_or_size,
+      label: variant.label,
+    };
+  };
+
+  const withDropsDurationQuantity = (
+    entry: OtherMedEntry,
+    variant: VariantInfo | null | undefined = entry.selectedVariant,
+  ): OtherMedEntry => {
+    if (!isDrops30MlSelection(getOtherMedProductFields(entry.name, variant))) {
+      return {
+        ...entry,
+        selectedVariant: variant,
+      };
+    }
+
+    const quantity = getDrops30MlQuantity(globalDuration);
+    const unitPrice = variant?.price ? Number(variant.price) : 0;
+
+    return {
+      ...entry,
+      selectedVariant: variant,
+      quantity,
+      amount: unitPrice ? (unitPrice * quantity).toFixed(2) : entry.amount,
+    };
   };
 
   const applyOtherMedicineSelection = (
@@ -2017,25 +2159,27 @@ export default function ConsultationPage() {
     );
     const defaultVariant =
       computedVariants.length === 1 ? computedVariants[0] : null;
-    const qtyNum = Math.max(1, parseInt(String(current.quantity || 1)) || 1);
-    const unitPrice =
-      defaultVariant && defaultVariant.price
-        ? Number(defaultVariant.price)
-        : 0;
     const nextRemark = getLatestRemarkSuggestion(
       defaultVariant?.remark_suggestions?.length
         ? defaultVariant.remark_suggestions
         : medicine?.remark_suggestions,
     );
+    const qtyNum = Math.max(1, parseInt(String(current.quantity || 1)) || 1);
+    const unitPrice =
+      defaultVariant && defaultVariant.price
+        ? Number(defaultVariant.price)
+        : 0;
 
-    return {
-      ...current,
-      name: trimmedName,
-      isManualEntry,
-      selectedVariant: defaultVariant,
-      remark: nextRemark,
-      amount: unitPrice ? (unitPrice * qtyNum).toFixed(2) : current.amount,
-    };
+    return withDropsDurationQuantity(
+      {
+        ...current,
+        name: trimmedName,
+        isManualEntry,
+        remark: nextRemark,
+        amount: unitPrice ? (unitPrice * qtyNum).toFixed(2) : current.amount,
+      },
+      defaultVariant,
+    );
   };
 
   const applyOtherMedicineRemark = (
@@ -2045,6 +2189,35 @@ export default function ConsultationPage() {
     ...current,
     remark,
   });
+
+  useEffect(() => {
+    if (isReadOnly) return;
+
+    setOtherMedications((prev) => {
+      let hasChanges = false;
+      const next = prev.map((entry) => {
+        if (
+          !isDrops30MlSelection(
+            getOtherMedProductFields(entry.name, entry.selectedVariant),
+          )
+        ) {
+          return entry;
+        }
+
+        const updated = withDropsDurationQuantity(entry);
+        if (
+          String(updated.quantity) !== String(entry.quantity) ||
+          updated.amount !== entry.amount
+        ) {
+          hasChanges = true;
+          return updated;
+        }
+        return entry;
+      });
+
+      return hasChanges ? next : prev;
+    });
+  }, [globalDuration, isReadOnly, textMedicines]);
 
   const getAvailableLabTestOptions = (currentIndex: number) => {
     const selectedLabTestIds = new Set(
@@ -5094,15 +5267,17 @@ export default function ConsultationPage() {
                         );
 
                         const updated = [...otherMedications];
-                        updated[idx] = {
-                          ...updated[idx],
-                          selectedVariant: variant,
-                          remark: nextRemark || updated[idx].remark,
-                          amount:
-                            unitPrice
-                              ? (unitPrice * qtyNum).toFixed(2)
-                              : updated[idx].amount,
-                        };
+                        updated[idx] = withDropsDurationQuantity(
+                          {
+                            ...updated[idx],
+                            remark: nextRemark || updated[idx].remark,
+                            amount:
+                              unitPrice
+                                ? (unitPrice * qtyNum).toFixed(2)
+                                : updated[idx].amount,
+                          },
+                          variant,
+                        );
                         setOtherMedications(updated);
                       }}
                       placeholder={t(
@@ -5250,7 +5425,7 @@ export default function ConsultationPage() {
             id="universal-remark-trigger"
             disabled={isReadOnly}
             allowCustom={true}
-            options={DEFAULT_UNIVERSAL_REMARK_OPTIONS}
+            options={universalRemarkOptions}
             value={universalRemark}
             onChange={setUniversalRemark}
             placeholder={HINDI_REMARK_PLACEHOLDER}

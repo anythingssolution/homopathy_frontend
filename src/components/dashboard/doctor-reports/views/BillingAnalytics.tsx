@@ -123,6 +123,56 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
               <StatCard title="Pending" value={`₹${rev.pending_amount || 0}`} icon={Clock} colorClass="border-amber-500" />
             </div>
 
+            {Array.isArray(data?.pending_amount) && data.pending_amount.length > 0 && (
+              <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm">
+                <div className="mb-6">
+                  <h4 className="text-sm font-black text-gray-700 uppercase tracking-widest">Pending / Borrowed Dues</h4>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                    Visit-wise remaining amount with date and consultation
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50/50">
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Patient</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Date</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Consultation / Bill</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Type</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Paid</th>
+                        <th className="py-3 px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Pending</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
+                      {data.pending_amount.map((row: any) => (
+                        <tr key={row.bill_id} className="hover:bg-[#549E9E]/[0.02]">
+                          <td className="py-3 px-4">
+                            <div className="font-extrabold text-gray-800">{row.patient_full_name}</div>
+                            <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{row.patient_mobile_no}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            {row.due_date ? new Date(row.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div>{row.auid || row.bill_number}</div>
+                            <div className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">
+                              {row.consultation_id ? `Consult #${row.consultation_id}` : (row.treatment_name || 'Repeat')}
+                              {row.doctor_name ? ` • ${row.doctor_name}` : ''}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 uppercase tracking-widest text-[10px]">{row.bill_type}</td>
+                          <td className="py-3 px-4 text-right">₹ {Number(row.total_amount || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right text-emerald-600">₹ {Number(row.paid_amount || 0).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right text-amber-500">₹ {Number(row.pending_amount || 0).toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm min-h-[400px]">
                 <div className="mb-6">

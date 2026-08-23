@@ -4,6 +4,9 @@ import { AlertCircle, Check, CheckCircle2, ChevronDown, IndianRupee, Plus, Refre
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { formatConsultationMedicineText } from '../../utils/prescriptionFormat';
+import MedicationDuePaymentPanel from './MedicationDuePaymentPanel';
+import { formatMoney } from '../../utils/medicationDues';
+import type { AllocationOrder, AccountDues, DueBill } from '../../utils/medicationDues';
 
 const money = (value: number | string | null | undefined) => Number(value || 0).toFixed(2);
 
@@ -15,6 +18,7 @@ type Patient = {
   mobile_no: string;
   age?: number;
   gender?: string;
+  account_dues?: AccountDues;
 };
 
 type PrescriptionMedicine = {
@@ -27,6 +31,7 @@ type PrescriptionMedicine = {
 
 type LastPrescription = {
   patient: Patient;
+  account_dues?: AccountDues;
   prescription: {
     consultation_id: number;
     doctor_name: string;
@@ -164,6 +169,8 @@ export default function RepeatMedicine() {
   const [textMedicines, setTextMedicines] = useState<any[]>([]);
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'ONLINE'>('CASH');
   const [transactionReference, setTransactionReference] = useState('');
+  const [collectedAmount, setCollectedAmount] = useState('');
+  const [allocationOrder, setAllocationOrder] = useState<AllocationOrder>('CURRENT_FIRST');
   const [remark, setRemark] = useState('');
   const [isCourierDelivery, setIsCourierDelivery] = useState(false);
   const [courierAddress, setCourierAddress] = useState('');
@@ -266,6 +273,10 @@ export default function RepeatMedicine() {
       setLastPrescription(data);
       setSelectedMedicineIds(nextSelected);
       setMedicineAmounts(nextAmounts);
+      setCollectedAmount('');
+      setAllocationOrder('CURRENT_FIRST');
+      setPaymentMode('CASH');
+      setTransactionReference('');
     } catch (error: any) {
       addToast(error.message || 'Last prescription not found', 'error');
     } finally {
@@ -379,6 +390,21 @@ export default function RepeatMedicine() {
       return;
     }
 
+    const previousPending = Number(lastPrescription.account_dues?.total_pending || selectedPatient.account_dues?.total_pending || 0);
+    const received = collectedAmount === '' ? totalAmount : Number(collectedAmount || 0);
+    if (Number.isNaN(received) || received < 0) {
+      addToast('Please enter a valid amount received. Use 0 if the patient is borrowing the full bill.', 'warning');
+      return;
+    }
+    if (received > totalAmount + previousPending + 0.001) {
+      addToast('Amount received cannot be greater than total due including previous pending', 'warning');
+      return;
+    }
+    if (paymentMode === 'ONLINE' && received > 0 && !transactionReference.trim()) {
+      addToast('Transaction reference is required for online payment', 'warning');
+      return;
+    }
+
     if (isCourierDelivery && !courierAddress.trim()) {
       addToast('Courier address mandatory hai', 'warning');
       return;
@@ -408,9 +434,10 @@ export default function RepeatMedicine() {
           },
           payment: {
             payment_mode: paymentMode,
-            amount: totalAmount,
+            amount: received,
             transaction_reference: transactionReference.trim() || null,
             remark: remark.trim() || 'Repeat Medicine',
+            allocation_order: allocationOrder,
           },
         }),
       });
@@ -481,6 +508,11 @@ export default function RepeatMedicine() {
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
                   {patient.clinic_patient_no || patient.uuid} • {patient.mobile_no}
                 </div>
+                {Number(patient.account_dues?.total_pending || 0) > 0 && (
+                  <div className="mt-2 inline-flex px-2 py-0.5 rounded-md bg-orange-50 text-orange-600 border border-orange-100 text-[9px] font-black uppercase tracking-widest">
+                    Pending {formatMoney(patient.account_dues?.total_pending)}
+                  </div>
+                )}
               </button>
             ))}
           </div>
@@ -613,30 +645,23 @@ export default function RepeatMedicine() {
               <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">Repeat Bill</h3>
             </div>
             <div className="bg-[#549E9E]/5 border border-[#549E9E]/10 p-5">
-              <p className="text-[10px] font-black text-[#549E9E]/70 uppercase tracking-widest">Total Amount</p>
+              <p className="text-[10px] font-black text-[#549E9E]/70 uppercase tracking-widest">Today's Bill</p>
               <p className="text-3xl font-black text-[#549E9E] mt-1">₹ {money(totalAmount)}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              {(['CASH', 'ONLINE'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setPaymentMode(mode)}
-                  className={`py-3 text-[10px] font-black uppercase tracking-widest border ${paymentMode === mode ? 'bg-[#549E9E] text-white border-[#549E9E]' : 'bg-white text-gray-500 border-gray-100'}`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-
-            {paymentMode === 'ONLINE' && (
-              <input
-                value={transactionReference}
-                onChange={(e) => setTransactionReference(e.target.value)}
-                placeholder="Transaction reference"
-                className="w-full bg-gray-50 border border-gray-100 px-4 py-3 text-xs font-bold outline-none"
-              />
-            )}
+            <MedicationDuePaymentPanel
+              todayAmount={totalAmount}
+              previousBills={(lastPrescription.account_dues?.bills || []) as DueBill[]}
+              collectedAmount={collectedAmount === '' ? money(totalAmount) : collectedAmount}
+              onCollectedAmountChange={setCollectedAmount}
+              paymentMode={paymentMode}
+              onPaymentModeChange={setPaymentMode}
+              transactionReference={transactionReference}
+              onTransactionReferenceChange={setTransactionReference}
+              allocationOrder={allocationOrder}
+              onAllocationOrderChange={setAllocationOrder}
+              showRemark={false}
+            />
 
             <div className="border border-gray-100 bg-gray-50/60 p-4 space-y-3">
               <div className="grid grid-cols-2 gap-2">

@@ -21,7 +21,8 @@ import {
   Stethoscope,
   MapPin,
   XCircle,
-  Hash
+  Hash,
+  Download
 } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import { dedupedFetch } from '../../utils/dedupedFetch';
@@ -29,6 +30,10 @@ import CustomDatePicker from '../CustomDatePicker';
 import Pagination from '../Pagination';
 import { useTranslation } from 'react-i18next';
 import { formatConsultationMedicineText, formatNumericMedicineWithFormula, getDosePreview } from '../../utils/prescriptionFormat';
+import MedicationDuePaymentPanel from './MedicationDuePaymentPanel';
+import { formatMoney } from '../../utils/medicationDues';
+import type { AllocationOrder, DueBill } from '../../utils/medicationDues';
+import PrescriptionPrint from '../PrescriptionPrint';
 
 const StatusBadge = ({ status }: { status: string }) => {
   const s = status.toLowerCase();
@@ -274,14 +279,17 @@ export default function MedicalDashboard() {
   }, [token]);
 
   const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
+  const [previewPrescription, setPreviewPrescription] = useState<any | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
   const [amount, setAmount] = useState('');
   const [remark, setRemark] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'ONLINE'>('CASH');
-  const [paymentDropdownOpen, setPaymentDropdownOpen] = useState(false);
-  const paymentDropdownRef = useRef<HTMLDivElement>(null);
   const [transactionReference, setTransactionReference] = useState('');
   const [paymentRemark, setPaymentRemark] = useState('');
+  const [collectedAmount, setCollectedAmount] = useState('');
+  const [allocationOrder, setAllocationOrder] = useState<AllocationOrder>('CURRENT_FIRST');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDate, setFilterDate] = useState<string>(() => {
@@ -338,17 +346,6 @@ export default function MedicalDashboard() {
     const timer = window.setTimeout(() => { void fetchPrescriptions(); }, delay);
     return () => window.clearTimeout(timer);
   }, [token, fetchPrescriptions, patientSearch]);
-
-  // Close payment dropdown on outside click
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (paymentDropdownRef.current && !paymentDropdownRef.current.contains(e.target as Node)) {
-        setPaymentDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -409,6 +406,29 @@ export default function MedicalDashboard() {
       (sum: number, test: any) => sum + (parseFloat(String(test?.amount ?? 0)) || 0),
       0
     );
+
+  const openPrescriptionPreview = async (consultationId?: number | string | null) => {
+    if (!token || !consultationId) return;
+    setIsPreviewLoading(true);
+    try {
+      const roleCode = String(user?.role_code || '').toUpperCase();
+      const role = String(user?.role || '').toLowerCase();
+      const isReceptionist = roleCode === 'REC' || role === 'rec' || role === 'receptionist';
+      const endpoint = isReceptionist
+        ? `/api/v1/receptionist/prescriptions/${consultationId}`
+        : `/api/v1/medical/prescriptions/${consultationId}`;
+      const response = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to load prescription');
+      }
+      setPreviewPrescription({ consultation: result.data, appointment: result.data });
+    } catch (previewError: any) {
+      addToast(previewError.message || 'Unable to load prescription', 'error');
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
 
   const handleDispense = (p: any) => {
     setSelectedPrescription(p);
@@ -474,6 +494,11 @@ export default function MedicalDashboard() {
           ? pricing.total_amount.toString()
           : computedBaseTotal.toString()
       );
+      setCollectedAmount(
+        pricing.total_amount && Number(pricing.total_amount) !== 0
+          ? Number(pricing.total_amount).toFixed(2)
+          : Number(computedBaseTotal || 0).toFixed(2)
+      );
       setRemark(pricing.remark || '');
     } else {
       setMedAmounts({});
@@ -488,11 +513,16 @@ export default function MedicalDashboard() {
         (sum: number, test: any) => sum + (parseFloat(String(test?.amount ?? 0)) || 0),
         0
       ) || 0).toString());
+      setCollectedAmount(((p.prescription?.tests || []).reduce(
+        (sum: number, test: any) => sum + (parseFloat(String(test?.amount ?? 0)) || 0),
+        0
+      ) || 0).toFixed(2));
       setRemark('');
     }
     setPaymentMode('CASH');
     setTransactionReference('');
     setPaymentRemark('');
+    setAllocationOrder('CURRENT_FIRST');
     setVoidDialog(null);
     setVoidReason('');
   };
@@ -650,12 +680,20 @@ export default function MedicalDashboard() {
       return;
     }
 
-    if (processAfterSave && parseFloat(amount) <= 0) {
-      addToast('Please enter a valid payment amount', 'error');
+    if (processAfterSave && (Number.isNaN(parseFloat(collectedAmount)) || parseFloat(collectedAmount) < 0)) {
+      addToast('Please enter a valid amount received. Use 0 if the patient is borrowing the full bill.', 'error');
       return;
     }
 
-    if (processAfterSave && paymentMode === 'ONLINE' && !transactionReference.trim()) {
+    const todayTotal = parseFloat(amount) || 0;
+    const previousPending = Number(selectedPrescription?.account_dues?.total_pending || 0);
+    const received = parseFloat(collectedAmount) || 0;
+    if (processAfterSave && received > todayTotal + previousPending + 0.001) {
+      addToast('Amount received cannot be greater than total due including previous pending', 'error');
+      return;
+    }
+
+    if (processAfterSave && paymentMode === 'ONLINE' && received > 0 && !transactionReference.trim()) {
       addToast('Please enter transaction reference for online payment', 'error');
       return;
     }
@@ -677,9 +715,10 @@ export default function MedicalDashboard() {
         additional_medications: normalizedAdditionalMeds,
         payment: processAfterSave ? {
           payment_mode: paymentMode,
-          amount: parseFloat(amount),
+          amount: received,
           transaction_reference: paymentMode === 'ONLINE' ? transactionReference.trim() : null,
-          remark: paymentRemark.trim() || null
+          remark: paymentRemark.trim() || null,
+          allocation_order: allocationOrder,
         } : null
       };
       const requestKey = crypto.randomUUID();
@@ -796,6 +835,11 @@ export default function MedicalDashboard() {
                       <p className="text-sm font-black text-[#2d8789] uppercase tracking-wide">
                         {p.patient?.full_name}
                       </p>
+                      {Number(p.account_dues?.total_pending || 0) > 0 && (
+                        <span className="mt-1 inline-flex px-2 py-0.5 rounded-md bg-orange-50 text-orange-600 border border-orange-100 text-[9px] font-black uppercase tracking-widest">
+                          Pending {formatMoney(p.account_dues.total_pending)}
+                        </span>
+                      )}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] font-black text-gray-500 tracking-wider bg-gray-100 px-2 py-1 rounded-md">{p.appointment?.auid}</span>
                         <button onClick={(e) => { e.stopPropagation(); handleCopy(p.appointment?.auid); }} className="text-gray-400 p-1">
@@ -827,7 +871,14 @@ export default function MedicalDashboard() {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-gray-50">
+                <div className="mt-4 pt-3 border-t border-gray-50 flex flex-col gap-2">
+                  <button
+                    onClick={() => openPrescriptionPreview(p.consultation_id)}
+                    disabled={isPreviewLoading || !p.consultation_id}
+                    className="w-full inline-flex justify-center items-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                  >
+                    <FileText size={16} /> {t('medical_dashboard.table.view_prescription', 'View Prescription')}
+                  </button>
                   <button
                     onClick={() => handleDispense(p)}
                     className={`w-full inline-flex justify-center items-center gap-2 px-4 py-3 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer ${p.appointment?.status === 'Completed'
@@ -903,6 +954,11 @@ export default function MedicalDashboard() {
                             </span>
                           )}
                         </p>
+                        {Number(p.account_dues?.total_pending || 0) > 0 && (
+                          <span className="mt-1 inline-flex px-2 py-0.5 rounded-md bg-orange-50 text-orange-600 border border-orange-100 text-[9px] font-black uppercase tracking-widest">
+                            Pending {formatMoney(p.account_dues.total_pending)}
+                          </span>
+                        )}
                         <p className="text-[10px] text-gray-400 font-bold">
                           {p.patient?.mobile_no}
                           {p.patient?.booked_for_type === 'FAMILY_MEMBER' && p.patient?.primary_patient_full_name && (
@@ -930,15 +986,24 @@ export default function MedicalDashboard() {
                       </div>
                     </td>
                     <td className="px-5 py-4 text-center">
-                      <button
-                        onClick={() => handleDispense(p)}
-                        className={`inline-flex items-center gap-2 px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer ${p.appointment?.status === 'Completed'
-                            ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20'
-                            : 'bg-[#549E9E] hover:bg-[#438787] shadow-[#549E9E]/20'
-                          }`}
-                      >
-                        <Stethoscope size={14} /> {/* p.appointment?.status === 'Completed' ? 'View' : */ t('medical_dashboard.table.dispense', 'Dispense')}
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => openPrescriptionPreview(p.consultation_id)}
+                          disabled={isPreviewLoading || !p.consultation_id}
+                          className="inline-flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                        >
+                          <FileText size={14} /> {t('medical_dashboard.table.view_prescription', 'View Prescription')}
+                        </button>
+                        <button
+                          onClick={() => handleDispense(p)}
+                          className={`inline-flex items-center gap-2 px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer ${p.appointment?.status === 'Completed'
+                              ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20'
+                              : 'bg-[#549E9E] hover:bg-[#438787] shadow-[#549E9E]/20'
+                            }`}
+                        >
+                          <Stethoscope size={14} /> {t('medical_dashboard.table.dispense', 'Dispense')}
+                        </button>
+                      </div>
                     </td>
                   </motion.tr>
                 ))
@@ -997,12 +1062,21 @@ export default function MedicalDashboard() {
                     )}
                   </p>
                 </div>
-                <button
-                  onClick={() => setSelectedPrescription(null)}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-50 text-gray-400 transition-colors hover:bg-gray-100"
-                >
-                  <X size={18} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => openPrescriptionPreview(selectedPrescription.consultation_id)}
+                    disabled={isPreviewLoading || !selectedPrescription.consultation_id}
+                    className="inline-flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
+                  >
+                    <FileText size={14} /> {t('medical_dashboard.table.view_prescription', 'View Prescription')}
+                  </button>
+                  <button
+                    onClick={() => setSelectedPrescription(null)}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-50 text-gray-400 transition-colors hover:bg-gray-100"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
               </div>
 
               <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[1.15fr_0.85fr] lg:overflow-hidden">
@@ -1307,79 +1381,21 @@ export default function MedicalDashboard() {
                       />
                     </div>
 
-                    <div className="space-y-2.5">
-                      {/* Payment Mode */}
-                      <div className="space-y-1">
-                        <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">{t('dispense.payment_mode', 'Payment Mode')}</label>
-                        <div className="relative" ref={paymentDropdownRef}>
-                          <button
-                            type="button"
-                            onClick={() => setPaymentDropdownOpen((o) => !o)}
-                            className="flex w-full cursor-pointer items-center justify-between rounded-full bg-gray-50 py-2.5 pl-4 pr-3 text-xs font-black text-gray-700 outline-none transition-all focus:ring-2 focus:ring-[#549E9E]/20"
-                          >
-                            <span>{paymentMode === 'CASH' ? '💵 Cash' : '📱 Online (UPI / Paytm / Card)'}</span>
-                            <svg
-                              width="12" height="12" viewBox="0 0 12 12" fill="none"
-                              className={`text-[#549E9E] transition-transform duration-200 ${paymentDropdownOpen ? 'rotate-180' : ''}`}
-                            >
-                              <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </button>
-                          {paymentDropdownOpen && (
-                            <div className="absolute top-full left-0 right-0 z-50 mt-1.5 overflow-hidden rounded-[16px] border border-gray-100 bg-white py-1 shadow-xl">
-                              {[
-                                { value: 'CASH', label: '💵 Cash' },
-                                { value: 'ONLINE', label: '📱 Online (UPI / Paytm / Card)' },
-                              ].map((opt) => (
-                                <button
-                                  key={opt.value}
-                                  type="button"
-                                  onClick={() => { setPaymentMode(opt.value as 'CASH' | 'ONLINE'); setPaymentDropdownOpen(false); }}
-                                  className={`w-full px-4 py-2.5 text-left text-xs font-black transition-all ${paymentMode === opt.value
-                                      ? 'bg-[#549E9E]/10 text-[#549E9E]'
-                                      : 'text-gray-600 hover:bg-gray-50 hover:text-[#549E9E]'
-                                    }`}
-                                >
-                                  {opt.label}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Transaction Reference */}
-                      <div className="space-y-1">
-                        <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
-                          {t('dispense.transaction_ref', 'Transaction Reference')}
-                          {paymentMode === 'ONLINE'
-                            ? <span className="ml-1 text-red-400">*</span>
-                            : <span className="ml-1 font-bold normal-case tracking-normal text-gray-400">({t('common.optional', 'Optional')})</span>
-                          }
-                        </label>
-                        <input
-                          type="text"
-                          value={transactionReference}
-                          onChange={(e) => setTransactionReference(e.target.value)}
-                          placeholder={paymentMode === 'ONLINE' ? 'Enter UPI / Paytm / Card txn ID' : 'e.g. UPI ref, cheque no...'}
-                          className="w-full rounded-full border-none bg-gray-50 py-2.5 pl-4 pr-4 text-xs font-bold text-gray-700 outline-none transition-all focus:ring-2 focus:ring-[#549E9E]/20"
-                        />
-                      </div>
-
-                      {/* Payment Note */}
-                      <div className="space-y-1">
-                        <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
-                          {t('dispense.payment_note', 'Payment Note')}
-                          <span className="ml-1 font-bold normal-case tracking-normal text-gray-400">({t('common.optional', 'Optional')})</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={paymentRemark}
-                          onChange={(e) => setPaymentRemark(e.target.value)}
-                          placeholder="e.g. Collected at counter / Paytm / UPI"
-                          className="w-full rounded-full border-none bg-gray-50 py-2.5 pl-4 pr-4 text-xs font-bold text-gray-700 outline-none transition-all focus:ring-2 focus:ring-[#549E9E]/20"
-                        />
-                      </div>
+                    <div className="space-y-3">
+                      <MedicationDuePaymentPanel
+                        todayAmount={parseFloat(amount) || 0}
+                        previousBills={(selectedPrescription.account_dues?.bills || []) as DueBill[]}
+                        collectedAmount={collectedAmount}
+                        onCollectedAmountChange={setCollectedAmount}
+                        paymentMode={paymentMode}
+                        onPaymentModeChange={setPaymentMode}
+                        transactionReference={transactionReference}
+                        onTransactionReferenceChange={setTransactionReference}
+                        paymentRemark={paymentRemark}
+                        onPaymentRemarkChange={setPaymentRemark}
+                        allocationOrder={allocationOrder}
+                        onAllocationOrderChange={setAllocationOrder}
+                      />
                     </div>
                   </div>
 
@@ -1417,6 +1433,68 @@ export default function MedicalDashboard() {
       </AnimatePresence>,
       document.body,
       )}
+
+      {previewPrescription && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/80 p-4 backdrop-blur-md no-print">
+          <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">{t('patient_records.modal.prescription_preview', 'Prescription Preview')}</h3>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('patient_records.modal.saved_prescription_sub', 'Saved doctor consultation prescription')}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPrescriptionLang('en')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                      prescriptionLang === 'en'
+                        ? 'bg-[#549E9E] text-white shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                    }`}
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrescriptionLang('hi')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                      prescriptionLang === 'hi'
+                        ? 'bg-[#549E9E] text-white shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                    }`}
+                  >
+                    हिंदी (Hindi)
+                  </button>
+                </div>
+                <button onClick={() => window.print()} className="flex items-center gap-2 rounded-xl bg-[#549E9E] px-6 py-2.5 text-xs font-black uppercase tracking-widest text-white hover:bg-[#458b8b]">
+                  <Download size={16} /> {t('patient_records.modal.action.print', 'Print')}
+                </button>
+                <button onClick={() => setPreviewPrescription(null)} className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500">
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-1 items-start justify-center overflow-auto bg-gray-200/50 p-4 md:p-12" data-lenis-prevent>
+              <div className="mx-auto flex min-h-[297mm] w-[210mm] shrink-0 flex-col rounded-sm border border-gray-100 bg-white p-0 shadow-xl md:p-8">
+                <PrescriptionPrint consultation={previewPrescription.consultation} appointment={previewPrescription.appointment} lang={prescriptionLang} />
+              </div>
+            </div>
+          </div>
+        </div>, document.body)}
+
+      <div className="print-only">
+        {previewPrescription && <PrescriptionPrint consultation={previewPrescription.consultation} appointment={previewPrescription.appointment} lang={prescriptionLang} />}
+      </div>
+      <style>{`
+        @media screen {
+          .print-only { display: none; }
+        }
+        @media print {
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+        }
+      `}</style>
     </div>
   );
 }

@@ -923,7 +923,8 @@
       "all_status": "All Status",
       "unpaid": "Unpaid",
       "paid": "Paid",
-      "partial": "Partial"
+      "partial": "Partial",
+      "outstanding": "All Pending Dues"
     },
     "table": {
       "appointment": "Appointment",
@@ -1008,6 +1009,7 @@
       "date_slot": "Date & Slot",
       "branch": "Branch",
       "action": "Action",
+      "view_prescription": "View Prescription",
       "dispense": "Dispense"
     },
     "no_records": {
@@ -1030,7 +1032,8 @@
       "date_slot": "Date & Slot",
       "branch": "Branch",
       "action": "Action",
-      "view": "View"
+      "view": "View",
+      "view_prescription": "View Prescription"
     },
     "no_records": {
       "title": "No history found",
@@ -1074,7 +1077,8 @@
     "partial": "Partial",
     "bill_id_type": "Bill ID & Type",
     "patient_details": "Patient & Details",
-    "date": "Date"
+    "date": "Date",
+    "view_prescription": "View Prescription"
   },
   "cross_role": {
     "access_denied": "Access Denied",
@@ -1107,7 +1111,10 @@
     "transaction_ref": "Transaction Reference",
     "payment_note": "Payment Note",
     "confirm_dispensed": "Confirm & Mark as Dispensed",
-    "no_dose_details": "No dose details"
+    "no_dose_details": "No dose details",
+    "previous_pending": "Previous pending",
+    "amount_received": "Amount received",
+    "borrow_hint": "Enter less than today's bill to borrow the remaining amount."
   },
   "doctor_leave": {
     "selected_branch": "Selected Branch",

@@ -63,6 +63,46 @@ export function getDurationMultiplier(value: string | null | undefined): number 
   return DURATION_MULTIPLIERS[days] ?? 1;
 }
 
+export function isThirtyMlPacking(value: string | number | null | undefined): boolean {
+  return String(value || "").replace(/\s+/g, "").toLowerCase() === "30ml";
+}
+
+const looksLikeDropsCategory = (value: string | null | undefined): boolean => {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (!normalized) return false;
+  return (
+    normalized === "DROP" ||
+    normalized === "DROPS" ||
+    normalized.includes("DROPS")
+  );
+};
+
+export function isDrops30MlSelection(fields: {
+  category?: string | null;
+  product_type?: string | null;
+  packing?: string | null;
+  size_or_weight?: string | null;
+  label?: string | null;
+} | null | undefined): boolean {
+  if (!fields) return false;
+
+  const isDrops =
+    looksLikeDropsCategory(fields.category) ||
+    looksLikeDropsCategory(fields.product_type);
+  const is30Ml =
+    isThirtyMlPacking(fields.packing) ||
+    isThirtyMlPacking(fields.size_or_weight) ||
+    isThirtyMlPacking(fields.label);
+
+  return isDrops && is30Ml;
+}
+
+/** 30 ml DROPS: 1 bottle covers up to 15 days (7 and 15 stay 1, 30→2, 45→3). */
+export function getDrops30MlQuantity(value: string | null | undefined): number {
+  const days = getDurationDaysFromKey(value);
+  return Math.max(1, Math.ceil(days / 15));
+}
+
 export function isThirtyDayDuration(value: string | null | undefined): boolean {
   return getDurationDaysFromKey(value) === 30;
 }
@@ -96,4 +136,44 @@ export function formatDurationLabel(value: string | null | undefined): string {
   const key = normalizeDurationKey(value);
   const option = MEDICATION_DURATION_OPTIONS.find((item) => item.key === key);
   return option?.label ?? `${getDurationDaysFromKey(key)} Days`;
+}
+
+export function formatPrintDurationLabel(days: number, isHi = false): string {
+  const numericDays = Number(days) || 0;
+  if (numericDays <= 0) return '';
+
+  const months = getDurationMonths(numericDays);
+  if (months > 0) {
+    if (isHi) return months === 1 ? '1 माह' : `${months} माह`;
+    return months === 1 ? '1 Month' : `${months} Months`;
+  }
+
+  if (isHi) return numericDays === 1 ? '1 दिन' : `${numericDays} दिन`;
+  return numericDays === 1 ? '1 Day' : `${numericDays} Days`;
+}
+
+const formatGbDate = (date: Date) =>
+  date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+export function getMedicationPeriodDates(
+  startDate: string | Date | null | undefined,
+  days: number,
+): { fromDate: string; toDate: string } | null {
+  const numericDays = Number(days) || 0;
+  if (!startDate || numericDays <= 0) return null;
+
+  const start = new Date(startDate);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const end = new Date(start);
+  end.setDate(end.getDate() + Math.max(numericDays - 1, 0));
+
+  return {
+    fromDate: formatGbDate(start),
+    toDate: formatGbDate(end),
+  };
 }
