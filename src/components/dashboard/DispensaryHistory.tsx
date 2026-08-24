@@ -98,15 +98,25 @@ const RepeatMedicineInvoice = ({ record }: { record: any }) => {
               </td>
             </tr>
           ))}
-          {tests.map((test: any, index: number) => (
-            <tr key={test.consultation_test_id || index}>
-              <td className="border border-gray-300 px-3 py-2 font-bold">{test.test_name}</td>
-              <td className="border border-gray-300 px-3 py-2 font-bold">Test / Lab</td>
+          {tests.map((test: any, index: number) => {
+            const isVoided = String(test.dispense_status || '').toUpperCase() === 'VOID';
+            return (
+            <tr key={test.consultation_test_id || index} className={isVoided ? 'text-red-700' : ''}>
+              <td className="border border-gray-300 px-3 py-2 font-bold">
+                {test.test_name}
+                {isVoided && (
+                  <div className="mt-1 text-[10px] font-bold uppercase tracking-widest">
+                    Removed: {test.void_reason || 'No reason given'}
+                  </div>
+                )}
+              </td>
+              <td className="border border-gray-300 px-3 py-2 font-bold">{isVoided ? 'Test / Lab (Removed)' : 'Test / Lab'}</td>
               <td className="border border-gray-300 px-3 py-2 text-right font-black">
-                ₹ {Number(test.amount || 0).toFixed(2)}
+                ₹ {Number(isVoided ? 0 : test.amount || 0).toFixed(2)}
               </td>
             </tr>
-          ))}
+            );
+          })}
           {courierCharge > 0 && (
             <tr>
               <td className="border border-gray-300 px-3 py-2 font-bold">Courier Charge</td>
@@ -768,22 +778,48 @@ export default function DispensaryHistory() {
                         <h3 className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2">
                           <FlaskConical size={14} />
                           Tests / Lab
+                          {(selectedPrescription.prescription?.tests || []).some((test: any) => String(test.dispense_status || '').toUpperCase() === 'VOID') && (
+                            <span className="rounded-md bg-red-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-red-600">
+                              {(selectedPrescription.prescription?.tests || []).filter((test: any) => String(test.dispense_status || '').toUpperCase() === 'VOID').length} removed
+                            </span>
+                          )}
                         </h3>
 
                         <div className="space-y-3">
-                          {selectedPrescription.prescription.tests.map((test: any, idx: number) => (
-                            <div key={test.consultation_test_id || idx} className="bg-white p-4 border border-amber-100 shadow-sm flex items-center justify-between gap-4">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <span className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black">
+                          {selectedPrescription.prescription.tests.map((test: any, idx: number) => {
+                            const isVoided = String(test.dispense_status || '').toUpperCase() === 'VOID';
+                            return (
+                            <div
+                              key={test.consultation_test_id || idx}
+                              className={`bg-white p-4 border shadow-sm flex items-start justify-between gap-4 ${
+                                isVoided ? 'border-red-200' : 'border-amber-100'
+                              }`}
+                            >
+                              <div className="flex items-start gap-3 min-w-0">
+                                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black ${
+                                  isVoided ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                                }`}>
                                   {idx + 1}
                                 </span>
-                                <p className="text-sm font-black text-gray-800 truncate">{test.test_name}</p>
+                                <div className="min-w-0">
+                                  <p className={`text-sm font-black text-gray-800 ${isVoided ? 'line-through opacity-70' : ''}`}>{test.test_name}</p>
+                                  {isVoided ? (
+                                    <MedicationDispensingStatus
+                                      medication={test}
+                                      label="Test not billed"
+                                      reasonLabel="Reason"
+                                    />
+                                  ) : (
+                                    <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-amber-600">Doctor recommended test</p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-xs font-black text-amber-700 whitespace-nowrap">
-                                ₹ {Number(test.amount || 0).toFixed(2)}
+                              <div className={`text-xs font-black whitespace-nowrap ${isVoided ? 'text-red-500 line-through' : 'text-amber-700'}`}>
+                                ₹ {Number(isVoided ? 0 : test.amount || 0).toFixed(2)}
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -805,7 +841,8 @@ export default function DispensaryHistory() {
                         <div className="text-right">
                           <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest block mb-1">Items</span>
                           <span className="bg-[#549E9E]/10 text-[#549E9E] px-2 py-1 rounded-md text-[10px] font-black">
-                            {(selectedPrescription.prescription?.medications || []).length + (selectedPrescription.prescription?.tests || []).length}
+                            {(selectedPrescription.prescription?.medications || []).filter((med: any) => String(med.dispense_status || '').toUpperCase() !== 'VOID').length
+                              + (selectedPrescription.prescription?.tests || []).filter((test: any) => String(test.dispense_status || '').toUpperCase() !== 'VOID').length}
                           </span>
                         </div>
                       </div>

@@ -379,7 +379,12 @@ export default function MedicalDashboard() {
     version: number;
     events: any[];
   }>>({});
-  const [voidDialog, setVoidDialog] = useState<{ idx: number; medicine: string } | null>(null);
+  const [testItemStates, setTestItemStates] = useState<Record<number, {
+    dispense_status: 'ACTIVE' | 'VOID';
+    void_reason: string;
+    version: number;
+  }>>({});
+  const [voidDialog, setVoidDialog] = useState<{ type: 'medicine' | 'test'; idx: number; name: string } | null>(null);
   const [voidReason, setVoidReason] = useState('');
   type AdditionalMed = {
     name: string;
@@ -401,9 +406,11 @@ export default function MedicalDashboard() {
         : sum + (parseFloat(value) || 0),
       0
     );
-  const getSelectedTestsTotal = () =>
+  const getSelectedTestsTotal = (states: typeof testItemStates = testItemStates) =>
     (selectedPrescription?.prescription?.tests || []).reduce(
-      (sum: number, test: any) => sum + (parseFloat(String(test?.amount ?? 0)) || 0),
+      (sum: number, test: any, idx: number) => states[idx]?.dispense_status === 'VOID'
+        ? sum
+        : sum + (parseFloat(String(test?.amount ?? 0)) || 0),
       0
     );
 
@@ -453,6 +460,16 @@ export default function MedicalDashboard() {
       });
       setMedAmounts(initialAmounts);
       setMedItemStates(initialStates);
+      setTestItemStates(
+        Object.fromEntries((p.prescription?.tests || []).map((test: any, i: number) => [
+          i,
+          {
+            dispense_status: test?.dispense_status === 'VOID' ? 'VOID' : 'ACTIVE',
+            void_reason: test?.void_reason || '',
+            version: Number(test?.version || 1),
+          },
+        ]))
+      );
       setAdditionalMeds(
         medicalAddedMedications.map((m: any) => {
           const pricingItem = pricingItemsByMedicationId.get(Number(m.consultation_medication_id));
@@ -479,7 +496,9 @@ export default function MedicalDashboard() {
         })
       );
       const testsTotal = (p.prescription?.tests || []).reduce(
-        (sum: number, test: any) => sum + (parseFloat(String(test?.amount ?? 0)) || 0),
+        (sum: number, test: any) => String(test?.dispense_status || 'ACTIVE').toUpperCase() === 'VOID'
+          ? sum
+          : sum + (parseFloat(String(test?.amount ?? 0)) || 0),
         0
       );
       const computedBaseTotal =
@@ -508,15 +527,25 @@ export default function MedicalDashboard() {
           { dispense_status: 'ACTIVE', void_reason: '', version: 0, events: [] }
         ]))
       );
+      setTestItemStates(
+        Object.fromEntries((p.prescription?.tests || []).map((test: any, i: number) => [
+          i,
+          {
+            dispense_status: test?.dispense_status === 'VOID' ? 'VOID' : 'ACTIVE',
+            void_reason: test?.void_reason || '',
+            version: Number(test?.version || 1),
+          },
+        ]))
+      );
       setAdditionalMeds([]);
-      setAmount(((p.prescription?.tests || []).reduce(
-        (sum: number, test: any) => sum + (parseFloat(String(test?.amount ?? 0)) || 0),
+      const unpricedTestsTotal = (p.prescription?.tests || []).reduce(
+        (sum: number, test: any) => String(test?.dispense_status || 'ACTIVE').toUpperCase() === 'VOID'
+          ? sum
+          : sum + (parseFloat(String(test?.amount ?? 0)) || 0),
         0
-      ) || 0).toString());
-      setCollectedAmount(((p.prescription?.tests || []).reduce(
-        (sum: number, test: any) => sum + (parseFloat(String(test?.amount ?? 0)) || 0),
-        0
-      ) || 0).toFixed(2));
+      );
+      setAmount((unpricedTestsTotal || 0).toString());
+      setCollectedAmount((unpricedTestsTotal || 0).toFixed(2));
       setRemark('');
     }
     setPaymentMode('CASH');
@@ -622,27 +651,43 @@ export default function MedicalDashboard() {
     setAmount((baseTotal + additionalTotal + testsTotal).toString());
   };
 
-  const recalculateTotalForStates = (states: typeof medItemStates) => {
+  const recalculateTotalForStates = (
+    medStates: typeof medItemStates = medItemStates,
+    testStates: typeof testItemStates = testItemStates
+  ) => {
     const additionalTotal = additionalMeds.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-    setAmount((getBaseMedicationTotal(medAmounts, states) + additionalTotal + getSelectedTestsTotal()).toString());
+    setAmount((getBaseMedicationTotal(medAmounts, medStates) + additionalTotal + getSelectedTestsTotal(testStates)).toString());
   };
 
-  const confirmVoidMedication = () => {
+  const confirmVoidItem = () => {
     if (!voidDialog || !voidReason.trim()) {
       addToast('Removal reason is required', 'error');
       return;
     }
 
-    const updatedStates = {
-      ...medItemStates,
-      [voidDialog.idx]: {
-        ...(medItemStates[voidDialog.idx] || { version: 0, events: [] }),
-        dispense_status: 'VOID' as const,
-        void_reason: voidReason.trim(),
-      },
-    };
-    setMedItemStates(updatedStates);
-    recalculateTotalForStates(updatedStates);
+    if (voidDialog.type === 'test') {
+      const updatedTestStates = {
+        ...testItemStates,
+        [voidDialog.idx]: {
+          ...(testItemStates[voidDialog.idx] || { version: 1 }),
+          dispense_status: 'VOID' as const,
+          void_reason: voidReason.trim(),
+        },
+      };
+      setTestItemStates(updatedTestStates);
+      recalculateTotalForStates(medItemStates, updatedTestStates);
+    } else {
+      const updatedStates = {
+        ...medItemStates,
+        [voidDialog.idx]: {
+          ...(medItemStates[voidDialog.idx] || { version: 0, events: [] }),
+          dispense_status: 'VOID' as const,
+          void_reason: voidReason.trim(),
+        },
+      };
+      setMedItemStates(updatedStates);
+      recalculateTotalForStates(updatedStates, testItemStates);
+    }
     setVoidDialog(null);
     setVoidReason('');
   };
@@ -657,7 +702,20 @@ export default function MedicalDashboard() {
       },
     };
     setMedItemStates(updatedStates);
-    recalculateTotalForStates(updatedStates);
+    recalculateTotalForStates(updatedStates, testItemStates);
+  };
+
+  const restoreTest = (idx: number) => {
+    const updatedTestStates = {
+      ...testItemStates,
+      [idx]: {
+        ...(testItemStates[idx] || { version: 1 }),
+        dispense_status: 'ACTIVE' as const,
+        void_reason: '',
+      },
+    };
+    setTestItemStates(updatedTestStates);
+    recalculateTotalForStates(medItemStates, updatedTestStates);
   };
 
   const handleSubmitDispensing = async (processAfterSave = true) => {
@@ -715,6 +773,12 @@ export default function MedicalDashboard() {
           dispense_status: medItemStates[i]?.dispense_status || 'ACTIVE',
           void_reason: medItemStates[i]?.void_reason || null,
           version: medItemStates[i]?.version || 0,
+        })),
+        tests: (selectedPrescription.prescription?.tests || []).map((test: any, i: number) => ({
+          consultation_test_id: test.consultation_test_id,
+          dispense_status: testItemStates[i]?.dispense_status || 'ACTIVE',
+          void_reason: testItemStates[i]?.void_reason || null,
+          version: testItemStates[i]?.version || Number(test.version || 1),
         })),
         additional_medications: normalizedAdditionalMeds,
         payment: processAfterSave ? {
@@ -1136,7 +1200,7 @@ export default function MedicalDashboard() {
                                     )}
                                   </div>
                                 )}
-                                {voidDialog?.idx === idx && (
+                                {voidDialog?.type === 'medicine' && voidDialog?.idx === idx && (
                                   <div className="mt-2 space-y-2 rounded-xl border border-red-100 bg-red-50 p-2.5">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-red-600">Removal reason *</label>
                                     <textarea
@@ -1155,7 +1219,7 @@ export default function MedicalDashboard() {
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={confirmVoidMedication}
+                                        onClick={confirmVoidItem}
                                         className="rounded-lg bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white"
                                       >
                                         Confirm removal
@@ -1187,7 +1251,7 @@ export default function MedicalDashboard() {
                                 ) : (
                                   <button
                                     type="button"
-                                    onClick={() => { setVoidDialog({ idx, medicine: med.medicine_value }); setVoidReason(''); }}
+                                    onClick={() => { setVoidDialog({ type: 'medicine', idx, name: med.medicine_value }); setVoidReason(''); }}
                                     className="flex items-center justify-center gap-1 rounded-lg bg-red-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100"
                                   >
                                     <XCircle size={11} /> Remove
@@ -1213,23 +1277,96 @@ export default function MedicalDashboard() {
                             {t('dispense.tests', 'Tests')}
                           </h4>
                           <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">
-                            {(selectedPrescription.prescription?.tests || []).length} item(s)
+                            {(selectedPrescription.prescription?.tests || []).filter((_: any, idx: number) => testItemStates[idx]?.dispense_status !== 'VOID').length} item(s)
                           </span>
                         </div>
 
                         {(selectedPrescription.prescription?.tests || []).length > 0 ? (
                           <div className="space-y-2">
-                            {(selectedPrescription.prescription?.tests || []).map((test: any, idx: number) => (
-                              <div key={`test-${idx}`} className="grid grid-cols-[1fr_100px] items-center gap-2 border border-gray-100 bg-white p-2.5">
-                                <div>
-                                  <p className="text-xs font-black text-gray-800">{test.test_name}</p>
-                                  <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-gray-500">Doctor Recommended Test</p>
-                                </div>
-                                <div className="border border-gray-100 bg-gray-50 px-2.5 py-2 text-right text-xs font-black text-gray-800">
-                                  ₹ {Number(test.amount || 0).toFixed(2)}
+                            {(selectedPrescription.prescription?.tests || []).map((test: any, idx: number) => {
+                              const testState = testItemStates[idx] || {
+                                dispense_status: test.dispense_status === 'VOID' ? 'VOID' : 'ACTIVE',
+                                void_reason: test.void_reason || '',
+                                version: Number(test.version || 1),
+                              };
+                              return (
+                              <div
+                                key={test.consultation_test_id || `test-${idx}`}
+                                className={`border bg-white p-2.5 ${
+                                  testState.dispense_status === 'VOID'
+                                    ? 'border-red-200 bg-red-50/40'
+                                    : 'border-gray-100'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <p className={`text-xs font-black text-gray-800 ${testState.dispense_status === 'VOID' ? 'line-through opacity-70' : ''}`}>{test.test_name}</p>
+                                    <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-gray-500">Doctor Recommended Test</p>
+                                    {testState.dispense_status === 'VOID' && (
+                                      <div className="mt-2 rounded-lg border border-red-100 bg-white px-2.5 py-1.5">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Test not billed</p>
+                                        <p className="mt-0.5 text-xs font-bold text-red-700">{testState.void_reason}</p>
+                                      </div>
+                                    )}
+                                    {voidDialog?.type === 'test' && voidDialog?.idx === idx && (
+                                      <div className="mt-2 space-y-2 rounded-xl border border-red-100 bg-red-50 p-2.5">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-red-600">Removal reason *</label>
+                                        <textarea
+                                          value={voidReason}
+                                          onChange={(e) => setVoidReason(e.target.value)}
+                                          placeholder="Why is this test not being billed/dispensed?"
+                                          maxLength={255}
+                                          className="min-h-16 w-full resize-none rounded-lg border border-red-100 bg-white p-2.5 text-xs font-bold text-gray-700 outline-none focus:border-red-300"
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => { setVoidDialog(null); setVoidReason(''); }}
+                                            className="rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-white"
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={confirmVoidItem}
+                                            className="rounded-lg bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white"
+                                          >
+                                            Confirm removal
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex shrink-0 items-center gap-1.5">
+                                    <div className={`border px-2.5 py-2 text-right text-xs font-black ${
+                                      testState.dispense_status === 'VOID'
+                                        ? 'border-red-100 bg-white text-red-400 line-through'
+                                        : 'border-gray-100 bg-gray-50 text-gray-800'
+                                    }`}>
+                                      ₹ {Number(test.amount || 0).toFixed(2)}
+                                    </div>
+                                    {testState.dispense_status === 'VOID' ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => restoreTest(idx)}
+                                        className="flex items-center justify-center gap-1 rounded-lg bg-emerald-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-emerald-700 hover:bg-emerald-100"
+                                      >
+                                        <RefreshCcw size={11} /> Restore
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => { setVoidDialog({ type: 'test', idx, name: test.test_name }); setVoidReason(''); }}
+                                        className="flex items-center justify-center gap-1 rounded-lg bg-red-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100"
+                                      >
+                                        <XCircle size={11} /> Remove
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : (
                           <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('dispense.no_tests', 'No tests added')}</p>
@@ -1369,7 +1506,7 @@ export default function MedicalDashboard() {
                         <span className="rounded-md bg-[#549E9E]/10 px-2 py-1 text-[10px] font-black text-[#549E9E]">
                           {(selectedPrescription.prescription?.medications || []).filter((med: any) => med.added_by_role !== 'MEDICAL').length
                             + additionalMeds.filter((med) => med.medicine_value.trim()).length
-                            + (selectedPrescription.prescription?.tests || []).length}
+                            + (selectedPrescription.prescription?.tests || []).filter((_: any, idx: number) => testItemStates[idx]?.dispense_status !== 'VOID').length}
                         </span>
                       </div>
                     </div>
