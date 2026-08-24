@@ -384,7 +384,8 @@ const TokenTicket = ({ label, caption = 'Token', compact = false }: { label: str
   </div>
 );
 
-const SmallTokenCard = ({ token, tone = 'white' }: { token: TokenState; tone?: 'white' | 'green' | 'amber' | 'slate' }) => {
+const SmallTokenCard = React.forwardRef<HTMLElement, { token: TokenState; tone?: 'white' | 'green' | 'amber' | 'slate' }>(
+  ({ token, tone = 'white' }, ref) => {
   const toneClass = {
     white: 'border-gray-100 bg-white',
     green: 'border-emerald-200 bg-emerald-50',
@@ -396,6 +397,7 @@ const SmallTokenCard = ({ token, tone = 'white' }: { token: TokenState; tone?: '
 
   return (
     <motion.article
+      ref={ref}
       layout
       layoutId={`queue-token-${token.appointmentId}`}
       initial={{ opacity: 0, y: 18, scale: 0.98 }}
@@ -426,7 +428,10 @@ const SmallTokenCard = ({ token, tone = 'white' }: { token: TokenState; tone?: '
       </div>
     </motion.article>
   );
-};
+  },
+);
+
+SmallTokenCard.displayName = 'SmallTokenCard';
 
 export default function LiveQueueReplay() {
   const [branchId, setBranchId] = useState('');

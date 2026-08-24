@@ -867,23 +867,22 @@ export default function LiveQueueFlow() {
                     </motion.div>
                   ) : (
                     upcomingFlowItems.map(({ token, stage }, index) => (
-                      <React.Fragment key={token.appointment_id}>
-                        <motion.div
-                          layout
-                          layoutId={`flow-token-${token.appointment_id}`}
-                          initial={{ opacity: 0, y: 90, scale: 0.92 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: -90, scale: 0.88 }}
-                          transition={{
-                            type: "spring",
-                            stiffness: 230,
-                            damping: 26,
-                          }}
-                          className={`w-full ${index === 0 ? "first-upcoming-card" : ""}`}
-                        >
-                          <TokenCard token={token} stage={stage} />
-                        </motion.div>
-                      </React.Fragment>
+                      <motion.div
+                        key={token.appointment_id}
+                        layout
+                        layoutId={`flow-token-${token.appointment_id}`}
+                        initial={{ opacity: 0, y: 90, scale: 0.92 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -90, scale: 0.88 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 230,
+                          damping: 26,
+                        }}
+                        className={`w-full ${index === 0 ? "first-upcoming-card" : ""}`}
+                      >
+                        <TokenCard token={token} stage={stage} />
+                      </motion.div>
                     ))
                   )}
                 </AnimatePresence>
