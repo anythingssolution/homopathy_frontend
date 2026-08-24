@@ -36,7 +36,7 @@ export default function DashboardLayout() {
   return (
     <div className="min-h-screen bg-[#FDFDF7] pt-20 print:min-h-0 print:pt-0 print:p-0">
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 print:max-w-none print:p-0">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-4 sm:pb-6 lg:pb-8 print:max-w-none print:p-0">
         {!isConsultPage && (
           <div className="no-print">
             <StaffBranchSwitcher />

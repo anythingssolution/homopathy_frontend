@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -22,6 +23,8 @@ import {
 } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import CustomDatePicker from '../CustomDatePicker';
+import AppointmentTokenBadge from '../AppointmentTokenBadge';
+import { useLenisNestedScroll } from '../../hooks/useLenisNestedScroll';
 import { useTranslation } from 'react-i18next';
 
 type BillFilterType = 'ALL' | 'CONSULTATION' | 'MEDICATION';
@@ -210,6 +213,7 @@ export default function Bills() {
   const [collectReference, setCollectReference] = useState('');
   const [collectRemark, setCollectRemark] = useState('');
   const [collectingBillId, setCollectingBillId] = useState<number | null>(null);
+  const bindSummaryScroll = useLenisNestedScroll();
   const userRole = String(user?.role_code || user?.role || '').toLowerCase();
   const canCollectMedication = userRole.includes('med');
   const canCollectConsultation = userRole.includes('rec') || userRole === 'receptionist';
@@ -296,6 +300,22 @@ export default function Bills() {
     return () => clearTimeout(timer);
   }, [patientSearch]);
 
+  useEffect(() => {
+    if (!selectedSummary && !isDetailLoading) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    window.dispatchEvent(new Event('lenis:stop'));
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      window.dispatchEvent(new Event('lenis:start'));
+    };
+  }, [selectedSummary, isDetailLoading]);
+
   const appointmentSummaries = useMemo(() => {
     const grouped = new Map<string, any>();
 
@@ -312,6 +332,7 @@ export default function Bills() {
           appointment_date: bill.appointment_date,
           token_number: bill.token_number,
           display_token_display: bill.display_token_display,
+          queue_position: bill.queue_position,
           start_time: bill.start_time,
           patient_id: bill.patient_id,
           patient_full_name: bill.patient_full_name,
@@ -522,6 +543,7 @@ export default function Bills() {
           auid: entry.auid,
           display_token_display: entry.display_token_display || (entry.is_repeat_medicine ? 'Repeat' : null),
           token_number: entry.token_number,
+          queue_position: entry.queue_position,
           patient_full_name: entry.patient_full_name,
           patient_mobile_no: entry.patient_mobile_no,
           booked_for_type: entry.booked_for_type,
@@ -779,6 +801,7 @@ export default function Bills() {
           <table className="w-full text-left whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
+                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.token', 'Token')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.appointment', 'Appointment')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.patient', 'Patient')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.date', 'Date')}</th>
@@ -800,9 +823,15 @@ export default function Bills() {
                     className="hover:bg-[#549E9E]/[0.02] transition-colors"
                   >
                     <td className="px-5 py-4">
+                      <AppointmentTokenBadge
+                        tokenDisplay={entry.display_token_display}
+                        tokenNumber={entry.token_number}
+                        position={entry.queue_position}
+                      />
+                    </td>
+                    <td className="px-5 py-4">
                       <div className="flex flex-col">
                         <span className="text-sm font-black text-[#549E9E]">{entry.auid || `Appointment #${entry.appointment_id}`}</span>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Token #{entry.display_token_display || entry.token_number || '—'}</span>
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -856,7 +885,7 @@ export default function Bills() {
                 ))
               ) : !isLoading && (
                 <tr>
-                  <td colSpan={9} className="px-5 py-20">
+                  <td colSpan={10} className="px-5 py-20">
                     <div className="flex flex-col items-center justify-center text-center space-y-4">
                       <div className="w-16 h-16 bg-gray-50 text-gray-200 rounded-full flex items-center justify-center">
                         <Receipt size={32} />
@@ -873,7 +902,7 @@ export default function Bills() {
             {appointmentSummaries.length > 0 && (
               <tfoot className="border-t-2 border-gray-200 bg-[#549E9E]/[0.04]">
                 <tr>
-                  <td colSpan={4} className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">
+                  <td colSpan={5} className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">
                     <div className="flex items-center gap-2">
                       <Receipt size={16} className="text-[#549E9E]" />
                       <span>{t('bills.table.grand_total_summary', 'Grand Total Summary')} ({billsTotals.totalAppointments} Appointments • {billsTotals.totalBills} Bills)</span>
@@ -899,9 +928,15 @@ export default function Bills() {
         </div>
       </div>
 
+      {createPortal(
       <AnimatePresence>
         {(selectedSummary || isDetailLoading) && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden p-4 overscroll-none"
+            onWheel={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            data-lenis-prevent
+          >
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -913,20 +948,28 @@ export default function Bills() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-6xl max-h-[90vh] bg-white border-2 border-gray-100 shadow-2xl overflow-y-auto"
+              className="relative flex h-[min(90vh,900px)] max-h-[90vh] min-h-0 w-full max-w-6xl flex-col overflow-hidden border-2 border-gray-100 bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
             >
               {isDetailLoading || !selectedSummary ? (
                 <div className="p-12 flex items-center justify-center">
                   <RefreshCcw className="animate-spin text-[#549E9E]" size={28} />
                 </div>
               ) : (
-                <div className="p-8 space-y-8">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight">Appointment Billing Summary</h2>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                        {selectedSummary.appointment?.auid} • Token #{selectedSummary.appointment?.display_token_display || selectedSummary.appointment?.token_number || '—'}
-                      </p>
+                <>
+                  <div className="flex shrink-0 items-center justify-between gap-4 border-b border-gray-100 px-8 py-5">
+                    <div className="flex items-center gap-4">
+                      <AppointmentTokenBadge
+                        tokenDisplay={selectedSummary.appointment?.display_token_display}
+                        tokenNumber={selectedSummary.appointment?.token_number}
+                        position={selectedSummary.appointment?.queue_position}
+                      />
+                      <div>
+                        <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight">Appointment Billing Summary</h2>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                          {selectedSummary.appointment?.auid}
+                        </p>
+                      </div>
                     </div>
                     <button
                       onClick={() => setSelectedSummary(null)}
@@ -935,6 +978,12 @@ export default function Bills() {
                       <X size={20} />
                     </button>
                   </div>
+                  <div
+                    ref={bindSummaryScroll}
+                    className="min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain p-8"
+                    data-lenis-prevent
+                    data-lenis-prevent-wheel
+                  >
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-gray-50/60 border border-gray-100 p-4">
@@ -1277,11 +1326,14 @@ export default function Bills() {
                     )}
                   </div>
                 </div>
+                </>
               )}
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+      )}
         </>
       ) : activeTab === 'CONSULTANT_REVENUE' ? (
         /* Revenue by Consultant Section */

@@ -4,6 +4,7 @@ import { Clock, User, CheckCircle2, MapPin, ChevronDown, Phone, X, Smartphone, D
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
+import { useLenisNestedScroll } from '../hooks/useLenisNestedScroll';
 import { useNotifications } from '../context/NotificationContext';
 import { getSocket } from '../services/socket';
 import CustomDatePicker from './CustomDatePicker';
@@ -353,6 +354,7 @@ export default function Booking() {
   const [isPatientLookupLoading, setIsPatientLookupLoading] = useState(false);
   const [showPatientSuggestions, setShowPatientSuggestions] = useState(false);
   const patientSuggestionsRef = useRef<HTMLDivElement>(null);
+  const bindPatientSuggestionsScroll = useLenisNestedScroll();
 
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [bookedForType, setBookedForType] = useState<'SELF' | 'FAMILY_MEMBER'>('SELF');
@@ -1591,6 +1593,8 @@ export default function Booking() {
                               exit={{ opacity: 0, y: 10, scale: 0.95 }}
                               transition={{ duration: 0.2, ease: "easeOut" }}
                               className="absolute top-full left-0 right-0 mt-3 bg-white rounded-[30px] shadow-2xl border border-gray-100 overflow-hidden z-[100] py-2"
+                              data-lenis-prevent
+                              data-lenis-prevent-wheel
                             >
                               <div className="px-8 py-3 border-b border-gray-100">
                                 <p className="text-[10px] font-black text-primary-teal uppercase tracking-widest">
@@ -1599,7 +1603,12 @@ export default function Booking() {
                               </div>
 
                               {patientSearchResults.length > 0 ? (
-                                <div className="max-h-64 overflow-y-auto">
+                                <div
+                                  ref={bindPatientSuggestionsScroll}
+                                  className="max-h-64 overflow-y-auto overscroll-contain"
+                                  data-lenis-prevent
+                                  data-lenis-prevent-wheel
+                                >
                                   {patientSearchResults.map((patient) => (
                                     <button
                                       key={patient.patient_id}

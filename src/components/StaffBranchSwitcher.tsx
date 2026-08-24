@@ -68,14 +68,14 @@ export default function StaffBranchSwitcher({ reloadOnChange = true }: { reloadO
   };
 
   return (
-    <div className="mb-6 flex flex-wrap items-stretch justify-end gap-3">
+    <div className="mb-2 flex flex-wrap items-stretch justify-end gap-2">
       {showPreviousPatientsButton && (
         <Link
           to="/previous-patients"
-          className="inline-flex items-center justify-center gap-2 rounded-[28px] border border-[#549E9E]/25 bg-white px-5 py-3 text-xs font-black uppercase tracking-wider text-[#2d8789] shadow-sm transition hover:border-[#549E9E] hover:bg-[#e7f5f4] hover:shadow-md"
+          className="inline-flex items-center justify-center gap-2 rounded-[24px] border border-[#549E9E]/25 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-[#2d8789] shadow-sm transition hover:border-[#549E9E] hover:bg-[#e7f5f4] hover:shadow-md"
         >
           <ClipboardList size={16} />
-          {t('previous_patients.nav_button', 'Previous Patients')}
+          {t('previous_patients.nav_button', 'Add Previous Patients')}
         </Link>
       )}
 
@@ -84,7 +84,7 @@ export default function StaffBranchSwitcher({ reloadOnChange = true }: { reloadO
           type="button"
           onClick={() => !isSubmitting && branches.length > 0 && setIsOpen(!isOpen)}
           disabled={isSubmitting || branches.length === 0}
-          className={`flex w-full items-center justify-between gap-4 rounded-[28px] border bg-white px-5 py-3 text-left shadow-sm outline-none transition-all duration-300 hover:shadow-md focus:outline-none sm:w-auto sm:min-w-[240px] ${
+          className={`flex w-full items-center justify-between gap-4 rounded-[24px] border bg-white px-4 py-2 text-left shadow-sm outline-none transition-all duration-300 hover:shadow-md focus:outline-none sm:w-auto sm:min-w-[240px] ${
             isOpen ? 'border-[#549E9E] ring-2 ring-[#549E9E]/5' : 'border-gray-100 hover:border-[#549E9E]/20'
           } ${isSubmitting ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
         >

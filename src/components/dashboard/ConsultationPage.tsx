@@ -52,6 +52,7 @@ import {
   saveConsultDraft,
   type ConsultDraftPayload,
 } from "../../utils/consultDraftStorage";
+import { useLenisNestedScroll } from "../../hooks/useLenisNestedScroll";
 import {
   getDurationDaysFromKey,
   getDurationKeyFromDays,
@@ -255,6 +256,7 @@ function NumberDropdown({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const bindLenisNestedScroll = useLenisNestedScroll();
   const numbers = options || getNumericMedicineDropdownOptions();
 
   useEffect(() => {
@@ -387,9 +389,13 @@ function NumberDropdown({
 
       {isOpen && !disabled && (
         <div
-          ref={listRef}
-          className="absolute z-50 mt-1 w-full bg-white border border-gray-100 rounded-xl shadow-lg max-h-48 overflow-y-auto"
-          onWheel={(e) => e.stopPropagation()}
+          ref={(node) => {
+            listRef.current = node;
+            bindLenisNestedScroll(node);
+          }}
+          className="absolute z-50 mt-1 w-full bg-white border border-gray-100 rounded-xl shadow-lg max-h-48 overflow-y-auto overscroll-contain"
+          data-lenis-prevent
+          data-lenis-prevent-wheel
         >
           {filteredOptions.length > 0 ? (
             filteredOptions.map((num, i) => (
@@ -436,6 +442,7 @@ function SearchableDropdown({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const bindLenisNestedScroll = useLenisNestedScroll();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -603,10 +610,15 @@ function SearchableDropdown({
 
       {isOpen && !disabled && (
         <div
-          ref={listRef}
-          className={`absolute z-50 mt-1 w-full min-w-[120px] bg-[#f4f8f7] border border-[#549E9E]/20 rounded-xl shadow-lg overflow-hidden ${
+          ref={(node) => {
+            listRef.current = node;
+            bindLenisNestedScroll(node);
+          }}
+          className={`absolute z-50 mt-1 w-full min-w-[120px] bg-[#f4f8f7] border border-[#549E9E]/20 rounded-xl shadow-lg overflow-hidden overscroll-contain ${
             compact ? "max-h-40" : "max-h-48 overflow-y-auto"
           } overflow-y-auto`}
+          data-lenis-prevent
+          data-lenis-prevent-wheel
         >
           {filteredOptions.length > 0 ? (
             filteredOptions.map((opt, i) => (
@@ -640,6 +652,7 @@ export default function ConsultationPage() {
   const { appointmentId } = useParams();
   const { token, user } = useAuth();
   const { addToast } = useNotifications();
+  const bindLenisNestedScroll = useLenisNestedScroll();
   const consultDraftAppliedForRef = useRef<number | null>(null);
   const consultDraftHydratedRef = useRef(false);
   const [consultDraftReadyToken, setConsultDraftReadyToken] = useState(0);
@@ -4304,7 +4317,12 @@ export default function ConsultationPage() {
               {isQuickFormulaDropdownOpen &&
                 prescriptionSuggestions.length > 0 &&
                 !isReadOnly && (
-                  <div className="absolute left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden py-1 max-h-56 overflow-y-auto">
+                  <div
+                    ref={bindLenisNestedScroll}
+                    className="absolute left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden py-1 max-h-56 overflow-y-auto overscroll-contain"
+                    data-lenis-prevent
+                    data-lenis-prevent-wheel
+                  >
                     <div className="px-3 py-1.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                       <span className="text-[9.5px] font-black uppercase tracking-wider text-[#549E9E] flex items-center gap-1">
                         <WandSparkles size={11} /> Suggested Formula

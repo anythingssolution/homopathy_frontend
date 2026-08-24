@@ -32,8 +32,8 @@ export default function StaffWelcome() {
 
   if (isReceptionist) {
     return (
-      <div className="pt-24 px-4 lg:px-8 max-w-7xl mx-auto min-h-screen">
-        <div className="mb-6 flex justify-between items-center">
+      <div className="pt-[5.25rem] px-4 lg:px-8 max-w-7xl mx-auto min-h-screen">
+        <div className="mb-1 flex justify-between items-center">
           <ReceptionistSessionToggle />
           <StaffBranchSwitcher />
         </div>
@@ -44,8 +44,8 @@ export default function StaffWelcome() {
 
   if (isMedical) {
     return (
-      <div className="pt-24 px-4 lg:px-8 max-w-7xl mx-auto min-h-screen">
-        <div className="mb-6 flex justify-end">
+      <div className="pt-[5.25rem] px-4 lg:px-8 max-w-7xl mx-auto min-h-screen">
+        <div className="mb-1 flex justify-end">
           <StaffBranchSwitcher />
         </div>
         <MedicalDashboard />
