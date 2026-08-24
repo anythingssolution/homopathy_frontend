@@ -308,7 +308,7 @@ export default function Navigation() {
     : publicLinks;
 
   return (
-    <nav className="fixed top-0 left-0 w-full z-50">
+    <nav className="fixed top-0 left-0 w-full z-50 no-print">
       {/* Top Banner Tiling */}
       <div className="absolute top-0 left-0 w-full h-10 flex overflow-hidden opacity-40 pointer-events-none">
         {Array.from({ length: 15 }).map((_, i) => (

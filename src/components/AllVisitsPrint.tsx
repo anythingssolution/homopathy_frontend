@@ -284,25 +284,13 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                           )}
 
                           {durationLabel && (
-                            <div className={`grid gap-3 ${medicationPeriod ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                              <div>
-                                <h4 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-0.5 border-b border-[#549E9E]/20 pb-0.5">
-                                  {isHi ? 'अवधि' : 'DURATION'}
-                                </h4>
-                                <div className="text-[10px] font-bold text-gray-800 leading-tight">
-                                  {durationLabel}
-                                </div>
+                            <div>
+                              <h4 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-0.5 border-b border-[#549E9E]/20 pb-0.5">
+                                {isHi ? 'अवधि' : 'DURATION'}
+                              </h4>
+                              <div className="text-[10px] font-bold text-gray-800 leading-tight">
+                                {durationLabel}
                               </div>
-                              {medicationPeriod && (
-                                <div>
-                                  <h4 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-0.5 border-b border-[#549E9E]/20 pb-0.5">
-                                    {isHi ? 'दवा तिथि' : 'MEDICATION DATES'}
-                                  </h4>
-                                  <div className="text-[10px] font-bold text-gray-800 leading-tight">
-                                    {medicationPeriod.fromDate} – {medicationPeriod.toDate}
-                                  </div>
-                                </div>
-                              )}
                             </div>
                           )}
 

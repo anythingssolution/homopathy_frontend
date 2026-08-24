@@ -296,25 +296,13 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                     )}
 
                     {durationLabel && (
-                      <div className={`grid gap-4 ${medicationPeriod ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                        <div>
-                          <h3 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-1 border-b border-[#549E9E]/20 pb-0.5">
-                            {isHi ? 'अवधि' : 'DURATION'}
-                          </h3>
-                          <div className="text-[10px] font-bold text-gray-800 leading-tight">
-                            {durationLabel}
-                          </div>
+                      <div>
+                        <h3 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-1 border-b border-[#549E9E]/20 pb-0.5">
+                          {isHi ? 'अवधि' : 'DURATION'}
+                        </h3>
+                        <div className="text-[10px] font-bold text-gray-800 leading-tight">
+                          {durationLabel}
                         </div>
-                        {medicationPeriod && (
-                          <div>
-                            <h3 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-1 border-b border-[#549E9E]/20 pb-0.5">
-                              {isHi ? 'दवा तिथि' : 'MEDICATION DATES'}
-                            </h3>
-                            <div className="text-[10px] font-bold text-gray-800 leading-tight">
-                              {medicationPeriod.fromDate} – {medicationPeriod.toDate}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
 

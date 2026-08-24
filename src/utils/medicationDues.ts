@@ -22,7 +22,7 @@ export type AccountDues = {
   bills?: DueBill[];
 };
 
-export type AllocationOrder = 'CURRENT_FIRST' | 'PREVIOUS_FIRST';
+export type AllocationOrder = 'CURRENT_FIRST' | 'CURRENT_ONLY' | 'PREVIOUS_FIRST';
 
 const moneyNumber = (value: number | string | null | undefined) => {
   const parsed = Number(value || 0);
@@ -88,6 +88,8 @@ export function previewMedicationReceipt({
 
   if (allocationOrder === 'PREVIOUS_FIRST') {
     applyPrevious();
+    applyCurrent();
+  } else if (allocationOrder === 'CURRENT_ONLY') {
     applyCurrent();
   } else {
     applyCurrent();

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { motion, AnimatePresence } from "motion/react";
@@ -1413,9 +1414,8 @@ export default function DoctorClinicHistory() {
         )}
       </AnimatePresence>
 
-      {/* Hidden Printable Content (Still used for actual browser printing) */}
-      <div className="print-only">
-        {(showPrescriptionPreview || selectedConsultation) && (
+      {(showPrescriptionPreview || selectedConsultation) && createPortal(
+        <div className="print-only">
           <PrescriptionPrint
             consultation={
               (showPrescriptionPreview || selectedConsultation).consultation
@@ -1425,24 +1425,9 @@ export default function DoctorClinicHistory() {
             }
             lang={prescriptionLang}
           />
-        )}
-      </div>
-
-      <style>{`
-        @media screen {
-          .print-only {
-            display: none;
-          }
-        }
-        @media print {
-          .no-print {
-            display: none !important;
-          }
-          .print-only {
-            display: block !important;
-          }
-        }
-      `}</style>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

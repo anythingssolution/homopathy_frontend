@@ -289,7 +289,7 @@ export default function MedicalDashboard() {
   const [transactionReference, setTransactionReference] = useState('');
   const [paymentRemark, setPaymentRemark] = useState('');
   const [collectedAmount, setCollectedAmount] = useState('');
-  const [allocationOrder, setAllocationOrder] = useState<AllocationOrder>('CURRENT_FIRST');
+  const [allocationOrder, setAllocationOrder] = useState<AllocationOrder>('CURRENT_ONLY');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDate, setFilterDate] = useState<string>(() => {
@@ -522,7 +522,7 @@ export default function MedicalDashboard() {
     setPaymentMode('CASH');
     setTransactionReference('');
     setPaymentRemark('');
-    setAllocationOrder('CURRENT_FIRST');
+    setAllocationOrder('CURRENT_ONLY');
     setVoidDialog(null);
     setVoidReason('');
   };
@@ -688,6 +688,10 @@ export default function MedicalDashboard() {
     const todayTotal = parseFloat(amount) || 0;
     const previousPending = Number(selectedPrescription?.account_dues?.total_pending || 0);
     const received = parseFloat(collectedAmount) || 0;
+    if (processAfterSave && allocationOrder !== 'CURRENT_FIRST' && received > todayTotal + 0.001) {
+      addToast('Tick previous pending to collect more than today\'s medicine bill', 'error');
+      return;
+    }
     if (processAfterSave && received > todayTotal + previousPending + 0.001) {
       addToast('Amount received cannot be greater than total due including previous pending', 'error');
       return;

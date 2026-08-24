@@ -34,11 +34,13 @@ export default function DashboardLayout() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#FDFDF7] pt-20">
+    <div className="min-h-screen bg-[#FDFDF7] pt-20 print:min-h-0 print:pt-0 print:p-0">
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 print:max-w-none print:p-0">
         {!isConsultPage && (
-          <StaffBranchSwitcher />
+          <div className="no-print">
+            <StaffBranchSwitcher />
+          </div>
         )}
 
         <Outlet />

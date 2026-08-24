@@ -442,7 +442,7 @@ export default function PatientRecords() {
   }), { patients: 0, prescriptions: 0, family: 0 }), [patients]);
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="no-print space-y-8 pb-12">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="shrink-0">
           <p className="text-xs font-black uppercase tracking-widest text-[#549E9E]">{t('patient_records.category', 'Patient History & Records')}</p>
@@ -816,10 +816,16 @@ export default function PatientRecords() {
           </div>
         </div>, document.body)}
 
-      <div className="print-only">
-        {selectedPrescription && <PrescriptionPrint consultation={selectedPrescription.consultation} appointment={selectedPrescription.appointment} lang={prescriptionLang} />}
-        {selectedAllVisits && <AllVisitsPrint patient={selectedAllVisits.patient} visits={selectedAllVisits.visits} lang={allVisitsLang} />}
-      </div>
+      {(selectedPrescription || selectedAllVisits) && createPortal(
+        <div className="print-only">
+          {selectedAllVisits ? (
+            <AllVisitsPrint patient={selectedAllVisits.patient} visits={selectedAllVisits.visits} lang={allVisitsLang} />
+          ) : (
+            selectedPrescription && <PrescriptionPrint consultation={selectedPrescription.consultation} appointment={selectedPrescription.appointment} lang={prescriptionLang} />
+          )}
+        </div>,
+        document.body
+      )}
 
       {selectedAllVisits && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/80 p-4 backdrop-blur-md no-print">
@@ -874,21 +880,6 @@ export default function PatientRecords() {
             </div>
           </div>
         </div>, document.body)}
-      <style>{`
-        @media screen {
-          .print-only {
-            display: none;
-          }
-        }
-        @media print {
-          .no-print {
-            display: none !important;
-          }
-          .print-only {
-            display: block !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

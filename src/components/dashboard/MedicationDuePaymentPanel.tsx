@@ -43,16 +43,23 @@ export default function MedicationDuePaymentPanel({
   const [paymentDropdownOpen, setPaymentDropdownOpen] = useState(false);
   const paymentDropdownRef = useRef<HTMLDivElement>(null);
   const previousPending = previousBills.reduce((sum, bill) => sum + Number(bill.pending_amount || 0), 0);
+  const includePrevious = allocationOrder !== 'CURRENT_ONLY' && previousPending > 0;
   const received = Number(collectedAmount || 0) || 0;
   const preview = useMemo(
     () => previewMedicationReceipt({
       receivedAmount: received,
       currentPending: todayAmount,
-      previousBills,
-      allocationOrder,
+      previousBills: includePrevious ? previousBills : [],
+      allocationOrder: includePrevious ? 'CURRENT_FIRST' : 'CURRENT_ONLY',
     }),
-    [received, todayAmount, previousBills, allocationOrder]
+    [received, todayAmount, previousBills, includePrevious]
   );
+
+  const moneyValue = (value: number) => Number(Math.max(0, value).toFixed(2)).toFixed(2);
+  const toggleIncludePrevious = (checked: boolean) => {
+    onAllocationOrderChange(checked ? 'CURRENT_FIRST' : 'CURRENT_ONLY');
+    onCollectedAmountChange(moneyValue(checked ? todayAmount + previousPending : todayAmount));
+  };
 
   return (
     <div className="space-y-3">
@@ -66,6 +73,9 @@ export default function MedicationDuePaymentPanel({
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-orange-500">Previous pending</p>
               <p className="text-lg font-black text-orange-600">{formatMoney(previousPending)}</p>
+              <p className="mt-0.5 text-[10px] font-bold text-orange-500/80">
+                Old unpaid medicine bill{previousBills.length === 1 ? '' : 's'}
+              </p>
             </div>
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-orange-500">
               {previousBills.length} visit{previousBills.length === 1 ? '' : 's'}
@@ -97,28 +107,45 @@ export default function MedicationDuePaymentPanel({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-[#549E9E]/15 bg-white px-3 py-2">
-          <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Today's bill</p>
-          <p className="text-base font-black text-[#549E9E]">{formatMoney(todayAmount)}</p>
+      <div className="space-y-2 rounded-xl border border-gray-100 bg-white px-3 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[11px] font-bold text-gray-500">Today's medicines</span>
+          <span className="text-sm font-black text-[#549E9E]">{formatMoney(todayAmount)}</span>
         </div>
-        <div className="rounded-xl border border-orange-100 bg-white px-3 py-2">
-          <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Total due</p>
-          <p className="text-base font-black text-orange-500">{formatMoney(preview.totalDue)}</p>
+        {previousPending > 0 && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[11px] font-bold text-gray-500">Previous pending</span>
+            <span className="text-sm font-black text-orange-500">{formatMoney(previousPending)}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-3 border-t border-gray-50 pt-2">
+          <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+            {includePrevious ? 'Total to collect' : 'Collect today'}
+          </span>
+          <span className="text-base font-black text-gray-800">
+            {formatMoney(includePrevious ? todayAmount + previousPending : todayAmount)}
+          </span>
         </div>
       </div>
 
-      <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2">
-        <input
-          type="checkbox"
-          checked={allocationOrder === 'PREVIOUS_FIRST'}
-          onChange={(event) => onAllocationOrderChange(event.target.checked ? 'PREVIOUS_FIRST' : 'CURRENT_FIRST')}
-          className="h-4 w-4 accent-[#549E9E]"
-        />
-        <span className="text-[10px] font-black uppercase tracking-widest text-gray-600">
-          Pay previous dues first
-        </span>
-      </label>
+      {previousPending > 0 && (
+        <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2.5">
+          <input
+            type="checkbox"
+            checked={includePrevious}
+            onChange={(event) => toggleIncludePrevious(event.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-[#549E9E]"
+          />
+          <span>
+            <span className="block text-[11px] font-black text-gray-700">
+              Also collect previous pending {formatMoney(previousPending)}
+            </span>
+            <span className="mt-0.5 block text-[10px] font-bold leading-snug text-gray-400">
+              Tick this to add old dues in this payment. You can still type a smaller extra amount if they cannot pay all of it.
+            </span>
+          </span>
+        </label>
+      )}
 
       <div className="space-y-1">
         <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
@@ -137,7 +164,9 @@ export default function MedicationDuePaymentPanel({
           />
         </div>
         <p className="pl-1 text-[10px] font-bold text-gray-400">
-          Enter less than today's bill to borrow the remaining amount. Enter 0 to borrow the full bill.
+          {includePrevious
+            ? 'Pay today first. Extra money goes to previous pending. Type less if they can pay only part of the old bill.'
+            : 'This amount is for today\'s medicines. Type less if they will pay the rest later.'}
         </p>
       </div>
 
@@ -210,26 +239,45 @@ export default function MedicationDuePaymentPanel({
       )}
 
       <div className="space-y-1.5 rounded-xl border border-gray-100 bg-white px-3 py-3">
+        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">This payment</p>
         <div className="flex items-center justify-between text-[11px] font-bold">
-          <span className="text-gray-500">Applied to today</span>
+          <span className="text-gray-500">Paying for today</span>
           <span className="font-black text-[#549E9E]">{formatMoney(preview.currentApplied)}</span>
         </div>
-        <div className="flex items-center justify-between text-[11px] font-bold">
-          <span className="text-gray-500">Applied to previous</span>
-          <span className="font-black text-emerald-600">{formatMoney(preview.previousApplied)}</span>
-        </div>
-        <div className="flex items-center justify-between text-[11px] font-bold">
-          <span className="text-gray-500">Borrowed / remaining today</span>
-          <span className="font-black text-orange-500">{formatMoney(preview.currentRemaining)}</span>
-        </div>
+        {previousPending > 0 && (
+          <div className="flex items-center justify-between text-[11px] font-bold">
+            <span className="text-gray-500">Paying for previous</span>
+            <span className="font-black text-emerald-600">{formatMoney(preview.previousApplied)}</span>
+          </div>
+        )}
+        {preview.currentRemaining > 0 && (
+          <div className="flex items-center justify-between text-[11px] font-bold">
+            <span className="text-gray-500">Still pending today</span>
+            <span className="font-black text-orange-500">{formatMoney(preview.currentRemaining)}</span>
+          </div>
+        )}
+        {previousPending > 0 && preview.previousRemaining > 0 && (
+          <div className="flex items-center justify-between text-[11px] font-bold">
+            <span className="text-gray-500">Still pending previous</span>
+            <span className="font-black text-orange-500">{formatMoney(preview.previousRemaining)}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between border-t border-gray-50 pt-1.5 text-[11px] font-black">
-          <span className="uppercase tracking-widest text-gray-500">Total remaining after this</span>
-          <span className="text-orange-600">{formatMoney(preview.totalRemaining)}</span>
+          <span className="text-gray-500">Still pending after this</span>
+          <span className={
+            (includePrevious ? preview.totalRemaining : preview.currentRemaining + previousPending) > 0
+              ? 'text-orange-600'
+              : 'text-emerald-600'
+          }>
+            {formatMoney(includePrevious ? preview.totalRemaining : preview.currentRemaining + previousPending)}
+          </span>
         </div>
         {preview.overpay > 0 && (
           <div className="flex items-start gap-2 rounded-lg bg-red-50 px-2 py-2 text-[10px] font-bold text-red-600">
             <AlertCircle size={13} className="mt-0.5 shrink-0" />
-            Amount received is {formatMoney(preview.overpay)} more than total due.
+            {includePrevious
+              ? `Amount received is ${formatMoney(preview.overpay)} more than total due.`
+              : `Amount is more than today's bill. Tick previous pending to use the extra ${formatMoney(preview.overpay)}.`}
           </div>
         )}
       </div>

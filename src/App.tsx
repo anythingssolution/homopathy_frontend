@@ -143,7 +143,7 @@ function AnimatedRoutes() {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen font-sans">
+    <div className="min-h-screen font-sans print:min-h-0">
       {!shouldHideNavigation && <Navigation />}
       
       <AnimatePresence mode="wait">

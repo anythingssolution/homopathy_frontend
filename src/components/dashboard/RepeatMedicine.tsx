@@ -170,7 +170,7 @@ export default function RepeatMedicine() {
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'ONLINE'>('CASH');
   const [transactionReference, setTransactionReference] = useState('');
   const [collectedAmount, setCollectedAmount] = useState('');
-  const [allocationOrder, setAllocationOrder] = useState<AllocationOrder>('CURRENT_FIRST');
+  const [allocationOrder, setAllocationOrder] = useState<AllocationOrder>('CURRENT_ONLY');
   const [remark, setRemark] = useState('');
   const [isCourierDelivery, setIsCourierDelivery] = useState(false);
   const [courierAddress, setCourierAddress] = useState('');
@@ -274,7 +274,7 @@ export default function RepeatMedicine() {
       setSelectedMedicineIds(nextSelected);
       setMedicineAmounts(nextAmounts);
       setCollectedAmount('');
-      setAllocationOrder('CURRENT_FIRST');
+      setAllocationOrder('CURRENT_ONLY');
       setPaymentMode('CASH');
       setTransactionReference('');
     } catch (error: any) {
@@ -394,6 +394,10 @@ export default function RepeatMedicine() {
     const received = collectedAmount === '' ? totalAmount : Number(collectedAmount || 0);
     if (Number.isNaN(received) || received < 0) {
       addToast('Please enter a valid amount received. Use 0 if the patient is borrowing the full bill.', 'warning');
+      return;
+    }
+    if (allocationOrder !== 'CURRENT_FIRST' && received > totalAmount + 0.001) {
+      addToast('Tick previous pending to collect more than today\'s medicine bill', 'warning');
       return;
     }
     if (received > totalAmount + previousPending + 0.001) {
