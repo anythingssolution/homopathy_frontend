@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { RefreshCcw, AlertCircle, IndianRupee, CreditCard, Banknote, Clock, MapPin, Calendar, UserCheck, Pill } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-import { StatCard } from '../components/StatCard';
+import { SummaryMetricCard } from '../components/SummaryMetricCard';
 import { useReportData } from '../hooks/useReportData';
 import { useAuth } from '../../../../context/AuthContext';
 import { FilterDropdown } from '../components/FilterDropdown';
@@ -30,16 +30,13 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
   return (
     <div className="flex flex-col h-full space-y-6">
       {/* Filters & Header Bar */}
-      <div className="bg-white/80 backdrop-blur-md p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex flex-col gap-2 w-full md:w-auto">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Timeframe</span>
-            <div className="h-1.5 w-1.5 rounded-full bg-[#549E9E]"></div>
-            <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-1">
-              <MapPin size={10} /> {branchScope?.selected_branch?.branch_name || 'Active Branch'}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2 pb-2 md:pb-0 items-center">
+      <div className="bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mr-1">Timeframe</span>
+          <div className="h-1.5 w-1.5 rounded-full bg-[#549E9E]"></div>
+          <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-1 mr-1">
+            <MapPin size={10} /> {branchScope?.selected_branch?.branch_name || 'Active Branch'}
+          </span>
             {[
               { id: 'today', label: 'Today' },
               { id: '1_week', label: '1 Week' },
@@ -49,18 +46,19 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
               <button
                 key={t.id}
                 onClick={() => setDateFilter(t.id)}
-                className={`cursor-pointer px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border-2 ${
+                className={`cursor-pointer px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
                   dateFilter === t.id
-                    ? 'bg-[#549E9E] border-[#549E9E] text-white shadow-md shadow-[#549E9E]/10'
+                    ? 'bg-[#549E9E] border-[#549E9E] text-white'
                     : 'bg-white border-gray-100 text-gray-500 hover:border-[#549E9E]/20 hover:bg-gray-50/50'
                 }`}
               >
                 {t.label}
               </button>
             ))}
-            <div className="min-w-[150px]">
+            <div className="min-w-[140px]">
               <FilterDropdown
                 hideLabel={true}
+                compact={true}
                 label="More Options"
                 value={dateFilter.endsWith('_months') || dateFilter.endsWith('_years') || dateFilter === '1_year' ? dateFilter : ''}
                 onChange={setDateFilter}
@@ -93,15 +91,14 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
                 />
               </div>
             )}
-          </div>
         </div>
         
         <button
           onClick={fetchReports}
           disabled={isLoading}
-          className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5 self-stretch md:self-auto justify-center"
+          className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-3.5 py-1.5 rounded-lg font-black text-[11px] uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border border-[#549E9E]/10 self-stretch md:self-auto justify-center"
         >
-          <RefreshCcw size={14} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? 'Syncing...' : 'Refresh'}
+          <RefreshCcw size={13} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? 'Syncing...' : 'Refresh'}
         </button>
       </div>
 
@@ -117,10 +114,10 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
       ) : (
          <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <StatCard title="Total Bills" value={rev.total_bills || 0} icon={Banknote} colorClass="border-[#549E9E]" />
-              <StatCard title="Total Amount" value={`₹${rev.total_amount || 0}`} icon={IndianRupee} colorClass="border-blue-500" />
-              <StatCard title="Paid Amount" value={`₹${rev.paid_amount || 0}`} icon={CreditCard} colorClass="border-emerald-500" />
-              <StatCard title="Pending" value={`₹${rev.pending_amount || 0}`} icon={Clock} colorClass="border-amber-500" />
+              <SummaryMetricCard title="Total Bills" value={rev.total_bills || 0} icon={Banknote} theme="teal" />
+              <SummaryMetricCard title="Total Amount" value={`₹${rev.total_amount || 0}`} icon={IndianRupee} theme="blue" />
+              <SummaryMetricCard title="Paid Amount" value={`₹${rev.paid_amount || 0}`} icon={CreditCard} theme="green" />
+              <SummaryMetricCard title="Pending" value={`₹${rev.pending_amount || 0}`} icon={Clock} theme="amber" />
             </div>
 
             {Array.isArray(data?.pending_amount) && data.pending_amount.length > 0 && (

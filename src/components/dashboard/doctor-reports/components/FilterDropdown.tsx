@@ -9,10 +9,11 @@ interface FilterDropdownProps {
   onChange: (v: string) => void;
   icon: React.ElementType;
   hideLabel?: boolean;
+  compact?: boolean;
 }
 
 export const FilterDropdown: React.FC<FilterDropdownProps> = ({
-  label, options, value, onChange, icon: Icon, hideLabel
+  label, options, value, onChange, icon: Icon, hideLabel, compact
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -31,7 +32,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
       {!hideLabel && <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{label}</label>}
       <div
         onClick={() => setOpen(!open)}
-        className={`w-full bg-white border-2 py-3 px-4 text-xs font-black uppercase tracking-widest text-gray-700 cursor-pointer flex items-center justify-between rounded-xl transition-all ${open ? 'border-[#549E9E] ring-2 ring-[#549E9E]/5' : 'border-gray-100 hover:border-[#549E9E]/30'}`}
+        className={`w-full bg-white border-2 text-xs font-black uppercase tracking-widest text-gray-700 cursor-pointer flex items-center justify-between rounded-xl transition-all ${compact ? 'py-1.5 px-3' : 'py-3 px-4'} ${open ? 'border-[#549E9E] ring-2 ring-[#549E9E]/5' : 'border-gray-100 hover:border-[#549E9E]/30'}`}
       >
         <div className="flex items-center gap-2 truncate">
           <Icon size={14} className={open ? 'text-[#549E9E]' : 'text-gray-400'} />

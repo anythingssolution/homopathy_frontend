@@ -12,7 +12,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
 
-import { StatCard } from '../components/StatCard';
+import { SummaryMetricCard } from '../components/SummaryMetricCard';
 import { useReportData } from '../hooks/useReportData';
 import { useAuth } from '../../../../context/AuthContext';
 import { FilterDropdown } from '../components/FilterDropdown';
@@ -267,16 +267,13 @@ export const ClinicalAnalytics: React.FC<ClinicalAnalyticsProps> = ({ token }) =
   return (
     <div className="flex flex-col h-full space-y-6">
       {/* Filters & Header Bar */}
-      <div className="bg-white/80 backdrop-blur-md p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex flex-col gap-2 w-full md:w-auto">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Timeframe</span>
-            <div className="h-1.5 w-1.5 rounded-full bg-[#549E9E]"></div>
-            <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-1">
-              <MapPin size={10} /> {branchScope?.selected_branch?.branch_name || 'Active Branch'}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2 pb-2 md:pb-0 items-center">
+      <div className="bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mr-1">Timeframe</span>
+          <div className="h-1.5 w-1.5 rounded-full bg-[#549E9E]"></div>
+          <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-1 mr-1">
+            <MapPin size={10} /> {branchScope?.selected_branch?.branch_name || 'Active Branch'}
+          </span>
             {[
               { id: 'today', label: 'Today' },
               { id: '1_week', label: '1 Week' },
@@ -286,18 +283,19 @@ export const ClinicalAnalytics: React.FC<ClinicalAnalyticsProps> = ({ token }) =
               <button
                 key={t.id}
                 onClick={() => setDateFilter(t.id)}
-                className={`cursor-pointer px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border-2 ${
+                className={`cursor-pointer px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
                   dateFilter === t.id
-                    ? 'bg-[#549E9E] border-[#549E9E] text-white shadow-md shadow-[#549E9E]/10'
+                    ? 'bg-[#549E9E] border-[#549E9E] text-white'
                     : 'bg-white border-gray-100 text-gray-500 hover:border-[#549E9E]/20 hover:bg-gray-50/50'
                 }`}
               >
                 {t.label}
               </button>
             ))}
-            <div className="min-w-[150px]">
+            <div className="min-w-[140px]">
               <FilterDropdown
                 hideLabel={true}
+                compact={true}
                 label="More Options"
                 value={dateFilter.endsWith('_months') || dateFilter.endsWith('_years') || dateFilter === '1_year' ? dateFilter : ''}
                 onChange={setDateFilter}
@@ -330,15 +328,14 @@ export const ClinicalAnalytics: React.FC<ClinicalAnalyticsProps> = ({ token }) =
                 />
               </div>
             )}
-          </div>
         </div>
         
         <button
           onClick={fetchReports}
           disabled={isLoading}
-          className="cursor-pointer bg-white border border-gray-100 text-gray-600 px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 hover:border-gray-200 transition-all flex items-center gap-2 shadow-sm self-stretch md:self-auto justify-center"
+          className="cursor-pointer bg-white border border-gray-100 text-gray-600 px-3.5 py-1.5 rounded-lg font-black text-[11px] uppercase tracking-widest hover:bg-gray-50 hover:border-gray-200 transition-all flex items-center gap-2 shadow-sm self-stretch md:self-auto justify-center"
         >
-          <RefreshCcw size={14} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? 'Syncing...' : 'Refresh'}
+          <RefreshCcw size={13} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? 'Syncing...' : 'Refresh'}
         </button>
       </div>
 
@@ -365,29 +362,29 @@ export const ClinicalAnalytics: React.FC<ClinicalAnalyticsProps> = ({ token }) =
         <div className="space-y-6">
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard 
-              title="Total Consultations" 
-              value={totalConsultations} 
-              icon={Activity} 
-              colorClass="border-[#549E9E]" 
+            <SummaryMetricCard
+              title="Total Consultations"
+              value={totalConsultations}
+              icon={Activity}
+              theme="teal"
             />
-            <StatCard 
-              title="Unique Patients" 
-              value={uniquePatients} 
-              icon={Users} 
-              colorClass="border-blue-500" 
+            <SummaryMetricCard
+              title="Unique Patients"
+              value={uniquePatients}
+              icon={Users}
+              theme="blue"
             />
-            <StatCard 
-              title="Pending Follow-ups" 
-              value={dueFollowupsCount} 
-              icon={Clock} 
-              colorClass="border-amber-500" 
+            <SummaryMetricCard
+              title="Pending Follow-ups"
+              value={dueFollowupsCount}
+              icon={Clock}
+              theme="amber"
             />
-            <StatCard 
-              title="Vitals Captures" 
-              value={vitalCount} 
-              icon={Heart} 
-              colorClass="border-emerald-500" 
+            <SummaryMetricCard
+              title="Vitals Captures"
+              value={vitalCount}
+              icon={Heart}
+              theme="green"
             />
           </div>
 

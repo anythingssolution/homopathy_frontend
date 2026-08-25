@@ -14,7 +14,6 @@ import {
   RefreshCcw,
   AlertCircle,
   FileText,
-  Filter
 } from 'lucide-react';
 import {
   BarChart,
@@ -26,6 +25,8 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
+import { FilterDropdown } from '../components/FilterDropdown';
+import { SummaryMetricCard } from '../components/SummaryMetricCard';
 
 interface BookedVsConsultedViewProps {
   token: string | null;
@@ -191,71 +192,60 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
   return (
     <div className="flex flex-col h-full space-y-6 pb-8">
       {/* Header & Controls */}
-      <div className="bg-gradient-to-r from-[#549E9E]/12 via-white to-sky-50 p-5 sm:p-6 rounded-2xl border border-[#549E9E]/20 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-5">
-        <div className="flex flex-col gap-2">
-          {/* Breadcrumb Path */}
-          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#549E9E]">
-            <button
-              onClick={handleResetToYear}
-              className="hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <Calendar size={14} /> Year {selectedYear}
-            </button>
-
-            {selectedMonth && (
-              <>
-                <ChevronRight size={14} className="text-gray-400" />
+      <div className="bg-gradient-to-r from-[#549E9E]/12 via-white to-sky-50 px-4 py-2.5 rounded-xl border border-[#549E9E]/20 shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-2">
+        <div className="flex flex-col gap-0.5 min-w-0">
+          {(selectedMonth || selectedDate) && (
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+              {selectedMonth && (
                 <button
                   onClick={handleResetToMonth}
                   className={`flex items-center gap-1 cursor-pointer ${selectedDate ? 'hover:underline text-[#549E9E]' : 'text-gray-700 font-extrabold'}`}
                 >
                   {data?.month_name || `Month ${selectedMonth}`}
                 </button>
-              </>
-            )}
+              )}
 
-            {selectedDate && (
-              <>
-                <ChevronRight size={14} className="text-gray-400" />
-                <span className="text-gray-700 font-black">
-                  {new Date(selectedDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </span>
-              </>
-            )}
-          </div>
-          <h2 className="text-xl sm:text-2xl font-black text-gray-800 tracking-tight">
+              {selectedDate && (
+                <>
+                  <ChevronRight size={12} className="text-gray-400" />
+                  <span className="text-gray-700 font-black">
+                    {new Date(selectedDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+          <h2 className="text-base sm:text-lg font-black text-gray-800 tracking-tight leading-tight">
             Booked vs Consulted Drilldown Analytics
           </h2>
-          <p className="text-[11px] sm:text-xs font-bold text-gray-500">
+          <p className="text-[11px] font-bold text-gray-500">
             Every booked appointment is reconciled into one clear outcome.
           </p>
         </div>
 
         {/* Year Filter & Refresh */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 bg-white px-3 py-2 border border-gray-200 rounded-xl shadow-xs">
-            <Filter size={14} className="text-gray-400" />
-            <span className="text-xs font-black text-gray-500 uppercase tracking-wider">Year:</span>
-            <select
-              value={selectedYear}
-              onChange={(e) => {
-                setSelectedYear(Number(e.target.value));
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-[140px]">
+            <FilterDropdown
+              hideLabel={true}
+              compact={true}
+              label="Year"
+              icon={Calendar}
+              value={String(selectedYear)}
+              onChange={(year) => {
+                setSelectedYear(Number(year));
                 setSelectedMonth(null);
                 setSelectedDate(null);
               }}
-              className="text-xs font-black text-[#549E9E] bg-transparent outline-none cursor-pointer"
-            >
-              {yearOptions.map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+              options={yearOptions.map((year) => ({ id: String(year), label: String(year) }))}
+            />
           </div>
 
           <button
             onClick={() => fetchDrilldownReport(selectedYear, selectedMonth, selectedDate)}
-            className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5"
+            className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-3.5 py-1.5 rounded-lg font-black text-[11px] uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border border-[#549E9E]/10"
           >
-            <RefreshCcw size={14} className={isLoading ? 'animate-spin' : ''} /> Refresh
+            <RefreshCcw size={13} className={isLoading ? 'animate-spin' : ''} /> Refresh
           </button>
         </div>
       </div>
@@ -283,62 +273,55 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
           {data.level === 'YEAR_MONTHS' && (
             <div className="space-y-6">
               {/* Stat Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-                <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-gray-400 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Total Booked ({selectedYear})</span>
-                    <CalendarCheck size={18} className="text-[#549E9E]" />
-                  </div>
-                  <div className="text-2xl font-black text-gray-800">{data.total_booked_year}</div>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Appointments Created</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-emerald-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-emerald-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Total Consulted ({selectedYear})</span>
-                    <CheckCircle2 size={18} className="text-emerald-500" />
-                  </div>
-                  <div className="text-2xl font-black text-emerald-700">{data.total_consulted_year}</div>
-                  <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Patients Examined</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-amber-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-amber-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Unconsulted / Pending</span>
-                    <Clock size={18} className="text-amber-500" />
-                  </div>
-                  <div className="text-2xl font-black text-amber-700">
-                    {data.total_unconsulted_year}
-                  </div>
-                  <span className="text-[9px] font-bold text-amber-600 uppercase tracking-widest mt-1">Awaiting Consultation</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-violet-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-violet-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Rejected</span>
-                    <AlertCircle size={18} className="text-violet-500" />
-                  </div>
-                  <div className="text-2xl font-black text-violet-700">{data.total_rejected_year}</div>
-                  <span className="text-[9px] font-bold text-violet-600 uppercase tracking-widest mt-1">Rejected by Reception</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-red-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-red-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Cancelled</span>
-                    <AlertCircle size={18} className="text-red-500" />
-                  </div>
-                  <div className="text-2xl font-black text-red-700">{data.total_cancelled_year}</div>
-                  <span className="text-[9px] font-bold text-red-600 uppercase tracking-widest mt-1">Other Cancellations</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-sky-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-sky-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Consultation Rate</span>
-                    <Percent size={18} className="text-sky-500" />
-                  </div>
-                  <div className="text-2xl font-black text-sky-700">{data.overall_consultation_rate}%</div>
-                  <span className="text-[9px] font-bold text-sky-600 uppercase tracking-widest mt-1">Booked to Consulted Ratio</span>
-                </div>
+              <div className="grid grid-cols-6 gap-3">
+                <SummaryMetricCard
+                  title={`Total Booked (${selectedYear})`}
+                  value={data.total_booked_year}
+                  icon={CalendarCheck}
+                  theme="teal"
+                  subtitle="Appointments Created"
+                  delay={0}
+                />
+                <SummaryMetricCard
+                  title={`Total Consulted (${selectedYear})`}
+                  value={data.total_consulted_year}
+                  icon={CheckCircle2}
+                  theme="green"
+                  subtitle="Patients Examined"
+                  delay={0.05}
+                />
+                <SummaryMetricCard
+                  title="Unconsulted / Pending"
+                  value={data.total_unconsulted_year}
+                  icon={Clock}
+                  theme="amber"
+                  subtitle="Awaiting Consultation"
+                  delay={0.1}
+                />
+                <SummaryMetricCard
+                  title="Rejected"
+                  value={data.total_rejected_year}
+                  icon={AlertCircle}
+                  theme="violet"
+                  subtitle="Rejected by Reception"
+                  delay={0.15}
+                />
+                <SummaryMetricCard
+                  title="Cancelled"
+                  value={data.total_cancelled_year}
+                  icon={AlertCircle}
+                  theme="rose"
+                  subtitle="Other Cancellations"
+                  delay={0.2}
+                />
+                <SummaryMetricCard
+                  title="Consultation Rate"
+                  value={`${data.overall_consultation_rate}%`}
+                  icon={Percent}
+                  theme="blue"
+                  subtitle="Booked to Consulted Ratio"
+                  delay={0.25}
+                />
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
@@ -477,62 +460,55 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
               </div>
 
               {/* Month Stat Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-                <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-gray-400 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Booked in {data.month_name}</span>
-                    <CalendarCheck size={18} className="text-[#549E9E]" />
-                  </div>
-                  <div className="text-2xl font-black text-gray-800">{data.total_booked_month}</div>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Total Month Appointments</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-emerald-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-emerald-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Consulted in {data.month_name}</span>
-                    <CheckCircle2 size={18} className="text-emerald-500" />
-                  </div>
-                  <div className="text-2xl font-black text-emerald-700">{data.total_consulted_month}</div>
-                  <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Completed Consultations</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-amber-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-amber-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Pending / Unconsulted</span>
-                    <Clock size={18} className="text-amber-500" />
-                  </div>
-                  <div className="text-2xl font-black text-amber-700">
-                    {data.total_unconsulted_month}
-                  </div>
-                  <span className="text-[9px] font-bold text-amber-600 uppercase tracking-widest mt-1">Not Examined</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-violet-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-violet-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Rejected</span>
-                    <AlertCircle size={18} className="text-violet-500" />
-                  </div>
-                  <div className="text-2xl font-black text-violet-700">{data.total_rejected_month}</div>
-                  <span className="text-[9px] font-bold text-violet-600 uppercase tracking-widest mt-1">Rejected by Reception</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-red-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-red-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Cancelled</span>
-                    <AlertCircle size={18} className="text-red-500" />
-                  </div>
-                  <div className="text-2xl font-black text-red-700">{data.total_cancelled_month}</div>
-                  <span className="text-[9px] font-bold text-red-600 uppercase tracking-widest mt-1">Other Cancellations</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-sky-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-sky-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Month Consultation Rate</span>
-                    <Percent size={18} className="text-sky-500" />
-                  </div>
-                  <div className="text-2xl font-black text-sky-700">{data.overall_consultation_rate}%</div>
-                  <span className="text-[9px] font-bold text-sky-600 uppercase tracking-widest mt-1">Success Ratio</span>
-                </div>
+              <div className="grid grid-cols-6 gap-3">
+                <SummaryMetricCard
+                  title={`Booked in ${data.month_name}`}
+                  value={data.total_booked_month}
+                  icon={CalendarCheck}
+                  theme="teal"
+                  subtitle="Appointments Created"
+                  delay={0}
+                />
+                <SummaryMetricCard
+                  title={`Consulted in ${data.month_name}`}
+                  value={data.total_consulted_month}
+                  icon={CheckCircle2}
+                  theme="green"
+                  subtitle="Patients Examined"
+                  delay={0.05}
+                />
+                <SummaryMetricCard
+                  title="Unconsulted / Pending"
+                  value={data.total_unconsulted_month}
+                  icon={Clock}
+                  theme="amber"
+                  subtitle="Awaiting Consultation"
+                  delay={0.1}
+                />
+                <SummaryMetricCard
+                  title="Rejected"
+                  value={data.total_rejected_month}
+                  icon={AlertCircle}
+                  theme="violet"
+                  subtitle="Rejected by Reception"
+                  delay={0.15}
+                />
+                <SummaryMetricCard
+                  title="Cancelled"
+                  value={data.total_cancelled_month}
+                  icon={AlertCircle}
+                  theme="rose"
+                  subtitle="Other Cancellations"
+                  delay={0.2}
+                />
+                <SummaryMetricCard
+                  title="Consultation Rate"
+                  value={`${data.overall_consultation_rate}%`}
+                  icon={Percent}
+                  theme="blue"
+                  subtitle="Booked to Consulted Ratio"
+                  delay={0.25}
+                />
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs font-black">
@@ -729,64 +705,55 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
               </div>
 
               {/* Day Stat Overview */}
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-                <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-gray-400 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Total Booked</span>
-                    <Users size={18} className="text-[#549E9E]" />
-                  </div>
-                  <div className="text-2xl font-black text-gray-800">{data.total_booked}</div>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Appointments on Date</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-emerald-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-emerald-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Consulted Patients</span>
-                    <CheckCircle2 size={18} className="text-emerald-500" />
-                  </div>
-                  <div className="text-2xl font-black text-emerald-700">{data.total_consulted}</div>
-                  <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Examined by Doctor</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-amber-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-amber-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Unconsulted / Pending</span>
-                    <Clock size={18} className="text-amber-500" />
-                  </div>
-                  <div className="text-2xl font-black text-amber-700">
-                    {data.total_unconsulted}
-                  </div>
-                  <span className="text-[9px] font-bold text-amber-600 uppercase tracking-widest mt-1">Pending Consultation</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-violet-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-violet-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Rejected</span>
-                    <AlertCircle size={18} className="text-violet-500" />
-                  </div>
-                  <div className="text-2xl font-black text-violet-700">{data.total_rejected}</div>
-                  <span className="text-[9px] font-bold text-violet-600 uppercase tracking-widest mt-1">Rejected by Reception</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-red-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-red-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Cancelled</span>
-                    <AlertCircle size={18} className="text-red-500" />
-                  </div>
-                  <div className="text-2xl font-black text-red-700">{data.total_cancelled}</div>
-                  <span className="text-[9px] font-bold text-red-600 uppercase tracking-widest mt-1">Other Cancellations</span>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-sky-200 shadow-xs flex flex-col justify-between">
-                  <div className="flex justify-between items-center text-sky-600 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest">Daily Success Rate</span>
-                    <Percent size={18} className="text-sky-500" />
-                  </div>
-                  <div className="text-2xl font-black text-sky-700">
-                    {data.total_booked > 0 ? ((data.total_consulted / data.total_booked) * 100).toFixed(1) : 0}%
-                  </div>
-                  <span className="text-[9px] font-bold text-sky-600 uppercase tracking-widest mt-1">Completed Ratio</span>
-                </div>
+              <div className="grid grid-cols-6 gap-3">
+                <SummaryMetricCard
+                  title="Total Booked"
+                  value={data.total_booked}
+                  icon={Users}
+                  theme="teal"
+                  subtitle="Appointments Created"
+                  delay={0}
+                />
+                <SummaryMetricCard
+                  title="Consulted Patients"
+                  value={data.total_consulted}
+                  icon={CheckCircle2}
+                  theme="green"
+                  subtitle="Patients Examined"
+                  delay={0.05}
+                />
+                <SummaryMetricCard
+                  title="Unconsulted / Pending"
+                  value={data.total_unconsulted}
+                  icon={Clock}
+                  theme="amber"
+                  subtitle="Awaiting Consultation"
+                  delay={0.1}
+                />
+                <SummaryMetricCard
+                  title="Rejected"
+                  value={data.total_rejected}
+                  icon={AlertCircle}
+                  theme="violet"
+                  subtitle="Rejected by Reception"
+                  delay={0.15}
+                />
+                <SummaryMetricCard
+                  title="Cancelled"
+                  value={data.total_cancelled}
+                  icon={AlertCircle}
+                  theme="rose"
+                  subtitle="Other Cancellations"
+                  delay={0.2}
+                />
+                <SummaryMetricCard
+                  title="Consultation Rate"
+                  value={`${data.total_booked > 0 ? ((data.total_consulted / data.total_booked) * 100).toFixed(1) : 0}%`}
+                  icon={Percent}
+                  theme="blue"
+                  subtitle="Booked to Consulted Ratio"
+                  delay={0.25}
+                />
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs font-black">

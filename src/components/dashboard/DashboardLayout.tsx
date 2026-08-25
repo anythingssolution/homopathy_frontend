@@ -23,6 +23,7 @@ export default function DashboardLayout() {
   const location = useLocation();
 
   const isConsultPage = location.pathname.startsWith('/consult/');
+  const isReportsPage = location.pathname.startsWith('/reports');
 
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: t('dashboard.menu.dashboard') },
@@ -35,9 +36,15 @@ export default function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-[#FDFDF7] pt-20 print:min-h-0 print:pt-0 print:p-0">
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-4 sm:pb-6 lg:pb-8 print:max-w-none print:p-0">
-        {!isConsultPage && (
+      {/* Reports uses a full-bleed layout so the menu can sit flush left */}
+      <main
+        className={
+          isReportsPage
+            ? 'print:p-0'
+            : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-3 pb-4 sm:pb-6 lg:pb-8 print:max-w-none print:p-0'
+        }
+      >
+        {!isConsultPage && !isReportsPage && (
           <div className="no-print">
             <StaffBranchSwitcher />
           </div>
