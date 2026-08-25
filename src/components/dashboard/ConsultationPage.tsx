@@ -830,6 +830,11 @@ export default function ConsultationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
+  const [isEditingCompletedConsultation, setIsEditingCompletedConsultation] =
+    useState(false);
+  const [canEditBeforeDispense, setCanEditBeforeDispense] = useState(false);
+  const [editLockReason, setEditLockReason] = useState<string | null>(null);
+  const [consultationReloadKey, setConsultationReloadKey] = useState(0);
   const [followUpChainClosed, setFollowUpChainClosed] = useState(false);
   const [expandedChainAppointmentId, setExpandedChainAppointmentId] = useState<
     number | null
@@ -838,6 +843,9 @@ export default function ConsultationPage() {
   useEffect(() => {
     setIsSubmitting(false);
     setIsReadOnly(false);
+    setIsEditingCompletedConsultation(false);
+    setCanEditBeforeDispense(false);
+    setEditLockReason(null);
     setAppointmentDetail(stateAppMatchesRoute ? app : null);
   }, [appointmentId, stateAppMatchesRoute, app]);
   const isFollowUpVisit = useMemo(() => {
@@ -1079,9 +1087,15 @@ export default function ConsultationPage() {
 
     const fetchConsultation = async () => {
       // Only fetch existing consultation data for completed appointments
-      if (currentApp?.status?.toLowerCase() !== "completed") return;
+      if (currentApp?.status?.toLowerCase() !== "completed") {
+        setCanEditBeforeDispense(false);
+        setEditLockReason(null);
+        setIsEditingCompletedConsultation(false);
+        return;
+      }
 
       setIsReadOnly(true);
+      setIsEditingCompletedConsultation(false);
       setIsLoading(true);
       try {
         const res = await fetch(
@@ -1093,6 +1107,9 @@ export default function ConsultationPage() {
         const result = await res.json();
         if (result.success && result.data.consultation) {
           const c = result.data.consultation;
+          const editAccess = result.data.edit_access || {};
+          setCanEditBeforeDispense(Boolean(editAccess.can_edit_before_dispense));
+          setEditLockReason(editAccess.edit_lock_reason || null);
           const isNoPrescriptionConsultation =
             c.workflow_status === "COMPLETED_NO_PRESCRIPTION";
           setFollowUpChainClosed(Boolean(c.follow_up_chain_closed));
@@ -1274,7 +1291,7 @@ export default function ConsultationPage() {
     } else {
       fetchConsultation();
     }
-  }, [app, appointmentId, navigate, token, currentApp?.status]);
+  }, [app, appointmentId, navigate, token, currentApp?.status, consultationReloadKey]);
 
   useEffect(() => {
     if (followUpChain.length === 0) {
@@ -2760,8 +2777,15 @@ export default function ConsultationPage() {
 
       if (result.success) {
         clearConsultDraft(user?.id, submissionAppointmentId);
-        addToast("Consultation completed successfully", "success");
-        navigate("/doctor-portal");
+        if (isEditingCompletedConsultation) {
+          addToast("Consultation changes saved successfully", "success");
+          setIsEditingCompletedConsultation(false);
+          setIsReadOnly(true);
+          setConsultationReloadKey((key) => key + 1);
+        } else {
+          addToast("Consultation completed successfully", "success");
+          navigate("/doctor-portal");
+        }
       } else {
         addToast(result.message || "Failed to complete consultation", "error");
       }
@@ -2813,6 +2837,26 @@ export default function ConsultationPage() {
     } else {
       addToast(result.message || t("patient_edit.failed", "Failed to update patient details"), "error");
     }
+  };
+
+  const isCompletedConsultation =
+    String(currentApp?.status || "").toLowerCase() === "completed";
+
+  const handleStartCompletedConsultationEdit = () => {
+    if (!canEditBeforeDispense) {
+      addToast(editLockReason || "This consultation can no longer be edited", "warning");
+      return;
+    }
+
+    setIsEditingCompletedConsultation(true);
+    setIsReadOnly(false);
+    addToast("Editing enabled until medical dispensing starts", "info");
+  };
+
+  const handleCancelCompletedConsultationEdit = () => {
+    setIsEditingCompletedConsultation(false);
+    setIsReadOnly(true);
+    setConsultationReloadKey((key) => key + 1);
   };
 
   return (
@@ -2877,6 +2921,36 @@ export default function ConsultationPage() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          {isCompletedConsultation && isReadOnly && canEditBeforeDispense && (
+            <button
+              type="button"
+              onClick={handleStartCompletedConsultationEdit}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white text-[#2f7f80] hover:bg-white/90 rounded-xl transition-colors backdrop-blur-md cursor-pointer text-[10px] font-black uppercase tracking-widest shadow-sm"
+              title="Edit before medical dispensing starts"
+            >
+              <Pencil size={15} />
+              Edit Prescription
+            </button>
+          )}
+          {isCompletedConsultation && isReadOnly && !canEditBeforeDispense && editLockReason && (
+            <span
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white/70 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/15"
+              title={editLockReason}
+            >
+              <AlertCircle size={15} />
+              Edit Locked
+            </span>
+          )}
+          {isEditingCompletedConsultation && (
+            <button
+              type="button"
+              onClick={handleCancelCompletedConsultationEdit}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors backdrop-blur-md cursor-pointer text-[10px] font-black uppercase tracking-widest"
+            >
+              <X size={15} />
+              Cancel Edit
+            </button>
+          )}
           <button
             onClick={() => navigate(-1)}
             className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors backdrop-blur-md cursor-pointer"
@@ -2962,6 +3036,19 @@ export default function ConsultationPage() {
             </label>
           </div>
         </div>
+        {isEditingCompletedConsultation && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+            <div className="flex items-center gap-2">
+              <Pencil size={16} />
+              <span className="text-[11px] font-black uppercase tracking-widest">
+                Editing before medical dispensing
+              </span>
+            </div>
+            <span className="text-[10px] font-bold text-amber-700">
+              Live queue and completed time will stay unchanged.
+            </span>
+          </div>
+        )}
         {isLoading && (
           <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center rounded-2xl">
             <RefreshCcw className="animate-spin text-[#549E9E]" size={32} />
@@ -5691,12 +5778,14 @@ export default function ConsultationPage() {
               <span>
                 {isSubmitting
                   ? t("consultation_modal.submitting", "Submitting...")
-                  : t(
-                    "consultation_modal.confirm_complete",
-                    "Confirm & Complete Consultation",
-                  )}
+                  : isEditingCompletedConsultation
+                    ? "Save Changes"
+                    : t(
+                      "consultation_modal.confirm_complete",
+                      "Confirm & Complete Consultation",
+                    )}
               </span>
-              {!isSubmitting && (
+              {!isSubmitting && !isEditingCompletedConsultation && (
                 <kbd className="px-2 py-0.5 bg-white/20 text-white rounded text-[10px] font-black font-mono shadow-xs normal-case tracking-normal">
                   Ctrl + Enter
                 </kbd>
