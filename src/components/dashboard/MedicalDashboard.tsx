@@ -414,6 +414,18 @@ export default function MedicalDashboard() {
       0
     );
 
+  const applyTodayBillTotal = (
+    todayTotal: number,
+    order: AllocationOrder = allocationOrder,
+    prescription: any = selectedPrescription
+  ) => {
+    const today = Number(todayTotal) || 0;
+    setAmount(String(today));
+    const previousPending = Number(prescription?.account_dues?.total_pending || 0);
+    const includePrevious = order !== 'CURRENT_ONLY' && previousPending > 0;
+    setCollectedAmount((includePrevious ? today + previousPending : today).toFixed(2));
+  };
+
   const openPrescriptionPreview = async (consultationId?: number | string | null) => {
     if (!token || !consultationId) return;
     setIsPreviewLoading(true);
@@ -562,8 +574,7 @@ export default function MedicalDashboard() {
 
     const additionalTotal = additionalMeds.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
     const testsTotal = getSelectedTestsTotal();
-    const total = getBaseMedicationTotal(newAmounts, medItemStates) + additionalTotal + testsTotal;
-    setAmount(total.toString());
+    applyTodayBillTotal(getBaseMedicationTotal(newAmounts, medItemStates) + additionalTotal + testsTotal);
   };
 
   const updateAdditionalMedField = (
@@ -632,7 +643,7 @@ export default function MedicalDashboard() {
     const baseTotal = getBaseMedicationTotal();
     const additionalTotal = updated.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
     const testsTotal = getSelectedTestsTotal();
-    setAmount((baseTotal + additionalTotal + testsTotal).toString());
+    applyTodayBillTotal(baseTotal + additionalTotal + testsTotal);
   };
 
   const addAdditionalMed = () => {
@@ -648,7 +659,7 @@ export default function MedicalDashboard() {
     const baseTotal = getBaseMedicationTotal();
     const additionalTotal = updated.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
     const testsTotal = getSelectedTestsTotal();
-    setAmount((baseTotal + additionalTotal + testsTotal).toString());
+    applyTodayBillTotal(baseTotal + additionalTotal + testsTotal);
   };
 
   const recalculateTotalForStates = (
@@ -656,7 +667,9 @@ export default function MedicalDashboard() {
     testStates: typeof testItemStates = testItemStates
   ) => {
     const additionalTotal = additionalMeds.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-    setAmount((getBaseMedicationTotal(medAmounts, medStates) + additionalTotal + getSelectedTestsTotal(testStates)).toString());
+    applyTodayBillTotal(
+      getBaseMedicationTotal(medAmounts, medStates) + additionalTotal + getSelectedTestsTotal(testStates)
+    );
   };
 
   const confirmVoidItem = () => {
@@ -1178,86 +1191,88 @@ export default function MedicalDashboard() {
                           return (
                             <div
                               key={med.consultation_medication_id || idx}
-                              className={`group/med flex items-start justify-between gap-3 border bg-white p-3 shadow-sm transition-all ${
+                              className={`group/med border bg-white p-3 shadow-sm transition-all ${
                                 itemState.dispense_status === 'VOID'
                                   ? 'border-red-200 bg-red-50/40'
                                   : 'border-gray-100 hover:border-[#549E9E]/30'
                               }`}
                             >
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-black text-gray-800 transition-colors group-hover/med:text-[#549E9E]">{formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input)}</p>
-                                <p className="mt-1 text-[11px] font-bold leading-snug text-[#2f6f6f]">
-                                  {dosePreview || t('dispense.no_dose_details', 'No dose details')}
-                                </p>
-                                {itemState.dispense_status === 'VOID' && (
-                                  <div className="mt-2 rounded-lg border border-red-100 bg-white px-2.5 py-1.5">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Not dispensed</p>
-                                    <p className="mt-0.5 text-xs font-bold text-red-700">{itemState.void_reason}</p>
-                                    {lastEvent && (
-                                      <p className="mt-0.5 text-[9px] font-bold text-gray-400">
-                                        {lastEvent.actor_name || lastEvent.actor_role || 'Medical'} • {new Date(lastEvent.created_at).toLocaleString()}
-                                      </p>
-                                    )}
-                                  </div>
-                                )}
-                                {voidDialog?.type === 'medicine' && voidDialog?.idx === idx && (
-                                  <div className="mt-2 space-y-2 rounded-xl border border-red-100 bg-red-50 p-2.5">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-red-600">Removal reason *</label>
-                                    <textarea
-                                      value={voidReason}
-                                      onChange={(e) => setVoidReason(e.target.value)}
-                                      placeholder="Why is this prescribed medicine not being dispensed?"
-                                      className="min-h-16 w-full resize-none rounded-lg border border-red-100 bg-white p-2.5 text-xs font-bold text-gray-700 outline-none focus:border-red-300"
-                                    />
-                                    <div className="flex justify-end gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => { setVoidDialog(null); setVoidReason(''); }}
-                                        className="rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-white"
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={confirmVoidItem}
-                                        className="rounded-lg bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white"
-                                      >
-                                        Confirm removal
-                                      </button>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-black text-gray-800 transition-colors group-hover/med:text-[#549E9E]">{formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input)}</p>
+                                  <p className="mt-1 text-[11px] font-bold leading-snug text-[#2f6f6f]">
+                                    {dosePreview || t('dispense.no_dose_details', 'No dose details')}
+                                  </p>
+                                  {itemState.dispense_status === 'VOID' && (
+                                    <div className="mt-2 rounded-lg border border-red-100 bg-white px-2.5 py-1.5">
+                                      <p className="text-[10px] font-black uppercase tracking-widest text-red-600">Not dispensed</p>
+                                      <p className="mt-0.5 text-xs font-bold text-red-700">{itemState.void_reason}</p>
+                                      {lastEvent && (
+                                        <p className="mt-0.5 text-[9px] font-bold text-gray-400">
+                                          {lastEvent.actor_name || lastEvent.actor_role || 'Medical'} • {new Date(lastEvent.created_at).toLocaleString()}
+                                        </p>
+                                      )}
                                     </div>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex w-auto shrink-0 items-center gap-1.5">
-                                <div className="relative w-24">
-                                  <IndianRupee size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
-                                  <input
-                                    type="number"
-                                    placeholder="0"
-                                    value={medAmounts[idx] || ''}
-                                    onChange={(e) => handleMedAmountChange(idx, e.target.value)}
-                                    disabled={itemState.dispense_status === 'VOID'}
-                                    className="w-full border-2 border-gray-50 bg-gray-50 py-2 pl-7 pr-2 text-right text-xs font-black text-gray-800 outline-none transition-all focus:border-[#549E9E]/20"
-                                  />
+                                  )}
                                 </div>
-                                {itemState.dispense_status === 'VOID' ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => restoreMedication(idx)}
-                                    className="flex items-center justify-center gap-1 rounded-lg bg-emerald-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-emerald-700 hover:bg-emerald-100"
-                                  >
-                                    <RefreshCcw size={11} /> Restore
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => { setVoidDialog({ type: 'medicine', idx, name: med.medicine_value }); setVoidReason(''); }}
-                                    className="flex items-center justify-center gap-1 rounded-lg bg-red-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100"
-                                  >
-                                    <XCircle size={11} /> Remove
-                                  </button>
-                                )}
+                                <div className="flex w-auto shrink-0 items-center gap-1.5">
+                                  <div className="relative w-24">
+                                    <IndianRupee size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
+                                    <input
+                                      type="number"
+                                      placeholder="0"
+                                      value={medAmounts[idx] || ''}
+                                      onChange={(e) => handleMedAmountChange(idx, e.target.value)}
+                                      disabled={itemState.dispense_status === 'VOID'}
+                                      className="w-full border-2 border-gray-50 bg-gray-50 py-2 pl-7 pr-2 text-right text-xs font-black text-gray-800 outline-none transition-all focus:border-[#549E9E]/20"
+                                    />
+                                  </div>
+                                  {itemState.dispense_status === 'VOID' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => restoreMedication(idx)}
+                                      className="flex items-center justify-center gap-1 rounded-lg bg-emerald-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-emerald-700 hover:bg-emerald-100"
+                                    >
+                                      <RefreshCcw size={11} /> Restore
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setVoidDialog({ type: 'medicine', idx, name: med.medicine_value }); setVoidReason(''); }}
+                                      className="flex items-center justify-center gap-1 rounded-lg bg-red-50 px-2 py-2 text-[9px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100"
+                                    >
+                                      <XCircle size={11} /> Remove
+                                    </button>
+                                  )}
+                                </div>
                               </div>
+                              {voidDialog?.type === 'medicine' && voidDialog?.idx === idx && (
+                                <div className="mt-2.5 w-full space-y-2 rounded-xl border border-red-100 bg-red-50 p-3">
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-red-600">Removal reason *</label>
+                                  <textarea
+                                    value={voidReason}
+                                    onChange={(e) => setVoidReason(e.target.value)}
+                                    placeholder="Why is this prescribed medicine not being dispensed?"
+                                    className="min-h-24 w-full resize-none rounded-lg border border-red-100 bg-white p-2.5 text-xs font-bold text-gray-700 outline-none focus:border-red-300"
+                                  />
+                                  <div className="flex justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => { setVoidDialog(null); setVoidReason(''); }}
+                                      className="rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-white"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={confirmVoidItem}
+                                      className="rounded-lg bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white"
+                                    >
+                                      Confirm removal
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -1308,34 +1323,6 @@ export default function MedicalDashboard() {
                                         <p className="mt-0.5 text-xs font-bold text-red-700">{testState.void_reason}</p>
                                       </div>
                                     )}
-                                    {voidDialog?.type === 'test' && voidDialog?.idx === idx && (
-                                      <div className="mt-2 space-y-2 rounded-xl border border-red-100 bg-red-50 p-2.5">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-red-600">Removal reason *</label>
-                                        <textarea
-                                          value={voidReason}
-                                          onChange={(e) => setVoidReason(e.target.value)}
-                                          placeholder="Why is this test not being billed/dispensed?"
-                                          maxLength={255}
-                                          className="min-h-16 w-full resize-none rounded-lg border border-red-100 bg-white p-2.5 text-xs font-bold text-gray-700 outline-none focus:border-red-300"
-                                        />
-                                        <div className="flex justify-end gap-2">
-                                          <button
-                                            type="button"
-                                            onClick={() => { setVoidDialog(null); setVoidReason(''); }}
-                                            className="rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-white"
-                                          >
-                                            Cancel
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={confirmVoidItem}
-                                            className="rounded-lg bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white"
-                                          >
-                                            Confirm removal
-                                          </button>
-                                        </div>
-                                      </div>
-                                    )}
                                   </div>
                                   <div className="flex shrink-0 items-center gap-1.5">
                                     <div className={`border px-2.5 py-2 text-right text-xs font-black ${
@@ -1364,6 +1351,34 @@ export default function MedicalDashboard() {
                                     )}
                                   </div>
                                 </div>
+                                {voidDialog?.type === 'test' && voidDialog?.idx === idx && (
+                                  <div className="mt-2.5 w-full space-y-2 rounded-xl border border-red-100 bg-red-50 p-3">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-red-600">Removal reason *</label>
+                                    <textarea
+                                      value={voidReason}
+                                      onChange={(e) => setVoidReason(e.target.value)}
+                                      placeholder="Why is this test not being billed/dispensed?"
+                                      maxLength={255}
+                                      className="min-h-24 w-full resize-none rounded-lg border border-red-100 bg-white p-2.5 text-xs font-bold text-gray-700 outline-none focus:border-red-300"
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => { setVoidDialog(null); setVoidReason(''); }}
+                                        className="rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-white"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={confirmVoidItem}
+                                        className="rounded-lg bg-red-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white"
+                                      >
+                                        Confirm removal
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                               );
                             })}
