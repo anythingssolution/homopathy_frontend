@@ -74,6 +74,31 @@ const sourceOptions = [
   { id: 'MEDICAL_PRODUCT_PRICE', label: 'Medical Product Price' },
 ];
 
+const productTypeOptions = [
+  { id: '', label: 'Select Product Type' },
+  { id: 'DILUTION', label: 'Dilution' },
+  { id: 'MOTHER_TINCTURE', label: 'Mother Tincture' },
+  { id: 'BIOCHEMIC_TABLET', label: 'Biochemic Tablet' },
+  { id: 'TRITURATION', label: 'Trituration' },
+  { id: 'GLOBULES', label: 'Globules' },
+  { id: 'DROPS', label: 'Drops' },
+  { id: 'SYRUP', label: 'Syrup' },
+  { id: 'TABLET', label: 'Tablet' },
+  { id: 'CAPSULE', label: 'Capsule' },
+  { id: 'POWDER', label: 'Powder' },
+  { id: 'OIL', label: 'Oil' },
+  { id: 'OINTMENT', label: 'Ointment' },
+  { id: 'CREAM', label: 'Cream' },
+  { id: 'LOTION', label: 'Lotion' },
+  { id: 'GEL', label: 'Gel' },
+  { id: 'SPRAY', label: 'Spray' },
+  { id: 'SOAP', label: 'Soap' },
+  { id: 'SHAMPOO', label: 'Shampoo' },
+  { id: 'PATENT_MEDICINE', label: 'Patent Medicine' },
+  { id: 'COMBINATION', label: 'Combination' },
+  { id: 'OTHER', label: 'Other' },
+];
+
 const statusOptions = [
   { id: 'active', label: 'Active' },
   { id: 'all', label: 'All' },
@@ -96,17 +121,28 @@ function CustomSelect({
   options,
   value,
   onChange,
+  searchable = false,
   className = '',
 }: {
   label?: string;
   options: SelectOption[];
   value: string;
   onChange: (val: string) => void;
+  searchable?: boolean;
   className?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [optionSearch, setOptionSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const selected = options.find((opt) => opt.id === value);
+  const filteredOptions = useMemo(() => {
+    const searchValue = optionSearch.trim().toLowerCase();
+    if (!searchValue) return options;
+
+    return options.filter((opt) => {
+      return opt.label.toLowerCase().includes(searchValue) || opt.id.toLowerCase().includes(searchValue);
+    });
+  }, [optionSearch, options]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -149,7 +185,16 @@ function CustomSelect({
             transition={{ duration: 0.15 }}
             className="absolute left-0 right-0 mt-1.5 bg-white border border-gray-100 rounded-xl shadow-xl z-[110] max-h-60 overflow-y-auto p-1.5 space-y-0.5 scrollbar-light"
           >
-            {options.map((opt) => {
+            {searchable && (
+              <input
+                value={optionSearch}
+                onChange={(event) => setOptionSearch(event.target.value)}
+                onKeyDown={(event) => event.stopPropagation()}
+                placeholder="Search type..."
+                className="w-full mb-1 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs font-bold text-gray-700 outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10"
+              />
+            )}
+            {filteredOptions.map((opt) => {
               const isSelected = opt.id === value;
               return (
                 <button
@@ -157,6 +202,7 @@ function CustomSelect({
                   type="button"
                   onClick={() => {
                     onChange(opt.id);
+                    setOptionSearch('');
                     setIsOpen(false);
                   }}
                   className={`w-full text-left rounded-lg px-3.5 py-2.5 transition-all flex items-center justify-between text-xs font-bold ${
@@ -170,6 +216,11 @@ function CustomSelect({
                 </button>
               );
             })}
+            {filteredOptions.length === 0 && (
+              <div className="px-3.5 py-3 text-[10px] font-black text-gray-300 uppercase tracking-widest">
+                No type found
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -202,6 +253,16 @@ export default function MedicalProductMaster() {
 
   const pageSize = 10;
   const isEditing = useMemo(() => Boolean(form.id), [form.id]);
+  const visibleProductTypeOptions = useMemo(() => {
+    if (!form.product_type || productTypeOptions.some((option) => option.id === form.product_type)) {
+      return productTypeOptions;
+    }
+
+    return [
+      ...productTypeOptions,
+      { id: form.product_type, label: form.product_type },
+    ];
+  }, [form.product_type]);
 
   const fetchProducts = async (overrideSearch?: string) => {
     setIsLoading(true);
@@ -302,13 +363,18 @@ export default function MedicalProductMaster() {
   const saveProduct = async () => {
     setIsSaving(true);
     try {
+      const trimmedProductName = form.product_name.trim();
+      const productPayload = {
+        ...form,
+        medicine_value: trimmedProductName,
+      };
       const response = await fetch(`/api/v1/medical/master-medical-products${isEditing ? `/${form.id}` : ''}`, {
         method: isEditing ? 'PUT' : 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify(productPayload),
       });
       const payload = await response.json();
 
@@ -478,37 +544,22 @@ export default function MedicalProductMaster() {
               <div className="p-6 overflow-y-auto overscroll-contain space-y-6 max-h-[60vh] scrollbar-light">
                 <div>
                   <h3 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest mb-3 pb-1 border-b border-teal-50">Basic Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">Medicine Value *</label>
-                      <input value={form.medicine_value} onChange={(e) => updateForm('medicine_value', e.target.value)} placeholder="e.g. ACONITE" className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700" />
-                    </div>
-                    <CustomSelect
-                      label="Source Type *"
-                      options={sourceOptions.filter((option) => option.id)}
-                      value={form.source_type}
-                      onChange={(val) => updateForm('source_type', val)}
-                      className="w-full"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="flex flex-col gap-1">
                     <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">Product Name *</label>
                     <input value={form.product_name} onChange={(e) => updateForm('product_name', e.target.value)} placeholder="e.g. ACONITE 30C" className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700" />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">Product Type</label>
-                    <input value={form.product_type} onChange={(e) => updateForm('product_type', e.target.value)} placeholder="e.g. DILUTION" className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">Category</label>
-                    <input value={form.category} onChange={(e) => updateForm('category', e.target.value)} placeholder="e.g. HOMEOPATHY" className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700" />
-                  </div>
+                  <CustomSelect
+                    label="Product Type"
+                    options={visibleProductTypeOptions}
+                    value={form.product_type}
+                    onChange={(val) => updateForm('product_type', val)}
+                    searchable
+                    className="w-full"
+                  />
                   <div className="flex flex-col gap-1">
                     <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">Packing</label>
-                    <input value={form.packing} onChange={(e) => updateForm('packing', e.target.value)} placeholder="e.g. BOTTLE" className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700" />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">Size / Weight</label>
-                    <input value={form.size_or_weight} onChange={(e) => updateForm('size_or_weight', e.target.value)} placeholder="e.g. 30ml" className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700" />
+                    <input value={form.packing} onChange={(e) => updateForm('packing', e.target.value)} placeholder="e.g. 30ml, 20 tab" className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700" />
                   </div>
                   <CustomSelect
                     label="Status"
@@ -525,7 +576,7 @@ export default function MedicalProductMaster() {
 
                 <div>
                   <h3 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest mb-3 pb-1 border-b border-teal-50">Pricing & Distribution</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="flex flex-col gap-1">
                       <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">MRP Rate (₹)</label>
                       <input value={form.mrp_rate} onChange={(e) => updateForm('mrp_rate', e.target.value)} placeholder="0.00" type="number" className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700" />
@@ -538,23 +589,15 @@ export default function MedicalProductMaster() {
                       <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">Price Max (₹)</label>
                       <input value={form.price_max} onChange={(e) => updateForm('price_max', e.target.value)} placeholder="0.00" type="number" className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700" />
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">Shipper Size (PCS)</label>
-                      <input value={form.shipper_size_pcs} onChange={(e) => updateForm('shipper_size_pcs', e.target.value)} placeholder="e.g. 10" type="number" className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700" />
-                    </div>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest mb-3 pb-1 border-b border-teal-50">Details & Composition</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <h3 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest mb-3 pb-1 border-b border-teal-50">Description Remark</h3>
+                  <div className="grid grid-cols-1 gap-4">
                     <div className="flex flex-col gap-1">
-                      <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">Description</label>
-                      <textarea value={form.description} onChange={(e) => updateForm('description', e.target.value)} placeholder="Add product details or indications..." rows={3} className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700 resize-none" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">Formula Composition</label>
-                      <textarea value={form.formula_composition} onChange={(e) => updateForm('formula_composition', e.target.value)} placeholder="Add ingredients or formula details..." rows={3} className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700 resize-none" />
+                      <label className="text-[9px] font-bold text-gray-400 uppercase tracking-wider pl-1">Description Remark</label>
+                      <textarea value={form.description} onChange={(e) => updateForm('description', e.target.value)} placeholder="Add product remark..." rows={3} className="bg-gray-50/50 border border-gray-100 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all text-gray-700 resize-none" />
                     </div>
                   </div>
                 </div>
