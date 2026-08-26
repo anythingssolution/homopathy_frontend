@@ -9,6 +9,7 @@ const CustomDatePicker = ({
   label,
   readOnly = false,
   minDate,
+  maxDate,
   allowClear = true,
   placeholder,
 }: {
@@ -17,6 +18,7 @@ const CustomDatePicker = ({
   label: string;
   readOnly?: boolean;
   minDate?: string;
+  maxDate?: string;
   allowClear?: boolean;
   placeholder?: string;
 }) => {
@@ -62,6 +64,9 @@ const CustomDatePicker = ({
     const d = day.toString().padStart(2, '0');
     const nextDate = `${viewYear}-${m}-${d}`;
     if (minDate && nextDate < minDate) {
+      return;
+    }
+    if (maxDate && nextDate > maxDate) {
       return;
     }
     onChange(nextDate);
@@ -122,7 +127,7 @@ const CustomDatePicker = ({
                 const dateStr = `${viewYear}-${(viewMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
                 const isSelected = value === dateStr;
                 const isToday = dateStr === todayStr;
-                const isDisabled = Boolean(minDate && dateStr < minDate);
+                const isDisabled = Boolean((minDate && dateStr < minDate) || (maxDate && dateStr > maxDate));
                 return (
                   <button
                     key={day}
@@ -160,12 +165,13 @@ const CustomDatePicker = ({
               <button
                 onClick={() => {
                   if (minDate && todayStr < minDate) return;
+                  if (maxDate && todayStr > maxDate) return;
                   onChange(todayStr);
                   setOpen(false);
                   setViewMonth(today.getMonth());
                   setViewYear(today.getFullYear());
                 }}
-                disabled={Boolean(minDate && todayStr < minDate)}
+                disabled={Boolean((minDate && todayStr < minDate) || (maxDate && todayStr > maxDate))}
                 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest hover:text-[#438787] transition-colors bg-[#549E9E]/10 px-4 py-1.5 rounded-full disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Today

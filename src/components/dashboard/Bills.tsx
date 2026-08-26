@@ -19,13 +19,16 @@ import {
   CreditCard,
   UserCheck,
   Pill,
-  BarChart3
+  BarChart3,
+  Banknote
 } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import CustomDatePicker from '../CustomDatePicker';
 import AppointmentTokenBadge from '../AppointmentTokenBadge';
 import { useLenisNestedScroll } from '../../hooks/useLenisNestedScroll';
 import { useTranslation } from 'react-i18next';
+import { getLocalDateString } from '../../utils/date';
+import { SummaryMetricCard } from './doctor-reports/components/SummaryMetricCard';
 
 type BillFilterType = 'ALL' | 'CONSULTATION' | 'MEDICATION';
 type BillFilterStatus = 'ALL' | 'UNPAID' | 'PAID' | 'PARTIAL' | 'OUTSTANDING';
@@ -93,6 +96,17 @@ const deriveOverallPaymentStatus = (paid: number, pending: number, total: number
 
 const formatCurrency = (value: number | string | null | undefined) => `₹ ${Number(value || 0).toFixed(2)}`;
 
+const formatDateRangeLabel = (from: string, to: string) => {
+  const formatPart = (value: string) => {
+    if (!value || value === 'all') return '—';
+    const date = new Date(`${value}T00:00:00`);
+    return Number.isNaN(date.getTime())
+      ? value
+      : date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  return `${formatPart(from)} – ${formatPart(to)}`;
+};
+
 const getDateOrder = (value?: string | null) => {
   if (!value) return 0;
   const date = new Date(String(value).replace(' ', 'T'));
@@ -117,6 +131,69 @@ const getPaymentPlaceLabel = (payment: any) => {
   if (paymentFor === 'CONSULTATION' || billType === 'CONSULTATION') return 'Consultation';
   if (paymentFor === 'MEDICATION' || billType === 'MEDICATION') return 'Medication';
   return paymentFor || billType || 'Other';
+};
+
+const isPreviousPendingPayment = (payment: any) => String(payment?.allocation_kind || '').toUpperCase() === 'PREVIOUS';
+
+const PaymentDueSplit = ({ payment }: { payment: any }) => {
+  if (payment?.pending_before == null && payment?.pending_after == null) return null;
+  const isPrevious = isPreviousPendingPayment(payment);
+  return (
+    <div className={`${isPrevious ? 'border-orange-100 bg-orange-50/70' : 'border-[#549E9E]/15 bg-[#549E9E]/5'} rounded-lg border px-3 py-2 md:col-span-2`}>
+      <p className={`text-[9px] font-black uppercase tracking-widest ${isPrevious ? 'text-orange-500' : 'text-[#549E9E]'}`}>
+        {isPrevious ? 'Previous pending / borrowed' : 'Towards this bill'}
+      </p>
+      <p className="mt-1 text-xs font-bold text-gray-700">
+        Paid {formatCurrency(payment.amount)} of {formatCurrency(payment.pending_before)} pending
+      </p>
+      <p className={`mt-0.5 text-xs font-black ${Number(payment.pending_after || 0) > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+        Remaining after this: {formatCurrency(payment.pending_after)}
+      </p>
+      {isPrevious && payment.settlement_source_bill_number && (
+        <p className="mt-0.5 text-[10px] font-bold text-gray-400">
+          Collected with {payment.settlement_source_bill_number}
+        </p>
+      )}
+    </div>
+  );
+};
+
+const PreviousPendingSettlements = ({ settlements }: { settlements?: any[] }) => {
+  if (!settlements?.length) return null;
+  return (
+    <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-4 space-y-3">
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-orange-500">Previous pending paid with this bill</p>
+        <p className="mt-1 text-xs font-bold text-gray-500">
+          Extra money from this collection was applied to older borrowed bills.
+        </p>
+      </div>
+      {settlements.map((payment: any) => (
+        <div key={`prev-${payment.payment_id}`} className="rounded-lg border border-orange-100 bg-white px-3 py-2">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black text-gray-800">{payment.bill_number || `Bill #${payment.bill_id}`}</p>
+              <p className="mt-0.5 text-[10px] font-bold text-gray-400">
+                {payment.collected_at ? new Date(payment.collected_at).toLocaleString() : '—'}
+              </p>
+            </div>
+            <p className="text-sm font-black text-emerald-600">{formatCurrency(payment.amount)}</p>
+          </div>
+          <p className="mt-1 text-[11px] font-bold text-gray-600">
+            Of {formatCurrency(payment.pending_before)} pending · remaining {formatCurrency(payment.pending_after)}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const BorrowedAmountCell = ({ amount }: { amount: number }) => {
+  if (amount <= 0) {
+    return <span className="text-xs font-bold text-gray-300">—</span>;
+  }
+
+  return <span className="text-sm font-black text-emerald-600">{formatCurrency(amount)}</span>;
 };
 
 const getItemTypeLabel = (itemType: string) => {
@@ -183,6 +260,189 @@ const FilterDropdown = ({
   );
 };
 
+const orderedSessionKeys = (keys: string[] = []) => {
+  const preferred = ['morning', 'evening'];
+  const extras = keys.map((key) => String(key)).filter((key) => !preferred.includes(key));
+  return [...preferred, ...extras];
+};
+
+const sumField = (list: any[], key: string) => list.reduce((sum, item) => sum + Number(item?.[key] || 0), 0);
+
+const SessionColumn = ({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) => (
+  <div className="min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white">
+    <div className="bg-[#549E9E] px-4 py-2.5 text-[11px] font-black uppercase tracking-widest text-white">
+      {title} Session
+    </div>
+    {children}
+  </div>
+);
+
+const consultantHeadClass = 'px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-gray-400 whitespace-nowrap';
+const consultantMoneyClass = (tone: string) =>
+  `px-3 py-2.5 text-right align-top text-[11px] font-black tabular-nums whitespace-nowrap ${tone}`;
+
+const ConsultantSessionPanel = ({ slotKey, list }: { slotKey: string; list: any[] }) => {
+  if (list.length === 0) {
+    return (
+      <SessionColumn title={slotKey}>
+        <div className="p-8 text-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
+          No consultant revenue records found for {slotKey} session
+        </div>
+      </SessionColumn>
+    );
+  }
+
+  return (
+    <SessionColumn title={slotKey}>
+      <div className="overflow-x-auto overscroll-x-contain">
+        <table className="w-full min-w-[1280px] border-collapse">
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50/80">
+              <th className={`${consultantHeadClass} sticky left-0 z-20 min-w-[180px] bg-gray-50 text-left shadow-[1px_0_0_0_rgba(229,231,235,1)]`}>Doctor / Consultant</th>
+              <th className={`${consultantHeadClass} text-center`}>Mode</th>
+              <th className={`${consultantHeadClass} text-center`}>Consults</th>
+              <th className={`${consultantHeadClass} text-right`}>Cons. Revenue</th>
+              <th className={`${consultantHeadClass} text-right`}>Hand / Counter Med</th>
+              <th className={`${consultantHeadClass} text-right`}>Test / Lab</th>
+              <th className={`${consultantHeadClass} text-right`}>Courier Med</th>
+              <th className={`${consultantHeadClass} text-right`}>Courier Charge</th>
+              <th className={`${consultantHeadClass} text-right`}>Total Courier</th>
+              <th className={`${consultantHeadClass} text-right`}>Gross</th>
+              <th className={`${consultantHeadClass} text-right`}>Paid</th>
+              <th className={`${consultantHeadClass} text-right`}>Pending</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((doc: any, docIdx: number) => (
+              <tr key={`${doc.doctor_id}-${doc.payment_mode || docIdx}`} className="border-b border-gray-50 last:border-0">
+                <td className="sticky left-0 z-10 min-w-[180px] bg-white px-3 py-2.5 align-top shadow-[1px_0_0_0_rgba(243,244,246,1)]">
+                  <p className="whitespace-nowrap text-[12px] font-black leading-tight text-gray-800">{doc.doctor_name}</p>
+                  {doc.doctor_uuid && (
+                    <p className="mt-0.5 text-[8px] font-bold uppercase tracking-widest text-gray-400">{doc.doctor_uuid}</p>
+                  )}
+                </td>
+                <td className="px-3 py-2.5 text-center align-top">
+                  <PaymentModeBadge mode={doc.payment_mode} />
+                </td>
+                <td className="px-3 py-2.5 text-center align-top text-[12px] font-black text-gray-800">
+                  {Number(doc.total_consultations || 0)}
+                </td>
+                <td className={consultantMoneyClass('text-gray-800')}>{formatCurrency(doc.consultation_revenue)}</td>
+                <td className={consultantMoneyClass('text-violet-600')}>{formatCurrency(doc.medication_revenue)}</td>
+                <td className={consultantMoneyClass('text-amber-600')}>{formatCurrency(doc.test_lab_revenue)}</td>
+                <td className={consultantMoneyClass('text-blue-600')}>{formatCurrency(doc.courier_medicine_revenue)}</td>
+                <td className={consultantMoneyClass('text-sky-600')}>{formatCurrency(doc.courier_charge_revenue)}</td>
+                <td className={consultantMoneyClass('text-cyan-700')}>{formatCurrency(doc.courier_revenue)}</td>
+                <td className={consultantMoneyClass('text-[#549E9E]')}>{formatCurrency(doc.total_gross_revenue)}</td>
+                <td className={consultantMoneyClass('text-emerald-600')}>{formatCurrency(doc.total_paid_revenue)}</td>
+                <td className={consultantMoneyClass('text-amber-500')}>{formatCurrency(doc.total_pending_revenue)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-gray-200 bg-gray-50/90">
+              <td className="sticky left-0 z-10 min-w-[180px] bg-gray-50 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-gray-700 shadow-[1px_0_0_0_rgba(229,231,235,1)]">
+                {slotKey} Total ({list.length} Records)
+              </td>
+              <td className="px-3 py-2.5" />
+              <td className="px-3 py-2.5 text-center text-[12px] font-black text-gray-800">
+                {sumField(list, 'total_consultations')}
+              </td>
+              <td className={consultantMoneyClass('text-gray-800')}>{formatCurrency(sumField(list, 'consultation_revenue'))}</td>
+              <td className={consultantMoneyClass('text-violet-700')}>{formatCurrency(sumField(list, 'medication_revenue'))}</td>
+              <td className={consultantMoneyClass('text-amber-700')}>{formatCurrency(sumField(list, 'test_lab_revenue'))}</td>
+              <td className={consultantMoneyClass('text-blue-700')}>{formatCurrency(sumField(list, 'courier_medicine_revenue'))}</td>
+              <td className={consultantMoneyClass('text-sky-700')}>{formatCurrency(sumField(list, 'courier_charge_revenue'))}</td>
+              <td className={consultantMoneyClass('text-cyan-800')}>{formatCurrency(sumField(list, 'courier_revenue'))}</td>
+              <td className={consultantMoneyClass('text-[#2d8789]')}>{formatCurrency(sumField(list, 'total_gross_revenue'))}</td>
+              <td className={consultantMoneyClass('text-emerald-700')}>{formatCurrency(sumField(list, 'total_paid_revenue'))}</td>
+              <td className={consultantMoneyClass('text-amber-600')}>{formatCurrency(sumField(list, 'total_pending_revenue'))}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </SessionColumn>
+  );
+};
+
+const MedicineSessionPanel = ({ slotKey, list }: { slotKey: string; list: any[] }) => {
+  if (list.length === 0) {
+    return (
+      <SessionColumn title={slotKey}>
+        <div className="p-8 text-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
+          No medicine revenue records found for {slotKey} session
+        </div>
+      </SessionColumn>
+    );
+  }
+
+  return (
+    <SessionColumn title={slotKey}>
+      <div className="overflow-x-auto overscroll-x-contain">
+      <table className="w-full min-w-[720px] border-collapse">
+        <thead>
+          <tr className="border-b border-gray-100 bg-gray-50/80">
+            <th className="w-[34%] px-2 py-2.5 text-left text-[9px] font-black uppercase tracking-widest text-gray-400">Medicine</th>
+            <th className="w-[12%] px-1 py-2.5 text-center text-[9px] font-black uppercase tracking-widest text-gray-400">Mode</th>
+            <th className="w-[12%] px-1 py-2.5 text-center text-[9px] font-black uppercase tracking-widest text-gray-400">Bills</th>
+            <th className="w-[12%] px-1 py-2.5 text-center text-[9px] font-black uppercase tracking-widest text-gray-400">Qty</th>
+            <th className="w-[15%] px-1 py-2.5 text-right text-[9px] font-black uppercase tracking-widest text-gray-400">Avg Price</th>
+            <th className="w-[15%] px-1 py-2.5 text-right text-[9px] font-black uppercase tracking-widest text-gray-400">Gross</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((med: any, idx: number) => (
+            <tr key={`${slotKey}-${idx}`} className="border-b border-gray-50 last:border-0">
+              <td className="px-2 py-2.5 align-top">
+                <p className="break-words text-[12px] font-black leading-tight text-gray-800">{med.medicine_name}</p>
+              </td>
+              <td className="px-1 py-2.5 text-center align-top">
+                <PaymentModeBadge mode={med.payment_mode} />
+              </td>
+              <td className="px-1 py-2.5 text-center align-top text-[12px] font-black text-gray-800">
+                {Number(med.total_bills || 0)}
+              </td>
+              <td className="px-1 py-2.5 text-center align-top text-[12px] font-black text-[#549E9E]">
+                {Number(med.total_quantity_sold || 0)}
+              </td>
+              <td className="px-1 py-2.5 text-right align-top text-[11px] font-black text-gray-800">
+                {formatCurrency(med.average_unit_price)}
+              </td>
+              <td className="px-1 py-2.5 text-right align-top text-[11px] font-black text-emerald-600">
+                {formatCurrency(med.gross_revenue)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-gray-200 bg-gray-50/90">
+            <td colSpan={2} className="px-2 py-2.5 text-[9px] font-black uppercase tracking-widest text-gray-700">
+              {slotKey} Total ({list.length} Medicines)
+            </td>
+            <td className="px-1 py-2.5 text-center text-[12px] font-black text-gray-800">
+              {sumField(list, 'total_bills')}
+            </td>
+            <td className="px-1 py-2.5 text-center text-[12px] font-black text-[#549E9E]">
+              {sumField(list, 'total_quantity_sold')}
+            </td>
+            <td className="px-1 py-2.5" />
+            <td className="px-1 py-2.5 text-right text-[11px] font-black text-emerald-700">
+              {formatCurrency(sumField(list, 'gross_revenue'))}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+      </div>
+    </SessionColumn>
+  );
+};
+
 export default function Bills() {
   const { t } = useTranslation();
   const { token, user } = useAuth();
@@ -192,11 +452,8 @@ export default function Bills() {
   const [billType, setBillType] = useState<BillFilterType>('ALL');
   const [paymentStatus, setPaymentStatus] = useState<BillFilterStatus>('ALL');
   const [paymentMode, setPaymentMode] = useState<BillFilterPaymentMode>('ALL');
-  const [filterDate, setFilterDate] = useState<string>(() => {
-    const today = new Date();
-    today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
-    return today.toISOString().split('T')[0];
-  });
+  const [fromDate, setFromDate] = useState<string>(() => getLocalDateString());
+  const [toDate, setToDate] = useState<string>(() => getLocalDateString());
 
   const [activeTab, setActiveTab] = useState<ActiveBillingTab>('BILLS');
   const [bills, setBills] = useState<any[]>([]);
@@ -218,14 +475,26 @@ export default function Bills() {
   const canCollectMedication = userRole.includes('med');
   const canCollectConsultation = userRole.includes('rec') || userRole === 'receptionist';
 
+  const applyDateRange = (nextFrom: string, nextTo: string) => {
+    if (nextFrom && nextTo && nextFrom !== 'all' && nextTo !== 'all' && nextFrom > nextTo) {
+      setFromDate(nextTo);
+      setToDate(nextFrom);
+      return;
+    }
+    setFromDate(nextFrom);
+    setToDate(nextTo);
+  };
+
   const fetchBills = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (filterDate && filterDate !== 'all' && paymentStatus !== 'OUTSTANDING') {
-        params.append('from_date', filterDate);
-        params.append('to_date', filterDate);
+      if (fromDate && fromDate !== 'all' && paymentStatus !== 'OUTSTANDING') {
+        params.append('from_date', fromDate);
+      }
+      if (toDate && toDate !== 'all' && paymentStatus !== 'OUTSTANDING') {
+        params.append('to_date', toDate);
       }
       if (patientSearch.trim()) params.append('patient_search', patientSearch.trim());
       if (billType !== 'ALL') params.append('type', billType);
@@ -262,11 +531,13 @@ export default function Bills() {
     setIsReportLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filterDate && filterDate !== 'all') {
-        params.append('from', filterDate);
-        params.append('to', filterDate);
-        params.append('from_date', filterDate);
-        params.append('to_date', filterDate);
+      if (fromDate && fromDate !== 'all') {
+        params.append('from', fromDate);
+        params.append('from_date', fromDate);
+      }
+      if (toDate && toDate !== 'all') {
+        params.append('to', toDate);
+        params.append('to_date', toDate);
       }
       const [resDoc, resMed] = await Promise.all([
         fetch(`/api/v1/reports/billing/revenue-by-consultant?${params.toString()}`, {
@@ -291,7 +562,7 @@ export default function Bills() {
       fetchBills();
       fetchRevenueReports();
     }
-  }, [token, filterDate, billType, paymentStatus, paymentMode]);
+  }, [token, fromDate, toDate, billType, paymentStatus, paymentMode]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -348,6 +619,9 @@ export default function Bills() {
           grand_total: 0,
           grand_paid: 0,
           grand_pending: 0,
+          paid_towards_this_bill: 0,
+          paid_towards_previous_pending: 0,
+          borrowed_amount_collected: 0,
         });
       }
 
@@ -362,6 +636,9 @@ export default function Bills() {
       entry.grand_total += Number(bill.total_amount || 0);
       entry.grand_paid += Number(bill.paid_amount || 0);
       entry.grand_pending += Number(bill.pending_amount || 0);
+      entry.paid_towards_this_bill += Number(bill.paid_towards_this_bill || 0);
+      entry.paid_towards_previous_pending += Number(bill.paid_towards_previous_pending || 0);
+      entry.borrowed_amount_collected += Number(bill.borrowed_amount_collected || 0);
     });
 
     return Array.from(grouped.values())
@@ -370,6 +647,9 @@ export default function Bills() {
         grand_total: Number(entry.grand_total.toFixed(2)),
         grand_paid: Number(entry.grand_paid.toFixed(2)),
         grand_pending: Number(entry.grand_pending.toFixed(2)),
+        paid_towards_this_bill: Number(entry.paid_towards_this_bill.toFixed(2)),
+        paid_towards_previous_pending: Number(entry.paid_towards_previous_pending.toFixed(2)),
+        borrowed_amount_collected: Number(entry.borrowed_amount_collected.toFixed(2)),
         overall_payment_status: deriveOverallPaymentStatus(entry.grand_paid, entry.grand_pending, entry.grand_total),
       }))
       .sort((a, b) => {
@@ -393,6 +673,7 @@ export default function Bills() {
     let grandTotal = 0;
     let grandPaid = 0;
     let grandPending = 0;
+    let oldPendingPaid = 0;
     let cashTotal = 0;
     let onlineTotal = 0;
     let totalAppointments = appointmentSummaries.length;
@@ -402,6 +683,7 @@ export default function Bills() {
       grandTotal += Number(entry.grand_total || 0);
       grandPaid += Number(entry.grand_paid || 0);
       grandPending += Number(entry.grand_pending || 0);
+      oldPendingPaid += Number(entry.paid_towards_previous_pending || 0);
     });
 
     bills.forEach((bill) => {
@@ -418,6 +700,7 @@ export default function Bills() {
       grandTotal: Number(grandTotal.toFixed(2)),
       grandPaid: Number(grandPaid.toFixed(2)),
       grandPending: Number(grandPending.toFixed(2)),
+      oldPendingPaid: Number(oldPendingPaid.toFixed(2)),
       cashTotal: Number(cashTotal.toFixed(2)),
       onlineTotal: Number(onlineTotal.toFixed(2)),
       totalAppointments,
@@ -527,12 +810,20 @@ export default function Bills() {
         return result.success ? result.data : (entry.bills || []).find((bill: any) => Number(bill.bill_id) === billId);
       }));
       const billsList = detailedBills.filter(Boolean);
-      const payments = billsList.flatMap((bill: any) => (bill.payments || []).map((payment: any) => ({
-        ...payment,
-        bill_id: bill.bill_id,
-        bill_number: bill.bill_number,
-        bill_type: bill.bill_type,
-      })));
+      const payments = Array.from(new Map(billsList.flatMap((bill: any) => [
+        ...(bill.payments || []).map((payment: any) => ({
+          ...payment,
+          bill_id: bill.bill_id,
+          bill_number: bill.bill_number,
+          bill_type: bill.bill_type,
+        })),
+        ...(bill.previous_pending_settlements || []).map((payment: any) => ({
+          ...payment,
+          bill_id: payment.bill_id,
+          bill_number: payment.bill_number,
+          bill_type: payment.bill_type || 'MEDICATION',
+        })),
+      ]).map((payment: any) => [payment.payment_id, payment])).values());
       const grandTotal = billsList.reduce((sum: number, bill: any) => sum + Number(bill.total_amount || 0), 0);
       const grandPaid = billsList.reduce((sum: number, bill: any) => sum + Number(bill.paid_amount || 0), 0);
       const grandPending = billsList.reduce((sum: number, bill: any) => sum + Number(bill.pending_amount || 0), 0);
@@ -680,6 +971,7 @@ export default function Bills() {
           <Pill size={16} /> Gross Revenue by Medicine
         </button>
       </div>
+      {activeTab === 'BILLS' && (
       <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="relative group flex-1">
@@ -694,16 +986,32 @@ export default function Bills() {
           </div>
 
           <button
-            onClick={fetchBills}
+            onClick={() => {
+              fetchBills();
+              fetchRevenueReports();
+            }}
             className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] py-4 px-6 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center justify-center gap-3 border-2 border-[#549E9E]/5 rounded-xl"
           >
-            <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
+            <RefreshCcw size={16} className={isLoading || isReportLoading ? 'animate-spin' : ''} />
             {t('bills.refresh', 'Refresh')}
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-100 items-end">
-          <CustomDatePicker label={t('bills.filters.appointment_date', 'Appointment Date')} value={filterDate} onChange={setFilterDate} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 pt-4 border-t border-gray-100 items-end">
+          <CustomDatePicker
+            label={t('bills.filters.from_date', 'From Date')}
+            value={fromDate}
+            onChange={(date) => applyDateRange(date, toDate)}
+            allowClear={false}
+            maxDate={toDate !== 'all' ? toDate : undefined}
+          />
+          <CustomDatePicker
+            label={t('bills.filters.to_date', 'To Date')}
+            value={toDate}
+            onChange={(date) => applyDateRange(fromDate, date)}
+            allowClear={false}
+            minDate={fromDate !== 'all' ? fromDate : undefined}
+          />
 
           <FilterDropdown
             label={t('bills.filters.bill_type', 'Bill Type')}
@@ -744,6 +1052,7 @@ export default function Bills() {
           />
         </div>
       </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-100 p-6 flex items-center justify-between gap-4">
@@ -759,31 +1068,41 @@ export default function Bills() {
         <>
           {appointmentSummaries.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-              <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm relative overflow-hidden">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Grand Total</p>
-                <p className="text-xl sm:text-2xl font-black text-gray-800">₹ {billsTotals.grandTotal.toFixed(2)}</p>
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mt-1">{billsTotals.totalAppointments} Appointments</p>
-              </div>
-              <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm relative overflow-hidden">
-                <p className="text-[10px] font-black text-emerald-600/70 uppercase tracking-widest mb-1">Total Paid</p>
-                <p className="text-xl sm:text-2xl font-black text-emerald-600">₹ {billsTotals.grandPaid.toFixed(2)}</p>
-                <p className="text-[9px] font-bold text-emerald-600/70 uppercase tracking-wider mt-1">{billsTotals.totalBills} Bills</p>
-              </div>
-              <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm relative overflow-hidden">
-                <p className="text-[10px] font-black text-orange-500/70 uppercase tracking-widest mb-1">Total Pending</p>
-                <p className="text-xl sm:text-2xl font-black text-orange-500">₹ {billsTotals.grandPending.toFixed(2)}</p>
-                <p className="text-[9px] font-bold text-orange-500/70 uppercase tracking-wider mt-1">Due Amount</p>
-              </div>
-              <div className="bg-white border border-emerald-100 bg-emerald-50/20 p-4 rounded-xl shadow-sm relative overflow-hidden">
-                <p className="text-[10px] font-black text-emerald-700/80 uppercase tracking-widest mb-1">Cash Collection</p>
-                <p className="text-xl sm:text-2xl font-black text-emerald-700">₹ {billsTotals.cashTotal.toFixed(2)}</p>
-                <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider mt-1">Paid in Cash</p>
-              </div>
-              <div className="bg-white border border-blue-100 bg-blue-50/20 p-4 rounded-xl shadow-sm relative overflow-hidden">
-                <p className="text-[10px] font-black text-blue-700/80 uppercase tracking-widest mb-1">Online Collection</p>
-                <p className="text-xl sm:text-2xl font-black text-blue-700">₹ {billsTotals.onlineTotal.toFixed(2)}</p>
-                <p className="text-[9px] font-bold text-blue-600 uppercase tracking-wider mt-1">UPI / Digital</p>
-              </div>
+              <SummaryMetricCard
+                title="Grand Total"
+                value={`₹ ${billsTotals.grandTotal.toFixed(2)}`}
+                icon={IndianRupee}
+                theme="teal"
+                subtitle={`${billsTotals.totalAppointments} Appointments`}
+              />
+              <SummaryMetricCard
+                title="Total Paid"
+                value={`₹ ${billsTotals.grandPaid.toFixed(2)}`}
+                icon={CheckCircle2}
+                theme="green"
+                subtitle={`${billsTotals.totalBills} Bills`}
+              />
+              <SummaryMetricCard
+                title="Total Pending"
+                value={`₹ ${billsTotals.grandPending.toFixed(2)}`}
+                icon={AlertCircle}
+                theme="amber"
+                subtitle="Due Amount"
+              />
+              <SummaryMetricCard
+                title="Cash Collection"
+                value={`₹ ${billsTotals.cashTotal.toFixed(2)}`}
+                icon={Banknote}
+                theme="violet"
+                subtitle="Paid in Cash"
+              />
+              <SummaryMetricCard
+                title="Online Collection"
+                value={`₹ ${billsTotals.onlineTotal.toFixed(2)}`}
+                icon={CreditCard}
+                theme="blue"
+                subtitle="UPI / Digital"
+              />
             </div>
           )}
 
@@ -797,6 +1116,13 @@ export default function Bills() {
               </div>
             )}
 
+            <div className="border-b border-gray-100 bg-[#549E9E]/5 px-5 py-3">
+              <p className="text-[11px] font-black uppercase tracking-widest text-[#549E9E]">Each row is one appointment / visit</p>
+              <p className="mt-1 text-[11px] font-bold text-gray-500">
+                Click the row or <span className="text-[#549E9E]">Open visit</span> to see that visit’s bills and payments. Paid borrowed amount is previous pending collected in this visit.
+              </p>
+            </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left whitespace-nowrap">
             <thead>
@@ -808,6 +1134,7 @@ export default function Bills() {
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.payment_mode', 'Payment Mode')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.grand_total', 'Grand Total')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.grand_paid', 'Grand Paid')}</th>
+                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.paid_borrowed_amount', 'Paid Borrowed Amount')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.grand_pending', 'Grand Pending')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('bills.table.overall_status', 'Overall Status')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">{t('bills.table.action', 'Action')}</th>
@@ -820,7 +1147,8 @@ export default function Bills() {
                     key={entry.group_key || entry.appointment_id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="hover:bg-[#549E9E]/[0.02] transition-colors"
+                    onClick={() => handleViewSummary(entry)}
+                    className="cursor-pointer hover:bg-[#549E9E]/[0.04] transition-colors"
                   >
                     <td className="px-5 py-4">
                       <AppointmentTokenBadge
@@ -869,23 +1197,29 @@ export default function Bills() {
                     </td>
                     <td className="px-5 py-4 text-sm font-black text-gray-800">₹ {Number(entry.grand_total || 0).toFixed(2)}</td>
                     <td className="px-5 py-4 text-sm font-black text-emerald-600">₹ {Number(entry.grand_paid || 0).toFixed(2)}</td>
+                    <td className="px-5 py-4">
+                      <BorrowedAmountCell amount={Number(entry.paid_towards_previous_pending || 0)} />
+                    </td>
                     <td className="px-5 py-4 text-sm font-black text-orange-500">₹ {Number(entry.grand_pending || 0).toFixed(2)}</td>
                     <td className="px-5 py-4">
                       <PaymentStatusBadge status={entry.overall_payment_status} />
                     </td>
                     <td className="px-5 py-4 text-center">
                       <button
-                        onClick={() => handleViewSummary(entry)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleViewSummary(entry);
+                        }}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-[#549E9E] hover:bg-[#438787] text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
                       >
-                        <FileText size={14} /> {t('bills.table.view_summary', 'View Summary')}
+                        <FileText size={14} /> {t('bills.table.open_visit', 'Open visit')}
                       </button>
                     </td>
                   </motion.tr>
                 ))
               ) : !isLoading && (
                 <tr>
-                  <td colSpan={10} className="px-5 py-20">
+                  <td colSpan={11} className="px-5 py-20">
                     <div className="flex flex-col items-center justify-center text-center space-y-4">
                       <div className="w-16 h-16 bg-gray-50 text-gray-200 rounded-full flex items-center justify-center">
                         <Receipt size={32} />
@@ -913,6 +1247,9 @@ export default function Bills() {
                   </td>
                   <td className="px-5 py-4 text-sm font-black text-emerald-600">
                     ₹ {billsTotals.grandPaid.toFixed(2)}
+                  </td>
+                  <td className="px-5 py-4 text-sm font-black text-emerald-600">
+                    ₹ {billsTotals.oldPendingPaid.toFixed(2)}
                   </td>
                   <td className="px-5 py-4 text-sm font-black text-orange-500">
                     ₹ {billsTotals.grandPending.toFixed(2)}
@@ -1217,7 +1554,7 @@ export default function Bills() {
                               <Wallet size={14} className="text-[#549E9E]" />
                               <h4 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest">Payments</h4>
                             </div>
-                            {(bill.payments || []).length > 0 ? (
+                            {(bill.payments || []).length > 0 || (bill.previous_pending_settlements || []).length > 0 ? (
                               <div className="space-y-3">
                                 {bill.payments.map((payment: any) => (
                                   <div key={payment.payment_id} className="bg-white border border-gray-100 p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1241,8 +1578,10 @@ export default function Bills() {
                                         {payment.remark || '—'} • {payment.collected_by_role || 'N/A'}
                                       </p>
                                     </div>
+                                    <PaymentDueSplit payment={payment} />
                                   </div>
                                 ))}
+                                <PreviousPendingSettlements settlements={bill.previous_pending_settlements} />
                               </div>
                             ) : (
                               <div className="bg-white border border-gray-100 p-6 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
@@ -1290,32 +1629,37 @@ export default function Bills() {
                     {(selectedSummary.payments || []).length > 0 ? (
                       <div className="space-y-3">
                         {selectedSummary.payments.map((payment: any) => (
-                          <div key={`${payment.bill_id}-${payment.payment_id}`} className="bg-gray-50/50 border border-gray-100 p-4 grid grid-cols-1 md:grid-cols-[1.2fr_0.9fr_0.9fr_1fr_1fr_1fr] gap-3 items-center">
-                            <div>
-                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Bill</p>
-                              <p className="text-sm font-black text-[#549E9E]">{payment.bill_number}</p>
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{payment.bill_type}</p>
+                          <div key={`${payment.bill_id}-${payment.payment_id}`} className="bg-gray-50/50 border border-gray-100 p-4 space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-[1.2fr_0.9fr_0.9fr_1fr_1fr_1fr] gap-3 items-center">
+                              <div>
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Bill</p>
+                                <p className="text-sm font-black text-[#549E9E]">{payment.bill_number}</p>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                                  {isPreviousPendingPayment(payment) ? 'Previous pending' : payment.bill_type}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Amount</p>
+                                <p className="text-sm font-black text-gray-800">{formatCurrency(payment.amount)}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Mode</p>
+                                <p className="text-sm font-bold text-gray-700">{payment.payment_mode || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Place</p>
+                                <p className="text-sm font-bold text-gray-700">{getPaymentPlaceLabel(payment)}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Reference / Note</p>
+                                <p className="text-sm font-bold text-gray-700 whitespace-pre-wrap">{payment.transaction_reference || payment.remark || '—'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Collected At</p>
+                                <p className="text-sm font-bold text-gray-700">{payment.collected_at ? new Date(payment.collected_at).toLocaleString() : '—'}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Amount</p>
-                              <p className="text-sm font-black text-gray-800">{formatCurrency(payment.amount)}</p>
-                            </div>
-                            <div>
-                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Mode</p>
-                              <p className="text-sm font-bold text-gray-700">{payment.payment_mode || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Place</p>
-                              <p className="text-sm font-bold text-gray-700">{getPaymentPlaceLabel(payment)}</p>
-                            </div>
-                            <div>
-                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Reference / Note</p>
-                              <p className="text-sm font-bold text-gray-700 whitespace-pre-wrap">{payment.transaction_reference || payment.remark || '—'}</p>
-                            </div>
-                            <div>
-                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Collected At</p>
-                              <p className="text-sm font-bold text-gray-700">{payment.collected_at ? new Date(payment.collected_at).toLocaleString() : '—'}</p>
-                            </div>
+                            <PaymentDueSplit payment={payment} />
                           </div>
                         ))}
                       </div>
@@ -1338,222 +1682,109 @@ export default function Bills() {
       ) : activeTab === 'CONSULTANT_REVENUE' ? (
         /* Revenue by Consultant Section */
         <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm space-y-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-gray-100">
-            <div>
+          <div className="flex items-start justify-between gap-4 pb-4 border-b border-gray-100">
+            <div className="min-w-0 flex-1">
               <h3 className="text-base font-black text-gray-800 uppercase tracking-tight flex items-center gap-2">
                 <UserCheck size={20} className="text-[#549E9E]" /> Doctor / Consultant Revenue Breakdown
               </h3>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
-                Consultation fees, medicine, test/lab and courier revenue per doctor
+              <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">
+                Consultation, medicine, lab, courier, gross, paid & pending. Scroll for all columns.
+              </p>
+              <p className="mt-0.5 text-[9px] font-black uppercase tracking-wide text-[#549E9E]">
+                {formatDateRangeLabel(fromDate, toDate)}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <CustomDatePicker label="Filter Date" value={filterDate} onChange={setFilterDate} />
+            <div className="flex shrink-0 flex-nowrap items-end gap-2">
+              <CustomDatePicker
+                label={t('bills.filters.from_date', 'From Date')}
+                value={fromDate}
+                onChange={(date) => applyDateRange(date, toDate)}
+                allowClear={false}
+                maxDate={toDate !== 'all' ? toDate : undefined}
+              />
+              <CustomDatePicker
+                label={t('bills.filters.to_date', 'To Date')}
+                value={toDate}
+                onChange={(date) => applyDateRange(fromDate, date)}
+                allowClear={false}
+                minDate={fromDate !== 'all' ? fromDate : undefined}
+              />
               <button
                 onClick={fetchRevenueReports}
-                className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-5 py-2.5 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5 rounded-xl"
+                className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-4 py-2.5 text-[11px] font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5 rounded-xl whitespace-nowrap"
               >
                 <RefreshCcw size={14} className={isReportLoading ? 'animate-spin' : ''} /> Refresh
               </button>
             </div>
           </div>
 
-          <div className="space-y-8">
-            {(consultantRevenue.meta?.report_keys || []).map((slotKey: string) => {
-              const list = consultantRevenue.data?.[slotKey] || [];
-              return (
-                <div key={slotKey} className="space-y-4">
-                  <div className="bg-[#549E9E]/10 border border-[#549E9E]/20 px-4 py-2 text-xs font-black uppercase tracking-widest text-[#549E9E] rounded-lg">
-                    {slotKey} Session
-                  </div>
-                  <div className="overflow-x-auto">
-                    {list.length > 0 ? (
-                      <table className="w-full text-left border-collapse whitespace-nowrap">
-                        <thead>
-                          <tr className="border-b border-gray-100 bg-gray-50/50">
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Doctor / Consultant</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Payment Mode</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Consultations</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Consultation Revenue</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Counter / Hand Medicine</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Test / Lab Revenue</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Courier Medicine</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Courier Charge</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total Courier Revenue</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Total Gross Revenue</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Paid Revenue</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Pending Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
-                          {list.map((doc: any, docIdx: number) => (
-                            <tr key={`${doc.doctor_id}-${doc.payment_mode || docIdx}`} className="hover:bg-[#549E9E]/[0.02] transition-colors">
-                              <td className="py-4 px-5">
-                                <div className="font-extrabold text-gray-800 text-sm">{doc.doctor_name}</div>
-                                {doc.doctor_uuid && (
-                                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{doc.doctor_uuid}</div>
-                                )}
-                              </td>
-                              <td className="py-4 px-5 text-center">
-                                <PaymentModeBadge mode={doc.payment_mode} />
-                              </td>
-                              <td className="py-4 px-5 text-center font-black text-gray-800 text-sm">{doc.total_consultations}</td>
-                              <td className="py-4 px-5 text-right font-bold text-gray-700">₹ {Number(doc.consultation_revenue || 0).toFixed(2)}</td>
-                              <td className="py-4 px-5 text-right font-bold text-violet-600">₹ {Number(doc.medication_revenue || 0).toFixed(2)}</td>
-                              <td className="py-4 px-5 text-right font-bold text-amber-600">₹ {Number(doc.test_lab_revenue || 0).toFixed(2)}</td>
-                              <td className="py-4 px-5 text-right font-bold text-blue-600">₹ {Number(doc.courier_medicine_revenue || 0).toFixed(2)}</td>
-                              <td className="py-4 px-5 text-right font-bold text-sky-600">₹ {Number(doc.courier_charge_revenue || 0).toFixed(2)}</td>
-                              <td className="py-4 px-5 text-right font-black text-cyan-700">₹ {Number(doc.courier_revenue || 0).toFixed(2)}</td>
-                              <td className="py-4 px-5 text-right font-black text-[#549E9E] text-base">₹ {Number(doc.total_gross_revenue || 0).toFixed(2)}</td>
-                              <td className="py-4 px-5 text-right font-bold text-emerald-600">₹ {Number(doc.total_paid_revenue || 0).toFixed(2)}</td>
-                              <td className="py-4 px-5 text-right font-bold text-amber-500">₹ {Number(doc.total_pending_revenue || 0).toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        {list.length > 0 && (() => {
-                          const totalConsults = list.reduce((sum: number, doc: any) => sum + Number(doc.total_consultations || 0), 0);
-                          const totalConsultRev = list.reduce((sum: number, doc: any) => sum + Number(doc.consultation_revenue || 0), 0);
-                          const totalMedRev = list.reduce((sum: number, doc: any) => sum + Number(doc.medication_revenue || 0), 0);
-                          const totalTestLabRev = list.reduce((sum: number, doc: any) => sum + Number(doc.test_lab_revenue || 0), 0);
-                          const totalCourierMedRev = list.reduce((sum: number, doc: any) => sum + Number(doc.courier_medicine_revenue || 0), 0);
-                          const totalCourierChargeRev = list.reduce((sum: number, doc: any) => sum + Number(doc.courier_charge_revenue || 0), 0);
-                          const totalCourierRev = list.reduce((sum: number, doc: any) => sum + Number(doc.courier_revenue || 0), 0);
-                          const totalGross = list.reduce((sum: number, doc: any) => sum + Number(doc.total_gross_revenue || 0), 0);
-                          const totalPaid = list.reduce((sum: number, doc: any) => sum + Number(doc.total_paid_revenue || 0), 0);
-                          const totalPending = list.reduce((sum: number, doc: any) => sum + Number(doc.total_pending_revenue || 0), 0);
-                          return (
-                            <tfoot className="border-t-2 border-gray-200 bg-[#549E9E]/[0.04]">
-                              <tr>
-                                <td colSpan={2} className="py-4 px-5 text-xs font-black text-gray-800 uppercase tracking-widest">
-                                  {slotKey} Total ({list.length} Records)
-                                </td>
-                                <td className="py-4 px-5 text-center font-black text-gray-800 text-sm">{totalConsults}</td>
-                                <td className="py-4 px-5 text-right font-black text-gray-800">₹ {totalConsultRev.toFixed(2)}</td>
-                                <td className="py-4 px-5 text-right font-black text-violet-700">₹ {totalMedRev.toFixed(2)}</td>
-                                <td className="py-4 px-5 text-right font-black text-amber-700">₹ {totalTestLabRev.toFixed(2)}</td>
-                                <td className="py-4 px-5 text-right font-black text-blue-700">₹ {totalCourierMedRev.toFixed(2)}</td>
-                                <td className="py-4 px-5 text-right font-black text-sky-700">₹ {totalCourierChargeRev.toFixed(2)}</td>
-                                <td className="py-4 px-5 text-right font-black text-cyan-700">₹ {totalCourierRev.toFixed(2)}</td>
-                                <td className="py-4 px-5 text-right font-black text-[#549E9E] text-base">₹ {totalGross.toFixed(2)}</td>
-                                <td className="py-4 px-5 text-right font-black text-emerald-600">₹ {totalPaid.toFixed(2)}</td>
-                                <td className="py-4 px-5 text-right font-black text-amber-600">₹ {totalPending.toFixed(2)}</td>
-                              </tr>
-                            </tfoot>
-                          );
-                        })()}
-                      </table>
-                    ) : (
-                      <div className="p-8 text-center text-gray-400 text-xs font-bold uppercase tracking-widest bg-gray-50/50 rounded-xl">
-                        No consultant revenue records found for {slotKey} session
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {(!consultantRevenue.meta?.report_keys || consultantRevenue.meta.report_keys.length === 0) && (
-              <div className="p-16 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
-                {isReportLoading ? 'Loading consultant revenue data...' : 'No consultant revenue records found for this period'}
+          <div className="relative grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {isReportLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 backdrop-blur-[2px]">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]">Loading consultant revenue...</p>
               </div>
             )}
+            {orderedSessionKeys(consultantRevenue.meta?.report_keys || []).map((slotKey: string) => (
+              <ConsultantSessionPanel
+                key={slotKey}
+                slotKey={slotKey}
+                list={consultantRevenue.data?.[slotKey] || []}
+              />
+            ))}
           </div>
         </div>
       ) : (
         /* Revenue by Medicine Section */
         <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm space-y-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-gray-100">
-            <div>
+          <div className="flex items-start justify-between gap-4 pb-4 border-b border-gray-100">
+            <div className="min-w-0 flex-1">
               <h3 className="text-base font-black text-gray-800 uppercase tracking-tight flex items-center gap-2">
                 <Pill size={20} className="text-emerald-500" /> Gross Revenue by Medicine
               </h3>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
-                Total medicine sales revenue without calculating actual cost price
+              <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">
+                Gross medicine sales by session. Scroll if needed.
+              </p>
+              <p className="mt-0.5 text-[9px] font-black uppercase tracking-wide text-[#549E9E]">
+                {formatDateRangeLabel(fromDate, toDate)}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <CustomDatePicker label="Filter Date" value={filterDate} onChange={setFilterDate} />
+            <div className="flex shrink-0 flex-nowrap items-end gap-2">
+              <CustomDatePicker
+                label={t('bills.filters.from_date', 'From Date')}
+                value={fromDate}
+                onChange={(date) => applyDateRange(date, toDate)}
+                allowClear={false}
+                maxDate={toDate !== 'all' ? toDate : undefined}
+              />
+              <CustomDatePicker
+                label={t('bills.filters.to_date', 'To Date')}
+                value={toDate}
+                onChange={(date) => applyDateRange(fromDate, date)}
+                allowClear={false}
+                minDate={fromDate !== 'all' ? fromDate : undefined}
+              />
               <button
                 onClick={fetchRevenueReports}
-                className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-5 py-2.5 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5 rounded-xl"
+                className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-4 py-2.5 text-[11px] font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5 rounded-xl whitespace-nowrap"
               >
                 <RefreshCcw size={14} className={isReportLoading ? 'animate-spin' : ''} /> Refresh
               </button>
             </div>
           </div>
 
-          <div className="space-y-8">
-            {(medicineRevenue.meta?.report_keys || []).map((slotKey: string) => {
-              const list = medicineRevenue.data?.[slotKey] || [];
-              return (
-                <div key={slotKey} className="space-y-4">
-                  <div className="bg-[#549E9E]/10 border border-[#549E9E]/20 px-4 py-2 text-xs font-black uppercase tracking-widest text-[#549E9E] rounded-lg">
-                    {slotKey} Session
-                  </div>
-                  <div className="overflow-x-auto">
-                    {list.length > 0 ? (
-                      <table className="w-full text-left border-collapse whitespace-nowrap">
-                        <thead>
-                          <tr className="border-b border-gray-100 bg-gray-50/50">
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Medicine Name</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Payment Mode</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Bills Count</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Total Quantity Sold</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Avg Unit Selling Price</th>
-                            <th className="py-4 px-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Gross Revenue</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50 text-xs font-bold text-gray-700">
-                          {list.map((med: any, idx: number) => (
-                            <tr key={idx} className="hover:bg-emerald-50/30 transition-colors">
-                              <td className="py-4 px-5 font-black text-gray-800 flex items-center gap-3">
-                                <span className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center text-xs font-black border border-emerald-100">
-                                  #{idx + 1}
-                                </span>
-                                <span className="text-sm font-black text-gray-800">{med.medicine_name}</span>
-                              </td>
-                              <td className="py-4 px-5 text-center">
-                                <PaymentModeBadge mode={med.payment_mode} />
-                              </td>
-                              <td className="py-4 px-5 text-center font-bold text-gray-700 text-sm">{med.total_bills}</td>
-                              <td className="py-4 px-5 text-center font-black text-[#549E9E] text-base">{med.total_quantity_sold}</td>
-                              <td className="py-4 px-5 text-right font-bold text-gray-700">₹ {Number(med.average_unit_price || 0).toFixed(2)}</td>
-                              <td className="py-4 px-5 text-right font-black text-emerald-600 text-base">₹ {Number(med.gross_revenue || 0).toFixed(2)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        {list.length > 0 && (() => {
-                          const totalBillsCount = list.reduce((sum: number, med: any) => sum + Number(med.total_bills || 0), 0);
-                          const totalQuantity = list.reduce((sum: number, med: any) => sum + Number(med.total_quantity_sold || 0), 0);
-                          const totalGross = list.reduce((sum: number, med: any) => sum + Number(med.gross_revenue || 0), 0);
-                          return (
-                            <tfoot className="border-t-2 border-gray-200 bg-[#549E9E]/[0.04]">
-                              <tr>
-                                <td colSpan={2} className="py-4 px-5 text-xs font-black text-gray-800 uppercase tracking-widest">
-                                  {slotKey} Total ({list.length} Medicines)
-                                </td>
-                                <td className="py-4 px-5 text-center font-black text-gray-800 text-sm">{totalBillsCount}</td>
-                                <td className="py-4 px-5 text-center font-black text-[#549E9E] text-base">{totalQuantity}</td>
-                                <td className="py-4 px-5 text-right text-gray-400 font-bold text-xs">—</td>
-                                <td className="py-4 px-5 text-right font-black text-emerald-600 text-base">₹ {totalGross.toFixed(2)}</td>
-                              </tr>
-                            </tfoot>
-                          );
-                        })()}
-                      </table>
-                    ) : (
-                      <div className="p-8 text-center text-gray-400 text-xs font-bold uppercase tracking-widest bg-gray-50/50 rounded-xl">
-                        No medicine revenue records found for {slotKey} session
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {(!medicineRevenue.meta?.report_keys || medicineRevenue.meta.report_keys.length === 0) && (
-              <div className="p-16 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">
-                {isReportLoading ? 'Loading medicine revenue data...' : 'No medicine revenue records found for this period'}
+          <div className="relative grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {isReportLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 backdrop-blur-[2px]">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]">Loading medicine revenue...</p>
               </div>
             )}
+            {orderedSessionKeys(medicineRevenue.meta?.report_keys || []).map((slotKey: string) => (
+              <MedicineSessionPanel
+                key={slotKey}
+                slotKey={slotKey}
+                list={medicineRevenue.data?.[slotKey] || []}
+              />
+            ))}
           </div>
         </div>
       )}
