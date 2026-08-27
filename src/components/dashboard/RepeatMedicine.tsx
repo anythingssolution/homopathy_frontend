@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { formatConsultationMedicineText } from '../../utils/prescriptionFormat';
 import MedicationDuePaymentPanel from './MedicationDuePaymentPanel';
-import { formatMoney } from '../../utils/medicationDues';
+import { buildMedicationPaymentPayload, formatMoney } from '../../utils/medicationDues';
 import type { AllocationOrder, AccountDues, DueBill } from '../../utils/medicationDues';
 
 const money = (value: number | string | null | undefined) => Number(value || 0).toFixed(2);
@@ -170,6 +170,9 @@ export default function RepeatMedicine() {
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'ONLINE'>('CASH');
   const [transactionReference, setTransactionReference] = useState('');
   const [collectedAmount, setCollectedAmount] = useState('');
+  const [splitPayment, setSplitPayment] = useState(false);
+  const [cashAmount, setCashAmount] = useState('');
+  const [onlineAmount, setOnlineAmount] = useState('');
   const [allocationOrder, setAllocationOrder] = useState<AllocationOrder>('CURRENT_ONLY');
   const [remark, setRemark] = useState('');
   const [isCourierDelivery, setIsCourierDelivery] = useState(false);
@@ -277,6 +280,9 @@ export default function RepeatMedicine() {
       setAllocationOrder('CURRENT_ONLY');
       setPaymentMode('CASH');
       setTransactionReference('');
+      setSplitPayment(false);
+      setCashAmount('');
+      setOnlineAmount('');
     } catch (error: any) {
       addToast(error.message || 'Last prescription not found', 'error');
     } finally {
@@ -391,7 +397,9 @@ export default function RepeatMedicine() {
     }
 
     const previousPending = Number(lastPrescription.account_dues?.total_pending || selectedPatient.account_dues?.total_pending || 0);
-    const received = collectedAmount === '' ? totalAmount : Number(collectedAmount || 0);
+    const received = splitPayment
+      ? (Number(cashAmount || 0) || 0) + (Number(onlineAmount || 0) || 0)
+      : (collectedAmount === '' ? totalAmount : Number(collectedAmount || 0));
     if (Number.isNaN(received) || received < 0) {
       addToast('Please enter a valid amount received. Use 0 if the patient is borrowing the full bill.', 'warning');
       return;
@@ -404,7 +412,11 @@ export default function RepeatMedicine() {
       addToast('Amount received cannot be greater than total due including previous pending', 'warning');
       return;
     }
-    if (paymentMode === 'ONLINE' && received > 0 && !transactionReference.trim()) {
+    if (splitPayment && (Number(onlineAmount || 0) || 0) > 0 && !transactionReference.trim()) {
+      addToast('Transaction reference is required for the online amount', 'warning');
+      return;
+    }
+    if (!splitPayment && paymentMode === 'ONLINE' && received > 0 && !transactionReference.trim()) {
       addToast('Transaction reference is required for online payment', 'warning');
       return;
     }
@@ -436,13 +448,16 @@ export default function RepeatMedicine() {
             tracking_no: isCourierDelivery ? (trackingNo.trim() || null) : null,
             delivery_remark: isCourierDelivery ? (deliveryRemark.trim() || null) : null,
           },
-          payment: {
-            payment_mode: paymentMode,
-            amount: received,
-            transaction_reference: transactionReference.trim() || null,
-            remark: remark.trim() || 'Repeat Medicine',
-            allocation_order: allocationOrder,
-          },
+          payment: buildMedicationPaymentPayload({
+            splitPayment,
+            cashAmount,
+            onlineAmount,
+            paymentMode,
+            collectedAmount: String(received),
+            transactionReference,
+            paymentRemark: remark.trim() || 'Repeat Medicine',
+            allocationOrder,
+          }),
         }),
       });
       const result = await response.json();
@@ -664,6 +679,12 @@ export default function RepeatMedicine() {
               onTransactionReferenceChange={setTransactionReference}
               allocationOrder={allocationOrder}
               onAllocationOrderChange={setAllocationOrder}
+              splitPayment={splitPayment}
+              onSplitPaymentChange={setSplitPayment}
+              cashAmount={cashAmount}
+              onCashAmountChange={setCashAmount}
+              onlineAmount={onlineAmount}
+              onOnlineAmountChange={setOnlineAmount}
               showRemark={false}
             />
 

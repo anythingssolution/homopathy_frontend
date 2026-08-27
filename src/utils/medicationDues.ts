@@ -110,3 +110,87 @@ export function previewMedicationReceipt({
     overpay: moneyNumber(Math.max(0, received - totalDue)),
   };
 }
+
+export function moneyValue(value: number | string | null | undefined) {
+  return moneyNumber(value).toFixed(2);
+}
+
+export function balanceSplitAmounts({
+  collectTarget,
+  edited,
+  typedAmount,
+}: {
+  collectTarget: number;
+  edited: 'cash' | 'online';
+  typedAmount: number;
+}) {
+  const target = moneyNumber(Math.max(0, collectTarget));
+  const typed = Math.min(target, Math.max(0, moneyNumber(typedAmount)));
+  if (edited === 'online') {
+    return { cash: moneyNumber(target - typed), online: typed };
+  }
+  return { cash: typed, online: moneyNumber(target - typed) };
+}
+
+export function rebalanceSplitOnTotalChange({
+  collectTarget,
+  cashAmount,
+  onlineAmount,
+  prefer = 'cash',
+}: {
+  collectTarget: number;
+  cashAmount: number;
+  onlineAmount: number;
+  prefer?: 'cash' | 'online';
+}) {
+  const target = moneyNumber(Math.max(0, collectTarget));
+  if (prefer === 'online') {
+    const online = Math.min(moneyNumber(onlineAmount), target);
+    return { cash: moneyNumber(target - online), online };
+  }
+  const cash = Math.min(moneyNumber(cashAmount), target);
+  return { cash, online: moneyNumber(target - cash) };
+}
+
+export function buildMedicationPaymentPayload({
+  splitPayment,
+  cashAmount,
+  onlineAmount,
+  paymentMode,
+  collectedAmount,
+  transactionReference,
+  paymentRemark,
+  allocationOrder,
+}: {
+  splitPayment: boolean;
+  cashAmount: string;
+  onlineAmount: string;
+  paymentMode: 'CASH' | 'ONLINE';
+  collectedAmount: string;
+  transactionReference: string;
+  paymentRemark?: string | null;
+  allocationOrder: AllocationOrder;
+}) {
+  const remark = String(paymentRemark || '').trim() || null;
+  const reference = String(transactionReference || '').trim() || null;
+
+  if (splitPayment) {
+    return {
+      split: true,
+      cash_amount: moneyNumber(cashAmount),
+      online_amount: moneyNumber(onlineAmount),
+      amount: moneyNumber(Number(cashAmount || 0) + Number(onlineAmount || 0)),
+      transaction_reference: reference,
+      remark,
+      allocation_order: allocationOrder,
+    };
+  }
+
+  return {
+    payment_mode: paymentMode,
+    amount: moneyNumber(collectedAmount),
+    transaction_reference: paymentMode === 'ONLINE' ? reference : null,
+    remark,
+    allocation_order: allocationOrder,
+  };
+}

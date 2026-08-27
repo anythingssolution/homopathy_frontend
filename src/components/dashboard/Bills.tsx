@@ -25,6 +25,7 @@ import {
 import { useNotifications } from '../../context/NotificationContext';
 import CustomDatePicker from '../CustomDatePicker';
 import AppointmentTokenBadge from '../AppointmentTokenBadge';
+import PaymentSplitDisplay from '../PaymentSplitDisplay';
 import { useLenisNestedScroll } from '../../hooks/useLenisNestedScroll';
 import { useTranslation } from 'react-i18next';
 import { getLocalDateString } from '../../utils/date';
@@ -614,6 +615,8 @@ export default function Bills() {
           family_member_relationship: bill.family_member_relationship,
           primary_patient_full_name: bill.primary_patient_full_name,
           payment_mode: bill.payment_mode || null,
+          cash_amount: 0,
+          online_amount: 0,
           consultation_completed_at: bill.consultation_completed_at || null,
           bills: [],
           grand_total: 0,
@@ -633,6 +636,8 @@ export default function Bills() {
         entry.consultation_completed_at = bill.consultation_completed_at;
       }
       entry.bills.push(bill);
+      entry.cash_amount += Number(bill.cash_amount || 0);
+      entry.online_amount += Number(bill.online_amount || 0);
       entry.grand_total += Number(bill.total_amount || 0);
       entry.grand_paid += Number(bill.paid_amount || 0);
       entry.grand_pending += Number(bill.pending_amount || 0);
@@ -650,6 +655,11 @@ export default function Bills() {
         paid_towards_this_bill: Number(entry.paid_towards_this_bill.toFixed(2)),
         paid_towards_previous_pending: Number(entry.paid_towards_previous_pending.toFixed(2)),
         borrowed_amount_collected: Number(entry.borrowed_amount_collected.toFixed(2)),
+        cash_amount: Number(entry.cash_amount.toFixed(2)),
+        online_amount: Number(entry.online_amount.toFixed(2)),
+        payment_mode: Number(entry.cash_amount || 0) > 0 && Number(entry.online_amount || 0) > 0
+          ? 'MIXED'
+          : (Number(entry.online_amount || 0) > 0 ? 'ONLINE' : (Number(entry.cash_amount || 0) > 0 ? 'CASH' : entry.payment_mode)),
         overall_payment_status: deriveOverallPaymentStatus(entry.grand_paid, entry.grand_pending, entry.grand_total),
       }))
       .sort((a, b) => {
@@ -687,13 +697,8 @@ export default function Bills() {
     });
 
     bills.forEach((bill) => {
-      const mode = String(bill.payment_mode || '').toUpperCase();
-      const paid = Number(bill.paid_amount || 0);
-      if (mode === 'CASH') {
-        cashTotal += paid;
-      } else if (mode === 'ONLINE') {
-        onlineTotal += paid;
-      }
+      cashTotal += Number(bill.cash_amount || 0);
+      onlineTotal += Number(bill.online_amount || 0);
     });
 
     return {
@@ -713,6 +718,11 @@ export default function Bills() {
 
     const billsList = Array.isArray(selectedSummary.bills) ? selectedSummary.bills : [];
     const paymentsList = Array.isArray(selectedSummary.payments) ? selectedSummary.payments : [];
+    const uniquePayments = paymentsList.filter((payment: any, index: number, list: any[]) => {
+      const paymentId = Number(payment?.payment_id || 0);
+      if (!paymentId) return true;
+      return list.findIndex((item) => Number(item?.payment_id || 0) === paymentId) === index;
+    });
     const allItems = billsList.flatMap((bill: any) => Array.isArray(bill.items) ? bill.items : []);
 
     const amountByItemType = allItems.reduce((acc: Record<string, number>, item: any) => {
@@ -721,13 +731,13 @@ export default function Bills() {
       return acc;
     }, {} as Record<string, number>);
 
-    const paymentByMode = paymentsList.reduce((acc: Record<string, number>, payment: any) => {
+    const paymentByMode = uniquePayments.reduce((acc: Record<string, number>, payment: any) => {
       const key = String(payment?.payment_mode || 'UNKNOWN').toUpperCase();
       acc[key] = (acc[key] || 0) + Number(payment?.amount || 0);
       return acc;
     }, {} as Record<string, number>);
 
-    const paymentByPlace = paymentsList.reduce((acc: Record<string, number>, payment: any) => {
+    const paymentByPlace = uniquePayments.reduce((acc: Record<string, number>, payment: any) => {
       const key = getPaymentPlaceLabel(payment);
       acc[key] = (acc[key] || 0) + Number(payment?.amount || 0);
       return acc;
@@ -1193,7 +1203,12 @@ export default function Bills() {
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <PaymentModeBadge mode={entry.payment_mode} />
+                      <PaymentSplitDisplay
+                        cashAmount={entry.cash_amount}
+                        onlineAmount={entry.online_amount}
+                        paymentMode={entry.payment_mode}
+                        compact
+                      />
                     </td>
                     <td className="px-5 py-4 text-sm font-black text-gray-800">₹ {Number(entry.grand_total || 0).toFixed(2)}</td>
                     <td className="px-5 py-4 text-sm font-black text-emerald-600">₹ {Number(entry.grand_paid || 0).toFixed(2)}</td>
@@ -1363,6 +1378,13 @@ export default function Bills() {
                         <p className="text-2xl font-black text-orange-500">{formatCurrency(selectedSummary.summary?.grand_pending)}</p>
                       </div>
                     </div>
+                    <div className="mt-4">
+                      <p className="text-[10px] font-black text-[#549E9E]/60 uppercase tracking-widest mb-2">Payment mode</p>
+                      <PaymentSplitDisplay
+                        cashAmount={selectedSummaryBreakdown?.paymentByMode?.find((entry: any) => String(entry.mode).toUpperCase() === 'CASH')?.total}
+                        onlineAmount={selectedSummaryBreakdown?.paymentByMode?.find((entry: any) => String(entry.mode).toUpperCase() === 'ONLINE')?.total}
+                      />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -1498,6 +1520,15 @@ export default function Bills() {
                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Remark</p>
                             <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{bill.remark || 'No remarks added.'}</p>
                           </div>
+                        </div>
+
+                        <div className="bg-white border border-gray-100 p-4">
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Payment mode</p>
+                          <PaymentSplitDisplay
+                            cashAmount={bill.cash_amount}
+                            onlineAmount={bill.online_amount}
+                            paymentMode={bill.payment_mode}
+                          />
                         </div>
 
                         {Number(bill.pending_amount || 0) > 0 && (

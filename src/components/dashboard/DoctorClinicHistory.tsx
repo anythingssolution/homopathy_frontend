@@ -37,6 +37,7 @@ import {
 } from "../../utils/prescriptionFormat";
 import { useTranslation } from "react-i18next";
 import MedicationDispensingStatus from "../MedicationDispensingStatus";
+import PaymentSplitDisplay from "../PaymentSplitDisplay";
 
 export default function DoctorClinicHistory() {
   const { t } = useTranslation();
@@ -464,6 +465,14 @@ export default function DoctorClinicHistory() {
                           )}
                           <StatusBadge status={appointment.status} />
                         </div>
+                        <div className="mt-2">
+                          <PaymentSplitDisplay
+                            cashAmount={item.payment_summary?.cash_amount}
+                            onlineAmount={item.payment_summary?.online_amount}
+                            paymentMode={item.payment_summary?.payment_mode}
+                            compact
+                          />
+                        </div>
                       </div>
 
                       <div className="mt-4 pt-3 border-t border-gray-50 flex gap-2">
@@ -531,6 +540,9 @@ export default function DoctorClinicHistory() {
                     </th>
                     <th className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">
                       {t("clinic_history.table.status", "Status")}
+                    </th>
+                    <th className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                      {t("clinic_history.table.payment", "Payment")}
                     </th>
                     <th className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-center">
                       {t("clinic_history.table.action", "Action")}
@@ -640,6 +652,14 @@ export default function DoctorClinicHistory() {
                           </td>
                           <td className="px-5 py-4">
                             <StatusBadge status={appointment.status} />
+                          </td>
+                          <td className="px-5 py-4">
+                            <PaymentSplitDisplay
+                              cashAmount={item.payment_summary?.cash_amount}
+                              onlineAmount={item.payment_summary?.online_amount}
+                              paymentMode={item.payment_summary?.payment_mode}
+                              compact
+                            />
                           </td>
                           <td className="px-5 py-4 text-center">
                             <div className="flex items-center justify-center gap-2">
@@ -1024,6 +1044,12 @@ export default function DoctorClinicHistory() {
                                               {medicalMeds.length} Medical Added
                                             </span>
                                           ) : null}
+                                          <PaymentSplitDisplay
+                                            cashAmount={chainItem.payment_summary?.cash_amount}
+                                            onlineAmount={chainItem.payment_summary?.online_amount}
+                                            paymentMode={chainItem.payment_summary?.payment_mode}
+                                            chips
+                                          />
                                         </div>
                                       </div>
                                       <ChevronDown
@@ -1034,7 +1060,7 @@ export default function DoctorClinicHistory() {
 
                                     {isExpanded && chainItem.consultation && (
                                       <div className="border-t border-red-100 bg-white/80 p-4 space-y-4">
-                                        <div className="grid md:grid-cols-2 gap-3">
+                                        <div className="grid md:grid-cols-3 gap-3">
                                           <div className="bg-white border border-gray-100 rounded-xl p-3">
                                             <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">
                                               Symptoms / Findings
@@ -1052,6 +1078,16 @@ export default function DoctorClinicHistory() {
                                               {chainItem.consultation
                                                 .treatment_advice || "—"}
                                             </p>
+                                          </div>
+                                          <div className="bg-white border border-gray-100 rounded-xl p-3">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">
+                                              Payment Mode
+                                            </p>
+                                            <PaymentSplitDisplay
+                                              cashAmount={chainItem.payment_summary?.cash_amount}
+                                              onlineAmount={chainItem.payment_summary?.online_amount}
+                                              paymentMode={chainItem.payment_summary?.payment_mode}
+                                            />
                                           </div>
                                         </div>
 
@@ -1280,20 +1316,34 @@ export default function DoctorClinicHistory() {
                         </div>
                       )}
 
-                      {pricing && (
+                      {(pricing || selectedConsultation.payment_summary) && (
                         <div className="bg-[#549E9E]/5 border border-[#549E9E]/10 rounded-xl p-5">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] block mb-2">
-                            Amount
-                          </label>
-                          <div className="flex items-center justify-between gap-4">
-                            <p className="text-sm font-bold text-gray-500">
-                              Consultation prescription total
+                          {pricing && (
+                            <>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] block mb-2">
+                                Amount
+                              </label>
+                              <div className="flex items-center justify-between gap-4">
+                                <p className="text-sm font-bold text-gray-500">
+                                  Consultation prescription total
+                                </p>
+                                <div className="min-w-[160px] px-4 py-3 bg-white border border-[#549E9E]/15 rounded-lg text-right text-lg font-black text-[#549E9E]">
+                                  ₹ {pricing.total_amount || 0}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                          <div className={pricing ? "mt-4" : ""}>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] mb-2">
+                              Payment mode
                             </p>
-                            <div className="min-w-[160px] px-4 py-3 bg-white border border-[#549E9E]/15 rounded-lg text-right text-lg font-black text-[#549E9E]">
-                              ₹ {pricing.total_amount || 0}
-                            </div>
+                            <PaymentSplitDisplay
+                              cashAmount={selectedConsultation.payment_summary?.cash_amount}
+                              onlineAmount={selectedConsultation.payment_summary?.online_amount}
+                              paymentMode={selectedConsultation.payment_summary?.payment_mode}
+                            />
                           </div>
-                          {pricing.remark && (
+                          {pricing?.remark && (
                             <div className="mt-4 pt-4 border-t border-[#549E9E]/10">
                               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">
                                 Dispensing Remark

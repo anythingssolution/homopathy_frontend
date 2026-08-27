@@ -31,7 +31,7 @@ import Pagination from '../Pagination';
 import { useTranslation } from 'react-i18next';
 import { formatConsultationMedicineText, formatNumericMedicineWithFormula, getDosePreview } from '../../utils/prescriptionFormat';
 import MedicationDuePaymentPanel from './MedicationDuePaymentPanel';
-import { formatMoney } from '../../utils/medicationDues';
+import { buildMedicationPaymentPayload, formatMoney } from '../../utils/medicationDues';
 import type { AllocationOrder, DueBill } from '../../utils/medicationDues';
 import PrescriptionPrint from '../PrescriptionPrint';
 
@@ -289,6 +289,9 @@ export default function MedicalDashboard() {
   const [transactionReference, setTransactionReference] = useState('');
   const [paymentRemark, setPaymentRemark] = useState('');
   const [collectedAmount, setCollectedAmount] = useState('');
+  const [splitPayment, setSplitPayment] = useState(false);
+  const [cashAmount, setCashAmount] = useState('');
+  const [onlineAmount, setOnlineAmount] = useState('');
   const [allocationOrder, setAllocationOrder] = useState<AllocationOrder>('CURRENT_ONLY');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -417,7 +420,7 @@ export default function MedicalDashboard() {
   const applyTodayBillTotal = (
     todayTotal: number,
     order: AllocationOrder = allocationOrder,
-    prescription: any = selectedPrescription
+    prescription: any = selectedPrescription,
   ) => {
     const today = Number(todayTotal) || 0;
     setAmount(String(today));
@@ -564,6 +567,9 @@ export default function MedicalDashboard() {
     setTransactionReference('');
     setPaymentRemark('');
     setAllocationOrder('CURRENT_ONLY');
+    setSplitPayment(false);
+    setCashAmount('');
+    setOnlineAmount('');
     setVoidDialog(null);
     setVoidReason('');
   };
@@ -751,14 +757,15 @@ export default function MedicalDashboard() {
       return;
     }
 
-    if (processAfterSave && (Number.isNaN(parseFloat(collectedAmount)) || parseFloat(collectedAmount) < 0)) {
+    const todayTotal = parseFloat(amount) || 0;
+    const previousPending = Number(selectedPrescription?.account_dues?.total_pending || 0);
+    const received = splitPayment
+      ? (Number(cashAmount || 0) || 0) + (Number(onlineAmount || 0) || 0)
+      : (Number(collectedAmount || 0) || 0);
+    if (processAfterSave && (Number.isNaN(received) || received < 0)) {
       addToast('Please enter a valid amount received. Use 0 if the patient is borrowing the full bill.', 'error');
       return;
     }
-
-    const todayTotal = parseFloat(amount) || 0;
-    const previousPending = Number(selectedPrescription?.account_dues?.total_pending || 0);
-    const received = parseFloat(collectedAmount) || 0;
     if (processAfterSave && allocationOrder !== 'CURRENT_FIRST' && received > todayTotal + 0.001) {
       addToast('Tick previous pending to collect more than today\'s medicine bill', 'error');
       return;
@@ -768,7 +775,15 @@ export default function MedicalDashboard() {
       return;
     }
 
-    if (processAfterSave && paymentMode === 'ONLINE' && received > 0 && !transactionReference.trim()) {
+    if (processAfterSave && splitPayment && (parseFloat(cashAmount) || 0) < 0) {
+      addToast('Cash amount cannot be negative', 'error');
+      return;
+    }
+    if (processAfterSave && splitPayment && (parseFloat(onlineAmount) || 0) > 0 && !transactionReference.trim()) {
+      addToast('Please enter transaction reference for the online amount', 'error');
+      return;
+    }
+    if (processAfterSave && !splitPayment && paymentMode === 'ONLINE' && received > 0 && !transactionReference.trim()) {
       addToast('Please enter transaction reference for online payment', 'error');
       return;
     }
@@ -794,13 +809,16 @@ export default function MedicalDashboard() {
           version: testItemStates[i]?.version || Number(test.version || 1),
         })),
         additional_medications: normalizedAdditionalMeds,
-        payment: processAfterSave ? {
-          payment_mode: paymentMode,
-          amount: received,
-          transaction_reference: paymentMode === 'ONLINE' ? transactionReference.trim() : null,
-          remark: paymentRemark.trim() || null,
-          allocation_order: allocationOrder,
-        } : null
+        payment: processAfterSave ? buildMedicationPaymentPayload({
+          splitPayment,
+          cashAmount,
+          onlineAmount,
+          paymentMode,
+          collectedAmount: String(received),
+          transactionReference,
+          paymentRemark,
+          allocationOrder,
+        }) : null
       };
       const requestKey = crypto.randomUUID();
 
@@ -1551,6 +1569,12 @@ export default function MedicalDashboard() {
                         onPaymentRemarkChange={setPaymentRemark}
                         allocationOrder={allocationOrder}
                         onAllocationOrderChange={setAllocationOrder}
+                        splitPayment={splitPayment}
+                        onSplitPaymentChange={setSplitPayment}
+                        cashAmount={cashAmount}
+                        onCashAmountChange={setCashAmount}
+                        onlineAmount={onlineAmount}
+                        onOnlineAmountChange={setOnlineAmount}
                       />
                     </div>
                   </div>

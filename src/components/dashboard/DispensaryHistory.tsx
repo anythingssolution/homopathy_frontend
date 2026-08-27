@@ -33,6 +33,7 @@ import { getDosePreview, getMedicationPricingAmount, getMedicationRoleLabel, for
 import { useTranslation } from 'react-i18next';
 import MedicationDispensingStatus from '../MedicationDispensingStatus';
 import PrescriptionPrint from '../PrescriptionPrint';
+import PaymentSplitDisplay from '../PaymentSplitDisplay';
 
 const RepeatMedicineInvoice = ({ record }: { record: any }) => {
   const medicines = record?.prescription?.medications || [];
@@ -139,6 +140,14 @@ const RepeatMedicineInvoice = ({ record }: { record: any }) => {
         <p>Payment Status: {record?.medication_bill?.payment_status || record?.prescription?.payment_status || 'PAID'}</p>
         {Number(record?.medication_bill?.pending_amount || record?.prescription?.pending_amount || 0) > 0 && (
           <p>Pending Amount: ₹ {Number(record?.medication_bill?.pending_amount || record?.prescription?.pending_amount || 0).toFixed(2)}</p>
+        )}
+        {(Number(record?.medication_bill?.cash_amount || 0) > 0 || Number(record?.medication_bill?.online_amount || 0) > 0) && (
+          <p>
+            Payment Mode:
+            {Number(record?.medication_bill?.cash_amount || 0) > 0 ? ` Cash ₹ ${Number(record.medication_bill.cash_amount).toFixed(2)}` : ''}
+            {Number(record?.medication_bill?.cash_amount || 0) > 0 && Number(record?.medication_bill?.online_amount || 0) > 0 ? ' •' : ''}
+            {Number(record?.medication_bill?.online_amount || 0) > 0 ? ` Online ₹ ${Number(record.medication_bill.online_amount).toFixed(2)}` : ''}
+          </p>
         )}
         {isRepeat && record?.prescription?.delivery_details?.delivery_remark && (
           <p>Delivery Remark: {record.prescription.delivery_details.delivery_remark}</p>
@@ -475,6 +484,12 @@ export default function DispensaryHistory() {
                   <div className="flex flex-col items-end gap-2">
                     <span className="text-xs font-black text-gray-300">{((page - 1) * 20 + idx + 1).toString().padStart(2, '0')}</span>
                     <DispensaryStatusBadge record={p} />
+                    <PaymentSplitDisplay
+                      cashAmount={p.medication_bill?.cash_amount}
+                      onlineAmount={p.medication_bill?.online_amount}
+                      paymentMode={p.medication_bill?.payment_mode}
+                      compact
+                    />
                   </div>
                 </div>
                 
@@ -535,6 +550,7 @@ export default function DispensaryHistory() {
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.date_slot', 'Date & Slot')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.branch', 'Branch')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.status', 'Status')}</th>
+                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.payment', 'Payment')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">{t('dispensary_history.table.action', 'Action')}</th>
               </tr>
             </thead>
@@ -610,6 +626,14 @@ export default function DispensaryHistory() {
                     <td className="px-5 py-4">
                       <DispensaryStatusBadge record={p} />
                     </td>
+                    <td className="px-5 py-4">
+                      <PaymentSplitDisplay
+                        cashAmount={p.medication_bill?.cash_amount}
+                        onlineAmount={p.medication_bill?.online_amount}
+                        paymentMode={p.medication_bill?.payment_mode}
+                        compact
+                      />
+                    </td>
                     <td className="px-5 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         {p.consultation_id && (
@@ -633,7 +657,7 @@ export default function DispensaryHistory() {
                 ))
               ) : !isLoading && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-20">
+                  <td colSpan={9} className="px-5 py-20">
                     <div className="flex flex-col items-center justify-center text-center space-y-4">
                       <div className="w-16 h-16 bg-gray-50 text-gray-200 rounded-full flex items-center justify-center">
                         <FileText size={32} />
@@ -845,6 +869,15 @@ export default function DispensaryHistory() {
                               + (selectedPrescription.prescription?.tests || []).filter((test: any) => String(test.dispense_status || '').toUpperCase() !== 'VOID').length}
                           </span>
                         </div>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Payment mode</p>
+                        <PaymentSplitDisplay
+                          cashAmount={selectedPrescription.medication_bill?.cash_amount}
+                          onlineAmount={selectedPrescription.medication_bill?.online_amount}
+                          paymentMode={selectedPrescription.medication_bill?.payment_mode}
+                        />
                       </div>
 
                       <div className="space-y-2">
