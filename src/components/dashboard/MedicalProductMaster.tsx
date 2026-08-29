@@ -250,6 +250,7 @@ export default function MedicalProductMaster() {
     tab: 0,
     other: 0,
   });
+  const hasMountedSearchRef = useRef(false);
 
   const pageSize = 10;
   const isEditing = useMemo(() => Boolean(form.id), [form.id]);
@@ -314,6 +315,23 @@ export default function MedicalProductMaster() {
   useEffect(() => {
     fetchProducts();
   }, [page, sourceType, status]);
+
+  useEffect(() => {
+    if (!hasMountedSearchRef.current) {
+      hasMountedSearchRef.current = true;
+      return;
+    }
+
+    const searchTimer = window.setTimeout(() => {
+      if (page !== 1) {
+        setPage(1);
+        return;
+      }
+      fetchProducts(search);
+    }, 350);
+
+    return () => window.clearTimeout(searchTimer);
+  }, [search]);
 
   useEffect(() => {
     fetchSummary();
@@ -481,7 +499,7 @@ export default function MedicalProductMaster() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               onKeyDown={(event) => { if (event.key === 'Enter') { setPage(1); fetchProducts(); } }}
-              placeholder="Search medicine, product, category..."
+              placeholder="Search product, type, packing..."
               className="w-full bg-gray-50/50 border border-gray-100 hover:border-gray-200 rounded-xl py-3 pl-11 pr-4 text-xs font-bold text-gray-700 outline-none focus:bg-white focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all"
             />
           </div>
