@@ -1,51 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { RefreshCcw, AlertCircle, Calendar, CalendarCheck, CheckCircle2, ShieldPlus } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 import { FilterDropdown } from '../components/FilterDropdown';
 import { SummaryMetricCard } from '../components/SummaryMetricCard';
+import ChartInfoButton from '../components/ChartInfoButton';
 import { useReportData } from '../hooks/useReportData';
 import CustomDatePicker from '../../../CustomDatePicker';
+import { useTranslation } from 'react-i18next';
 
 interface AppointmentAnalyticsProps {
   token: string | null;
 }
 
 export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ token }) => {
+  const { t, i18n } = useTranslation();
   const { data, isLoading, error, dateFilter, setDateFilter, customDateRange, setCustomDateRange, fetchReports } = useReportData(token, 'appointments');
-
-  const dateKey = (value: string) => {
-    const raw = String(value || '');
-    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  };
-
-  const localDateKey = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
 
   const num = (value: unknown) => Number(value || 0);
-  const pctChange = (current: number, previous: number) => {
-    if (previous === 0) return current === 0 ? 0 : 100;
-    return Math.round(((current - previous) / previous) * 100);
-  };
 
   const dailyRows = data?.date_wise_appointments || [];
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-  const todayRow = dailyRows.find((row: any) => dateKey(row.appointment_date) === localDateKey(today));
-  const yesterdayRow = dailyRows.find((row: any) => dateKey(row.appointment_date) === localDateKey(yesterday));
-  const previousRow = dailyRows.length >= 2 ? dailyRows[dailyRows.length - 2] : null;
-  const latestRow = dailyRows.length >= 1 ? dailyRows[dailyRows.length - 1] : null;
-  const compareRow = yesterdayRow || previousRow;
-  const vsLabel = yesterdayRow ? 'than yesterday' : previousRow ? 'vs previous day' : 'for this period';
-
-  const pendingDelta = compareRow ? pctChange(num((todayRow || latestRow)?.pending_appointments), num(compareRow.pending_appointments)) : 0;
-  const completedDelta = compareRow ? pctChange(num((todayRow || latestRow)?.completed_appointments), num(compareRow.completed_appointments)) : 0;
-  const newToday = num(todayRow?.total_appointments);
 
   const last7 = dailyRows.slice(-7);
   const prev7 = dailyRows.slice(-14, -7);
@@ -61,7 +37,7 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
   const totalSpark = dailyRows.map((row: any) => num(row.total_appointments));
 
   const chartData = (data?.date_wise_appointments || []).map((row: any) => ({
-    date: new Date(row.appointment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    date: new Date(row.appointment_date).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' }),
     total: row.total_appointments,
     completed: row.completed_appointments,
   }));
@@ -81,12 +57,13 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
   const completedPct = statusTotal > 0 ? Math.round((completedCount / statusTotal) * 100) : 0;
 
   const statusChartData = [
-    { name: 'Completed', value: completedCount, color: '#10B981' },
-    { name: 'Pending', value: pendingCount, color: '#F59E0B' },
-    { name: 'Cancelled', value: cancelledCount, color: '#EF4444' },
-    ...(confirmedCount > 0 ? [{ name: 'Confirmed', value: confirmedCount, color: '#549E9E' }] : []),
+    { id: 'completed', name: t('reports.completed'), value: completedCount, color: '#10B981' },
+    { id: 'pending', name: t('reports.pending'), value: pendingCount, color: '#F59E0B' },
+    { id: 'cancelled', name: t('reports.cancelled'), value: cancelledCount, color: '#EF4444' },
+    ...(confirmedCount > 0 ? [{ id: 'confirmed', name: t('reports.confirmed'), value: confirmedCount, color: '#549E9E' }] : []),
   ];
   const pieData = statusChartData.filter((item) => item.value > 0);
+  const [activeSlice, setActiveSlice] = useState<{ name: string; value: number } | null>(null);
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -94,39 +71,39 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
       {/* Filters Header */}
       <div className="bg-[#549E9E]/5 px-4 py-2 rounded-xl border border-[#549E9E]/20 flex flex-col md:flex-row justify-between items-center gap-2">
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mr-1">Filter by Date</label>
+          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mr-1">{t('reports.filter_by_date')}</label>
             {[
-              { id: 'today', label: 'Today' },
-              { id: '1_week', label: '1 Week' },
-              { id: '1_month', label: '1 Month' },
-              { id: 'custom', label: 'Custom' },
-            ].map(t => (
+              { id: 'today', label: t('reports.today') },
+              { id: '1_week', label: t('reports.one_week') },
+              { id: '1_month', label: t('reports.one_month') },
+              { id: 'custom', label: t('reports.custom') },
+            ].map((option) => (
               <button
-                key={t.id}
-                onClick={() => setDateFilter(t.id)}
-                className={`cursor-pointer px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${dateFilter === t.id
+                key={option.id}
+                onClick={() => setDateFilter(option.id)}
+                className={`cursor-pointer px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${dateFilter === option.id
                     ? 'bg-[#549E9E] border-[#549E9E] text-white'
                     : 'bg-white border-gray-200 text-gray-500 hover:border-[#549E9E]/30'
                   }`}
               >
-                {t.label}
+                {option.label}
               </button>
             ))}
             <div className="min-w-[140px]">
                 <FilterDropdown
                   hideLabel={true}
                   compact={true}
-                  label="More Options"
+                  label={t('reports.more_options')}
                   value={dateFilter.endsWith('_months') || dateFilter.endsWith('_years') || dateFilter === '1_year' || dateFilter === 'custom' ? dateFilter : ''}
                   onChange={setDateFilter}
                   icon={Calendar}
                   options={[
-                    { id: '2_months', label: '2 Months' },
-                    { id: '3_months', label: '3 Months' },
-                    { id: '6_months', label: '6 Months' },
-                    { id: '1_year', label: '1 Year' },
-                    { id: '2_years', label: '2 Years' },
-                    { id: '3_years', label: '3 Years' }
+                    { id: '2_months', label: t('reports.two_months') },
+                    { id: '3_months', label: t('reports.three_months') },
+                    { id: '6_months', label: t('reports.six_months') },
+                    { id: '1_year', label: t('reports.one_year') },
+                    { id: '2_years', label: t('reports.two_years') },
+                    { id: '3_years', label: t('reports.three_years') }
                   ]}
                 />
             </div>
@@ -138,7 +115,7 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
                   onChange={(date) => setCustomDateRange(prev => ({ ...prev, from: date }))}
                   allowClear={false}
                 />
-                <span className="text-gray-400 text-xs font-bold">to</span>
+                <span className="text-gray-400 text-xs font-bold">{t('reports.to')}</span>
                 <CustomDatePicker 
                   label=""
                   value={customDateRange.to}
@@ -154,7 +131,7 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
           onClick={fetchReports}
           className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-3.5 py-1.5 rounded-lg font-black text-[11px] uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border border-[#549E9E]/10 self-stretch md:self-auto justify-center"
         >
-          <RefreshCcw size={13} className={isLoading ? 'animate-spin' : ''} /> Refresh
+          <RefreshCcw size={13} className={isLoading ? 'animate-spin' : ''} /> {t('reports.refresh')}
         </button>
       </div>
 
@@ -165,59 +142,44 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
       ) : !data ? (
          <div className="flex-1 border border-gray-100 rounded-xl p-16 flex flex-col items-center justify-center bg-gray-50/30">
            <CalendarCheck className="text-[#549E9E]/40 mb-4" size={48} />
-           <h4 className="text-lg font-black text-gray-700 uppercase tracking-widest mb-2">No Data Available</h4>
+           <h4 className="text-lg font-black text-gray-700 uppercase tracking-widest mb-2">{t('reports.no_data')}</h4>
          </div>
       ) : (
          <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <SummaryMetricCard
-                title="Pending"
+                title={t('reports.pending')}
                 value={pendingCount}
                 icon={Calendar}
                 theme="rose"
-                trend={{
-                  direction: pendingDelta < 0 ? 'down' : pendingDelta > 0 ? 'up' : 'neutral',
-                  tone: pendingDelta <= 0 ? 'good' : 'bad',
-                  label: compareRow ? `${Math.abs(pendingDelta)}% ${vsLabel}` : vsLabel,
-                }}
                 sparkline={pendingSpark}
                 delay={0}
               />
               <SummaryMetricCard
-                title="Completed"
+                title={t('reports.completed')}
                 value={completedCount}
                 icon={CheckCircle2}
                 theme="green"
-                trend={{
-                  direction: completedDelta > 0 ? 'up' : completedDelta < 0 ? 'down' : 'neutral',
-                  tone: completedDelta >= 0 ? 'good' : 'bad',
-                  label: compareRow ? `${Math.abs(completedDelta)}% ${vsLabel}` : vsLabel,
-                }}
                 sparkline={completedSpark}
                 delay={0.08}
               />
               <SummaryMetricCard
-                title="Total Appointments"
+                title={t('reports.total_appointments')}
                 value={statusTotal}
                 icon={Calendar}
                 theme="blue"
-                trend={{
-                  direction: 'neutral',
-                  tone: 'info',
-                  label: `+ ${newToday} new today`,
-                }}
                 sparkline={totalSpark}
                 delay={0.16}
               />
               <SummaryMetricCard
-                title="Consultation Rate"
+                title={t('reports.consultation_rate')}
                 value={`${completedPct}%`}
                 icon={ShieldPlus}
                 theme="teal"
                 trend={{
                   direction: weekDelta > 0 ? 'up' : weekDelta < 0 ? 'down' : 'neutral',
                   tone: weekDelta >= 0 ? 'good' : 'bad',
-                  label: prev7.length > 0 ? `${Math.abs(weekDelta)}% this week` : 'for selected period',
+                  label: prev7.length > 0 ? t('reports.this_week', { pct: Math.abs(weekDelta) }) : t('reports.selected_period'),
                 }}
                 progress={completedPct}
                 delay={0.24}
@@ -226,9 +188,24 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
               <div className="xl:col-span-2 bg-white p-6 border border-gray-200 rounded-xl shadow-sm">
-                <div className="mb-6">
-                  <h4 className="text-sm font-black text-gray-700 uppercase tracking-widest">Appointments Trend</h4>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Total vs Completed over time</p>
+                <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-black text-gray-700 uppercase tracking-widest">{t('reports.trend_title')}</h4>
+                      <ChartInfoButton infoKey="appointments_trend" />
+                    </div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('reports.trend_subtitle')}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <span className="inline-flex items-center gap-2 text-[11px] font-black text-gray-600">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#549E9E]" />
+                      {t('reports.total_appointments')}
+                    </span>
+                    <span className="inline-flex items-center gap-2 text-[11px] font-black text-gray-600">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#10B981]" />
+                      {t('reports.completed')}
+                    </span>
+                  </div>
                 </div>
                 <div className="h-[300px] w-full">
                   {chartData.length > 0 ? (
@@ -250,13 +227,13 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
                         <Tooltip 
                           contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }}
                         />
-                        <Area type="monotone" dataKey="total" stroke="#549E9E" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" name="Total Appts" />
-                        <Area type="monotone" dataKey="completed" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorCompleted)" name="Completed" />
+                        <Area type="monotone" dataKey="total" stroke="#549E9E" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" name={t('reports.total_appointments')} />
+                        <Area type="monotone" dataKey="completed" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorCompleted)" name={t('reports.completed')} />
                       </AreaChart>
                     </ResponsiveContainer>
                   ) : (
                     <div className="h-full flex items-center justify-center text-sm font-bold text-gray-400">
-                      Not enough data for trend chart
+                      {t('reports.no_trend_data')}
                     </div>
                   )}
                 </div>
@@ -264,8 +241,11 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
 
               <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm flex flex-col">
                 <div className="mb-4">
-                  <h4 className="text-sm font-black text-gray-700 uppercase tracking-widest">Appointment Status</h4>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Based on selected date filter</p>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-black text-gray-700 uppercase tracking-widest">{t('reports.status_title')}</h4>
+                    <ChartInfoButton infoKey="appointment_status" />
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('reports.status_subtitle')}</p>
                 </div>
                 {pieData.length > 0 ? (
                   <div className="flex-1 flex flex-col sm:flex-row xl:flex-col items-center gap-4">
@@ -281,27 +261,38 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
                             paddingAngle={4}
                             dataKey="value"
                             stroke="none"
+                            onMouseEnter={(entry) => setActiveSlice({ name: entry.name, value: Number(entry.value || 0) })}
+                            onMouseLeave={() => setActiveSlice(null)}
                           >
                             {pieData.map((entry) => (
-                              <Cell key={entry.name} fill={entry.color} />
+                              <Cell key={entry.id} fill={entry.color} />
                             ))}
                           </Pie>
-                          <Tooltip
-                            formatter={(value: number, name: string) => [value, name]}
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }}
-                          />
                         </PieChart>
                       </ResponsiveContainer>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-2xl font-black text-gray-800 leading-none">{completedPct}%</span>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Completed</span>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center px-6">
+                        {activeSlice ? (
+                          <>
+                            <span className="text-2xl font-black text-gray-800 leading-none">{activeSlice.value}</span>
+                            <span className="mt-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                              {activeSlice.name}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-2xl font-black text-gray-800 leading-none">{completedPct}%</span>
+                            <span className="mt-1 text-[11px] font-bold text-gray-600">
+                              {t('reports.completed_count', { count: completedCount })}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="w-full space-y-3">
                       {statusChartData.map((item) => {
                         const pct = statusTotal > 0 ? Math.round((item.value / statusTotal) * 100) : 0;
                         return (
-                          <div key={item.name} className="flex items-center justify-between gap-3">
+                          <div key={item.id} className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                               <span className="text-xs font-bold text-gray-600">{item.name}</span>
@@ -316,7 +307,7 @@ export const AppointmentAnalytics: React.FC<AppointmentAnalyticsProps> = ({ toke
                   </div>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-sm font-bold text-gray-400 min-h-[220px]">
-                    No status data for this filter
+                    {t('reports.no_status_data')}
                   </div>
                 )}
               </div>

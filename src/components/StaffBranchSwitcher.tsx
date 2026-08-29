@@ -55,7 +55,7 @@ export default function StaffBranchSwitcher({ reloadOnChange = true }: { reloadO
     setIsSubmitting(false);
 
     if (!result.success) {
-      setMessage(result.message || 'Failed to update branch');
+      setMessage(result.message || t('branch_switcher.update_failed'));
       return;
     }
 
@@ -64,7 +64,7 @@ export default function StaffBranchSwitcher({ reloadOnChange = true }: { reloadO
       return;
     }
 
-    setMessage('Branch updated successfully');
+    setMessage(t('branch_switcher.update_success'));
   };
 
   return (

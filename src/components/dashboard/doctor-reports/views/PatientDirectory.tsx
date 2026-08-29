@@ -12,7 +12,8 @@ interface PatientDirectoryProps {
 }
 
 export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const { branchScope } = useAuth();
   
   const [patients, setPatients] = useState<any[]>([]);
@@ -117,46 +118,46 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
       <div className="bg-white/80 backdrop-blur-md p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-col gap-2 w-full md:w-auto">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Timeframe</span>
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('reports.clinical.timeframe')}</span>
             <div className="h-1.5 w-1.5 rounded-full bg-[#549E9E]"></div>
             <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-1">
-              <MapPin size={10} /> {branchScope?.selected_branch?.branch_name || 'Active Branch'}
+              <MapPin size={10} /> {branchScope?.selected_branch?.branch_name || t('reports.clinical.active_branch')}
             </span>
           </div>
           <div className="flex flex-wrap gap-2 pb-2 md:pb-0 items-center">
             {[
-              { id: 'all_time', label: 'All Time' },
-              { id: 'today', label: 'Today' },
-              { id: '1_week', label: '1 Week' },
-              { id: '1_month', label: '1 Month' },
-              { id: 'custom', label: 'Custom' },
-            ].map(t => (
+              { id: 'all_time', label: t('reports.all_time') },
+              { id: 'today', label: t('reports.today') },
+              { id: '1_week', label: t('reports.one_week') },
+              { id: '1_month', label: t('reports.one_month') },
+              { id: 'custom', label: t('reports.custom') },
+            ].map((option) => (
               <button
-                key={t.id}
-                onClick={() => setDateFilter(t.id)}
+                key={option.id}
+                onClick={() => setDateFilter(option.id)}
                 className={`cursor-pointer px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border-2 ${
-                  dateFilter === t.id
+                  dateFilter === option.id
                     ? 'bg-[#549E9E] border-[#549E9E] text-white shadow-md shadow-[#549E9E]/10'
                     : 'bg-white border-gray-100 text-gray-500 hover:border-[#549E9E]/20 hover:bg-gray-50/50'
                 }`}
               >
-                {t.label}
+                {option.label}
               </button>
             ))}
             <div className="min-w-[150px]">
               <FilterDropdown
                 hideLabel={true}
-                label="More Options"
+                label={t('reports.more_options')}
                 value={dateFilter.endsWith('_months') || dateFilter.endsWith('_years') || dateFilter === '1_year' ? dateFilter : ''}
                 onChange={setDateFilter}
                 icon={Calendar}
                 options={[
-                  { id: '2_months', label: '2 Months' },
-                  { id: '3_months', label: '3 Months' },
-                  { id: '6_months', label: '6 Months' },
-                  { id: '1_year', label: '1 Year' },
-                  { id: '2_years', label: '2 Years' },
-                  { id: '3_years', label: '3 Years' }
+                  { id: '2_months', label: t('reports.two_months') },
+                  { id: '3_months', label: t('reports.three_months') },
+                  { id: '6_months', label: t('reports.six_months') },
+                  { id: '1_year', label: t('reports.one_year') },
+                  { id: '2_years', label: t('reports.two_years') },
+                  { id: '3_years', label: t('reports.three_years') }
                 ]}
               />
             </div>
@@ -168,7 +169,7 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
                   onChange={(date) => setCustomDateRange(prev => ({ ...prev, from: date }))}
                   allowClear={false}
                 />
-                <span className="text-gray-400 text-xs font-bold">to</span>
+                <span className="text-gray-400 text-xs font-bold">{t('reports.to')}</span>
                 <CustomDatePicker 
                   label=""
                   value={customDateRange.to}
@@ -186,7 +187,7 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
           disabled={isLoading}
           className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5 self-stretch md:self-auto justify-center"
         >
-          <RefreshCcw size={14} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? 'Syncing...' : 'Refresh'}
+          <RefreshCcw size={14} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? t('reports.clinical.syncing') : t('reports.refresh')}
         </button>
       </div>
 
@@ -196,7 +197,7 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E] transition-colors" size={18} />
           <input 
             type="text" 
-            placeholder="Search patient name, mobile, UUID..." 
+            placeholder={t('reports.directory.search')} 
             value={search} 
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-gray-50 border-2 border-transparent py-3 pl-14 pr-6 text-sm font-bold text-gray-600 rounded-xl outline-none focus:bg-white focus:border-[#549E9E]/20 transition-all placeholder:text-gray-300" 
@@ -204,16 +205,16 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
         </div>
         <div className="flex flex-wrap gap-2 w-full md:w-auto pb-2 md:pb-0">
           {[
-            { id: 'all', label: 'All Patients' }, 
-            { id: 'recent', label: 'Recent' }, 
-            { id: 'followup_pending', label: 'Follow-up Pending' }
-          ].map(t => (
+            { id: 'all', label: t('reports.directory.all_patients') }, 
+            { id: 'recent', label: t('reports.directory.recent') }, 
+            { id: 'followup_pending', label: t('reports.directory.followup_pending') }
+          ].map((option) => (
             <button 
-              key={t.id} 
-              onClick={() => setFilterType(t.id)} 
-              className={`cursor-pointer px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all border-2 ${filterType === t.id ? 'bg-[#549E9E]/10 border-[#549E9E] text-[#549E9E]' : 'bg-transparent border-gray-100 text-gray-400 hover:border-[#549E9E]/30'}`}
+              key={option.id} 
+              onClick={() => setFilterType(option.id)} 
+              className={`cursor-pointer px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all border-2 ${filterType === option.id ? 'bg-[#549E9E]/10 border-[#549E9E] text-[#549E9E]' : 'bg-transparent border-gray-100 text-gray-400 hover:border-[#549E9E]/30'}`}
             >
-              {t.label}
+              {option.label}
             </button>
           ))}
         </div>
@@ -226,8 +227,8 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
       ) : patients.length === 0 ? (
         <div className="flex-1 text-center py-20 border border-gray-100 rounded-xl bg-gray-50/30">
           <Users className="mx-auto text-gray-200 mb-4" size={48} />
-          <h3 className="text-lg font-black text-gray-700 uppercase tracking-widest">No Patients Found</h3>
-          <p className="text-sm text-gray-500 mt-2">Try adjusting your search or filters.</p>
+          <h3 className="text-lg font-black text-gray-700 uppercase tracking-widest">{t('reports.directory.no_patients')}</h3>
+          <p className="text-sm text-gray-500 mt-2">{t('reports.directory.no_patients_hint')}</p>
         </div>
       ) : (
         <div className="border border-gray-200 overflow-hidden shadow-sm bg-white rounded-xl">
@@ -235,18 +236,18 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
             <table className="w-full text-left border-collapse whitespace-nowrap">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Patient Name & ID</th>
-                  <th className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Age / Gender</th>
-                  <th className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Info</th>
+                  <th className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('reports.directory.col_name_id')}</th>
+                  <th className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('reports.directory.col_age_gender')}</th>
+                  <th className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">{t('reports.directory.col_contact')}</th>
                   <th className="px-5 py-4 text-center">
-                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">Appointments</span>
+                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block mb-1">{t('reports.directory.col_appointments')}</span>
                     <div className="flex items-center justify-center gap-2 text-[8px] font-bold text-gray-400 uppercase tracking-wider">
-                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Total</span>
-                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Active</span>
-                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Comp</span>
+                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span> {t('reports.directory.legend_total')}</span>
+                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> {t('reports.directory.legend_active')}</span>
+                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {t('reports.directory.legend_comp')}</span>
                     </div>
                   </th>
-                  <th className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Last Visit</th>
+                  <th className="px-5 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">{t('reports.directory.col_last_visit')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -266,8 +267,14 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex flex-col">
-                        <span className="text-xs font-bold text-gray-700">{p.age ? `${p.age} yrs` : '-'}</span>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{p.gender || '-'}</span>
+                        <span className="text-xs font-bold text-gray-700">{p.age ? t('reports.directory.yrs', { age: p.age }) : '-'}</span>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{
+                          String(p.gender || '').toLowerCase() === 'male' || String(p.gender || '').toLowerCase() === 'm'
+                            ? t('reports.patients.male')
+                            : String(p.gender || '').toLowerCase() === 'female' || String(p.gender || '').toLowerCase() === 'f'
+                              ? t('reports.patients.female')
+                              : (p.gender || '-')
+                        }</span>
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -278,18 +285,18 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
                     </td>
                     <td className="px-5 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-black" title="Total Appointments">{p.total_appointments || 0}</span>
-                        <span className="w-6 h-6 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-xs font-black" title="Active Appointments">{p.active_appointments || 0}</span>
-                        <span className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs font-black" title="Completed Appointments">{p.completed_appointments || 0}</span>
+                        <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-black" title={t('reports.directory.title_total')}>{p.total_appointments || 0}</span>
+                        <span className="w-6 h-6 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-xs font-black" title={t('reports.directory.title_active')}>{p.active_appointments || 0}</span>
+                        <span className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs font-black" title={t('reports.directory.title_completed')}>{p.completed_appointments || 0}</span>
                       </div>
                     </td>
                     <td className="px-5 py-4 text-right">
                       <div className="flex flex-col items-end">
                         {p.last_appointment_date || p.last_visit_date ? (
                           <>
-                            <span className="text-xs font-bold text-gray-700">{new Date(p.last_appointment_date || p.last_visit_date).toLocaleDateString()}</span>
+                            <span className="text-xs font-bold text-gray-700">{new Date(p.last_appointment_date || p.last_visit_date).toLocaleDateString(dateLocale)}</span>
                             <span className="text-[10px] font-bold text-gray-400">
-                              {new Date(p.last_appointment_date || p.last_visit_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(p.last_appointment_date || p.last_visit_date).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </>
                         ) : (

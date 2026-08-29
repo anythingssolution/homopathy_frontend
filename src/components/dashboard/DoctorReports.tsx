@@ -44,11 +44,11 @@ export default function DoctorReports() {
 
   return (
     <div className="flex flex-col md:block min-h-[calc(100vh-5rem)]">
-      <aside className="w-full md:fixed md:left-0 md:top-20 md:bottom-0 md:w-64 z-20 no-print">
+      <aside className="w-full md:fixed md:left-0 md:top-20 md:bottom-0 md:w-72 z-20 no-print">
         <Sidebar activeView={activeView} onChangeView={setActiveView} />
       </aside>
 
-      <div className="flex-1 min-w-0 md:ml-64 px-4 sm:px-6 lg:px-8 pt-3 pb-8 space-y-6">
+      <div className="flex-1 min-w-0 md:ml-72 px-4 sm:px-6 lg:px-8 pt-3 pb-8 space-y-6">
         <div className="no-print">
           <StaffBranchSwitcher />
         </div>

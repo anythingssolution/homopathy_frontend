@@ -1,5 +1,6 @@
 import React from 'react';
 import { LayoutDashboard, BarChart2, Users, FileText, Banknote, Pill, TrendingUp, Folder, ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 type ViewType = 'appointments' | 'booked_vs_consulted' | 'clinical' | 'patients_analytics' | 'billing' | 'medical' | 'analytics' | 'patients';
 
@@ -9,45 +10,46 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeView, onChangeView }) => {
+  const { t } = useTranslation();
   const menuItems = [
     {
       id: 'appointments',
-      label: 'Appointments',
+      label: t('reports.nav.appointments'),
       icon: LayoutDashboard,
     },
     {
       id: 'booked_vs_consulted',
-      label: 'Booked vs Consulted',
+      label: t('reports.nav.booked_vs_consulted'),
       icon: TrendingUp,
     },
     {
       id: 'clinical',
-      label: 'Clinical Insights',
+      label: t('reports.nav.clinical'),
       icon: FileText,
     },
     {
       id: 'patients_analytics',
-      label: 'Patient Analytics',
+      label: t('reports.nav.patients_analytics'),
       icon: Users,
     },
     {
       id: 'billing',
-      label: 'Billing & Revenue',
+      label: t('reports.nav.billing'),
       icon: Banknote,
     },
     {
       id: 'medical',
-      label: 'Medical & Dispensary',
+      label: t('reports.nav.medical'),
       icon: Pill,
     },
     {
       id: 'analytics',
-      label: 'Custom Reports',
+      label: t('reports.nav.analytics'),
       icon: BarChart2,
     },
     {
       id: 'patients',
-      label: 'Patient Directory',
+      label: t('reports.nav.patients'),
       icon: Folder,
     }
   ] as const;
@@ -55,10 +57,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onChangeView }) =>
   return (
     <div className="w-full h-full bg-white border-b md:border-b-0 md:border-r border-gray-200 flex flex-col p-4 overflow-hidden">
       <div className="mb-4 px-2 hidden md:block shrink-0">
-        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Reports Menu</h3>
+        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">{t('reports.menu')}</h3>
       </div>
 
-      <nav className="flex flex-row md:flex-col gap-3 md:gap-4 overflow-x-auto md:overflow-hidden scrollbar-none md:flex-1 pb-2 md:pb-0">
+      <nav className="flex flex-row md:flex-col gap-3 md:gap-3 overflow-x-auto md:overflow-y-auto md:min-h-0 scrollbar-none md:flex-1 pb-2 md:pb-0">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeView === item.id;
@@ -66,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onChangeView }) =>
             <button
               key={item.id}
               onClick={() => onChangeView(item.id as ViewType)}
-              className={`flex items-center gap-3 px-3 md:px-4 py-2.5 rounded-xl transition-all cursor-pointer whitespace-nowrap md:whitespace-normal ${isActive
+              className={`flex items-center gap-3 px-3 md:px-4 py-2.5 rounded-xl transition-all cursor-pointer whitespace-nowrap md:whitespace-normal shrink-0 ${isActive
                   ? 'bg-[#549E9E] text-white shadow-md shadow-[#549E9E]/20'
                   : 'text-gray-500 hover:bg-[#549E9E]/5 hover:text-[#549E9E]'
                 }`}
@@ -79,19 +81,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, onChangeView }) =>
         })}
       </nav>
 
-      <div className="hidden md:block mt-4 shrink-0">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#dceefc] via-[#e8f4fc] to-[#cfe6f8] p-4 min-h-[108px]">
+      <div className="hidden md:block mt-3 shrink-0">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#dceefc] via-[#e8f4fc] to-[#cfe6f8] px-3.5 py-2.5">
           <div className="relative z-10 pr-16">
-            <p className="text-[15px] font-bold text-[#163a5f] leading-snug">
-              Better Insights,<br />Better Care
+            <p className="text-[13px] font-bold text-[#163a5f] leading-snug">
+              {t('reports.promo_title_1')}<br />{t('reports.promo_title_2')}
             </p>
-            <p className="text-[11px] text-[#3d5a80] mt-1.5 font-medium">
-              Data driven healthcare
+            <p className="text-[10px] text-[#3d5a80] mt-1 font-medium leading-tight">
+              {t('reports.promo_subtitle')}
             </p>
           </div>
 
           <svg
-            className="absolute -right-1 -bottom-1 w-[130px] h-[112px] pointer-events-none"
+            className="absolute -right-1 -bottom-1 w-[104px] h-[88px] pointer-events-none"
             viewBox="0 0 130 112"
             fill="none"
             aria-hidden="true"

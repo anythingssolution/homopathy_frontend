@@ -5,6 +5,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 import { FilterDropdown } from '../components/FilterDropdown';
 import { StatCard } from '../components/StatCard';
+import ChartInfoButton from '../components/ChartInfoButton';
 import CustomDatePicker from '../../../CustomDatePicker';
 
 interface OverviewProps {
@@ -191,9 +192,24 @@ export const Overview: React.FC<OverviewProps> = ({ token }) => {
 
             {/* Trend Chart */}
             <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm">
-              <div className="mb-6">
-                <h4 className="text-sm font-black text-gray-700 uppercase tracking-widest">Appointments Trend</h4>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Total vs Completed over time</p>
+              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-black text-gray-700 uppercase tracking-widest">Appointments Trend</h4>
+                    <ChartInfoButton infoKey="appointments_trend" />
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Total vs Completed over time</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-4">
+                  <span className="inline-flex items-center gap-2 text-[11px] font-black text-gray-600">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#549E9E]" />
+                    Total Appointments
+                  </span>
+                  <span className="inline-flex items-center gap-2 text-[11px] font-black text-gray-600">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#10B981]" />
+                    Completed
+                  </span>
+                </div>
               </div>
               <div className="h-[300px] w-full">
                 {chartData.length > 0 ? (
@@ -215,7 +231,7 @@ export const Overview: React.FC<OverviewProps> = ({ token }) => {
                       <Tooltip 
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }}
                       />
-                      <Area type="monotone" dataKey="total" stroke="#549E9E" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" name="Total Appts" />
+                      <Area type="monotone" dataKey="total" stroke="#549E9E" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" name="Total Appointments" />
                       <Area type="monotone" dataKey="completed" stroke="#10B981" strokeWidth={3} fillOpacity={1} fill="url(#colorCompleted)" name="Completed" />
                     </AreaChart>
                   </ResponsiveContainer>

@@ -11,10 +11,12 @@ import {
 } from 'recharts';
 
 import { SummaryMetricCard } from '../components/SummaryMetricCard';
+import ChartInfoButton from '../components/ChartInfoButton';
 import { useReportData } from '../hooks/useReportData';
 import { useAuth } from '../../../../context/AuthContext';
 import { FilterDropdown } from '../components/FilterDropdown';
 import CustomDatePicker from '../../../CustomDatePicker';
+import { useTranslation } from 'react-i18next';
 
 interface PatientAnalyticsProps {
   token: string | null;
@@ -38,6 +40,7 @@ const Pagination: React.FC<PaginationProps> = ({
   itemsPerPage,
   onPageChange,
 }) => {
+  const { t } = useTranslation();
   const startItem = (currentPage - 1) * itemsPerPage + 1;
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
@@ -46,9 +49,7 @@ const Pagination: React.FC<PaginationProps> = ({
   return (
     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 px-6 py-4 border-t border-gray-100 bg-gray-50/20 text-xs font-bold text-gray-500">
       <div className="uppercase tracking-widest text-[9px] font-black text-gray-400">
-        Showing <span className="text-[#549E9E]">{startItem}</span> to{" "}
-        <span className="text-[#549E9E]">{endItem}</span> of{" "}
-        <span className="text-gray-600">{totalItems}</span> entries
+        {t('reports.clinical.showing_entries', { start: startItem, end: endItem, total: totalItems })}
       </div>
       
       <div className="flex items-center gap-1">
@@ -56,7 +57,7 @@ const Pagination: React.FC<PaginationProps> = ({
           onClick={() => onPageChange(1)}
           disabled={currentPage === 1}
           className="cursor-pointer p-1.5 border border-gray-100 rounded-lg hover:border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition-all shadow-sm"
-          title="First Page"
+          title={t('reports.clinical.first_page')}
         >
           <ChevronsLeft size={12} />
         </button>
@@ -64,7 +65,7 @@ const Pagination: React.FC<PaginationProps> = ({
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
           className="cursor-pointer p-1.5 border border-gray-100 rounded-lg hover:border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition-all shadow-sm"
-          title="Previous Page"
+          title={t('reports.clinical.prev_page')}
         >
           <ChevronLeft size={12} />
         </button>
@@ -94,7 +95,7 @@ const Pagination: React.FC<PaginationProps> = ({
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
           className="cursor-pointer p-1.5 border border-gray-100 rounded-lg hover:border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition-all shadow-sm"
-          title="Next Page"
+          title={t('reports.clinical.next_page')}
         >
           <ChevronRight size={12} />
         </button>
@@ -102,7 +103,7 @@ const Pagination: React.FC<PaginationProps> = ({
           onClick={() => onPageChange(totalPages)}
           disabled={currentPage === totalPages}
           className="cursor-pointer p-1.5 border border-gray-100 rounded-lg hover:border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white transition-all shadow-sm"
-          title="Last Page"
+          title={t('reports.clinical.last_page')}
         >
           <ChevronsRight size={12} />
         </button>
@@ -112,6 +113,8 @@ const Pagination: React.FC<PaginationProps> = ({
 };
 
 export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const { data, isLoading, error, dateFilter, setDateFilter, customDateRange, setCustomDateRange, fetchReports } = useReportData(token, 'patients');
   const { branchScope } = useAuth();
   
@@ -149,21 +152,27 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
   const withoutFamily = Number(summaryObj.patients_without_family_members || 0);
 
   // Chart 1: Demographics Breakdown
+  const genderLabel = (gender: string) => {
+    const key = String(gender || '').toLowerCase();
+    if (key === 'male' || key === 'm') return t('reports.patients.male');
+    if (key === 'female' || key === 'f') return t('reports.patients.female');
+    if (key === 'other') return t('reports.patients.other');
+    return gender;
+  };
+
   const ageGroupData = [
-    { name: 'Minors (<18)', value: minorPatients },
-    { name: 'Adults (18-60)', value: adultPatients },
-    { name: 'Seniors (>60)', value: seniorPatients }
+    { name: t('reports.patients.minors'), value: minorPatients },
+    { name: t('reports.patients.adults'), value: adultPatients },
+    { name: t('reports.patients.seniors'), value: seniorPatients }
   ].filter(d => d.value > 0);
 
-  // Chart 2: Family Membership Breakdown
   const familyData = [
-    { name: 'Family Grouped', value: withFamily },
-    { name: 'Single Patient', value: withoutFamily }
+    { name: t('reports.patients.family_grouped'), value: withFamily },
+    { name: t('reports.patients.single_patient'), value: withoutFamily }
   ].filter(d => d.value > 0);
 
-  // Chart 3: New vs Repeat Patient type
   const newVsRepeatData = (data?.new_vs_repeat_patient || []).map((row: any) => ({
-    name: row.patient_visit_type === 'NEW' ? 'New Patients' : 'Repeat Patients',
+    name: row.patient_visit_type === 'NEW' ? t('reports.patients.new_patients') : t('reports.patients.repeat_patients'),
     value: Number(row.total_appointments || 0),
     uniqueSubjects: Number(row.unique_booking_subjects || 0)
   })).filter((d: any) => d.value > 0);
@@ -176,7 +185,7 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
   const filteredPatients = (data?.patient_master_list || []).filter((item: any) => {
     const search = patientSearch.toLowerCase();
     const isNumericName = /^\d+$/.test(item.full_name);
-    const displayName = isNumericName ? `Patient ID ${item.full_name}` : item.full_name;
+    const displayName = isNumericName ? t('reports.patients.patient_id', { id: item.full_name }) : item.full_name;
     return (
       displayName?.toLowerCase().includes(search) ||
       item.patient_uuid?.toLowerCase().includes(search) ||
@@ -216,19 +225,19 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
       case 'completed':
         return (
           <span className="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg flex items-center gap-1 w-fit">
-            <CheckCircle2 size={10} /> Completed
+            <CheckCircle2 size={10} /> {t('reports.completed')}
           </span>
         );
       case 'pending':
         return (
           <span className="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest bg-amber-50 text-amber-600 border border-amber-100 rounded-lg flex items-center gap-1 w-fit animate-pulse">
-            <Clock size={10} /> Pending
+            <Clock size={10} /> {t('reports.pending')}
           </span>
         );
       case 'cancelled':
         return (
           <span className="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest bg-red-50 text-red-500 border border-red-100 rounded-lg flex items-center gap-1 w-fit">
-            <ShieldAlert size={10} /> Cancelled
+            <ShieldAlert size={10} /> {t('reports.cancelled')}
           </span>
         );
       default:
@@ -241,7 +250,7 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
   };
 
   // Custom Chart Tooltip
-  const CustomPieTooltip = ({ active, payload, totalSum, unit = 'Patients' }: any) => {
+  const CustomPieTooltip = ({ active, payload, totalSum, unit }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0];
       const sum = totalSum || Number(data.value);
@@ -253,11 +262,11 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
             {data.name}
           </p>
           <p className="text-sm font-black text-gray-900 ml-4">
-            {data.value} {unit} ({percentage}%)
+            {t('reports.patients.value_unit_pct', { count: data.value, unit, pct: percentage })}
           </p>
           {data.payload.uniqueSubjects !== undefined && (
             <p className="text-[10px] font-bold text-[#549E9E] ml-4 uppercase tracking-wider">
-              {data.payload.uniqueSubjects} Unique Patients
+              {t('reports.patients.unique_patients_n', { count: data.payload.uniqueSubjects })}
             </p>
           )}
         </div>
@@ -271,44 +280,44 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
       {/* Filters & Header Bar */}
       <div className="bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-2">
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mr-1">Timeframe</span>
+          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mr-1">{t('reports.clinical.timeframe')}</span>
           <div className="h-1.5 w-1.5 rounded-full bg-[#549E9E]"></div>
           <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-1 mr-1">
-            <MapPin size={10} /> {branchScope?.selected_branch?.branch_name || 'Active Branch'}
+            <MapPin size={10} /> {branchScope?.selected_branch?.branch_name || t('reports.clinical.active_branch')}
           </span>
             {[
-              { id: 'today', label: 'Today' },
-              { id: '1_week', label: '1 Week' },
-              { id: '1_month', label: '1 Month' },
-              { id: 'custom', label: 'Custom' },
-            ].map(t => (
+              { id: 'today', label: t('reports.today') },
+              { id: '1_week', label: t('reports.one_week') },
+              { id: '1_month', label: t('reports.one_month') },
+              { id: 'custom', label: t('reports.custom') },
+            ].map((option) => (
               <button
-                key={t.id}
-                onClick={() => setDateFilter(t.id)}
+                key={option.id}
+                onClick={() => setDateFilter(option.id)}
                 className={`cursor-pointer px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
-                  dateFilter === t.id
+                  dateFilter === option.id
                     ? 'bg-[#549E9E] border-[#549E9E] text-white'
                     : 'bg-white border-gray-100 text-gray-500 hover:border-[#549E9E]/20 hover:bg-gray-50/50'
                 }`}
               >
-                {t.label}
+                {option.label}
               </button>
             ))}
             <div className="min-w-[140px]">
               <FilterDropdown
                 hideLabel={true}
                 compact={true}
-                label="More Options"
+                label={t('reports.more_options')}
                 value={dateFilter.endsWith('_months') || dateFilter.endsWith('_years') || dateFilter === '1_year' ? dateFilter : ''}
                 onChange={setDateFilter}
                 icon={Calendar}
                 options={[
-                  { id: '2_months', label: '2 Months' },
-                  { id: '3_months', label: '3 Months' },
-                  { id: '6_months', label: '6 Months' },
-                  { id: '1_year', label: '1 Year' },
-                  { id: '2_years', label: '2 Years' },
-                  { id: '3_years', label: '3 Years' }
+                  { id: '2_months', label: t('reports.two_months') },
+                  { id: '3_months', label: t('reports.three_months') },
+                  { id: '6_months', label: t('reports.six_months') },
+                  { id: '1_year', label: t('reports.one_year') },
+                  { id: '2_years', label: t('reports.two_years') },
+                  { id: '3_years', label: t('reports.three_years') }
                 ]}
               />
             </div>
@@ -320,7 +329,7 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                   onChange={(date) => setCustomDateRange(prev => ({ ...prev, from: date }))}
                   allowClear={false}
                 />
-                <span className="text-gray-400 text-xs font-bold">to</span>
+                <span className="text-gray-400 text-xs font-bold">{t('reports.to')}</span>
                 <CustomDatePicker 
                   label=""
                   value={customDateRange.to}
@@ -337,7 +346,7 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
           disabled={isLoading}
           className="cursor-pointer bg-white border border-gray-100 text-gray-600 px-3.5 py-1.5 rounded-lg font-black text-[11px] uppercase tracking-widest hover:bg-gray-50 hover:border-gray-200 transition-all flex items-center gap-2 shadow-sm self-stretch md:self-auto justify-center"
         >
-          <RefreshCcw size={13} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? 'Syncing...' : 'Refresh'}
+          <RefreshCcw size={13} className={isLoading ? 'animate-spin' : ''} /> {isLoading ? t('reports.clinical.syncing') : t('reports.refresh')}
         </button>
       </div>
 
@@ -357,33 +366,33 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
       ) : !data ? (
         <div className="flex-1 border border-gray-100 rounded-2xl p-16 flex flex-col items-center justify-center bg-gray-50/20 shadow-inner">
           <Users className="text-[#549E9E]/30 mb-4 animate-bounce" size={56} />
-          <h4 className="text-sm font-black text-gray-700 uppercase tracking-widest mb-1">No Patient Data Found</h4>
-          <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Try choosing a wider date range or refreshing.</p>
+          <h4 className="text-sm font-black text-gray-700 uppercase tracking-widest mb-1">{t('reports.patients.no_data')}</h4>
+          <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">{t('reports.patients.no_data_hint')}</p>
         </div>
       ) : (
         <div className="space-y-6">
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <SummaryMetricCard
-              title="Active Patients"
+              title={t('reports.patients.active_patients')}
               value={totalPatients}
               icon={Users}
               theme="teal"
             />
             <SummaryMetricCard
-              title="Average Age"
-              value={`${avgAge} Yrs`}
+              title={t('reports.patients.average_age')}
+              value={t('reports.patients.yrs', { age: avgAge })}
               icon={TrendingUp}
               theme="blue"
             />
             <SummaryMetricCard
-              title="Minor Patients"
+              title={t('reports.patients.minor_patients')}
               value={minorPatients}
               icon={Baby}
               theme="amber"
             />
             <SummaryMetricCard
-              title="Adult Patients"
+              title={t('reports.patients.adult_patients')}
               value={adultPatients + seniorPatients}
               icon={UserCheck}
               theme="green"
@@ -393,9 +402,9 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
           {/* Interactive Navigation Tabs */}
           <div className="flex border-b border-gray-100 gap-6 overflow-x-auto pb-px">
             {[
-              { id: 'overview', label: 'Demographics & Overview', icon: Activity },
-              { id: 'directory', label: `Patient Master Directory (${filteredPatients.length})`, icon: Users },
-              { id: 'visits', label: `Recent Visit History (${filteredHistory.length})`, icon: Clock },
+              { id: 'overview', label: t('reports.patients.tab_overview'), icon: Activity },
+              { id: 'directory', label: t('reports.patients.tab_directory', { count: filteredPatients.length }), icon: Users },
+              { id: 'visits', label: t('reports.patients.tab_visits', { count: filteredHistory.length }), icon: Clock },
             ].map(tab => {
               const TabIcon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -431,8 +440,11 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                   {/* Age distribution */}
                   <div className="bg-white p-6 border border-gray-100 rounded-2xl shadow-sm min-h-[380px] flex flex-col justify-between">
                     <div>
-                      <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest">Age Demographics</h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Breakdown of patient life stages</p>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest">{t('reports.patients.age_title')}</h4>
+                        <ChartInfoButton infoKey="age_demographics" />
+                      </div>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('reports.patients.age_subtitle')}</p>
                     </div>
 
                     <div className="h-[220px] w-full mt-4 flex items-center justify-center">
@@ -452,12 +464,12 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                               ))}
                             </Pie>
-                            <Tooltip content={<CustomPieTooltip totalSum={totalPatients} unit="Patients" />} />
+                            <Tooltip content={<CustomPieTooltip totalSum={totalPatients} unit={t('reports.patients.unit_patients')} />} />
                             <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
                           </PieChart>
                         </ResponsiveContainer>
                       ) : (
-                        <div className="text-xs font-bold text-gray-400">No demographic data recorded.</div>
+                        <div className="text-xs font-bold text-gray-400">{t('reports.patients.no_demo')}</div>
                       )}
                     </div>
                   </div>
@@ -465,8 +477,11 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                   {/* New vs Repeat visit distribution */}
                   <div className="bg-white p-6 border border-gray-100 rounded-2xl shadow-sm min-h-[380px] flex flex-col justify-between">
                     <div>
-                      <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest">Patient Visit Types</h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">New vs repeat patient appointments ratio</p>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest">{t('reports.patients.visit_title')}</h4>
+                        <ChartInfoButton infoKey="patient_visit_types" />
+                      </div>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('reports.patients.visit_subtitle')}</p>
                     </div>
 
                     <div className="h-[220px] w-full mt-4 flex items-center justify-center">
@@ -486,12 +501,12 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                                 <Cell key={`cell-${index}`} fill={COLORS[(index + 1) % COLORS.length]} />
                               ))}
                             </Pie>
-                            <Tooltip content={<CustomPieTooltip totalSum={totalAppointments} unit="Appointments" />} />
+                            <Tooltip content={<CustomPieTooltip totalSum={totalAppointments} unit={t('reports.patients.unit_appointments')} />} />
                             <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
                           </PieChart>
                         </ResponsiveContainer>
                       ) : (
-                        <div className="text-xs font-bold text-gray-400">No visit type data recorded.</div>
+                        <div className="text-xs font-bold text-gray-400">{t('reports.patients.no_visit')}</div>
                       )}
                     </div>
                   </div>
@@ -499,8 +514,11 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                   {/* Family vs Single */}
                   <div className="bg-white p-6 border border-gray-100 rounded-2xl shadow-sm min-h-[380px] flex flex-col justify-between">
                     <div>
-                      <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest">Family Structuring</h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Grouped family members vs single patients</p>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest">{t('reports.patients.family_title')}</h4>
+                        <ChartInfoButton infoKey="family_structuring" />
+                      </div>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('reports.patients.family_subtitle')}</p>
                     </div>
 
                     <div className="h-[220px] w-full mt-4 flex items-center justify-center">
@@ -520,12 +538,12 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                                 <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />
                               ))}
                             </Pie>
-                            <Tooltip content={<CustomPieTooltip totalSum={totalPatients} unit="Patients" />} />
+                            <Tooltip content={<CustomPieTooltip totalSum={totalPatients} unit={t('reports.patients.unit_patients')} />} />
                             <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
                           </PieChart>
                         </ResponsiveContainer>
                       ) : (
-                        <div className="text-xs font-bold text-gray-400">No family data recorded.</div>
+                        <div className="text-xs font-bold text-gray-400">{t('reports.patients.no_family')}</div>
                       )}
                     </div>
                   </div>
@@ -537,8 +555,8 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                 <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex flex-col">
                   <div className="p-5 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
                     <div>
-                      <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest">Patient Master Directory</h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Listing of primary clinic patient profiles</p>
+                      <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest">{t('reports.patients.directory_title')}</h4>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('reports.patients.directory_subtitle')}</p>
                     </div>
                     
                     {/* Search Field */}
@@ -546,7 +564,7 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                       <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                       <input
                         type="text"
-                        placeholder="Search by name, phone..."
+                        placeholder={t('reports.patients.search_directory')}
                         value={patientSearch}
                         onChange={(e) => setPatientSearch(e.target.value)}
                         className="w-full pl-9 pr-4 py-2 border border-gray-100 rounded-xl text-xs font-bold outline-none focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/5"
@@ -559,19 +577,19 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="border-b border-gray-100 bg-gray-50/50">
-                            <th className="py-3 px-6 text-[9px] font-black text-gray-400 uppercase tracking-widest">Auid / ID</th>
-                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Patient Name</th>
-                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Age / Gender</th>
-                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Contact Phone</th>
-                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Group Members</th>
-                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Added On</th>
-                            <th className="py-3 px-6 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">Status</th>
+                            <th className="py-3 px-6 text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('reports.patients.col_auid')}</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('reports.patients.col_name')}</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">{t('reports.patients.col_age_gender')}</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('reports.patients.col_phone')}</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">{t('reports.patients.col_members')}</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('reports.patients.col_added')}</th>
+                            <th className="py-3 px-6 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">{t('reports.patients.col_status')}</th>
                           </tr>
                         </thead>
                         <tbody>
                           {paginatedPatients.map((patient: any, idx: number) => {
                             const isNumericName = /^\d+$/.test(patient.full_name);
-                            const displayName = isNumericName ? `Patient ID ${patient.full_name}` : patient.full_name;
+                            const displayName = isNumericName ? t('reports.patients.patient_id', { id: patient.full_name }) : patient.full_name;
                             return (
                               <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/30 transition-colors">
                                 <td className="py-4 px-6 text-xs font-black text-gray-600">
@@ -581,7 +599,7 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                                   {displayName}
                                 </td>
                                 <td className="py-4 px-4 text-xs font-bold text-gray-600 capitalize text-center">
-                                  {patient.age} Y / {patient.gender}
+                                  {t('reports.patients.age_gender', { age: patient.age, gender: genderLabel(patient.gender) })}
                                 </td>
                                 <td className="py-4 px-4 text-xs font-bold text-gray-500">
                                   {patient.mobile_no || '—'}
@@ -589,24 +607,24 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                                 <td className="py-4 px-4 text-xs font-black text-[#549E9E] text-center">
                                   {patient.active_family_members > 0 ? (
                                     <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-600">
-                                      {patient.active_family_members} Members
+                                      {t('reports.patients.members_n', { count: patient.active_family_members })}
                                     </span>
                                   ) : (
                                     <span className="text-gray-400 font-bold">—</span>
                                   )}
                                 </td>
                                 <td className="py-4 px-4 text-xs font-bold text-gray-400">
-                                  {new Date(patient.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  {new Date(patient.created_at).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' })}
                                 </td>
                                 <td className="py-4 px-6 text-right">
                                   <div className="flex justify-end">
                                     {patient.is_active ? (
                                       <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                        Active
+                                        {t('reports.patients.active')}
                                       </span>
                                     ) : (
                                       <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase bg-gray-50 text-gray-400 border border-gray-100">
-                                        Inactive
+                                        {t('reports.patients.inactive')}
                                       </span>
                                     )}
                                   </div>
@@ -618,7 +636,7 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                       </table>
                     ) : (
                       <div className="py-16 text-center text-xs font-bold text-gray-400 uppercase tracking-widest">
-                        No directory profiles matches search.
+                        {t('reports.patients.no_directory')}
                       </div>
                     )}
                   </div>
@@ -638,8 +656,8 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                 <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex flex-col">
                   <div className="p-5 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
                     <div>
-                      <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest">Recent Visits Register</h4>
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">Listing patient appointment logs and workflow tracking</p>
+                      <h4 className="text-xs font-black text-gray-700 uppercase tracking-widest">{t('reports.patients.visits_title')}</h4>
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('reports.patients.visits_subtitle')}</p>
                     </div>
                     
                     {/* Search Field */}
@@ -647,7 +665,7 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                       <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                       <input
                         type="text"
-                        placeholder="Search visits..."
+                        placeholder={t('reports.patients.search_visits')}
                         value={historySearch}
                         onChange={(e) => setHistorySearch(e.target.value)}
                         className="w-full pl-9 pr-4 py-2 border border-gray-100 rounded-xl text-xs font-bold outline-none focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/5"
@@ -660,12 +678,12 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="border-b border-gray-100 bg-gray-50/50">
-                            <th className="py-3 px-6 text-[9px] font-black text-gray-400 uppercase tracking-widest">Appointment ID</th>
-                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Patient</th>
-                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Treatment Class</th>
-                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Branch Location</th>
-                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Date & Slot</th>
-                            <th className="py-3 px-6 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">Status</th>
+                            <th className="py-3 px-6 text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('reports.patients.col_appt_id')}</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('reports.patients.col_patient')}</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('reports.patients.col_treatment')}</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('reports.patients.col_branch')}</th>
+                            <th className="py-3 px-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">{t('reports.patients.col_date_slot')}</th>
+                            <th className="py-3 px-6 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">{t('reports.patients.col_status')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -690,7 +708,7 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                                 </td>
                                 <td className="py-4 px-4">
                                   <div className="flex flex-col text-[10px] font-bold text-gray-500">
-                                    <span>{apptDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                    <span>{apptDate.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                     <span className="text-[#549E9E] mt-0.5 uppercase text-[9px] tracking-wider font-black">{item.slot_name}</span>
                                   </div>
                                 </td>
@@ -706,7 +724,7 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                       </table>
                     ) : (
                       <div className="py-16 text-center text-xs font-bold text-gray-400 uppercase tracking-widest">
-                        No appointments found.
+                        {t('reports.patients.no_appts')}
                       </div>
                     )}
                   </div>

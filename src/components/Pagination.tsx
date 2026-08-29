@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface PaginationProps {
   currentPage: number;
@@ -8,6 +9,7 @@ interface PaginationProps {
 }
 
 export default function Pagination({ currentPage, totalPages, onPageChange }: PaginationProps) {
+  const { t } = useTranslation();
   if (totalPages <= 1) return null;
 
   const getPageNumbers = () => {
@@ -38,7 +40,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange }: Pa
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-gray-100 bg-white">
       <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-        Page {currentPage} of {totalPages}
+        {t('common.page_of', { current: currentPage, total: totalPages })}
       </div>
       <div className="flex items-center gap-2">
         <button
