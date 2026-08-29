@@ -91,7 +91,7 @@ export default function AppointmentsPage() {
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest border ${
+            className={`cursor-pointer px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest border ${
               tab === id ? 'bg-[#549E9E] text-white border-[#549E9E]' : 'bg-white text-gray-500 border-gray-200'
             }`}
           >

@@ -1949,9 +1949,9 @@
     },
     "appointments": {
       "title": "Appointments",
-      "subtitle": "Booked, seen, cancelled — and did they come?",
+      "subtitle": "Booked, seen, cancelled — and booked vs consulted.",
       "tab_status": "Status and trend",
-      "tab_came": "Did they come?",
+      "tab_came": "Booked vs Consulted",
       "trend": "Appointment trend",
       "status": "Appointment status"
     },

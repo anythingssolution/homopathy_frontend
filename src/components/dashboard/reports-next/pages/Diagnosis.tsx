@@ -220,7 +220,7 @@ export default function DiagnosisPage() {
                       <button
                         type="button"
                         onClick={() => setOpenKey(open ? '' : group.key)}
-                        className="w-full text-left px-5 py-3 hover:bg-slate-50/80 flex items-start gap-3"
+                        className="w-full cursor-pointer text-left px-5 py-3 hover:bg-slate-50/80 flex items-start gap-3"
                       >
                         <ChevronDown
                           size={16}

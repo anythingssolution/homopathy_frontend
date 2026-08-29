@@ -76,7 +76,7 @@ export default function ComparePage() {
         <button
           type="button"
           onClick={() => setReportType('branch')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest border ${
+          className={`cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest border ${
             !isTreatment ? 'bg-[#549E9E] text-white border-[#549E9E]' : 'bg-white text-gray-500 border-gray-200'
           }`}
         >
@@ -85,7 +85,7 @@ export default function ComparePage() {
         <button
           type="button"
           onClick={() => setReportType('treatment')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest border ${
+          className={`cursor-pointer flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest border ${
             isTreatment ? 'bg-[#549E9E] text-white border-[#549E9E]' : 'bg-white text-gray-500 border-gray-200'
           }`}
         >
