@@ -31,6 +31,15 @@ import { Prescriptions, ClinicHistory as PatientClinicHistory } from './componen
 import Bills from './components/dashboard/Bills';
 import ConsultationPage from './components/dashboard/ConsultationPage';
 import DoctorReports from './components/dashboard/DoctorReports';
+import ReportsNext from './components/dashboard/reports-next/ReportsNext';
+import TodayPage from './components/dashboard/reports-next/pages/Today';
+import AppointmentsPage from './components/dashboard/reports-next/pages/Appointments';
+import FollowUpsPage from './components/dashboard/reports-next/pages/FollowUps';
+import DispensaryPage from './components/dashboard/reports-next/pages/Dispensary';
+import CollectionsPage from './components/dashboard/reports-next/pages/Collections';
+import PatientsPage from './components/dashboard/reports-next/pages/Patients';
+import DiagnosisPage from './components/dashboard/reports-next/pages/Diagnosis';
+import ComparePage from './components/dashboard/reports-next/pages/Compare';
 import DoctorClinicHistory from './components/dashboard/DoctorClinicHistory';
 import PatientRecords from './components/dashboard/PatientRecords';
 import DispensaryHistory from './components/dashboard/DispensaryHistory';
@@ -134,6 +143,12 @@ function AnimatedRoutes() {
     }
   }, [location.pathname, isAuthenticated]);
 
+  // Keep Reports Next mounted while switching its sidebar pages.
+  // key={pathname} remounts the whole tree and re-fires badge + page APIs.
+  const routeMotionKey = location.pathname.startsWith('/reports-next')
+    ? '/reports-next'
+    : location.pathname;
+
   // Simplified: Always reset scroll to top on any route change
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -148,7 +163,7 @@ function AnimatedRoutes() {
       
       <AnimatePresence mode="wait">
         <motion.div
-          key={location.pathname}
+          key={routeMotionKey}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -207,6 +222,16 @@ function AnimatedRoutes() {
               <Route path="/doctor-leave-calendar" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorLeaveCalendar /></ProtectedRoute>} />
               <Route path="/consult/:appointmentId" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><ConsultationPage /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorReports /></ProtectedRoute>} />
+              <Route path="/reports-next" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><ReportsNext /></ProtectedRoute>}>
+                <Route index element={<TodayPage />} />
+                <Route path="appointments" element={<AppointmentsPage />} />
+                <Route path="follow-ups" element={<FollowUpsPage />} />
+                <Route path="dispensary" element={<DispensaryPage />} />
+                <Route path="collections" element={<CollectionsPage />} />
+                <Route path="patients" element={<PatientsPage />} />
+                <Route path="diagnosis" element={<DiagnosisPage />} />
+                <Route path="compare" element={<ComparePage />} />
+              </Route>
               <Route path="/book-appointment" element={<Booking />} />
               <Route path="/reception-patients" element={<ProtectedRoute allowedRoles={['REC', 'rec', 'receptionist']}><ReceptionPatientManagement /></ProtectedRoute>} />
               <Route path="/previous-patients" element={<ProtectedRoute allowedRoles={['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist']}><PreviousManualPatients /></ProtectedRoute>} />

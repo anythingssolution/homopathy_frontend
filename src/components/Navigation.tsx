@@ -26,7 +26,8 @@ import {
   ShieldCheck,
   History,
   Users,
-  BarChart,
+  // BarChart, // old Reports (Analytics) — keep with the commented nav item
+  Sparkles,
   ArrowLeftRight,
   Menu,
   X,
@@ -94,6 +95,10 @@ export default function Navigation() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout, isLoggingOut, branchScope } = useAuth();
+  const isNavActive = (to: string) =>
+    to === '/reports-next'
+      ? location.pathname.startsWith('/reports-next')
+      : location.pathname === to;
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -248,7 +253,9 @@ export default function Navigation() {
     { to: '/family-members', icon: Users, label: t('dashboard.menu.family_members', 'Family Members'), subLabel: t('dashboard.menu_sub.family_members', 'Dependents'), roles: ['PAT', 'patient'] },
 
     // Doctor specific additional tabs
-    { to: '/reports', icon: BarChart, label: t('dashboard.menu.reports'), subLabel: t('dashboard.menu_sub.reports'), roles: ['DOC', 'doc', 'doctor'] },
+    // Old Reports (Analytics) — hidden while we use Reports Next. Route /reports still works if uncommented.
+    // { to: '/reports', icon: BarChart, label: t('dashboard.menu.reports'), subLabel: t('dashboard.menu_sub.reports'), roles: ['DOC', 'doc', 'doctor'] },
+    { to: '/reports-next', icon: Sparkles, label: t('dashboard.menu.reports_next'), subLabel: t('dashboard.menu_sub.reports_next'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/doctor-leave-calendar', icon: Calendar, label: t('dashboard.menu.leave_calendar', 'Leave Calendar'), subLabel: t('dashboard.menu_sub.leave_calendar', 'Doctor leave dates'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/clinic-history', icon: History, label: t('dashboard.menu.clinic_history'), subLabel: t('dashboard.menu_sub.clinic_history'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/patient-records', icon: FileText, label: t('dashboard.menu.patient_records', 'Patient Records'), subLabel: t('dashboard.menu_sub.patient_records', 'History & documents'), roles: ['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical'] },
@@ -360,7 +367,7 @@ export default function Navigation() {
                           label={link.label}
                           subLabel={link.subLabel}
                           highlightSubLabel={link.to === '/profile' && isAuthenticated}
-                          isActive={location.pathname === link.to}
+                          isActive={isNavActive(link.to)}
                         />
                       </Link>
                     </React.Fragment>
@@ -463,7 +470,7 @@ export default function Navigation() {
                               subLabel={link.subLabel}
                               highlightSubLabel
                               isCrossRole
-                              isActive={location.pathname === link.to}
+                              isActive={isNavActive(link.to)}
                             />
                           </Link>
                         </React.Fragment>
@@ -637,7 +644,7 @@ export default function Navigation() {
               {/* Navigation Links */}
               <div className="flex flex-col gap-1.5">
                 {currentLinks.map((link) => {
-                  const isActive = location.pathname === link.to;
+                  const isActive = isNavActive(link.to);
                   const Icon = link.icon;
                   const isCrossRole = link.to.startsWith('/cross-role/');
                   const isProfile = link.to === '/profile' && isAuthenticated;
