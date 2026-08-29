@@ -6,7 +6,6 @@ import {
   BarChart2,
   CalendarCheck,
   ClipboardList,
-  LayoutDashboard,
   Pill,
   Sun,
   Users,
@@ -159,11 +158,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
           </NavLink>
         </div>
       </nav>
-
-      <p className="hidden md:block mt-3 text-[10px] font-medium text-gray-400 px-2 shrink-0">
-        <LayoutDashboard size={11} className="inline mr-1" />
-        {t('reports_next.old_reports_hint')}
-      </p>
     </div>
   );
 };
