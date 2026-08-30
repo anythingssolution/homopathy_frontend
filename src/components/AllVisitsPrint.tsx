@@ -225,12 +225,12 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                             {visitItem.treatment_name || details.treatment_name || appointment.treatment_name || "Consultation"}
                           </span>
                           {durationLabel && (
-                            <span className="px-1.5 py-0.5 rounded-xs border border-[#549E9E]/30 bg-white text-[#549E9E] font-black uppercase tracking-wider">
+                            <span className="px-1.5 py-0.5 rounded-xs border border-[#549E9E]/30 bg-white text-[#549E9E] font-black uppercase tracking-wider whitespace-nowrap">
                               {isHi ? 'अवधि' : 'DURATION'} {durationLabel}
                             </span>
                           )}
                           {medicationPeriod && (
-                            <span className="font-bold text-[#1a2b4c]">
+                            <span className="font-bold text-[#1a2b4c] whitespace-nowrap">
                               {medicationPeriod.fromDate} – {medicationPeriod.toDate}
                             </span>
                           )}
@@ -244,11 +244,6 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                           ))}
                         </div>
                         <div className="flex items-center gap-3 shrink-0 text-right">
-                          {visitItem.doctor_full_name ? (
-                            <span className="text-[9.5px] font-bold text-gray-600">
-                              {`Dr. ${visitItem.doctor_full_name}`}
-                            </span>
-                          ) : null}
                           <span className="text-[10px] font-black uppercase tracking-wider">
                             <span className="text-black">{visitModeLabel}</span>{' '}
                             <span className="text-[#549E9E]">{visitModeValue}</span>
@@ -281,17 +276,6 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                               ))}
                             </div>
                           </div>
-                          )}
-
-                          {durationLabel && (
-                            <div>
-                              <h4 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-0.5 border-b border-[#549E9E]/20 pb-0.5">
-                                {isHi ? 'अवधि' : 'DURATION'}
-                              </h4>
-                              <div className="text-[10px] font-bold text-gray-800 leading-tight">
-                                {durationLabel}
-                              </div>
-                            </div>
                           )}
 
                           {repeatSameBlocks.length > 0 && (

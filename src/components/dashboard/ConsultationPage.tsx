@@ -20,12 +20,14 @@ import {
   WandSparkles,
   RotateCcw,
   Keyboard,
+  Download,
   Activity,
   UserCheck,
   Pencil,
   Copy,
 } from "lucide-react";
 import PatientDetailsEditModal from "./PatientDetailsEditModal";
+import AllVisitsPrint from "../AllVisitsPrint";
 import { useNotifications } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
 import { useDoctorFormulaMaster } from "../../context/DoctorFormulaMasterContext";
@@ -696,6 +698,9 @@ export default function ConsultationPage() {
       Number(currentApp.appointment_id) === normalizedRouteAppointmentId);
   const [followUpChain, setFollowUpChain] = useState<any[]>([]);
   const [isFollowUpChainOpen, setIsFollowUpChainOpen] = useState(false);
+  const [selectedAllVisits, setSelectedAllVisits] = useState<{ patient: any; visits: any[] } | null>(null);
+  const [isAllVisitsLoading, setIsAllVisitsLoading] = useState(false);
+  const [allVisitsLang, setAllVisitsLang] = useState<'en' | 'hi'>('en');
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [isVitalsOpen, setIsVitalsOpen] = useState(false);
 
@@ -1597,14 +1602,14 @@ export default function ConsultationPage() {
   };
 
   useEffect(() => {
-    if (isExtendedHistoryOpen || isFollowUpChainOpen || showShortcutsModal) {
+    if (isExtendedHistoryOpen || isFollowUpChainOpen || showShortcutsModal || selectedAllVisits) {
       const originalOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
       return () => {
         document.body.style.overflow = originalOverflow || "";
       };
     }
-  }, [isExtendedHistoryOpen, isFollowUpChainOpen, showShortcutsModal]);
+  }, [isExtendedHistoryOpen, isFollowUpChainOpen, showShortcutsModal, selectedAllVisits]);
 
   const addOtherMedication = () => {
     if (isReadOnly) return;
@@ -2839,6 +2844,95 @@ export default function ConsultationPage() {
     }
   };
 
+  const openAllVisitsPreview = async () => {
+    const patientId = currentApp?.fk_patient_id || currentApp?.patient_id;
+    if (!token || !patientId || isAllVisitsLoading) return;
+
+    setIsAllVisitsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", "1");
+      params.set("page_size", "50");
+      if (
+        currentApp?.booked_for_type === "FAMILY_MEMBER" &&
+        currentApp?.fk_patient_family_member_id
+      ) {
+        params.set("family_member_id", String(currentApp.fk_patient_family_member_id));
+      } else {
+        params.set("subject_scope", "SELF");
+      }
+
+      const response = await fetch(
+        `/api/v1/patient-records/patients/${patientId}/visits?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || t("consultation_modal.all_visits_failed", "Unable to load visits"));
+      }
+
+      const items = Array.isArray(result.data?.items) ? result.data.items : [];
+      const visitsWithConsultation = items.filter((item: any) => Boolean(item.consultation_id));
+      if (visitsWithConsultation.length === 0) {
+        addToast(
+          t("consultation_modal.all_visits_empty", "No previous visits with a prescription for this patient."),
+          "info",
+        );
+        return;
+      }
+
+      const roleCode = String(user?.role_code || "").toUpperCase();
+      const role = String(user?.role || "").toLowerCase();
+      const isReceptionist = roleCode === "REC" || role === "rec" || role === "receptionist";
+      const endpointPrefix = isReceptionist
+        ? "/api/v1/receptionist/prescriptions/"
+        : "/api/v1/medical/prescriptions/";
+
+      const fetchedVisits = await Promise.all(
+        visitsWithConsultation.map(async (vItem: any) => {
+          try {
+            const res = await fetch(`${endpointPrefix}${vItem.consultation_id}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const resData = await res.json();
+            if (res.ok && resData.success) {
+              return {
+                ...vItem,
+                consultation: resData.data,
+                appointment: resData.data,
+              };
+            }
+          } catch {
+            // same fallback as Patient Records
+          }
+          return {
+            ...vItem,
+            consultation: {},
+            appointment: {},
+          };
+        }),
+      );
+
+      setSelectedAllVisits({
+        patient: {
+          full_name: currentApp.patient_full_name,
+          patient_uuid: currentApp.patient_uuid,
+          mobile_no: currentApp.patient_mobile_no,
+          age: currentApp.patient_age,
+          gender: currentApp.patient_gender,
+        },
+        visits: fetchedVisits,
+      });
+    } catch (err: any) {
+      addToast(
+        err?.message || t("consultation_modal.all_visits_failed", "Unable to load visits"),
+        "error",
+      );
+    } finally {
+      setIsAllVisitsLoading(false);
+    }
+  };
+
   const isCompletedConsultation =
     String(currentApp?.status || "").toLowerCase() === "completed";
 
@@ -3078,7 +3172,7 @@ export default function ConsultationPage() {
             </button>
           )}
 
-          {/* 2. Follow-up Report Button (Middle) */}
+          {/* 2. Follow-up Report Button (Middle) — hidden; all-visits PDF covers this
           {followUpChain.length > 0 && (
             <button
               type="button"
@@ -3100,6 +3194,7 @@ export default function ConsultationPage() {
               </span>
             </button>
           )}
+          */}
 
           {/* 3. Extended History Button (Top) */}
           {!isReadOnly && (
@@ -3133,6 +3228,33 @@ export default function ConsultationPage() {
               </div>
               <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-black uppercase tracking-wider opacity-0 group-hover:opacity-100 group-hover:ml-3">
                 Extended History
+              </span>
+            </button>
+          )}
+
+          {/* 4. All visits PDF (same preview as Patient Records) */}
+          {(currentApp?.fk_patient_id || currentApp?.patient_id) && (
+            <button
+              type="button"
+              onClick={() => void openAllVisitsPreview()}
+              disabled={isAllVisitsLoading}
+              className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white h-12 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-105 cursor-pointer border border-white/20 group px-3.5"
+              title={t("consultation_modal.all_visits", "View All Visits")}
+            >
+              <div className="relative flex items-center justify-center">
+                {isAllVisitsLoading ? (
+                  <RefreshCcw size={20} className="animate-spin shrink-0" />
+                ) : (
+                  <FileText
+                    size={20}
+                    className="transition-transform group-hover:rotate-6 shrink-0"
+                  />
+                )}
+              </div>
+              <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-xs font-black uppercase tracking-wider opacity-0 group-hover:opacity-100 group-hover:ml-3">
+                {isAllVisitsLoading
+                  ? t("consultation_modal.all_visits_loading", "Loading...")
+                  : t("consultation_modal.all_visits", "View All Visits")}
               </span>
             </button>
           )}
@@ -5794,6 +5916,92 @@ export default function ConsultationPage() {
           </div>
         )}
       </div>
+
+      {selectedAllVisits &&
+        createPortal(
+          <div className="print-only">
+            <AllVisitsPrint
+              patient={selectedAllVisits.patient}
+              visits={selectedAllVisits.visits}
+              lang={allVisitsLang}
+            />
+          </div>,
+          document.body,
+        )}
+
+      {selectedAllVisits &&
+        createPortal(
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/80 p-4 backdrop-blur-md no-print">
+            <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl">
+              <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">
+                    {t("consultation_modal.all_visits_preview", "All Visits & Prescriptions Preview")}
+                  </h3>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                    {t("consultation_modal.all_visits_for", {
+                      name: selectedAllVisits.patient.full_name,
+                      defaultValue: "Complete visit history for {{name}}",
+                    })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setAllVisitsLang("en")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                        allVisitsLang === "en"
+                          ? "bg-[#549E9E] text-white shadow-xs"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
+                      }`}
+                    >
+                      English
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAllVisitsLang("hi")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                        allVisitsLang === "hi"
+                          ? "bg-[#549E9E] text-white shadow-xs"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
+                      }`}
+                    >
+                      हिंदी (Hindi)
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-[#549E9E] px-6 py-2.5 text-xs font-black uppercase tracking-widest text-white hover:bg-[#458b8b]"
+                  >
+                    <Download size={16} /> {t("consultation_modal.all_visits_print", "Print All")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAllVisits(null)}
+                    className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+              <div
+                className="flex flex-1 items-start justify-center overflow-auto bg-gray-200/50 p-4 md:p-12"
+                data-lenis-prevent
+              >
+                <div className="mx-auto flex min-h-[297mm] w-[210mm] shrink-0 flex-col rounded-sm border border-gray-100 bg-white p-0 shadow-xl md:p-8">
+                  <AllVisitsPrint
+                    patient={selectedAllVisits.patient}
+                    visits={selectedAllVisits.visits}
+                    lang={allVisitsLang}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

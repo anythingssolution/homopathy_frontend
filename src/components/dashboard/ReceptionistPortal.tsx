@@ -1150,6 +1150,38 @@ export default function ReceptionistPortal() {
       </button>
     ) : null;
 
+  const actionIcon = ({
+    title,
+    onClick,
+    className,
+    icon,
+    disabled,
+  }: {
+    title: string;
+    onClick: () => void;
+    className: string;
+    icon: React.ReactNode;
+    disabled?: boolean;
+  }) => (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      disabled={disabled}
+      className="group flex flex-col items-center gap-0.5 min-w-[46px] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+    >
+      <span
+        className={`h-8 w-8 rounded-lg border flex items-center justify-center transition-colors ${className}`}
+      >
+        {icon}
+      </span>
+      <span className="text-[8px] font-black uppercase tracking-wide text-gray-500 group-hover:text-gray-700 leading-tight text-center">
+        {title}
+      </span>
+    </button>
+  );
+
   const isTerminalQueueItem = (app: any) =>
     app.status === "Completed" ||
     ["COMPLETED", "CANCELLED", "NO_SHOW", "SKIPPED"].includes(
@@ -1631,29 +1663,29 @@ export default function ReceptionistPortal() {
               )}
             </div>
             {/* === DESKTOP TABLE VIEW === */}
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full text-left whitespace-nowrap">
+            <div className="hidden sm:block overflow-x-hidden">
+              <table className="w-full text-left">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">
+                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest whitespace-nowrap">
                       {t("receptionist.token", "Token")}
                     </th>
-                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">
+                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest whitespace-nowrap">
                       {t("receptionist.patient", "Patient")}
                     </th>
-                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">
+                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest whitespace-nowrap">
                       {t("receptionist.details", "Details")}
                     </th>
-                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">
+                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest whitespace-nowrap">
                       {t("receptionist.queue", "Queue")}
                     </th>
-                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">
+                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest whitespace-nowrap">
                       {t("receptionist.status_source", "Status/Source")}
                     </th>
-                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">
+                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest whitespace-nowrap">
                       {t("receptionist.payment", "Payment")}
                     </th>
-                    <th className="px-5 py-4 text-xs font-black text-gray-800 uppercase tracking-widest text-center">
+                    <th className="px-3 py-4 text-xs font-black text-gray-800 uppercase tracking-widest text-right">
                       {t("receptionist.actions", "Actions")}
                     </th>
                   </tr>
@@ -1839,66 +1871,59 @@ export default function ReceptionistPortal() {
                               </span>
                             )}
                           </td>
-                          <td className="px-5 py-4 text-center">
+                          <td className="px-4 py-4 text-right align-middle">
                             {["Cancelled", "Completed"].includes(app.status) ? (
-                              <div className="flex items-center justify-center gap-2">
-                                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                  {app.status}
-                                </span>
-                                {/* {renderViewPrescriptionButton(app)} */}
-                              </div>
+                              <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                {app.status}
+                              </span>
                             ) : app.reception_status ===
                               "APPROVED_BY_RECEPTION" ? (
-                              <div className="flex items-center justify-center gap-2">
-                                {/* {renderViewPrescriptionButton(app)} */}
-                                <button
-                                  onClick={() => openVitalsModal(app)}
-                                  className="bg-sky-50 text-sky-600 hover:bg-sky-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-sky-100 flex items-center justify-center gap-1 whitespace-nowrap"
-                                >
-                                  <Activity size={12} /> Vitals
-                                </button>
-                                <button
-                                  onClick={() => openExtendedHistoryModal(app)}
-                                  className="bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-teal-100 flex items-center justify-center gap-1 whitespace-nowrap"
-                                  title="Extended Patient History & Examination"
-                                >
-                                  <ClipboardList size={12} /> History
-                                </button>
-                                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg uppercase tracking-widest">
-                                  {app.checked_in_at ? `Checked In: ${new Date(app.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Approved"}
+                              <div className="inline-flex flex-col items-end gap-1">
+                                <div className="inline-flex items-center gap-1">
+                                  {actionIcon({
+                                    title: t("receptionist.vitals", "Vitals"),
+                                    onClick: () => openVitalsModal(app),
+                                    className: "bg-sky-50 text-sky-600 group-hover:bg-sky-600 group-hover:text-white border-sky-100",
+                                    icon: <Activity size={14} />,
+                                  })}
+                                  {actionIcon({
+                                    title: t("receptionist.history", "History"),
+                                    onClick: () => openExtendedHistoryModal(app),
+                                    className: "bg-teal-50 text-teal-700 group-hover:bg-teal-600 group-hover:text-white border-teal-100",
+                                    icon: <ClipboardList size={14} />,
+                                  })}
+                                  {canShowCheckInButton(app) &&
+                                    actionIcon({
+                                      title: t("receptionist.check_in", "Check-In"),
+                                      onClick: () => performCheckIn(app.appointment_id),
+                                      disabled: isCheckingIn,
+                                      className: "bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white border-blue-100",
+                                      icon: <UserCheck size={14} />,
+                                    })}
+                                  {app.queue_bucket !== "IN_PROGRESS" &&
+                                    app.queue_bucket !== "CALLED" && (
+                                      <>
+                                        {actionIcon({
+                                          title: t("receptionist.reject", "Reject"),
+                                          onClick: () => handleReject(app.appointment_id),
+                                          className: "bg-red-50 text-red-600 group-hover:bg-red-500 group-hover:text-white border-red-100",
+                                          icon: <XCircle size={14} />,
+                                        })}
+                                        {!app.checked_in_at &&
+                                          actionIcon({
+                                            title: t("receptionist.transfer", "Transfer"),
+                                            onClick: () => handleTransfer(app.appointment_id),
+                                            className: "bg-indigo-50 text-indigo-600 group-hover:bg-indigo-500 group-hover:text-white border-indigo-100",
+                                            icon: <PhoneForwarded size={14} />,
+                                          })}
+                                      </>
+                                    )}
+                                </div>
+                                <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">
+                                  {app.checked_in_at
+                                    ? `${t("receptionist.checked_in", "Checked in")} ${new Date(app.checked_in_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                                    : t("receptionist.approved", "Approved")}
                                 </span>
-                                {canShowCheckInButton(app) && (
-                                  <button
-                                    onClick={() =>
-                                      performCheckIn(app.appointment_id)
-                                    }
-                                    disabled={isCheckingIn}
-                                    className="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white disabled:opacity-60 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-blue-100 whitespace-nowrap"
-                                  >
-                                    Check-In
-                                  </button>
-                                )}
-                                {app.queue_bucket !== "IN_PROGRESS" &&
-                                  app.queue_bucket !== "CALLED" && (
-                                    <>
-                                      <button
-                                        onClick={() =>
-                                          handleReject(app.appointment_id)
-                                        }
-                                        className="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-red-100 flex items-center justify-center gap-1 whitespace-nowrap"
-                                      >
-                                        <XCircle size={12} /> Reject
-                                      </button>
-                                      {!app.checked_in_at && (
-                                        <button
-                                          onClick={() => handleTransfer(app.appointment_id)}
-                                          className="bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-indigo-100 flex items-center justify-center gap-1 whitespace-nowrap"
-                                        >
-                                          <PhoneForwarded size={12} /> Transfer
-                                        </button>
-                                      )}
-                                    </>
-                                  )}
                               </div>
                             ) : app.reception_status ===
                               "REJECTED_BY_RECEPTION" ? (
@@ -1906,42 +1931,38 @@ export default function ReceptionistPortal() {
                                 Rejected
                               </span>
                             ) : (
-                              <div className="flex items-center justify-center gap-2">
-                                <button
-                                  onClick={() => openVitalsModal(app)}
-                                  className="bg-sky-50 text-sky-600 hover:bg-sky-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-sky-100 flex items-center justify-center gap-1 whitespace-nowrap"
-                                >
-                                  <Activity size={12} /> Vitals
-                                </button>
-                                <button
-                                  onClick={() => openExtendedHistoryModal(app)}
-                                  className="bg-teal-50 text-teal-700 hover:bg-teal-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-teal-100 flex items-center justify-center gap-1 whitespace-nowrap"
-                                  title="Extended Patient History & Examination"
-                                >
-                                  <ClipboardList size={12} /> History
-                                </button>
-                                <button
-                                  onClick={() => handleReject(app.appointment_id)}
-                                  className="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-red-100 flex items-center justify-center gap-1 whitespace-nowrap"
-                                >
-                                  <XCircle size={12} /> Reject
-                                </button>
-                                {!app.checked_in_at && (
-                                  <button
-                                    onClick={() => handleTransfer(app.appointment_id)}
-                                    className="bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-indigo-100 flex items-center justify-center gap-1 whitespace-nowrap"
-                                  >
-                                    <PhoneForwarded size={12} /> Transfer
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() =>
-                                    handleApprove(app.appointment_id)
-                                  }
-                                  className="bg-[#549E9E] text-white hover:bg-[#468686] px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm shadow-[#549E9E]/20 flex items-center justify-center gap-1 whitespace-nowrap"
-                                >
-                                  <CheckCircle2 size={12} /> Approve
-                                </button>
+                              <div className="inline-flex items-center gap-1">
+                                {actionIcon({
+                                  title: t("receptionist.vitals", "Vitals"),
+                                  onClick: () => openVitalsModal(app),
+                                  className: "bg-sky-50 text-sky-600 group-hover:bg-sky-600 group-hover:text-white border-sky-100",
+                                  icon: <Activity size={14} />,
+                                })}
+                                {actionIcon({
+                                  title: t("receptionist.history", "History"),
+                                  onClick: () => openExtendedHistoryModal(app),
+                                  className: "bg-teal-50 text-teal-700 group-hover:bg-teal-600 group-hover:text-white border-teal-100",
+                                  icon: <ClipboardList size={14} />,
+                                })}
+                                {actionIcon({
+                                  title: t("receptionist.reject", "Reject"),
+                                  onClick: () => handleReject(app.appointment_id),
+                                  className: "bg-red-50 text-red-600 group-hover:bg-red-500 group-hover:text-white border-red-100",
+                                  icon: <XCircle size={14} />,
+                                })}
+                                {!app.checked_in_at &&
+                                  actionIcon({
+                                    title: t("receptionist.transfer", "Transfer"),
+                                    onClick: () => handleTransfer(app.appointment_id),
+                                    className: "bg-indigo-50 text-indigo-600 group-hover:bg-indigo-500 group-hover:text-white border-indigo-100",
+                                    icon: <PhoneForwarded size={14} />,
+                                  })}
+                                {actionIcon({
+                                  title: t("receptionist.approve", "Approve"),
+                                  onClick: () => handleApprove(app.appointment_id),
+                                  className: "bg-[#549E9E] text-white group-hover:bg-[#468686] border-[#549E9E]/20 shadow-sm shadow-[#549E9E]/20",
+                                  icon: <CheckCircle2 size={14} />,
+                                })}
                               </div>
                             )}
                           </td>

@@ -237,12 +237,12 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                       </span>
                     )}
                     {durationLabel && (
-                      <span className="px-1.5 py-0.5 rounded-xs border border-[#549E9E]/30 bg-white text-[#549E9E] font-black uppercase tracking-wider">
+                      <span className="px-1.5 py-0.5 rounded-xs border border-[#549E9E]/30 bg-white text-[#549E9E] font-black uppercase tracking-wider whitespace-nowrap">
                         {isHi ? 'अवधि' : 'DURATION'} {durationLabel}
                       </span>
                     )}
                     {medicationPeriod && (
-                      <span className="font-bold text-[#1a2b4c]">
+                      <span className="font-bold text-[#1a2b4c] whitespace-nowrap">
                         {medicationPeriod.fromDate} – {medicationPeriod.toDate}
                       </span>
                     )}
@@ -256,11 +256,6 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                     ))}
                   </div>
                   <div className="flex items-center gap-3 shrink-0 text-right">
-                    {appointment.doctor_full_name ? (
-                      <span className="text-[9.5px] font-bold text-gray-600">
-                        {`Dr. ${appointment.doctor_full_name}`}
-                      </span>
-                    ) : null}
                     <span className="text-[10px] font-black uppercase tracking-wider">
                       <span className="text-black">{modeLabel}</span>{' '}
                       <span className="text-[#549E9E]">{consultationModeValue}</span>
@@ -293,17 +288,6 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                         ))}
                       </div>
                     </div>
-                    )}
-
-                    {durationLabel && (
-                      <div>
-                        <h3 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-1 border-b border-[#549E9E]/20 pb-0.5">
-                          {isHi ? 'अवधि' : 'DURATION'}
-                        </h3>
-                        <div className="text-[10px] font-bold text-gray-800 leading-tight">
-                          {durationLabel}
-                        </div>
-                      </div>
                     )}
 
                     {repeatSameBlocks.length > 0 && (
