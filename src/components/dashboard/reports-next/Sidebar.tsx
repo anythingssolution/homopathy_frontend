@@ -7,6 +7,7 @@ import {
   CalendarCheck,
   ClipboardList,
   Pill,
+  UserPlus,
   Sun,
   Users,
 } from 'lucide-react';
@@ -95,6 +96,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
                   {t('reports_next.nav.follow_ups')}
                 </span>
                 <Badge count={badges.followUps} active={isActive} />
+              </>
+            )}
+          </NavLink>
+          <NavLink to="/reports-next/first-consults" className={({ isActive }) => itemClass(isActive)}>
+            {({ isActive }) => (
+              <>
+                <UserPlus size={18} className={isActive ? 'text-white' : 'text-gray-400'} />
+                <span className="text-xs font-bold uppercase tracking-widest leading-tight flex-1">
+                  {t('reports_next.nav.first_consults')}
+                </span>
               </>
             )}
           </NavLink>

@@ -2077,7 +2077,8 @@
       "col_patients": "मरीज",
       "col_patient": "मरीज",
       "col_last": "आखिरी विज़िट",
-      "col_consults": "परामर्श"
+      "col_consults": "परामर्श",
+      "open_consults": "क्लिनिक इतिहास में इस मरीज के परामर्श खोलें"
     },
     "compare": {
       "title": "तुलना",

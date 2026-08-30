@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ChevronDown, RefreshCcw, Search } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useTranslation } from 'react-i18next';
@@ -85,6 +86,7 @@ export default function DiagnosisPage() {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const { token } = useAuth();
+  const navigate = useNavigate();
   const { dateFilter, setDateFilter, customDateRange, setCustomDateRange, range } = useReviewDate();
   const [history, setHistory] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -255,11 +257,29 @@ export default function DiagnosisPage() {
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                               {group.patients.map((person) => (
-                                <tr key={person.key}>
+                                <tr
+                                  key={person.key}
+                                  onClick={() =>
+                                    navigate('/clinic-history', {
+                                      state: {
+                                        fromDate: range.from,
+                                        toDate: range.to,
+                                        filterStatus: 'Completed',
+                                        patientSearch: person.mobile || person.name,
+                                      },
+                                    })
+                                  }
+                                  className="cursor-pointer hover:bg-slate-50/80"
+                                  title={t('reports_next.diagnosis.open_consults')}
+                                >
                                   <td className="py-2 pr-3">
                                     <p className="text-sm font-bold text-slate-800">{person.name}</p>
                                     {person.mobile && (
-                                      <a href={`tel:${person.mobile}`} className="text-[11px] font-semibold text-[#2d8789] hover:underline">
+                                      <a
+                                        href={`tel:${person.mobile}`}
+                                        onClick={(event) => event.stopPropagation()}
+                                        className="text-[11px] font-semibold text-[#2d8789] hover:underline cursor-pointer"
+                                      >
                                         {person.mobile}
                                       </a>
                                     )}
@@ -267,7 +287,9 @@ export default function DiagnosisPage() {
                                   <td className="py-2 pr-3 text-xs font-bold text-slate-500">
                                     {formatDate(person.lastVisit, dateLocale)}
                                   </td>
-                                  <td className="py-2 text-right text-xs font-black text-slate-700">{person.consults}</td>
+                                  <td className="py-2 text-right text-xs font-black text-[#2d8789]">
+                                    {person.consults}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>

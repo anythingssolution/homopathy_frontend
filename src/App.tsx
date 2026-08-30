@@ -35,6 +35,7 @@ import ReportsNext from './components/dashboard/reports-next/ReportsNext';
 import TodayPage from './components/dashboard/reports-next/pages/Today';
 import AppointmentsPage from './components/dashboard/reports-next/pages/Appointments';
 import FollowUpsPage from './components/dashboard/reports-next/pages/FollowUps';
+import FirstConsultationsPage from './components/dashboard/reports-next/pages/FirstConsultations';
 import DispensaryPage from './components/dashboard/reports-next/pages/Dispensary';
 import CollectionsPage from './components/dashboard/reports-next/pages/Collections';
 import PatientsPage from './components/dashboard/reports-next/pages/Patients';
@@ -226,6 +227,7 @@ function AnimatedRoutes() {
                 <Route index element={<TodayPage />} />
                 <Route path="appointments" element={<AppointmentsPage />} />
                 <Route path="follow-ups" element={<FollowUpsPage />} />
+                <Route path="first-consults" element={<FirstConsultationsPage />} />
                 <Route path="dispensary" element={<DispensaryPage />} />
                 <Route path="collections" element={<CollectionsPage />} />
                 <Route path="patients" element={<PatientsPage />} />

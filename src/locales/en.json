@@ -1893,6 +1893,7 @@
       "today": "Today",
       "appointments": "Appointments",
       "follow_ups": "Follow-ups",
+      "first_consults": "First consults",
       "dispensary": "Dispensary",
       "collections": "Collections",
       "patients": "Patients",
@@ -1937,6 +1938,8 @@
       "pending_visits_hint": "Booked or confirmed, not yet consulted",
       "follow_ups": "Upcoming follow-ups",
       "follow_ups_hint": "Due today and later. Overdue is a separate filter on Follow-ups.",
+      "first_consults": "First consults today",
+      "first_consults_hint": "New patients booked for a first consultation",
       "unpaid": "Unpaid bills",
       "unpaid_hint": "{{amount}} still outstanding",
       "ready_rx": "Medicine to give",
@@ -1974,6 +1977,25 @@
       "hint_overdue": "These patients should already have come back. Call or book them first.",
       "overdue_by": "{{days}} days overdue",
       "due_today_hint": "Due today",
+      "in_days": "In {{days}} days"
+    },
+    "first_consults": {
+      "title": "First consultations",
+      "subtitle": "How many new patients connected with the clinic — today, this week, or this month.",
+      "search": "Search name, mobile, slot",
+      "empty": "No first consultations in this window.",
+      "hint": "This list is First Consultation visits in the selected dates — not follow-up returns.",
+      "patients": "New patients",
+      "booked": "Booked",
+      "consulted": "Consulted",
+      "seen": "Seen",
+      "col_patient": "Patient",
+      "col_visit": "Visit date",
+      "col_slot": "Slot",
+      "col_status": "Status",
+      "today_hint": "Today",
+      "yesterday_hint": "Yesterday",
+      "days_ago": "{{days}} days ago",
       "in_days": "In {{days}} days"
     },
     "dispensary": {
@@ -2063,7 +2085,8 @@
       "col_patients": "Patients",
       "col_patient": "Patient",
       "col_last": "Last visit",
-      "col_consults": "Consults"
+      "col_consults": "Consults",
+      "open_consults": "Open this patient's consults in Clinic History"
     },
     "compare": {
       "title": "Compare",

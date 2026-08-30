@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, Banknote, CalendarCheck, ClipboardList, Pill, RefreshCcw, TrendingDown, TrendingUp } from 'lucide-react';
+import { AlertCircle, Banknote, CalendarCheck, ClipboardList, Pill, RefreshCcw, TrendingDown, TrendingUp, UserPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../../context/AuthContext';
 import {
@@ -30,6 +30,7 @@ export default function TodayPage() {
   const [error, setError] = useState('');
   const [pendingVisits, setPendingVisits] = useState(0);
   const [followUps, setFollowUps] = useState(0);
+  const [firstConsults, setFirstConsults] = useState(0);
   const [unpaidCount, setUnpaidCount] = useState(0);
   const [unpaidAmount, setUnpaidAmount] = useState(0);
   const [readyRx, setReadyRx] = useState(0);
@@ -59,6 +60,14 @@ export default function TodayPage() {
       const confirmed = statusCount(todayAppt?.status_appointments, 'confirmed');
       setPendingVisits(pending + confirmed);
       setFollowUps(Array.isArray(clinicalUpcoming?.followup_due) ? clinicalUpcoming.followup_due.length : 0);
+      const firstRows = Array.isArray(todayAppt?.first_consultations) ? todayAppt.first_consultations : [];
+      setFirstConsults(
+        new Set(
+          firstRows
+            .filter((row: any) => String(row.status || '').toLowerCase() !== 'cancelled')
+            .map((row: any) => String(row.person_key || `${row.fk_patient_id}:${row.fk_patient_family_member_id || 0}`)),
+        ).size,
+      );
       const dues = Array.isArray(billing?.pending_amount) ? billing.pending_amount : [];
       setUnpaidCount(dues.length);
       setUnpaidAmount(dues.reduce((sum: number, row: any) => sum + Number(row.pending_amount || 0), 0));
@@ -97,6 +106,14 @@ export default function TodayPage() {
       value: String(followUps),
       icon: ClipboardList,
       tone: 'border-amber-100 bg-amber-50/60',
+    },
+    {
+      to: '/reports-next/first-consults',
+      label: t('reports_next.today_page.first_consults'),
+      hint: t('reports_next.today_page.first_consults_hint'),
+      value: String(firstConsults),
+      icon: UserPlus,
+      tone: 'border-sky-100 bg-sky-50/60',
     },
     {
       to: '/reports-next/collections',
@@ -152,7 +169,7 @@ export default function TodayPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             {tiles.map((tile) => {
               const Icon = tile.icon;
               return (

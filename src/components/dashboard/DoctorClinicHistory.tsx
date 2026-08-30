@@ -49,7 +49,7 @@ export default function DoctorClinicHistory() {
   const [isLoading, setIsLoading] = useState(false);
   const { addToast } = useNotifications();
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => location.state?.patientSearch || "");
   const [fromDate, setFromDate] = useState(() => {
     if (location.state?.fromDate) return location.state.fromDate;
     const d = new Date();
