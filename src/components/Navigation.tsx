@@ -259,7 +259,9 @@ export default function Navigation() {
     { to: '/doctor-leave-calendar', icon: Calendar, label: t('dashboard.menu.leave_calendar', 'Leave Calendar'), subLabel: t('dashboard.menu_sub.leave_calendar', 'Doctor leave dates'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/clinic-history', icon: History, label: t('dashboard.menu.clinic_history'), subLabel: t('dashboard.menu_sub.clinic_history'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/patient-records', icon: FileText, label: t('dashboard.menu.patient_records', 'Patient Records'), subLabel: t('dashboard.menu_sub.patient_records', 'History & documents'), roles: ['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical'] },
-    { to: '/bills', icon: Receipt, label: t('dashboard.menu.bills'), subLabel: t('dashboard.menu_sub.bills'), roles: ['DOC', 'doc', 'doctor'] },
+    // Old Bills list — hidden while we use Bills Next. Route /bills still works if uncommented.
+    // { to: '/bills', icon: Receipt, label: t('dashboard.menu.bills'), subLabel: t('dashboard.menu_sub.bills'), roles: ['DOC', 'doc', 'doctor'] },
+    { to: '/bills-next', icon: Receipt, label: t('dashboard.menu.bills_next'), subLabel: t('dashboard.menu_sub.bills_next'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/staff-access', icon: Shield, label: t('dashboard.menu.staff_access'), subLabel: t('dashboard.menu_sub.staff_access'), roles: ['DOC', 'doc', 'doctor'] },
     {
       to: '/profile',

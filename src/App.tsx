@@ -29,6 +29,7 @@ import Profile from './components/dashboard/Profile';
 import MyAppointments from './components/dashboard/MyAppointments';
 import { Prescriptions, ClinicHistory as PatientClinicHistory } from './components/dashboard/Placeholders';
 import Bills from './components/dashboard/Bills';
+import BillsNext from './components/dashboard/bills-next/BillsNext';
 import ConsultationPage from './components/dashboard/ConsultationPage';
 import DoctorReports from './components/dashboard/DoctorReports';
 import ReportsNext from './components/dashboard/reports-next/ReportsNext';
@@ -245,6 +246,8 @@ function AnimatedRoutes() {
               <Route path="/medical-product-master" element={<ProtectedRoute allowedRoles={['MED', 'med', 'medical', 'doc', 'DOC', 'doctor']}><MedicalProductMaster /></ProtectedRoute>} />
               <Route path="/medical-product-import" element={<ProtectedRoute allowedRoles={['MED', 'med', 'medical', 'doc', 'DOC', 'doctor']}><MedicalProductImport /></ProtectedRoute>} />
               <Route path="/bills" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><Bills /></ProtectedRoute>} />
+              {/* New cockpit. If you keep this, comment out /bills like Reports Next. */}
+              <Route path="/bills-next" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><BillsNext /></ProtectedRoute>} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/staff-access" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><StaffAccess /></ProtectedRoute>} />
               <Route path="/family-members" element={<ProtectedRoute allowedRoles={['patient', 'PAT']}><FamilyMembers /></ProtectedRoute>} />
