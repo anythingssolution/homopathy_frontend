@@ -35,6 +35,96 @@ import MedicationDispensingStatus from '../MedicationDispensingStatus';
 import PrescriptionPrint from '../PrescriptionPrint';
 import PaymentSplitDisplay from '../PaymentSplitDisplay';
 
+const getValidPrescriptionConsultationId = (record: any) => {
+  const id = Number(record?.consultation_id);
+  return Number.isInteger(id) && id > 0 ? id : null;
+};
+
+const getBillAmountValue = (record: any, key: 'total_amount' | 'paid_amount' | 'pending_amount') => {
+  const billValue = record?.medication_bill?.[key];
+  if (billValue !== undefined && billValue !== null && billValue !== '') {
+    return Number(billValue) || 0;
+  }
+
+  const prescriptionValue = record?.prescription?.[key];
+  if (prescriptionValue !== undefined && prescriptionValue !== null && prescriptionValue !== '') {
+    return Number(prescriptionValue) || 0;
+  }
+
+  return 0;
+};
+
+const getTotalReceivedValue = (record: any) => {
+  const cash = Number(record?.medication_bill?.cash_amount || 0) || 0;
+  const online = Number(record?.medication_bill?.online_amount || 0) || 0;
+  const splitTotal = Number((cash + online).toFixed(2));
+  if (splitTotal > 0) return splitTotal;
+
+  return getBillAmountValue(record, 'paid_amount');
+};
+
+const getBillPaymentBreakdown = (record: any) => record?.medication_bill?.payment_breakdown || {};
+
+const getBreakdownAmount = (record: any, key: string, fallback = 0) => {
+  const value = getBillPaymentBreakdown(record)?.[key];
+  if (value !== undefined && value !== null && value !== '') {
+    return Number(value) || 0;
+  }
+
+  return fallback;
+};
+
+const getOtherPendingAmount = (record: any) => {
+  const breakdownValue = getBillPaymentBreakdown(record)?.other_pending_amount;
+  if (breakdownValue !== undefined && breakdownValue !== null && breakdownValue !== '') {
+    return Number(breakdownValue) || 0;
+  }
+
+  return Number(record?.account_dues?.total_pending || 0) || 0;
+};
+
+const getAccountPendingAfterThisBill = (record: any) => {
+  const currentPending = getBreakdownAmount(record, 'pending_amount', getBillAmountValue(record, 'pending_amount'));
+  const breakdownValue = getBillPaymentBreakdown(record)?.account_pending_after_this_bill;
+  if (breakdownValue !== undefined && breakdownValue !== null && breakdownValue !== '') {
+    return Number(breakdownValue) || 0;
+  }
+
+  return Number((currentPending + getOtherPendingAmount(record)).toFixed(2));
+};
+
+const getPreviousPendingRemainingAmount = (record: any) => {
+  const settlementRemaining = getBreakdownAmount(record, 'previous_pending_remaining', 0);
+  if (settlementRemaining > 0) return settlementRemaining;
+
+  return getOtherPendingAmount(record);
+};
+
+const formatHistoryDateTime = (value: any) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+
+  return date.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const getPaymentEventTime = (payment: any) => payment?.collected_at || payment?.created_at || null;
+
+const getPaymentEventKey = (payment: any) => {
+  const eventTime = getPaymentEventTime(payment);
+  if (!eventTime) return '';
+  const parsedTime = new Date(eventTime).getTime();
+  const normalizedTime = Number.isNaN(parsedTime) ? String(eventTime) : String(parsedTime);
+
+  return `${normalizedTime}|${String(payment?.payment_mode || '').toUpperCase()}`;
+};
+
 const RepeatMedicineInvoice = ({ record }: { record: any }) => {
   const medicines = record?.prescription?.medications || [];
   const tests = record?.prescription?.tests || [];
@@ -45,121 +135,317 @@ const RepeatMedicineInvoice = ({ record }: { record: any }) => {
   const billNumber = record?.appointment?.auid || record?.bill_number || '-';
   const billDate = record?.appointment?.appointment_date || record?.created_at;
   const isRepeat = Boolean(record?.is_repeat_medicine);
+  const totalAmount = Number(pricing.total_amount || record?.medication_bill?.total_amount || 0);
+  const paidAmount = getBreakdownAmount(record, 'total_paid', getBillAmountValue(record, 'paid_amount'));
+  const pendingAmount = getBreakdownAmount(record, 'pending_amount', getBillAmountValue(record, 'pending_amount'));
+  const otherPendingAmount = getOtherPendingAmount(record);
+  const accountPendingAfterThisBill = getAccountPendingAfterThisBill(record);
+  const previousPendingRemaining = getPreviousPendingRemainingAmount(record);
+  const cashAmount = getBreakdownAmount(record, 'cash_received_at_billing', Number(record?.medication_bill?.cash_amount || 0));
+  const onlineAmount = getBreakdownAmount(record, 'online_received_at_billing', Number(record?.medication_bill?.online_amount || 0));
+  const directReceivedAmount = getBreakdownAmount(record, 'received_at_billing', Number((cashAmount + onlineAmount).toFixed(2)));
+  const payments = Array.isArray(record?.medication_bill?.payments) ? record.medication_bill.payments : [];
+  const directBillPayments = payments.filter((payment: any) => (
+    String(payment?.allocation_kind || 'CURRENT').toUpperCase() !== 'PREVIOUS'
+  ));
+  const incomingLaterPendingReceipts = payments.filter((payment: any) => (
+    String(payment?.allocation_kind || '').toUpperCase() === 'PREVIOUS'
+  ));
+  const previousPendingPaidWithThisBill = Array.isArray(record?.medication_bill?.previous_pending_settlements)
+    ? record.medication_bill.previous_pending_settlements
+    : [];
+  const incomingLaterPendingTotal = getBreakdownAmount(record, 'later_pending_received', incomingLaterPendingReceipts.reduce((sum: number, payment: any) => (
+    sum + Number(payment.amount || 0)
+  ), 0));
+  const previousPendingPaidTotal = getBreakdownAmount(record, 'previous_pending_paid', previousPendingPaidWithThisBill.reduce((sum: number, payment: any) => (
+    sum + Number(payment.amount || 0)
+  ), 0));
+  const paymentTimelineRows = [...directBillPayments, ...incomingLaterPendingReceipts, ...previousPendingPaidWithThisBill];
+  const lastPayment = paymentTimelineRows
+    .filter((payment: any) => getPaymentEventTime(payment))
+    .sort((a: any, b: any) => new Date(getPaymentEventTime(b)).getTime() - new Date(getPaymentEventTime(a)).getTime())[0];
+  const lastPaymentKey = getPaymentEventKey(lastPayment);
+  const lastReceivedAmount = getBreakdownAmount(record, 'last_received_amount', lastPaymentKey
+    ? Math.max(
+      Number(lastPayment?.collection_total_amount || 0),
+      paymentTimelineRows
+        .filter((payment: any) => getPaymentEventKey(payment) === lastPaymentKey)
+        .reduce((sum: number, payment: any) => sum + Number(payment.amount || 0), 0)
+    )
+    : 0);
 
   return (
     <div className="repeat-invoice-print-only hidden bg-white text-gray-900 font-sans p-8">
-      <div className="border-b-2 border-gray-900 pb-4 flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-black uppercase tracking-wide">Dr. Trivedi's Homeopathy</h1>
-          <p className="text-xs font-bold uppercase tracking-widest mt-1">
-            {isRepeat ? 'Repeat Medicine Invoice' : 'Dispensary Invoice'}
-          </p>
-        </div>
-        <div className="text-right text-xs font-bold">
-          <p>Bill No: {billNumber}</p>
-          <p>Date: {billDate ? new Date(billDate).toLocaleDateString('en-GB') : '-'}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-6 py-5 text-sm">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Patient</p>
-          <p className="font-black mt-1">{record?.patient?.full_name || '-'}</p>
-          <p className="font-bold text-gray-600">{record?.patient?.mobile_no || '-'}</p>
-        </div>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Delivery</p>
-          <p className="font-black mt-1">{isRepeat ? deliveryMode : 'Hand Delivery'}</p>
-          {isRepeat && record?.prescription?.delivery_mode === 'COURIER' && (
-            <div className="font-bold text-gray-600 leading-relaxed">
-              <p>{deliveryDetails.courier_address || '-'}</p>
-              {deliveryDetails.tracking_no && <p>Tracking: {deliveryDetails.tracking_no}</p>}
+      <div className="border border-gray-300 shadow-sm">
+        <div className="flex items-stretch justify-between bg-[#f6fbfb]">
+          <div className="flex-1 p-6">
+            <h1 className="text-2xl font-black uppercase tracking-wide text-gray-950">Dr. Trivedi's Homeopathy</h1>
+            <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+              {record?.appointment?.branch_name || 'Homeopathy Clinic'}
+            </p>
+            <p className="mt-4 inline-block border border-[#549E9E] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+              {isRepeat ? 'Repeat Medicine' : 'Dispensary'}
+            </p>
+          </div>
+          <div className="w-72 border-l border-gray-300 bg-white p-6 text-xs font-bold">
+            <p className="mb-4 text-right text-3xl font-black uppercase tracking-widest text-gray-950">Invoice</p>
+            <div className="grid grid-cols-[90px_1fr] gap-y-2">
+              <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Bill No</span>
+              <span className="text-right font-black">{billNumber}</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Date</span>
+              <span className="text-right font-black">{billDate ? new Date(billDate).toLocaleDateString('en-GB') : '-'}</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Status</span>
+              <span className="text-right font-black">{record?.medication_bill?.payment_status || record?.prescription?.payment_status || 'PAID'}</span>
             </div>
-          )}
+          </div>
         </div>
-      </div>
 
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">Item</th>
-            <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">Type</th>
-            <th className="border border-gray-300 px-3 py-2 text-right text-[10px] font-black uppercase tracking-widest">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {medicines.map((medicine: any, index: number) => (
-            <tr key={medicine.consultation_medication_id || index}>
-              <td className="border border-gray-300 px-3 py-2 font-bold">{medicine.medicine_value}</td>
-              <td className="border border-gray-300 px-3 py-2 font-bold">
-                {String(medicine.added_by_role || '').toUpperCase() === 'MEDICAL' ? 'Medical Added' : 'Prescribed'}
-              </td>
-              <td className="border border-gray-300 px-3 py-2 text-right font-black">
-                ₹ {Number(getMedicationPricingAmount(pricing, medicine) || 0).toFixed(2)}
-              </td>
-            </tr>
-          ))}
-          {tests.map((test: any, index: number) => {
-            const isVoided = String(test.dispense_status || '').toUpperCase() === 'VOID';
-            return (
-            <tr key={test.consultation_test_id || index} className={isVoided ? 'text-red-700' : ''}>
-              <td className="border border-gray-300 px-3 py-2 font-bold">
-                {test.test_name}
-                {isVoided && (
-                  <div className="mt-1 text-[10px] font-bold uppercase tracking-widest">
-                    Removed: {test.void_reason || 'No reason given'}
+        <div className="grid grid-cols-2 border-y border-gray-300 text-xs">
+          <div className="border-r border-gray-300 p-5">
+            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Bill To</p>
+            <p className="mt-2 text-base font-black uppercase">{record?.patient?.full_name || '-'}</p>
+            <p className="mt-1 font-bold text-gray-600">{record?.patient?.mobile_no || '-'}</p>
+          </div>
+          <div className="p-5">
+            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Delivery</p>
+            <p className="mt-2 text-base font-black">{isRepeat ? deliveryMode : 'Hand Delivery'}</p>
+            {isRepeat && record?.prescription?.delivery_mode === 'COURIER' && (
+              <div className="mt-1 font-bold text-gray-600 leading-relaxed">
+                <p>{deliveryDetails.courier_address || '-'}</p>
+                {deliveryDetails.tracking_no && <p>Tracking: {deliveryDetails.tracking_no}</p>}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="p-5">
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="bg-[#eaf5f5] text-gray-900">
+                <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">#</th>
+                <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">Item Description</th>
+                <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">Type</th>
+                <th className="border border-gray-300 px-3 py-2 text-right text-[10px] font-black uppercase tracking-widest">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {medicines.map((medicine: any, index: number) => (
+                <tr key={medicine.consultation_medication_id || index}>
+                  <td className="w-12 border border-gray-300 px-3 py-2 font-bold text-gray-500">{index + 1}</td>
+                  <td className="border border-gray-300 px-3 py-2 font-bold">{medicine.medicine_value}</td>
+                  <td className="border border-gray-300 px-3 py-2 font-bold">
+                    {String(medicine.added_by_role || '').toUpperCase() === 'MEDICAL' ? 'Medical Added' : 'Prescribed'}
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2 text-right font-black">
+                    ₹ {Number(getMedicationPricingAmount(pricing, medicine) || 0).toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+              {tests.map((test: any, index: number) => {
+                const isVoided = String(test.dispense_status || '').toUpperCase() === 'VOID';
+                return (
+                <tr key={test.consultation_test_id || index} className={isVoided ? 'text-red-700' : ''}>
+                  <td className="w-12 border border-gray-300 px-3 py-2 font-bold text-gray-500">{medicines.length + index + 1}</td>
+                  <td className="border border-gray-300 px-3 py-2 font-bold">
+                    {test.test_name}
+                    {isVoided && (
+                      <div className="mt-1 text-[10px] font-bold uppercase tracking-widest">
+                        Removed: {test.void_reason || 'No reason given'}
+                      </div>
+                    )}
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2 font-bold">{isVoided ? 'Test / Lab (Removed)' : 'Test / Lab'}</td>
+                  <td className="border border-gray-300 px-3 py-2 text-right font-black">
+                    ₹ {Number(isVoided ? 0 : test.amount || 0).toFixed(2)}
+                  </td>
+                </tr>
+                );
+              })}
+              {courierCharge > 0 && (
+                <tr>
+                  <td className="w-12 border border-gray-300 px-3 py-2 font-bold text-gray-500">{medicines.length + tests.length + 1}</td>
+                  <td className="border border-gray-300 px-3 py-2 font-bold">Courier Charge</td>
+                  <td className="border border-gray-300 px-3 py-2 font-bold">Delivery</td>
+                  <td className="border border-gray-300 px-3 py-2 text-right font-black">₹ {courierCharge.toFixed(2)}</td>
+                </tr>
+              )}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={3} className="border border-gray-300 bg-gray-100 px-3 py-3 text-right font-black uppercase tracking-widest">Total Bill Amount</td>
+                <td className="border border-gray-300 bg-gray-100 px-3 py-3 text-right text-lg font-black">
+                  ₹ {totalAmount.toFixed(2)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div className="mt-5 grid grid-cols-[1fr_300px] gap-8">
+            <div className="text-xs">
+              <h2 className="mb-2 text-[11px] font-black uppercase tracking-widest text-[#0b946f]">Payment Instructions</h2>
+              <p className="font-bold text-gray-500">Payment Mode</p>
+              <p className="mt-1 font-black text-gray-900">
+                Cash ₹ {cashAmount.toFixed(2)} / Online ₹ {onlineAmount.toFixed(2)}
+              </p>
+              {incomingLaterPendingTotal > 0 && (
+                <>
+                  <p className="mt-3 font-bold text-gray-500">Later Pending Received</p>
+                  <p className="mt-1 font-black text-gray-900">₹ {incomingLaterPendingTotal.toFixed(2)}</p>
+                </>
+              )}
+              {pendingAmount > 0 && (
+                <>
+                  <p className="mt-3 font-bold text-orange-600">Still Pending For This Bill</p>
+                  <p className="mt-1 text-lg font-black text-orange-700">₹ {pendingAmount.toFixed(2)}</p>
+                </>
+              )}
+              {previousPendingPaidTotal > 0 && (
+                <>
+                  <p className="mt-3 font-bold text-gray-500">Previous Pending Paid With This Bill</p>
+                  <p className="mt-1 font-black text-gray-900">₹ {previousPendingPaidTotal.toFixed(2)}</p>
+                  <p className="mt-3 font-bold text-orange-600">Previous Pending Remaining</p>
+                  <p className="mt-1 text-lg font-black text-orange-700">₹ {previousPendingRemaining.toFixed(2)}</p>
+                </>
+              )}
+              {otherPendingAmount > 0 && previousPendingPaidTotal <= 0 && (
+                <>
+                  <p className="mt-3 font-bold text-orange-600">Other Pending Bills</p>
+                  <p className="mt-1 text-lg font-black text-orange-700">₹ {otherPendingAmount.toFixed(2)}</p>
+                </>
+              )}
+              {((isRepeat && record?.prescription?.delivery_details?.delivery_remark) || pricing.remark) && (
+                <>
+                  <p className="mt-3 font-bold text-gray-500">Remark</p>
+                  {isRepeat && record?.prescription?.delivery_details?.delivery_remark && (
+                    <p className="mt-1 font-black text-gray-900">{record.prescription.delivery_details.delivery_remark}</p>
+                  )}
+                  {pricing.remark && <p className="mt-1 font-black text-gray-900">{pricing.remark}</p>}
+                </>
+              )}
+            </div>
+
+            <div className="text-xs">
+              <div className="border-y border-[#0b946f] py-3">
+                <div className="flex items-center justify-between py-1">
+                  <span className="font-black">Current Bill Total</span>
+                  <span className="font-black">₹ {totalAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="font-bold text-gray-600">Received At Billing</span>
+                  <span className="font-bold">₹ {directReceivedAmount.toFixed(2)}</span>
+                </div>
+                {incomingLaterPendingTotal > 0 && (
+                  <div className="flex items-center justify-between py-1">
+                    <span className="font-bold text-gray-600">Later Pending Received</span>
+                    <span className="font-bold">₹ {incomingLaterPendingTotal.toFixed(2)}</span>
                   </div>
                 )}
-              </td>
-              <td className="border border-gray-300 px-3 py-2 font-bold">{isVoided ? 'Test / Lab (Removed)' : 'Test / Lab'}</td>
-              <td className="border border-gray-300 px-3 py-2 text-right font-black">
-                ₹ {Number(isVoided ? 0 : test.amount || 0).toFixed(2)}
-              </td>
-            </tr>
-            );
-          })}
-          {courierCharge > 0 && (
-            <tr>
-              <td className="border border-gray-300 px-3 py-2 font-bold">Courier Charge</td>
-              <td className="border border-gray-300 px-3 py-2 font-bold">Delivery</td>
-              <td className="border border-gray-300 px-3 py-2 text-right font-black">₹ {courierCharge.toFixed(2)}</td>
-            </tr>
+                {previousPendingPaidTotal > 0 && (
+                  <div className="flex items-center justify-between py-1">
+                    <span className="font-bold text-gray-600">Previous Pending Paid</span>
+                    <span className="font-bold">₹ {previousPendingPaidTotal.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-[#0b946f] pt-2 mt-1">
+                  <span className="font-black">Total Paid</span>
+                  <span className="font-black">₹ {paidAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="font-bold text-gray-600">
+                    Last Received{lastPayment ? ` (${formatHistoryDateTime(getPaymentEventTime(lastPayment))})` : ''}
+                  </span>
+                  <span className="font-bold">₹ {lastReceivedAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-[#0b946f] pt-2 mt-1">
+                  <span className="font-black">Current Bill Balance Due</span>
+                  <span className={`font-black ${pendingAmount > 0 ? 'text-orange-700' : 'text-gray-900'}`}>
+                    ₹ {pendingAmount.toFixed(2)}
+                  </span>
+                </div>
+                {previousPendingPaidTotal > 0 && (
+                  <div className="flex items-center justify-between py-1">
+                    <span className="font-bold text-gray-600">Previous Pending Remaining</span>
+                    <span className={`font-bold ${previousPendingRemaining > 0 ? 'text-orange-700' : 'text-emerald-700'}`}>
+                      ₹ {previousPendingRemaining.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                {accountPendingAfterThisBill > pendingAmount && (
+                  <div className="flex items-center justify-between border-t border-[#0b946f] pt-2 mt-1">
+                    <span className="font-black">Patient Total Pending</span>
+                    <span className={`font-black ${accountPendingAfterThisBill > 0 ? 'text-orange-700' : 'text-emerald-700'}`}>
+                      ₹ {accountPendingAfterThisBill.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {(directBillPayments.length > 0 || incomingLaterPendingReceipts.length > 0 || previousPendingPaidWithThisBill.length > 0) && (
+            <div className="mt-5">
+              <h2 className="mb-2 text-[11px] font-black uppercase tracking-widest text-gray-900">Payment Timeline</h2>
+              <table className="w-full border-collapse text-[10px]">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 px-2 py-1.5 text-left font-black uppercase tracking-widest">Payment Type</th>
+                    <th className="border border-gray-300 px-2 py-1.5 text-left font-black uppercase tracking-widest">Date / Mode</th>
+                    <th className="border border-gray-300 px-2 py-1.5 text-right font-black uppercase tracking-widest">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {directBillPayments.map((payment: any, index: number) => (
+                    <tr key={`print-payment-${payment.payment_id || index}`}>
+                      <td className="border border-gray-300 px-2 py-1.5 font-bold">Received At Billing</td>
+                      <td className="border border-gray-300 px-2 py-1.5">
+                        {formatHistoryDateTime(payment.collected_at || payment.created_at)} / {payment.payment_mode || '-'}
+                      </td>
+                      <td className="border border-gray-300 px-2 py-1.5 text-right font-black">
+                        ₹ {Number(payment.amount || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                  {incomingLaterPendingReceipts.map((payment: any, index: number) => (
+                    <tr key={`print-incoming-later-pending-${payment.payment_id || index}`}>
+                      <td className="border border-gray-300 px-2 py-1.5 font-bold">Later Pending Received</td>
+                      <td className="border border-gray-300 px-2 py-1.5">
+                        {formatHistoryDateTime(payment.collected_at || payment.created_at)} / {payment.payment_mode || '-'}
+                        {payment.bill_number ? ` / Via ${payment.bill_number}` : ''}
+                      </td>
+                      <td className="border border-gray-300 px-2 py-1.5 text-right font-black">
+                        ₹ {Number(payment.amount || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                  {previousPendingPaidWithThisBill.map((payment: any, index: number) => (
+                    <tr key={`print-previous-pending-paid-${payment.payment_id || index}`}>
+                      <td className="border border-gray-300 px-2 py-1.5 font-bold">Previous Pending Paid</td>
+                      <td className="border border-gray-300 px-2 py-1.5">
+                        {formatHistoryDateTime(payment.collected_at || payment.created_at)} / {payment.payment_mode || '-'}
+                        {payment.bill_number ? ` / Bill ${payment.bill_number}` : ''}
+                        {payment.pending_after !== null && payment.pending_after !== undefined
+                          ? ` / Balance ${Number(payment.pending_after || 0).toFixed(2)}`
+                          : ''}
+                      </td>
+                      <td className="border border-gray-300 px-2 py-1.5 text-right font-black">
+                        ₹ {Number(payment.amount || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colSpan={2} className="border border-gray-300 px-3 py-3 text-right font-black uppercase tracking-widest">Total</td>
-            <td className="border border-gray-300 px-3 py-3 text-right text-lg font-black">
-              ₹ {Number(pricing.total_amount || 0).toFixed(2)}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
 
-      <div className="mt-5 text-xs font-bold text-gray-600">
-        <p>Payment Status: {record?.medication_bill?.payment_status || record?.prescription?.payment_status || 'PAID'}</p>
-        {Number(record?.medication_bill?.pending_amount || record?.prescription?.pending_amount || 0) > 0 && (
-          <p>Pending Amount: ₹ {Number(record?.medication_bill?.pending_amount || record?.prescription?.pending_amount || 0).toFixed(2)}</p>
-        )}
-        {(Number(record?.medication_bill?.cash_amount || 0) > 0 || Number(record?.medication_bill?.online_amount || 0) > 0) && (
-          <p>
-            Payment Mode:
-            {Number(record?.medication_bill?.cash_amount || 0) > 0 ? ` Cash ₹ ${Number(record.medication_bill.cash_amount).toFixed(2)}` : ''}
-            {Number(record?.medication_bill?.cash_amount || 0) > 0 && Number(record?.medication_bill?.online_amount || 0) > 0 ? ' •' : ''}
-            {Number(record?.medication_bill?.online_amount || 0) > 0 ? ` Online ₹ ${Number(record.medication_bill.online_amount).toFixed(2)}` : ''}
-          </p>
-        )}
-        {isRepeat && record?.prescription?.delivery_details?.delivery_remark && (
-          <p>Delivery Remark: {record.prescription.delivery_details.delivery_remark}</p>
-        )}
-        {pricing.remark && <p>Remark: {pricing.remark}</p>}
+          <div className="mt-10 flex justify-between border-t border-gray-300 pt-5 text-xs font-bold">
+            <span>Generated by Medical</span>
+            <span className="text-center">
+              <span className="block h-8"></span>
+              Authorized Signatory
+            </span>
+          </div>
+        </div>
       </div>
-
-      <div className="mt-12 flex justify-between text-xs font-bold">
-        <span>Generated by Medical</span>
-        <span>Authorised Signatory</span>
-      </div>
-
       <style>{`
         @media print {
           body * {
@@ -175,10 +461,13 @@ const RepeatMedicineInvoice = ({ record }: { record: any }) => {
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
+            padding: 10mm !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           @page {
             size: A4;
-            margin: 14mm;
+            margin: 8mm;
           }
         }
       `}</style>
@@ -298,6 +587,14 @@ export default function DispensaryHistory() {
   };
 
   const getDispensaryStatus = (record: any) => {
+    if (getBillAmountValue(record, 'pending_amount') > 0) {
+      return {
+        label: 'Partial Payment',
+        icon: AlertCircle,
+        className: 'bg-orange-50 text-orange-700 border-orange-100',
+      };
+    }
+
     if (record?.is_repeat_medicine) {
       return {
         label: 'Completed',
@@ -330,6 +627,46 @@ export default function DispensaryHistory() {
         <Icon size={11} />
         {status.label}
       </span>
+    );
+  };
+
+  const PaymentColumnSummary = ({ record }: { record: any }) => {
+    const paid = getBreakdownAmount(record, 'total_paid', getBillAmountValue(record, 'paid_amount'));
+    const pending = getBreakdownAmount(record, 'pending_amount', getBillAmountValue(record, 'pending_amount'));
+    const accountPending = getAccountPendingAfterThisBill(record);
+    const laterPendingReceived = getBreakdownAmount(record, 'later_pending_received', 0);
+    const previousPendingPaid = getBreakdownAmount(record, 'previous_pending_paid', 0);
+    const previousPendingRemaining = getPreviousPendingRemainingAmount(record);
+
+    return (
+      <div className="flex flex-col gap-1.5">
+        <PaymentSplitDisplay
+          cashAmount={record.medication_bill?.cash_amount}
+          onlineAmount={record.medication_bill?.online_amount}
+          paymentMode={record.medication_bill?.payment_mode}
+          compact
+        />
+        <div className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-widest">
+          <span className="text-emerald-600">Paid ₹ {paid.toFixed(2)}</span>
+          {pending > 0 ? (
+            <span className="text-orange-600">Pending ₹ {pending.toFixed(2)}</span>
+          ) : (
+            <span className="text-gray-300">No Pending</span>
+          )}
+          {laterPendingReceived > 0 && (
+            <span className="text-blue-600">Later Received ₹ {laterPendingReceived.toFixed(2)}</span>
+          )}
+          {previousPendingPaid > 0 && (
+            <span className="text-blue-600">Prev Paid ₹ {previousPendingPaid.toFixed(2)}</span>
+          )}
+          {previousPendingPaid > 0 && previousPendingRemaining > 0 && (
+            <span className="text-orange-600">Prev Bal ₹ {previousPendingRemaining.toFixed(2)}</span>
+          )}
+          {accountPending > pending && (
+            <span className="text-orange-600">Total Pending ₹ {accountPending.toFixed(2)}</span>
+          )}
+        </div>
+      </div>
     );
   };
 
@@ -388,6 +725,31 @@ export default function DispensaryHistory() {
       </div>
     );
   };
+
+  const selectedPaidAmount = selectedPrescription ? getBreakdownAmount(selectedPrescription, 'total_paid', getBillAmountValue(selectedPrescription, 'paid_amount')) : 0;
+  const selectedPendingAmount = selectedPrescription ? getBreakdownAmount(selectedPrescription, 'pending_amount', getBillAmountValue(selectedPrescription, 'pending_amount')) : 0;
+  const selectedOtherPendingAmount = selectedPrescription ? getOtherPendingAmount(selectedPrescription) : 0;
+  const selectedAccountPendingAfterThisBill = selectedPrescription ? getAccountPendingAfterThisBill(selectedPrescription) : 0;
+  const selectedPreviousPendingRemaining = selectedPrescription ? getPreviousPendingRemainingAmount(selectedPrescription) : 0;
+  const selectedReceivedAtBilling = selectedPrescription ? getBreakdownAmount(selectedPrescription, 'received_at_billing', getTotalReceivedValue(selectedPrescription)) : 0;
+  const selectedPayments = Array.isArray(selectedPrescription?.medication_bill?.payments)
+    ? selectedPrescription.medication_bill.payments
+    : [];
+  const selectedDirectBillPayments = selectedPayments.filter((payment: any) => (
+    String(payment?.allocation_kind || 'CURRENT').toUpperCase() !== 'PREVIOUS'
+  ));
+  const selectedIncomingLaterPendingReceipts = selectedPayments.filter((payment: any) => (
+    String(payment?.allocation_kind || '').toUpperCase() === 'PREVIOUS'
+  ));
+  const selectedLaterPendingReceipts = Array.isArray(selectedPrescription?.medication_bill?.previous_pending_settlements)
+    ? selectedPrescription.medication_bill.previous_pending_settlements
+    : [];
+  const selectedIncomingLaterPendingTotal = selectedPrescription ? getBreakdownAmount(selectedPrescription, 'later_pending_received', selectedIncomingLaterPendingReceipts.reduce((sum: number, payment: any) => (
+    sum + Number(payment.amount || 0)
+  ), 0)) : 0;
+  const selectedPreviousPendingPaidTotal = selectedPrescription ? getBreakdownAmount(selectedPrescription, 'previous_pending_paid', selectedLaterPendingReceipts.reduce((sum: number, payment: any) => (
+    sum + Number(payment.amount || 0)
+  ), 0)) : 0;
 
   return (
     <div className="space-y-8 pb-12">
@@ -484,12 +846,7 @@ export default function DispensaryHistory() {
                   <div className="flex flex-col items-end gap-2">
                     <span className="text-xs font-black text-gray-300">{((page - 1) * 20 + idx + 1).toString().padStart(2, '0')}</span>
                     <DispensaryStatusBadge record={p} />
-                    <PaymentSplitDisplay
-                      cashAmount={p.medication_bill?.cash_amount}
-                      onlineAmount={p.medication_bill?.online_amount}
-                      paymentMode={p.medication_bill?.payment_mode}
-                      compact
-                    />
+                    <PaymentColumnSummary record={p} />
                   </div>
                 </div>
                 
@@ -509,9 +866,9 @@ export default function DispensaryHistory() {
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-gray-50 flex flex-col gap-2">
-                  {p.consultation_id && (
+                  {getValidPrescriptionConsultationId(p) && (
                     <button
-                      onClick={() => openPrescriptionPreview(p.consultation_id)}
+                      onClick={() => openPrescriptionPreview(getValidPrescriptionConsultationId(p))}
                       disabled={isPreviewLoading}
                       className="w-full inline-flex justify-center items-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
                     >
@@ -627,18 +984,13 @@ export default function DispensaryHistory() {
                       <DispensaryStatusBadge record={p} />
                     </td>
                     <td className="px-5 py-4">
-                      <PaymentSplitDisplay
-                        cashAmount={p.medication_bill?.cash_amount}
-                        onlineAmount={p.medication_bill?.online_amount}
-                        paymentMode={p.medication_bill?.payment_mode}
-                        compact
-                      />
+                      <PaymentColumnSummary record={p} />
                     </td>
                     <td className="px-5 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        {p.consultation_id && (
+                        {getValidPrescriptionConsultationId(p) && (
                           <button
-                            onClick={() => openPrescriptionPreview(p.consultation_id)}
+                            onClick={() => openPrescriptionPreview(getValidPrescriptionConsultationId(p))}
                             disabled={isPreviewLoading}
                             className="inline-flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
                           >
@@ -705,9 +1057,9 @@ export default function DispensaryHistory() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {selectedPrescription.consultation_id && (
+                    {getValidPrescriptionConsultationId(selectedPrescription) && (
                       <button
-                        onClick={() => openPrescriptionPreview(selectedPrescription.consultation_id)}
+                        onClick={() => openPrescriptionPreview(getValidPrescriptionConsultationId(selectedPrescription))}
                         disabled={isPreviewLoading}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-colors disabled:bg-gray-200"
                       >
@@ -878,6 +1230,137 @@ export default function DispensaryHistory() {
                           onlineAmount={selectedPrescription.medication_bill?.online_amount}
                           paymentMode={selectedPrescription.medication_bill?.payment_mode}
                         />
+                        {selectedPendingAmount > 0 && (
+                          <div className="mt-4 rounded-xl border border-orange-100 bg-orange-50 p-4">
+                            <div className="flex items-center justify-between gap-4">
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-orange-500">Still Pending For This Bill</p>
+                                <p className="mt-1 text-xs font-bold text-orange-700">
+                                  Baad me payment receive hone ke baad bhi is bill me pending amount bacha hai.
+                                </p>
+                              </div>
+                              <span className="shrink-0 text-xl font-black text-orange-700">
+                                ₹ {selectedPendingAmount.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        <div className="mt-4 grid grid-cols-1 gap-2 rounded-xl border border-gray-100 bg-white p-3">
+                          <div className="flex items-center justify-between text-[11px] font-bold">
+                            <span className="text-gray-500">Paid Amount</span>
+                            <span className="font-black text-emerald-600">
+                              ₹ {selectedPaidAmount.toFixed(2)}
+                            </span>
+                          </div>
+                          {selectedReceivedAtBilling > 0 && (
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                              <span className="text-gray-500">Received At Billing</span>
+                              <span className="font-black text-emerald-600">
+                                ₹ {selectedReceivedAtBilling.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                          {selectedIncomingLaterPendingTotal > 0 && (
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                              <span className="text-gray-500">Later Pending Received</span>
+                              <span className="font-black text-blue-600">
+                                ₹ {selectedIncomingLaterPendingTotal.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                          {selectedPreviousPendingPaidTotal > 0 && (
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                              <span className="text-gray-500">Previous Pending Paid With This Bill</span>
+                              <span className="font-black text-blue-600">
+                                ₹ {selectedPreviousPendingPaidTotal.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                          {selectedPreviousPendingPaidTotal > 0 && (
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                              <span className="text-gray-500">Previous Pending Remaining</span>
+                              <span className={`font-black ${selectedPreviousPendingRemaining > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                ₹ {selectedPreviousPendingRemaining.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                          {selectedOtherPendingAmount > 0 && selectedPreviousPendingPaidTotal <= 0 && (
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                              <span className="text-gray-500">Other Pending Bills</span>
+                              <span className="font-black text-orange-600">
+                                ₹ {selectedOtherPendingAmount.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                            <span className="text-gray-500">Current Bill Pending</span>
+                            <span className={`font-black ${selectedPendingAmount > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                              ₹ {selectedPendingAmount.toFixed(2)}
+                            </span>
+                          </div>
+                          {selectedAccountPendingAfterThisBill > selectedPendingAmount && (
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                              <span className="text-gray-700">Patient Total Pending</span>
+                              <span className={`font-black ${selectedAccountPendingAfterThisBill > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                ₹ {selectedAccountPendingAfterThisBill.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        {(selectedDirectBillPayments.length > 0 || selectedIncomingLaterPendingReceipts.length > 0 || selectedLaterPendingReceipts.length > 0) && (
+                          <div className="mt-4 rounded-xl border border-gray-100 bg-white p-3">
+                            <p className="mb-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">Payment Timeline</p>
+                            <div className="space-y-2">
+                              {selectedDirectBillPayments.map((payment: any, index: number) => (
+                                <div key={`payment-${payment.payment_id || index}`} className="flex items-start justify-between gap-3 border-t border-gray-50 pt-2 first:border-t-0 first:pt-0">
+                                  <div className="min-w-0">
+                                    <p className="text-[11px] font-black text-gray-700">This Bill Received</p>
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">
+                                      {formatHistoryDateTime(payment.collected_at || payment.created_at)} • {payment.payment_mode || '-'}
+                                    </p>
+                                  </div>
+                                  <span className="shrink-0 text-[11px] font-black text-emerald-600">
+                                    ₹ {Number(payment.amount || 0).toFixed(2)}
+                                  </span>
+                                </div>
+                              ))}
+                              {selectedIncomingLaterPendingReceipts.map((payment: any, index: number) => (
+                                <div key={`incoming-later-pending-${payment.payment_id || index}`} className="flex items-start justify-between gap-3 border-t border-gray-50 pt-2 first:border-t-0 first:pt-0">
+                                  <div className="min-w-0">
+                                    <p className="text-[11px] font-black text-gray-700">Later Pending Received</p>
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">
+                                      {formatHistoryDateTime(payment.collected_at || payment.created_at)} • {payment.payment_mode || '-'}
+                                      {payment.settlement_source_bill_number ? ` • Via ${payment.settlement_source_bill_number}` : ''}
+                                      {payment.pending_after !== null && payment.pending_after !== undefined
+                                        ? ` • Balance ₹ ${Number(payment.pending_after || 0).toFixed(2)}`
+                                        : ''}
+                                    </p>
+                                  </div>
+                                  <span className="shrink-0 text-[11px] font-black text-blue-600">
+                                    ₹ {Number(payment.amount || 0).toFixed(2)}
+                                  </span>
+                                </div>
+                              ))}
+                              {selectedLaterPendingReceipts.map((payment: any, index: number) => (
+                                <div key={`later-pending-${payment.payment_id || index}`} className="flex items-start justify-between gap-3 border-t border-gray-50 pt-2 first:border-t-0 first:pt-0">
+                                  <div className="min-w-0">
+                                    <p className="text-[11px] font-black text-gray-700">Previous Pending Paid</p>
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">
+                                      {formatHistoryDateTime(payment.collected_at || payment.created_at)} • {payment.payment_mode || '-'}
+                                      {payment.bill_number ? ` • Bill ${payment.bill_number}` : ''}
+                                      {payment.pending_after !== null && payment.pending_after !== undefined
+                                        ? ` • Balance ₹ ${Number(payment.pending_after || 0).toFixed(2)}`
+                                        : ''}
+                                    </p>
+                                  </div>
+                                  <span className="shrink-0 text-[11px] font-black text-blue-600">
+                                    ₹ {Number(payment.amount || 0).toFixed(2)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="space-y-2">

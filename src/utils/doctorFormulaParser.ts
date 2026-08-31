@@ -221,28 +221,7 @@ export const parseDoctorFormulaInput = (
     };
   }
 
-  const rawCommaItems = splitQuickFormulaCommaItems(source);
-
-  const tokens: string[] = [];
-  let pendingGroupItems: string[] = [];
-
-  rawCommaItems.forEach((item) => {
-    if (item.includes('/')) {
-      if (pendingGroupItems.length > 0) {
-        tokens.push([...pendingGroupItems, item].join(', '));
-        pendingGroupItems = [];
-      } else {
-        tokens.push(item);
-      }
-    } else {
-      pendingGroupItems.push(item);
-    }
-  });
-
-  if (pendingGroupItems.length > 0) {
-    pendingGroupItems.forEach((item) => tokens.push(item));
-    pendingGroupItems = [];
-  }
+  const tokens = splitQuickFormulaCommaItems(source);
 
   const errors: Array<{ raw_token: string; message: string }> = [];
   const warnings: Array<{ raw_token: string; message: string }> = [];
@@ -397,12 +376,12 @@ export const parseDoctorFormulaInput = (
         return;
       }
 
-      const medicineKey = String(medicineNo);
       const medicineValue = buildNumericMedicineStoredValue(medicineNo, powerValue, inlineAlphaRaw);
+      const medicineKey = medicineValue.toLowerCase();
       if (seenMedicineValues.has(medicineKey)) {
         errors.push({
           raw_token: derivedToken,
-          message: `Duplicate medicine number ${medicineKey} is not allowed.`,
+          message: `Duplicate medicine ${medicineValue} is not allowed.`,
         });
         return;
       }

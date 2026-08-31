@@ -1,4 +1,5 @@
 import {
+  buildNumericMedicineStoredValue,
   createNumericMedicineDisplayTokenRe,
   createQuickFormulaMedicineTokenRe,
   splitQuickFormulaCommaItems,
@@ -14,7 +15,8 @@ export const getNumericMedicineAlphaCode = (
     return '';
   }
 
-  const annotation = getQuickFormulaMedicineAnnotationMap(quickFormulaInput)[parsed.medicineNo];
+  const annotation = getQuickFormulaMedicineAnnotationMap(quickFormulaInput)[formatted.toLowerCase()]
+    || getQuickFormulaMedicineAnnotationMap(quickFormulaInput)[parsed.medicineNo];
   return String(parsed.alpha || annotation?.alpha || '').trim().toUpperCase();
 };
 
@@ -227,11 +229,12 @@ const parseNumericMedicineDisplayToken = (value: string) => {
   };
 };
 
-/** Map medicine number → inline alpha / [power] from quick formula (e.g. "12[14],7q/8"). */
+/** Map exact medicine value and safe unique base number → inline alpha / [power] from quick formula (e.g. "12[14],7q/8"). */
 export const getQuickFormulaMedicineAnnotationMap = (
   quickFormulaInput?: string | null,
 ): Record<string, QuickFormulaMedicineAnnotation> => {
   const map: Record<string, QuickFormulaMedicineAnnotation> = {};
+  const byBase: Record<string, { count: number; annotation: QuickFormulaMedicineAnnotation }> = {};
   const source = String(quickFormulaInput || '').trim();
   if (!source) return map;
 
@@ -241,16 +244,20 @@ export const getQuickFormulaMedicineAnnotationMap = (
       const medicineNo = String(Number(match[1]));
       const power = match[2] || match[4] || '';
       const alpha = match[3] || '';
-      if (!map[medicineNo]) {
-        map[medicineNo] = {};
-      }
-      if (power && !map[medicineNo].power) {
-        map[medicineNo].power = power;
-      }
-      if (alpha && !map[medicineNo].alpha) {
-        map[medicineNo].alpha = alpha;
-      }
+      const annotation = { power, alpha };
+      const exactKey = buildNumericMedicineStoredValue(Number(medicineNo), power, alpha).toLowerCase();
+      map[exactKey] = annotation;
+      byBase[medicineNo] = {
+        count: (byBase[medicineNo]?.count || 0) + 1,
+        annotation,
+      };
     });
+  });
+
+  Object.entries(byBase).forEach(([medicineNo, value]) => {
+    if (value.count === 1 && !map[medicineNo]) {
+      map[medicineNo] = value.annotation;
+    }
   });
 
   return map;
@@ -281,7 +288,13 @@ export const formatNumericMedicineWithFormula = (
     return formatted;
   }
 
-  const annotation = getQuickFormulaMedicineAnnotationMap(quickFormulaInput)[parsed.medicineNo];
+  const annotationMap = getQuickFormulaMedicineAnnotationMap(quickFormulaInput);
+  const exactKey = buildNumericMedicineStoredValue(
+    Number(parsed.medicineNo),
+    parsed.power,
+    parsed.alpha,
+  ).toLowerCase();
+  const annotation = annotationMap[exactKey] || annotationMap[parsed.medicineNo];
   const power = parsed.power || annotation?.power || '';
   const alpha = parsed.alpha || annotation?.alpha || '';
 
@@ -497,5 +510,4 @@ export const getPrintedUniversalRemark = (
   if (isHi) return hindi || english;
   return english || hindi;
 };
-
 

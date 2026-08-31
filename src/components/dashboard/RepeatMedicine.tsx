@@ -163,6 +163,7 @@ export default function RepeatMedicine() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [lastPrescription, setLastPrescription] = useState<LastPrescription | null>(null);
+  const [noPreviousPrescriptionMessage, setNoPreviousPrescriptionMessage] = useState('');
   const [selectedMedicineIds, setSelectedMedicineIds] = useState<Record<number, boolean>>({});
   const [medicineAmounts, setMedicineAmounts] = useState<Record<number, string>>({});
   const [additionalMedicines, setAdditionalMedicines] = useState<AdditionalMedicine[]>([]);
@@ -253,6 +254,7 @@ export default function RepeatMedicine() {
     if (!token) return;
     setSelectedPatient(patient);
     setLastPrescription(null);
+    setNoPreviousPrescriptionMessage('');
     setSelectedMedicineIds({});
     setMedicineAmounts({});
     setAdditionalMedicines([]);
@@ -284,6 +286,15 @@ export default function RepeatMedicine() {
       setCashAmount('');
       setOnlineAmount('');
     } catch (error: any) {
+      setNoPreviousPrescriptionMessage(error.message || 'No previous doctor prescription found');
+      setAdditionalMedicines([{ name: '', medicine_value: '', selectedVariant: null, quantity: 1, amount: '', reason: '' }]);
+      setCollectedAmount('');
+      setAllocationOrder('CURRENT_ONLY');
+      setPaymentMode('CASH');
+      setTransactionReference('');
+      setSplitPayment(false);
+      setCashAmount('');
+      setOnlineAmount('');
       addToast(error.message || 'Last prescription not found', 'error');
     } finally {
       setIsLoading(false);
@@ -365,8 +376,8 @@ export default function RepeatMedicine() {
   };
 
   const createRepeatBill = async () => {
-    if (!token || !selectedPatient || !lastPrescription) return;
-    const medicines = (lastPrescription.prescription.medications || [])
+    if (!token || !selectedPatient) return;
+    const medicines = (lastPrescription?.prescription.medications || [])
       .filter((med) => selectedMedicineIds[med.consultation_medication_id])
       .map((med) => ({
         consultation_medication_id: med.consultation_medication_id,
@@ -386,8 +397,8 @@ export default function RepeatMedicine() {
       return;
     }
 
-    if (additional.some((item) => !item.medicine_value || item.amount <= 0 || !item.reason)) {
-      addToast('Medical Added medicine me name, amount aur reason mandatory hai', 'warning');
+    if (additional.some((item) => !item.medicine_value || item.amount <= 0)) {
+      addToast('Medical Added medicine me name aur amount mandatory hai', 'warning');
       return;
     }
 
@@ -396,7 +407,7 @@ export default function RepeatMedicine() {
       return;
     }
 
-    const previousPending = Number(lastPrescription.account_dues?.total_pending || selectedPatient.account_dues?.total_pending || 0);
+    const previousPending = Number(lastPrescription?.account_dues?.total_pending || selectedPatient.account_dues?.total_pending || 0);
     const received = splitPayment
       ? (Number(cashAmount || 0) || 0) + (Number(onlineAmount || 0) || 0)
       : (collectedAmount === '' ? totalAmount : Number(collectedAmount || 0));
@@ -436,7 +447,7 @@ export default function RepeatMedicine() {
         },
         body: JSON.stringify({
           patient_id: selectedPatient.patient_id,
-          source_consultation_id: lastPrescription.prescription.consultation_id,
+          source_consultation_id: lastPrescription?.prescription.consultation_id || null,
           medicines,
           additional_medications: additional,
           remark: remark.trim() || null,
@@ -465,6 +476,7 @@ export default function RepeatMedicine() {
       addToast(`Repeat Medicine bill created: ${result.data?.bill_number || ''}`, 'success');
       setLastPrescription(null);
       setSelectedPatient(null);
+      setNoPreviousPrescriptionMessage('');
       setPatients([]);
       setSearch('');
       setAdditionalMedicines([]);
@@ -481,6 +493,10 @@ export default function RepeatMedicine() {
       setIsSaving(false);
     }
   };
+
+  const activePatient = lastPrescription?.patient || selectedPatient;
+  const activeAccountDues = lastPrescription?.account_dues || selectedPatient?.account_dues;
+  const canShowBillPanel = Boolean(lastPrescription || (selectedPatient && noPreviousPrescriptionMessage));
 
   return (
     <div className="space-y-6 pb-12">
@@ -538,25 +554,28 @@ export default function RepeatMedicine() {
         )}
       </div>
 
-      {lastPrescription && (
+      {canShowBillPanel && activePatient && (
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
           <div className="bg-white border border-gray-200 p-6 shadow-sm space-y-5">
             <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-4">
               <div>
                 <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">
-                  {lastPrescription.patient.full_name}
+                  {activePatient.full_name}
                 </h3>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                  Last prescription: {lastPrescription.prescription.appointment_date} • {lastPrescription.prescription.doctor_name}
+                  {lastPrescription
+                    ? `Last prescription: ${lastPrescription.prescription.appointment_date} • ${lastPrescription.prescription.doctor_name}`
+                    : 'No previous doctor prescription found • Medical Added only'}
                 </p>
               </div>
               <span className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest border border-emerald-100">
-                Doctor Prescription
+                {lastPrescription ? 'Doctor Prescription' : 'Medical Only'}
               </span>
             </div>
 
-            <div className="space-y-3">
-              {(lastPrescription.prescription.medications || []).map((med) => {
+            {lastPrescription ? (
+              <div className="space-y-3">
+                {(lastPrescription.prescription.medications || []).map((med) => {
                 const checked = Boolean(selectedMedicineIds[med.consultation_medication_id]);
                 return (
                   <div key={med.consultation_medication_id} className="grid grid-cols-[auto_1fr_140px] gap-4 items-center border border-gray-100 p-4">
@@ -582,14 +601,24 @@ export default function RepeatMedicine() {
                     />
                   </div>
                 );
-              })}
-            </div>
+                })}
+              </div>
+            ) : (
+              <div className="border border-amber-100 bg-amber-50/50 p-4">
+                <p className="text-xs font-black text-amber-700 uppercase tracking-widest">
+                  Previous prescription available nahi hai
+                </p>
+                <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-widest mt-1">
+                  Is patient ke liye sirf Medical Added medicine add karke bill banega.
+                </p>
+              </div>
+            )}
 
             <div className="border border-amber-100 bg-amber-50/40 p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-black text-amber-700 uppercase tracking-widest">Medical Added</h4>
-                  <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mt-1">Reason mandatory</p>
+                  <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mt-1">Reason optional</p>
                 </div>
                 <button onClick={addAdditionalMedicine} className="px-3 py-2 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                   <Plus size={14} /> Add
@@ -646,7 +675,7 @@ export default function RepeatMedicine() {
                     <input
                       value={item.reason}
                       onChange={(e) => updateAdditionalMedicineField(index, 'reason', e.target.value)}
-                      placeholder="Reason"
+                      placeholder="Reason (optional)"
                       className="bg-white border border-amber-100 px-3 py-2 text-xs font-bold outline-none"
                     />
                     <button onClick={() => removeAdditionalMedicine(index)} className="h-9 bg-white border border-amber-100 text-amber-700 flex items-center justify-center">
@@ -670,7 +699,7 @@ export default function RepeatMedicine() {
 
             <MedicationDuePaymentPanel
               todayAmount={totalAmount}
-              previousBills={(lastPrescription.account_dues?.bills || []) as DueBill[]}
+              previousBills={(activeAccountDues?.bills || []) as DueBill[]}
               collectedAmount={collectedAmount === '' ? money(totalAmount) : collectedAmount}
               onCollectedAmountChange={setCollectedAmount}
               paymentMode={paymentMode}
@@ -762,7 +791,7 @@ export default function RepeatMedicine() {
 
             <div className="flex gap-2 text-[10px] font-bold text-gray-400 leading-relaxed">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              Repeat sirf last doctor prescription ke basis par banega. Medical Added medicine me reason mandatory hai.
+              Repeat sirf last doctor prescription ke basis par banega. Medical Added medicine me reason optional hai.
             </div>
           </div>
         </div>

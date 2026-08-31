@@ -3,11 +3,9 @@ import { AlertCircle, Calendar, ChevronDown, IndianRupee } from 'lucide-react';
 import {
   AllocationOrder,
   DueBill,
-  balanceSplitAmounts,
   formatDueDate,
   formatMoney,
   previewMedicationReceipt,
-  rebalanceSplitOnTotalChange,
 } from '../../utils/medicationDues';
 
 type Props = {
@@ -76,7 +74,9 @@ export default function MedicationDuePaymentPanel({
   const previousPending = previousBills.reduce((sum, bill) => sum + Number(bill.pending_amount || 0), 0);
   const includePrevious = allocationOrder !== 'CURRENT_ONLY' && previousPending > 0;
   const collectTarget = Number((includePrevious ? todayAmount + previousPending : todayAmount).toFixed(2));
-  const received = splitPayment ? collectTarget : (Number(collectedAmount || 0) || 0);
+  const cashReceived = Number(cashAmount || 0) || 0;
+  const onlineReceived = Number(onlineAmount || 0) || 0;
+  const received = splitPayment ? Number((cashReceived + onlineReceived).toFixed(2)) : (Number(collectedAmount || 0) || 0);
   const preview = useMemo(
     () => previewMedicationReceipt({
       receivedAmount: received,
@@ -88,15 +88,13 @@ export default function MedicationDuePaymentPanel({
   );
 
   const moneyValue = (value: number) => Number(Math.max(0, value).toFixed(2)).toFixed(2);
-  const cashReceived = Number(cashAmount || 0) || 0;
-  const onlineReceived = Number(onlineAmount || 0) || 0;
   const lastSplitField = useRef<'cash' | 'online'>('cash');
   const lastCollectTarget = useRef(collectTarget);
 
   const applySplitAmounts = (nextCash: string, nextOnline: string) => {
     onCashAmountChange(nextCash);
     onOnlineAmountChange(nextOnline);
-    onCollectedAmountChange(moneyValue(collectTarget));
+    onCollectedAmountChange(moneyValue((Number(nextCash || 0) || 0) + (Number(nextOnline || 0) || 0)));
   };
 
   useEffect(() => {
@@ -105,17 +103,17 @@ export default function MedicationDuePaymentPanel({
       return;
     }
     const targetChanged = lastCollectTarget.current !== collectTarget;
+    const previousTarget = lastCollectTarget.current;
     lastCollectTarget.current = collectTarget;
     if (!targetChanged) {
       return;
     }
-    const next = rebalanceSplitOnTotalChange({
-      collectTarget,
-      cashAmount: cashReceived,
-      onlineAmount: onlineReceived,
-      prefer: lastSplitField.current,
-    });
-    applySplitAmounts(moneyValue(next.cash), moneyValue(next.online));
+    const wasFullCollection = Math.abs(cashReceived + onlineReceived - previousTarget) < 0.01;
+    if (wasFullCollection) {
+      applySplitAmounts(moneyValue(collectTarget), '0');
+      return;
+    }
+    onCollectedAmountChange(moneyValue(cashReceived + onlineReceived));
   }, [splitPayment, collectTarget]);
 
   const setSplitEdited = (edited: 'cash' | 'online', raw: string) => {
@@ -124,19 +122,14 @@ export default function MedicationDuePaymentPanel({
       return;
     }
     const typed = raw === '' || raw === '.' ? 0 : Number(raw);
-    const next = balanceSplitAmounts({
-      collectTarget,
-      edited,
-      typedAmount: typed,
-    });
+    const normalizedRaw = typed > collectTarget ? moneyValue(collectTarget) : raw;
     if (edited === 'online') {
-      onOnlineAmountChange(typed > collectTarget ? moneyValue(collectTarget) : raw);
-      onCashAmountChange(moneyValue(next.cash));
+      onOnlineAmountChange(normalizedRaw);
+      onCollectedAmountChange(moneyValue(cashReceived + Number(normalizedRaw || 0)));
     } else {
-      onCashAmountChange(typed > collectTarget ? moneyValue(collectTarget) : raw);
-      onOnlineAmountChange(moneyValue(next.online));
+      onCashAmountChange(normalizedRaw);
+      onCollectedAmountChange(moneyValue(Number(normalizedRaw || 0) + onlineReceived));
     }
-    onCollectedAmountChange(moneyValue(collectTarget));
   };
 
   const toggleIncludePrevious = (checked: boolean) => {
@@ -295,10 +288,10 @@ export default function MedicationDuePaymentPanel({
           </div>
           <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
             <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total received</span>
-            <span className="text-sm font-black text-gray-800">{formatMoney(collectTarget)}</span>
+            <span className="text-sm font-black text-gray-800">{formatMoney(received)}</span>
           </div>
           <p className="text-[10px] font-bold leading-snug text-gray-400">
-            Type cash or online — the other amount fills in so both add up to {formatMoney(collectTarget)}.
+            Type cash and online actual received amount. If they pay less, remaining amount stays pending.
           </p>
         </div>
       ) : (

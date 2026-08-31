@@ -42,7 +42,6 @@ import {
   formatNumericMedicineWithFormula,
 } from "../../utils/prescriptionFormat";
 import {
-  getNumericMedicineBaseValue,
   getNumericMedicineDropdownOptions,
   looksLikeNumericMedicineValue,
   parseDoctorFormulaInput,
@@ -2272,13 +2271,13 @@ export default function ConsultationPage() {
     const selectedMedicineValues = new Set(
       medications
         .map((entry, index) =>
-          index === currentIndex ? "" : getNumericMedicineBaseValue(entry.name),
+          index === currentIndex ? "" : String(entry.name || "").trim().toLowerCase(),
         )
         .filter(Boolean),
     );
 
     return getNumericMedicineDropdownOptions().filter(
-      (value) => !selectedMedicineValues.has(value),
+      (value) => !selectedMedicineValues.has(value.toLowerCase()),
     );
   };
 
