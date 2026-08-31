@@ -73,13 +73,15 @@ const looksLikeDropsCategory = (value: string | null | undefined): boolean => {
   return (
     normalized === "DROP" ||
     normalized === "DROPS" ||
-    normalized.includes("DROPS")
+    /\bDROPS?\b/.test(normalized)
   );
 };
 
 export function isDrops30MlSelection(fields: {
   category?: string | null;
   product_type?: string | null;
+  product_name?: string | null;
+  medicine_name?: string | null;
   packing?: string | null;
   size_or_weight?: string | null;
   label?: string | null;
@@ -88,7 +90,9 @@ export function isDrops30MlSelection(fields: {
 
   const isDrops =
     looksLikeDropsCategory(fields.category) ||
-    looksLikeDropsCategory(fields.product_type);
+    looksLikeDropsCategory(fields.product_type) ||
+    looksLikeDropsCategory(fields.product_name) ||
+    looksLikeDropsCategory(fields.medicine_name);
   const is30Ml =
     isThirtyMlPacking(fields.packing) ||
     isThirtyMlPacking(fields.size_or_weight) ||
@@ -176,4 +180,19 @@ export function getMedicationPeriodDates(
     fromDate: formatGbDate(start),
     toDate: formatGbDate(end),
   };
+}
+
+export function getFollowUpDueDate(
+  startDate: string | Date | null | undefined,
+  days: number,
+): string | null {
+  const numericDays = Number(days) || 0;
+  if (!startDate || numericDays <= 0) return null;
+
+  const start = new Date(startDate);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const due = new Date(start);
+  due.setDate(due.getDate() + numericDays);
+  return formatGbDate(due);
 }

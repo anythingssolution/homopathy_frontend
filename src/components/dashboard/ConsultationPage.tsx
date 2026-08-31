@@ -1262,8 +1262,8 @@ export default function ConsultationPage() {
             if (parsedMeds.length > 0) {
               setMedications(parsedMeds);
             }
-            if (otherMeds.length > 0) {
-              setOtherMedications(otherMeds);
+          if (otherMeds.length > 0) {
+              setOtherMedications(otherMeds.map(rehydrateOtherMedEntry));
             }
           }
 
@@ -2111,6 +2111,40 @@ export default function ConsultationPage() {
     ].filter((v) => v.label);
   };
 
+  const resolveOtherMedVariant = (
+    medicineName: string,
+    variant: VariantInfo | null | undefined,
+  ): VariantInfo | null => {
+    if (!variant) return null;
+
+    const medicine = textMedicines.find(
+      (item) => item.medicine_value === medicineName,
+    );
+    const normalizedLabel = String(variant.label || "")
+      .trim()
+      .toLowerCase();
+
+    if (!medicine || !normalizedLabel) {
+      return variant;
+    }
+
+    return (
+      resolveTextMedicineVariants(medicine).find(
+        (item) =>
+          String(item.label || "").trim().toLowerCase() === normalizedLabel,
+      ) || variant
+    );
+  };
+
+  const rehydrateOtherMedEntry = (entry: OtherMedEntry): OtherMedEntry => {
+    const resolvedVariant = resolveOtherMedVariant(
+      entry.name,
+      entry.selectedVariant,
+    );
+
+    return withDropsDurationQuantity(entry, resolvedVariant);
+  };
+
   const getOtherMedProductFields = (
     medicineName: string,
     variant: VariantInfo | null | undefined,
@@ -2120,6 +2154,7 @@ export default function ConsultationPage() {
     const fromVariant = {
       category: variant.category,
       product_type: variant.product_type,
+      medicine_name: medicineName,
       packing: variant.packing,
       size_or_weight: variant.packing,
       label: variant.label,
@@ -2156,6 +2191,8 @@ export default function ConsultationPage() {
     return {
       category: match.category,
       product_type: match.product_type,
+      product_name: match.product_name,
+      medicine_name: medicineName,
       packing: match.packing,
       size_or_weight: match.size_or_weight || match.net_weight_or_size,
       label: variant.label,
@@ -2257,7 +2294,7 @@ export default function ConsultationPage() {
           return entry;
         }
 
-        const updated = withDropsDurationQuantity(entry);
+        const updated = rehydrateOtherMedEntry(entry);
         if (
           String(updated.quantity) !== String(entry.quantity) ||
           updated.amount !== entry.amount
@@ -2357,7 +2394,7 @@ export default function ConsultationPage() {
       );
       setOtherMedications(
         textMedicineDrafts.length > 0
-          ? textMedicineDrafts
+          ? textMedicineDrafts.map(rehydrateOtherMedEntry)
           : [{ name: "", remark: "", amount: "", isManualEntry: false }],
       );
       if (result.data.medication_duration_days) {
@@ -2579,7 +2616,7 @@ export default function ConsultationPage() {
 
     setOtherMedications(
       textMedicineDrafts.length > 0
-        ? textMedicineDrafts
+        ? textMedicineDrafts.map(rehydrateOtherMedEntry)
         : [{ name: "", remark: "", amount: "", isManualEntry: false }],
     );
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Mail, Phone, MapPin, Pill, Activity, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
 import { getMedicationRoleLabel, formatPrescriptionMedicineText, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedNumericFormulaDisplay } from '../utils/prescriptionFormat';
-import { formatPrintDurationLabel, getMedicationPeriodDates } from '../utils/medicationDuration';
+import { formatPrintDurationLabel, getFollowUpDueDate, getMedicationPeriodDates } from '../utils/medicationDuration';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
 
 interface PrescriptionPrintProps {
@@ -52,6 +52,10 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
   const medicationPeriod = getMedicationPeriodDates(
     appointment.appointment_date || appointment.details?.appointment_date || consultation.created_at,
     durationDays,
+  );
+  const followUpDueDate = getFollowUpDueDate(
+    appointment.appointment_date || appointment.details?.appointment_date || consultation.created_at,
+    consultation.follow_up_after_days || appointment.details?.follow_up_after_days || durationDays,
   );
   const repeatMonths = Number(
     consultation.repeat_months ?? appointment.details?.repeat_months ?? 0,
@@ -222,8 +226,8 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
               {/* Clinical Details & Prescriptions Card (Matches AllVisitsPrint UI) */}
               <div className="border border-gray-200 rounded-lg p-3 bg-white shadow-xs mt-2 page-break-inside-avoid">
                 {/* Visit Header Banner */}
-                <div className="flex items-center justify-between border-b border-gray-200 pb-2 mb-2 bg-[#1a2b4c]/5 -mx-3 -mt-3 p-2.5 rounded-t-lg">
-                  <div className="flex items-center gap-2 text-[10px]">
+                <div className="flex items-start justify-between gap-3 border-b border-gray-200 pb-2 mb-2 bg-[#1a2b4c]/5 -mx-3 -mt-3 p-2.5 rounded-t-lg">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[9px] leading-tight min-w-0">
                     <span className="font-bold text-[#1a2b4c]">
                       {appointment.appointment_date ? new Date(appointment.appointment_date).toLocaleDateString('en-GB', {
                         day: '2-digit',
@@ -237,7 +241,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                       </span>
                     )}
                     {durationLabel && (
-                      <span className="px-1.5 py-0.5 rounded-xs border border-[#549E9E]/30 bg-white text-[#549E9E] font-black uppercase tracking-wider whitespace-nowrap">
+                      <span className="px-1.5 py-0.5 rounded-xs border border-[#549E9E]/25 bg-white text-[#549E9E] font-black uppercase tracking-wider whitespace-nowrap">
                         {isHi ? 'अवधि' : 'DURATION'} {durationLabel}
                       </span>
                     )}
@@ -246,17 +250,14 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                         {medicationPeriod.fromDate} – {medicationPeriod.toDate}
                       </span>
                     )}
-                    {repeatSameBlocks.map((block) => (
-                      <span
-                        key={block.key}
-                        className="px-1.5 py-0.5 rounded-xs border border-[#549E9E]/30 bg-white text-[#549E9E] font-black uppercase tracking-wider"
-                      >
-                        {block.label} {block.value}
+                    {followUpDueDate && !consultation.follow_up_chain_closed && (
+                      <span className="px-1.5 py-0.5 rounded-xs border border-red-100 bg-white text-red-500 font-black uppercase tracking-wider whitespace-nowrap">
+                        {isHi ? 'अगला फॉलो-अप' : 'NEXT FOLLOW-UP'} {followUpDueDate}
                       </span>
-                    ))}
+                    )}
                   </div>
-                  <div className="flex items-center gap-3 shrink-0 text-right">
-                    <span className="text-[10px] font-black uppercase tracking-wider">
+                  <div className="shrink-0 text-right pt-0.5">
+                    <span className="text-[9px] font-black uppercase tracking-wider whitespace-nowrap">
                       <span className="text-black">{modeLabel}</span>{' '}
                       <span className="text-[#549E9E]">{consultationModeValue}</span>
                     </span>
@@ -292,17 +293,17 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
 
                     {repeatSameBlocks.length > 0 && (
                       <div
-                        className="grid gap-4"
+                        className="grid gap-2 rounded-md border border-[#549E9E]/15 bg-[#549E9E]/[0.03] p-2"
                         style={{
                           gridTemplateColumns: `repeat(${repeatSameBlocks.length}, minmax(0, 1fr))`,
                         }}
                       >
                         {repeatSameBlocks.map((block) => (
                           <div key={block.key}>
-                            <h3 className="text-[9px] font-black text-[#549E9E] uppercase tracking-wider mb-1 border-b border-[#549E9E]/20 pb-0.5">
+                            <h3 className="text-[8px] font-black text-[#549E9E] uppercase tracking-wider mb-0.5">
                               {block.label}
                             </h3>
-                            <div className="text-[10px] font-bold text-gray-800 leading-tight">
+                            <div className="text-[10px] font-black text-gray-800 leading-tight">
                               {block.value}
                             </div>
                           </div>
