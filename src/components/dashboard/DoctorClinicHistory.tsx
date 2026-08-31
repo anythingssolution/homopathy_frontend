@@ -1229,6 +1229,14 @@ export default function DoctorClinicHistory() {
                                                   {test.amount != null
                                                     ? `• ₹${Number(test.amount).toFixed(2)}`
                                                     : ""}
+                                                  {test.finding_text ? (
+                                                    <span className="block text-[10px] font-medium text-[#549E9E] mt-1">
+                                                      {test.finding_text}
+                                                      {test.finding_notes
+                                                        ? ` — ${test.finding_notes}`
+                                                        : ""}
+                                                    </span>
+                                                  ) : null}
                                                 </span>
                                               ))}
                                             </div>
@@ -1312,6 +1320,41 @@ export default function DoctorClinicHistory() {
                                 </p>
                               </div>
                             )}
+                          </div>
+                        </div>
+                      )}
+
+                      {tests.length > 0 && (
+                        <div className="bg-white border border-[#549E9E]/10 rounded-2xl p-5 shadow-sm space-y-3">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+                            {t("consultation_modal.tests", "Tests")}
+                          </label>
+                          <div className="space-y-2">
+                            {tests.map((test: any) => (
+                              <div
+                                key={test.consultation_test_id}
+                                className="border border-gray-100 rounded-xl px-3 py-2.5 bg-gray-50/70"
+                              >
+                                <p className="text-xs font-black text-gray-800">
+                                  {test.test_name}
+                                </p>
+                                {test.finding_text ? (
+                                  <p className="mt-1 text-[11px] font-bold text-gray-700 whitespace-pre-wrap">
+                                    {test.finding_text}
+                                    {test.finding_notes
+                                      ? ` — ${test.finding_notes}`
+                                      : ""}
+                                  </p>
+                                ) : (
+                                  <p className="mt-1 text-[11px] font-medium text-gray-400">
+                                    {t(
+                                      "consultation_modal.no_lab_findings_yet",
+                                      "No lab findings recorded yet.",
+                                    )}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         </div>
                       )}

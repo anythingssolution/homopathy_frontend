@@ -511,3 +511,15 @@ export const getPrintedUniversalRemark = (
   return english || hindi;
 };
 
+export const getPrintedTestFinding = (test: any) => {
+  const findingText = String(test?.finding_text || '').trim();
+  const findingNotes = String(test?.finding_notes || '').trim();
+  if (!findingText && !findingNotes) {
+    return null;
+  }
+  return {
+    findingText,
+    findingNotes,
+  };
+};
+

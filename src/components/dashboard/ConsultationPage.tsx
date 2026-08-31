@@ -215,8 +215,12 @@ type LabTestMaster = {
 
 type TestEntry = {
   master_test_id?: number | null;
+  consultation_test_id?: number | null;
   test_name: string;
   amount: string;
+  finding_text?: string;
+  finding_notes?: string;
+  dispense_status?: string;
 };
 
 type SuggestionDosage = {
@@ -834,6 +838,7 @@ export default function ConsultationPage() {
 
   const [isPatientEditOpen, setIsPatientEditOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingFindings, setIsSavingFindings] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [isEditingCompletedConsultation, setIsEditingCompletedConsultation] =
@@ -1271,11 +1276,17 @@ export default function ConsultationPage() {
             setTests(
               c.tests.map((test: any) => ({
                 master_test_id: null,
+                consultation_test_id: test.consultation_test_id
+                  ? Number(test.consultation_test_id)
+                  : null,
                 test_name: test.test_name || "",
                 amount:
                   test.amount !== undefined && test.amount !== null
                     ? String(test.amount)
                     : "",
+                finding_text: test.finding_text || "",
+                finding_notes: test.finding_notes || "",
+                dispense_status: test.dispense_status || "ACTIVE",
               })),
             );
           }
@@ -3008,6 +3019,96 @@ export default function ConsultationPage() {
     setConsultationReloadKey((key) => key + 1);
   };
 
+  const persistedTests = tests.filter(
+    (test) => Number(test.consultation_test_id) > 0,
+  );
+  const canSaveTestFindings = isCompletedConsultation && persistedTests.length > 0;
+
+  const handleSaveTestFindings = async () => {
+    if (!canSaveTestFindings || isSavingFindings) return;
+    const appointmentKey = currentApp?.appointment_id || appointmentId;
+    if (!appointmentKey) return;
+
+    const payloadFindings = persistedTests.map((test) => ({
+      consultation_test_id: Number(test.consultation_test_id),
+      finding_text: String(test.finding_text || "").trim(),
+      notes: String(test.finding_notes || "").trim(),
+    }));
+
+    const invalidNotes = payloadFindings.find(
+      (item) => item.notes && !item.finding_text,
+    );
+    if (invalidNotes) {
+      addToast(
+        t(
+          "consultation_modal.finding_text_required",
+          "Enter the lab finding before adding notes.",
+        ),
+        "warning",
+      );
+      return;
+    }
+
+    setIsSavingFindings(true);
+    try {
+      const response = await fetch(
+        `/api/v1/doctors/consultations/${appointmentKey}/test-findings`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ findings: payloadFindings }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message ||
+            t(
+              "consultation_modal.lab_findings_save_failed",
+              "Could not save lab findings",
+            ),
+        );
+      }
+      const savedTests = result.data?.consultation?.tests;
+      if (Array.isArray(savedTests)) {
+        setTests(
+          savedTests.map((test: any) => ({
+            master_test_id: null,
+            consultation_test_id: test.consultation_test_id
+              ? Number(test.consultation_test_id)
+              : null,
+            test_name: test.test_name || "",
+            amount:
+              test.amount !== undefined && test.amount !== null
+                ? String(test.amount)
+                : "",
+            finding_text: test.finding_text || "",
+            finding_notes: test.finding_notes || "",
+            dispense_status: test.dispense_status || "ACTIVE",
+          })),
+        );
+      }
+      addToast(
+        t("consultation_modal.lab_findings_saved", "Lab findings saved"),
+        "success",
+      );
+    } catch (err: any) {
+      addToast(
+        err?.message ||
+          t(
+            "consultation_modal.lab_findings_save_failed",
+            "Could not save lab findings",
+          ),
+        "error",
+      );
+    } finally {
+      setIsSavingFindings(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pt-6 pb-12 consultation-form-override">
       {currentApp && (
@@ -3585,6 +3686,11 @@ export default function ConsultationPage() {
                                             {test.amount != null
                                               ? `• ₹${Number(test.amount).toFixed(2)}`
                                               : ""}
+                                            {test.finding_text ? (
+                                              <span className="block text-[9px] font-medium text-[#549E9E] mt-0.5">
+                                                {test.finding_text}
+                                              </span>
+                                            ) : null}
                                           </span>
                                         ),
                                       )}
@@ -5920,6 +6026,108 @@ export default function ConsultationPage() {
             })}
           </div>
         </div>
+
+        {canSaveTestFindings && (
+          <div className="space-y-2.5 bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-3.5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 pb-2 border-b border-indigo-200/50">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-2">
+                  <ClipboardList size={14} />{" "}
+                  {t("consultation_modal.lab_findings", "Lab findings")}
+                </label>
+                <p className="mt-1 text-[11px] font-medium text-gray-500 leading-snug">
+                  {t(
+                    "consultation_modal.lab_findings_hint",
+                    "When the patient returns with an outside report, record what the test showed. This does not change billing or medical dispensing.",
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveTestFindings}
+                disabled={isSavingFindings}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-[#549E9E] text-white hover:bg-[#438787] transition-all text-[9.5px] font-black uppercase tracking-wider rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                {isSavingFindings ? (
+                  <RefreshCcw size={13} className="animate-spin" />
+                ) : (
+                  <CheckCircle2 size={13} />
+                )}
+                {isSavingFindings
+                  ? t("consultation_modal.saving", "Saving...")
+                  : t("consultation_modal.save_lab_findings", "Save lab findings")}
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {persistedTests.map((test) => {
+                const testIndex = tests.findIndex(
+                  (item) =>
+                    Number(item.consultation_test_id) ===
+                    Number(test.consultation_test_id),
+                );
+                const isVoided =
+                  String(test.dispense_status || "").toUpperCase() === "VOID";
+                return (
+                  <div
+                    key={test.consultation_test_id}
+                    className="bg-white border border-indigo-100 rounded-xl p-3 space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-black text-gray-800">
+                        {test.test_name}
+                      </p>
+                      {isVoided && (
+                        <span className="px-2 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-100 text-[8px] font-black uppercase tracking-widest">
+                          {t(
+                            "consultation_modal.not_billed_outside",
+                            "Not billed (removed by medical)",
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    <textarea
+                      value={test.finding_text || ""}
+                      onChange={(e) => {
+                        if (testIndex < 0) return;
+                        const updated = [...tests];
+                        updated[testIndex] = {
+                          ...updated[testIndex],
+                          finding_text: e.target.value,
+                        };
+                        setTests(updated);
+                      }}
+                      rows={2}
+                      placeholder={t(
+                        "consultation_modal.finding_placeholder",
+                        "e.g. Vitamin D deficiency",
+                      )}
+                      className="w-full resize-none rounded-lg border border-[#549E9E]/20 bg-[#549E9E]/[0.03] p-2.5 text-xs font-bold text-gray-800 outline-none focus:border-[#549E9E] focus:bg-white"
+                    />
+                    <textarea
+                      value={test.finding_notes || ""}
+                      onChange={(e) => {
+                        if (testIndex < 0) return;
+                        const updated = [...tests];
+                        updated[testIndex] = {
+                          ...updated[testIndex],
+                          finding_notes: e.target.value,
+                        };
+                        setTests(updated);
+                      }}
+                      rows={2}
+                      placeholder={t(
+                        "consultation_modal.finding_notes_placeholder",
+                        "Optional notes from the report",
+                      )}
+                      className="w-full resize-none rounded-lg border border-gray-200 bg-gray-50/70 p-2.5 text-[11px] font-medium text-gray-700 outline-none focus:border-[#549E9E] focus:bg-white"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Unified Sticky Bottom Footer (Total Amount + Confirm Button) */}
         {!isReadOnly && (

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Activity, Mail, Phone, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
-import { getMedicationRoleLabel, formatPrescriptionMedicineText, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedNumericFormulaDisplay } from '../utils/prescriptionFormat';
+import { getMedicationRoleLabel, formatPrescriptionMedicineText, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedNumericFormulaDisplay, getPrintedTestFinding } from '../utils/prescriptionFormat';
 import { formatPrintDurationLabel, getFollowUpDueDate, getMedicationPeriodDates } from '../utils/medicationDuration';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
 
@@ -402,11 +402,20 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                   {isHi ? "अनुशंसित जांचें (टेस्ट)" : "Recommended Tests"}
                                 </h4>
                                 <div className="space-y-0.5">
-                                  {tests.map((test: any, idx: number) => (
+                                  {tests.map((test: any, idx: number) => {
+                                    const finding = getPrintedTestFinding(test);
+                                    return (
                                     <div key={idx} className="text-[10px] font-bold text-gray-700">
-                                      {test.test_name}
+                                      <div>{test.test_name}</div>
+                                      {finding && (
+                                        <div className="text-[8px] font-medium text-gray-600 leading-tight">
+                                          {isHi ? 'जाँच निष्कर्ष' : 'Lab findings'}: {finding.findingText}
+                                          {finding.findingNotes ? ` — ${finding.findingNotes}` : ''}
+                                        </div>
+                                      )}
                                     </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
