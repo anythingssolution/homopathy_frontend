@@ -1,7 +1,7 @@
 import { getLocalDateString } from '../../../utils/date';
 import { parseIsoDate, type CustomRange } from '../reports-next/lib';
 
-export type WorkTab = 'attention' | 'visits' | 'practice';
+export type WorkTab = 'attention' | 'visits' | 'practice' | 'consultants' | 'morning' | 'evening' | 'earnings';
 export type AgeingFilter = 'all' | 'week' | 'month' | 'older';
 
 export type VisitRow = {
@@ -206,8 +206,61 @@ export const topMedicines = (value: any, limit = 8) => {
     .slice(0, limit);
 };
 
+export const sessionBundle = (value: any): { morning: any[]; evening: any[] } => {
+  if (Array.isArray(value)) return { morning: value, evening: [] };
+  return {
+    morning: Array.isArray(value?.morning) ? value.morning : [],
+    evening: Array.isArray(value?.evening) ? value.evening : [],
+  };
+};
+
+const addNum = (row: any, key: string) => Number(row?.[key] || 0);
+
+export const mergeConsultants = (rows: any[]) => {
+  const map = new Map<string, any>();
+  rows.forEach((row) => {
+    const key = String(row.doctor_id || row.doctor_name || 'unknown');
+    const current = map.get(key) || {
+      doctor_id: row.doctor_id,
+      doctor_name: row.doctor_name || 'Unassigned',
+      total_consultations: 0,
+      consultation_revenue: 0,
+      medication_revenue: 0,
+      test_lab_revenue: 0,
+      courier_revenue: 0,
+      total_gross_revenue: 0,
+      total_paid_revenue: 0,
+      total_pending_revenue: 0,
+    };
+    current.total_consultations += addNum(row, 'total_consultations');
+    current.consultation_revenue += addNum(row, 'consultation_revenue');
+    current.medication_revenue += addNum(row, 'medication_revenue');
+    current.test_lab_revenue += addNum(row, 'test_lab_revenue');
+    current.courier_revenue += addNum(row, 'courier_revenue');
+    current.total_gross_revenue += addNum(row, 'total_gross_revenue');
+    current.total_paid_revenue += addNum(row, 'total_paid_revenue');
+    current.total_pending_revenue += addNum(row, 'total_pending_revenue');
+    map.set(key, current);
+  });
+  return Array.from(map.values()).sort((a, b) => b.total_gross_revenue - a.total_gross_revenue);
+};
+
+export const mergeMedicines = (rows: any[]) => {
+  const map = new Map<string, { name: string; qty: number; gross: number; bills: number }>();
+  rows.forEach((row) => {
+    const name = String(row.medicine_name || '').trim() || '—';
+    const current = map.get(name) || { name, qty: 0, gross: 0, bills: 0 };
+    current.qty += addNum(row, 'total_quantity_sold');
+    current.gross += addNum(row, 'gross_revenue');
+    current.bills += addNum(row, 'total_bills');
+    map.set(name, current);
+  });
+  return Array.from(map.values()).sort((a, b) => b.gross - a.gross);
+};
+
 export const consultantTotals = (value: any) => {
-  const rows = sessionRows(value);
+  const bundle = sessionBundle(value);
+  const rows = [...bundle.morning, ...bundle.evening];
   const sum = (key: string) => rows.reduce((total, row) => total + Number(row?.[key] || 0), 0);
   return {
     consults: sum('total_consultations'),
@@ -218,8 +271,8 @@ export const consultantTotals = (value: any) => {
     gross: sum('total_gross_revenue'),
     paid: sum('total_paid_revenue'),
     pending: sum('total_pending_revenue'),
-    morningGross: (value?.morning || []).reduce((total: number, row: any) => total + Number(row.total_gross_revenue || 0), 0),
-    eveningGross: (value?.evening || []).reduce((total: number, row: any) => total + Number(row.total_gross_revenue || 0), 0),
+    morningGross: bundle.morning.reduce((total, row) => total + Number(row.total_gross_revenue || 0), 0),
+    eveningGross: bundle.evening.reduce((total, row) => total + Number(row.total_gross_revenue || 0), 0),
   };
 };
 

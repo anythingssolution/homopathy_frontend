@@ -8,6 +8,7 @@ import AppointmentTokenBadge from '../../AppointmentTokenBadge';
 import { FilterDropdown } from '../doctor-reports/components/FilterDropdown';
 import { fetchReportModule, type CustomRange } from '../reports-next/lib';
 import VisitDrawer from './VisitDrawer';
+import { ConsultantsPanel, EarningsPanel, MixBar, SessionPanel } from './BreakdownPanels';
 import {
   consultantTotals,
   daysBetween,
@@ -368,12 +369,16 @@ export default function BillsNext() {
           { id: 'attention', label: t('bills_next.tab_attention'), count: cockpit.dueCount },
           { id: 'visits', label: t('bills_next.tab_visits'), count: cockpit.visitCount },
           { id: 'practice', label: t('bills_next.tab_practice') },
+          { id: 'consultants', label: t('bills_next.tab_consultants') },
+          { id: 'morning', label: t('bills_next.tab_morning') },
+          { id: 'evening', label: t('bills_next.tab_evening') },
+          { id: 'earnings', label: t('bills_next.tab_earnings') },
         ] as const).map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setTab(item.id)}
-            className={`cursor-pointer px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest border transition-all ${
+            className={`cursor-pointer px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
               tab === item.id
                 ? 'bg-[#549E9E] border-[#549E9E] text-white'
                 : 'bg-white border-gray-200 text-slate-500 hover:border-[#549E9E]/30'
@@ -385,7 +390,7 @@ export default function BillsNext() {
         ))}
       </div>
 
-      {tab !== 'practice' && (
+      {(tab === 'attention' || tab === 'visits') && (
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
           <input
@@ -569,7 +574,7 @@ export default function BillsNext() {
             </div>
           )}
         </div>
-      ) : (
+      ) : tab === 'practice' ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="rounded-2xl border border-gray-100 bg-white p-5 space-y-4">
             <div>
@@ -607,6 +612,14 @@ export default function BillsNext() {
             )}
           </div>
         </div>
+      ) : tab === 'consultants' ? (
+        <ConsultantsPanel consultant={reports?.revenue_by_consultant} />
+      ) : tab === 'morning' ? (
+        <SessionPanel slot="morning" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} />
+      ) : tab === 'evening' ? (
+        <SessionPanel slot="evening" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} />
+      ) : (
+        <EarningsPanel consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} />
       )}
 
       <VisitDrawer
@@ -640,37 +653,6 @@ const Metric = ({
     {sub && <p className="mt-1 text-[11px] font-semibold text-slate-500">{sub}</p>}
   </div>
 );
-
-const MixBar = ({
-  label,
-  value,
-  max,
-  tone = 'teal',
-}: {
-  label: string;
-  value: number;
-  max: number;
-  tone?: 'teal' | 'violet' | 'amber' | 'sky';
-}) => {
-  const colors = {
-    teal: 'bg-[#549E9E]',
-    violet: 'bg-violet-500',
-    amber: 'bg-amber-500',
-    sky: 'bg-sky-500',
-  };
-  const width = Number(value || 0) <= 0 ? 0 : Math.max(4, Math.round((Number(value || 0) / Math.max(max, 1)) * 100));
-  return (
-    <div className="mb-3 last:mb-0">
-      <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1">
-        <span>{label}</span>
-        <span className="font-black text-slate-800">{money(value)}</span>
-      </div>
-      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-        <div className={`h-full rounded-full ${colors[tone]}`} style={{ width: `${width}%` }} />
-      </div>
-    </div>
-  );
-};
 
 const MiniStat = ({ label, value }: { label: string; value: string }) => (
   <div className="rounded-xl border border-gray-100 bg-slate-50/70 px-3 py-3">
