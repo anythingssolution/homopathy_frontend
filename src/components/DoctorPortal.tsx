@@ -4,7 +4,7 @@ import {
   Clock, Users, Search, CheckCircle2, Calendar, History,
   RefreshCcw, AlertCircle, MapPin, Stethoscope, Tag,
   XCircle, ChevronDown, ChevronLeft, ChevronRight, Copy, Check, User, Phone, Mail,
-  FileText, Filter, Ticket, Hash, UserCheck, UserX, X, Pill, Plus, Trash2, Minus, PhoneForwarded, Layout, WandSparkles, MessageSquare, Settings
+  FileText, Filter, Ticket, Hash, UserCheck, UserX, X, Pill, Plus, Trash2, Minus, PhoneForwarded, Layout, WandSparkles, MessageSquare, Settings, Pencil
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -84,6 +84,11 @@ type DoctorAppointment = {
   family_member_gender?: string | null;
   family_member_description?: string | null;
   primary_patient_full_name?: string | null;
+  consultation_id?: number | null;
+  edit_access?: {
+    can_edit_before_dispense?: boolean;
+    edit_lock_reason?: string | null;
+  } | null;
 };
 
 const isTerminalDoctorQueueItem = (appointment: DoctorAppointment) =>
@@ -815,6 +820,25 @@ export default function DoctorPortal() {
     }
   };
 
+  const canEditConsultationBeforeDispense = (app: DoctorAppointment) => (
+    app.status.toLowerCase() === 'completed' &&
+    Boolean(app.edit_access?.can_edit_before_dispense)
+  );
+
+  const openConsultationEdit = (app: DoctorAppointment) => {
+    if (!canEditConsultationBeforeDispense(app)) {
+      triggerCustomAlert(app.edit_access?.edit_lock_reason || 'This consultation can no longer be edited', 'warning');
+      return;
+    }
+
+    navigate(`/consult/${app.appointment_id}`, {
+      state: {
+        app,
+        startEdit: true,
+      },
+    });
+  };
+
   // Call Next Ready Token
   const handleCallNext = async () => {
     if (isCallingNext) return;
@@ -1448,16 +1472,28 @@ export default function DoctorPortal() {
                         </div>
                       )}
                       {['pending', 'confirmed', 'completed'].includes(app.status.toLowerCase()) && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); openConsultation(app); }}
-                          disabled={startingConsultationId === app.appointment_id}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm active:scale-95 ${startingConsultationId === app.appointment_id ? 'opacity-60 cursor-wait' : ''} ${app.status.toLowerCase() === 'completed'
-                              ? 'bg-blue-500 shadow-blue-500/20'
-                              : 'bg-[#549E9E] shadow-[#549E9E]/20'
-                            }`}
-                        >
-                          <Stethoscope size={12} />{startingConsultationId === app.appointment_id ? 'Starting...' : (app.status.toLowerCase() === 'completed' ? 'View' : 'Consult')}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {canEditConsultationBeforeDispense(app) && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openConsultationEdit(app); }}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-100 bg-amber-50 text-amber-600 shadow-sm transition-all active:scale-95"
+                              title="Edit before medical dispensing"
+                              aria-label="Edit prescription"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openConsultation(app); }}
+                            disabled={startingConsultationId === app.appointment_id}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm active:scale-95 ${startingConsultationId === app.appointment_id ? 'opacity-60 cursor-wait' : ''} ${app.status.toLowerCase() === 'completed'
+                                ? 'bg-blue-500 shadow-blue-500/20'
+                                : 'bg-[#549E9E] shadow-[#549E9E]/20'
+                              }`}
+                          >
+                            <Stethoscope size={12} />{startingConsultationId === app.appointment_id ? 'Starting...' : (app.status.toLowerCase() === 'completed' ? 'View' : 'Consult')}
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1630,16 +1666,28 @@ export default function DoctorPortal() {
                       </td>
                       <td className="px-4 py-4 text-center">
                         {['pending', 'confirmed', 'completed'].includes(app.status.toLowerCase()) && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); openConsultation(app); }}
-                            disabled={startingConsultationId === app.appointment_id}
-                            className={`inline-flex items-center gap-2 px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg ${startingConsultationId === app.appointment_id ? 'opacity-60 cursor-wait' : 'cursor-pointer'} ${app.status.toLowerCase() === 'completed'
-                              ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20'
-                              : 'bg-[#549E9E] hover:bg-[#438787] shadow-[#549E9E]/20'
-                              }`}
-                          >
-                            <Stethoscope size={14} /> {startingConsultationId === app.appointment_id ? 'Starting...' : (app.status.toLowerCase() === 'completed' ? 'View' : 'Consult')}
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                            {canEditConsultationBeforeDispense(app) && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openConsultationEdit(app); }}
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-100 bg-amber-50 text-amber-600 shadow-sm transition-all hover:bg-amber-100 hover:shadow-md"
+                                title="Edit before medical dispensing"
+                                aria-label="Edit prescription"
+                              >
+                                <Pencil size={15} />
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openConsultation(app); }}
+                              disabled={startingConsultationId === app.appointment_id}
+                              className={`inline-flex items-center gap-2 px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg ${startingConsultationId === app.appointment_id ? 'opacity-60 cursor-wait' : 'cursor-pointer'} ${app.status.toLowerCase() === 'completed'
+                                ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20'
+                                : 'bg-[#549E9E] hover:bg-[#438787] shadow-[#549E9E]/20'
+                                }`}
+                            >
+                              <Stethoscope size={14} /> {startingConsultationId === app.appointment_id ? 'Starting...' : (app.status.toLowerCase() === 'completed' ? 'View' : 'Consult')}
+                            </button>
+                          </div>
                         )}
                       </td>
 

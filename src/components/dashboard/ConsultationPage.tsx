@@ -669,6 +669,8 @@ export default function ConsultationPage() {
   } = useDoctorFormulaMaster();
 
   const app = state?.app;
+  const shouldStartInEditMode = Boolean(state?.startEdit);
+  const startEditAppliedForRef = useRef<number | null>(null);
   const [appointmentDetail, setAppointmentDetail] = useState<any | null>(
     app || null,
   );
@@ -850,6 +852,7 @@ export default function ConsultationPage() {
     setIsEditingCompletedConsultation(false);
     setCanEditBeforeDispense(false);
     setEditLockReason(null);
+    startEditAppliedForRef.current = null;
     setAppointmentDetail(stateAppMatchesRoute ? app : null);
   }, [appointmentId, stateAppMatchesRoute, app]);
   const isFollowUpVisit = useMemo(() => {
@@ -1277,7 +1280,23 @@ export default function ConsultationPage() {
             );
           }
 
-          setIsReadOnly(true);
+          const loadedAppointmentId = Number(
+            c.appointment_id || currentApp?.appointment_id || appointmentId,
+          );
+          const shouldEnableRequestedEdit =
+            shouldStartInEditMode &&
+            Boolean(editAccess.can_edit_before_dispense);
+
+          if (shouldEnableRequestedEdit) {
+            if (startEditAppliedForRef.current !== loadedAppointmentId) {
+              startEditAppliedForRef.current = loadedAppointmentId;
+              addToast("Editing enabled until medical dispensing starts", "info");
+            }
+            setIsEditingCompletedConsultation(true);
+            setIsReadOnly(false);
+          } else {
+            setIsReadOnly(true);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -1295,7 +1314,7 @@ export default function ConsultationPage() {
     } else {
       fetchConsultation();
     }
-  }, [app, appointmentId, navigate, token, currentApp?.status, consultationReloadKey]);
+  }, [app, appointmentId, navigate, token, currentApp?.status, consultationReloadKey, shouldStartInEditMode, addToast]);
 
   useEffect(() => {
     if (followUpChain.length === 0) {

@@ -150,6 +150,27 @@ export const splitQuickFormulaCommaItems = (source: string): string[] => {
   return items;
 };
 
+const groupQuickFormulaSuffixItems = (items: string[]): string[] => {
+  const grouped: string[] = [];
+  let pendingPlainItems: string[] = [];
+
+  items.forEach((item) => {
+    const trimmed = String(item || "").trim();
+    if (!trimmed) return;
+
+    if (trimmed.includes("/")) {
+      grouped.push([...pendingPlainItems, trimmed].join(","));
+      pendingPlainItems = [];
+      return;
+    }
+
+    pendingPlainItems.push(trimmed);
+  });
+
+  grouped.push(...pendingPlainItems);
+  return grouped;
+};
+
 export const getNumericMedicineDropdownOptions = (): string[] =>
   Array.from(
     { length: NUMERIC_MEDICINE_MAX - NUMERIC_MEDICINE_MIN + 1 },
@@ -221,7 +242,7 @@ export const parseDoctorFormulaInput = (
     };
   }
 
-  const tokens = splitQuickFormulaCommaItems(source);
+  const tokens = groupQuickFormulaSuffixItems(splitQuickFormulaCommaItems(source));
 
   const errors: Array<{ raw_token: string; message: string }> = [];
   const warnings: Array<{ raw_token: string; message: string }> = [];
