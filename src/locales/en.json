@@ -793,6 +793,14 @@
       "status": "Status",
       "payment": "Payment",
       "action": "Action"
+    },
+    "actions": {
+      "edit": "Edit",
+      "view": "View",
+      "consult": "Consult",
+      "lab_findings": "Lab findings",
+      "lab_short": "Lab",
+      "starting": "Wait"
     }
   },
   "staff_access": {

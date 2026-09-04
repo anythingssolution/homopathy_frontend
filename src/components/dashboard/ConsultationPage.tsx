@@ -674,7 +674,9 @@ export default function ConsultationPage() {
 
   const app = state?.app;
   const shouldStartInEditMode = Boolean(state?.startEdit);
+  const shouldFocusLabFindings = Boolean(state?.focusLabFindings);
   const startEditAppliedForRef = useRef<number | null>(null);
+  const labFindingsLoadWasActiveRef = useRef(false);
   const [appointmentDetail, setAppointmentDetail] = useState<any | null>(
     app || null,
   );
@@ -3023,6 +3025,30 @@ export default function ConsultationPage() {
     (test) => Number(test.consultation_test_id) > 0,
   );
   const canSaveTestFindings = isCompletedConsultation && persistedTests.length > 0;
+
+  useEffect(() => {
+    labFindingsLoadWasActiveRef.current = false;
+  }, [appointmentId]);
+
+  useEffect(() => {
+    const finishedLoad = labFindingsLoadWasActiveRef.current && !isLoading;
+    labFindingsLoadWasActiveRef.current = isLoading;
+    if (!shouldFocusLabFindings || !finishedLoad) return;
+
+    const timer = window.setTimeout(() => {
+      const section = document.getElementById("lab-findings");
+      if (section) {
+        section.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      addToast(
+        t("consultation_modal.no_tests_prescribed", "No tests prescribed."),
+        "info",
+      );
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [shouldFocusLabFindings, isLoading, canSaveTestFindings, addToast, t]);
 
   const handleSaveTestFindings = async () => {
     if (!canSaveTestFindings || isSavingFindings) return;
@@ -6028,7 +6054,10 @@ export default function ConsultationPage() {
         </div>
 
         {canSaveTestFindings && (
-          <div className="space-y-2.5 bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-3.5 shadow-sm">
+          <div
+            id="lab-findings"
+            className="space-y-2.5 bg-indigo-50/60 border border-indigo-200/80 rounded-2xl p-3.5 shadow-sm scroll-mt-28"
+          >
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 pb-2 border-b border-indigo-200/50">
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-2">

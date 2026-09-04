@@ -4,7 +4,7 @@ import {
   Clock, Users, Search, CheckCircle2, Calendar, History,
   RefreshCcw, AlertCircle, MapPin, Stethoscope, Tag,
   XCircle, ChevronDown, ChevronLeft, ChevronRight, Copy, Check, User, Phone, Mail,
-  FileText, Filter, Ticket, Hash, UserCheck, UserX, X, Pill, Plus, Trash2, Minus, PhoneForwarded, Layout, WandSparkles, MessageSquare, Settings, Pencil
+  FileText, Filter, Ticket, Hash, UserCheck, UserX, X, Pill, Plus, Trash2, Minus, PhoneForwarded, Layout, WandSparkles, MessageSquare, Settings, Pencil, FlaskConical
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -839,6 +839,75 @@ export default function DoctorPortal() {
     });
   };
 
+  const openLabFindings = (app: DoctorAppointment) => {
+    navigate(`/consult/${app.appointment_id}`, {
+      state: {
+        app,
+        focusLabFindings: true,
+      },
+    });
+  };
+
+  const stackedActionClass =
+    'inline-flex flex-col items-center justify-center gap-px w-12 min-w-12 h-11 shrink-0 rounded-lg px-0.5 py-1 text-[7px] font-black uppercase tracking-wide leading-none text-center transition-all';
+
+  const renderAppointmentActions = (app: DoctorAppointment) => {
+    if (!['pending', 'confirmed', 'completed'].includes(app.status.toLowerCase())) {
+      return null;
+    }
+
+    const isCompleted = app.status.toLowerCase() === 'completed';
+    const isStarting = startingConsultationId === app.appointment_id;
+    const primaryLabel = isStarting
+      ? t('doctor_portal.actions.starting', 'Wait')
+      : isCompleted
+        ? t('doctor_portal.actions.view', 'View')
+        : t('doctor_portal.actions.consult', 'Consult');
+
+    return (
+      <div className="inline-flex flex-nowrap items-stretch justify-center gap-1">
+        {canEditConsultationBeforeDispense(app) && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); openConsultationEdit(app); }}
+            className={`${stackedActionClass} border border-amber-100 bg-amber-50 text-amber-700 hover:bg-amber-100`}
+            title={t('doctor_portal.actions.edit', 'Edit')}
+          >
+            <Pencil size={12} />
+            <span>{t('doctor_portal.actions.edit', 'Edit')}</span>
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); openConsultation(app); }}
+          disabled={isStarting}
+          className={`${stackedActionClass} text-white ${isStarting ? 'opacity-60 cursor-wait' : 'cursor-pointer'} ${
+            isCompleted
+              ? 'bg-blue-500 hover:bg-blue-600 shadow-sm shadow-blue-500/20'
+              : 'bg-[#549E9E] hover:bg-[#438787] shadow-sm shadow-[#549E9E]/20'
+          }`}
+          title={primaryLabel}
+        >
+          <Stethoscope size={12} />
+          <span>{primaryLabel}</span>
+        </button>
+        {isCompleted && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); openLabFindings(app); }}
+            className={`${stackedActionClass} cursor-pointer text-white bg-indigo-500 hover:bg-indigo-600 shadow-sm shadow-indigo-500/20`}
+            title={t('consultation_modal.lab_findings', 'Lab findings')}
+          >
+            <FlaskConical size={12} />
+            <span>
+              {t('doctor_portal.actions.lab_short', 'Lab')}
+            </span>
+          </button>
+        )}
+      </div>
+    );
+  };
+
   // Call Next Ready Token
   const handleCallNext = async () => {
     if (isCallingNext) return;
@@ -1472,28 +1541,7 @@ export default function DoctorPortal() {
                         </div>
                       )}
                       {['pending', 'confirmed', 'completed'].includes(app.status.toLowerCase()) && (
-                        <div className="flex items-center gap-2">
-                          {canEditConsultationBeforeDispense(app) && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openConsultationEdit(app); }}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-100 bg-amber-50 text-amber-600 shadow-sm transition-all active:scale-95"
-                              title="Edit before medical dispensing"
-                              aria-label="Edit prescription"
-                            >
-                              <Pencil size={13} />
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); openConsultation(app); }}
-                            disabled={startingConsultationId === app.appointment_id}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 text-white text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-sm active:scale-95 ${startingConsultationId === app.appointment_id ? 'opacity-60 cursor-wait' : ''} ${app.status.toLowerCase() === 'completed'
-                                ? 'bg-blue-500 shadow-blue-500/20'
-                                : 'bg-[#549E9E] shadow-[#549E9E]/20'
-                              }`}
-                          >
-                            <Stethoscope size={12} />{startingConsultationId === app.appointment_id ? 'Starting...' : (app.status.toLowerCase() === 'completed' ? 'View' : 'Consult')}
-                          </button>
-                        </div>
+                        renderAppointmentActions(app)
                       )}
                     </div>
                   </div>
@@ -1550,7 +1598,7 @@ export default function DoctorPortal() {
                   <th className="px-4 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">{t('doctor_portal.table.date_slot', 'Date & Slot')}</th>
                   <th className="px-4 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">{t('doctor_portal.table.status', 'Status')}</th>
                   <th className="px-4 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">{t('doctor_portal.table.payment', 'Payment')}</th>
-                  <th className="px-4 py-4 text-xs font-black text-gray-800 uppercase tracking-widest text-center">{t('doctor_portal.table.action', 'Action')}</th>
+                  <th className="px-2 py-4 text-xs font-black text-gray-800 uppercase tracking-widest text-center w-[11rem] min-w-[11rem]">{t('doctor_portal.table.action', 'Action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -1664,31 +1712,8 @@ export default function DoctorPortal() {
                           <span className="text-[10px] text-gray-300 font-bold">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-4 text-center">
-                        {['pending', 'confirmed', 'completed'].includes(app.status.toLowerCase()) && (
-                          <div className="flex items-center justify-center gap-2">
-                            {canEditConsultationBeforeDispense(app) && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); openConsultationEdit(app); }}
-                                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-amber-100 bg-amber-50 text-amber-600 shadow-sm transition-all hover:bg-amber-100 hover:shadow-md"
-                                title="Edit before medical dispensing"
-                                aria-label="Edit prescription"
-                              >
-                                <Pencil size={15} />
-                              </button>
-                            )}
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openConsultation(app); }}
-                              disabled={startingConsultationId === app.appointment_id}
-                              className={`inline-flex items-center gap-2 px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg ${startingConsultationId === app.appointment_id ? 'opacity-60 cursor-wait' : 'cursor-pointer'} ${app.status.toLowerCase() === 'completed'
-                                ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20'
-                                : 'bg-[#549E9E] hover:bg-[#438787] shadow-[#549E9E]/20'
-                                }`}
-                            >
-                              <Stethoscope size={14} /> {startingConsultationId === app.appointment_id ? 'Starting...' : (app.status.toLowerCase() === 'completed' ? 'View' : 'Consult')}
-                            </button>
-                          </div>
-                        )}
+                      <td className="px-1.5 py-2 text-center w-[11rem] min-w-[11rem]">
+                        {renderAppointmentActions(app)}
                       </td>
 
                     </motion.tr>

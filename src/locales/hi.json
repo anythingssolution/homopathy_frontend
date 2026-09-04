@@ -777,6 +777,14 @@
       "status": "स्थिति",
       "payment": "भुगतान",
       "action": "कार्रवाई"
+    },
+    "actions": {
+      "edit": "संपादन",
+      "view": "देखें",
+      "consult": "परामर्श",
+      "lab_findings": "जाँच निष्कर्ष",
+      "lab_short": "जाँच",
+      "starting": "रुकें"
     }
   },
   "staff_access": {
