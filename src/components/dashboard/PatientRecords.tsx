@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertCircle,
@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useLocation, useSearchParams } from "react-router-dom";
 import CustomDatePicker from "../CustomDatePicker";
 import Pagination from "../Pagination";
 import PrescriptionPrint from "../PrescriptionPrint";
@@ -168,8 +169,14 @@ const getSecondaryDetail = (item: TimelineItem) => {
 export default function PatientRecords() {
   const { t } = useTranslation();
   const { token, user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const incomingSearch = String(
+    searchParams.get("search") || (location.state as { patientSearch?: string } | null)?.patientSearch || "",
+  ).trim();
+  const incomingPatientId = String(searchParams.get("patient_id") || (location.state as { patientId?: string | number } | null)?.patientId || "").trim();
   const [patients, setPatients] = useState<PatientRegistryRow[]>([]);
-  const [patientSearch, setPatientSearch] = useState("");
+  const [patientSearch, setPatientSearch] = useState(incomingSearch);
   const [patientPage, setPatientPage] = useState(1);
   const [patientTotalPages, setPatientTotalPages] = useState(1);
   const [patientTotal, setPatientTotal] = useState(0);
@@ -199,6 +206,8 @@ export default function PatientRecords() {
   const [isAllVisitsLoading, setIsAllVisitsLoading] = useState(false);
   const [allVisitsLang, setAllVisitsLang] = useState<'en' | 'hi'>('en');
   const [printAfterAllVisitsLoad, setPrintAfterAllVisitsLoad] = useState(false);
+  const openedFromQuery = useRef(false);
+  const lastIncomingQuery = useRef("");
 
   const fetchPatients = useCallback(async (pageNum = patientPage) => {
     if (!token) return;
@@ -297,6 +306,28 @@ export default function PatientRecords() {
     }, 350);
     return () => clearTimeout(timer);
   }, [patientSearch]);
+
+  useEffect(() => {
+    const nextSearch = String(searchParams.get("search") || "").trim();
+    const queryKey = `${nextSearch}|${searchParams.get("patient_id") || ""}`;
+    if (!queryKey.replace("|", "") || queryKey === lastIncomingQuery.current) return;
+    lastIncomingQuery.current = queryKey;
+    openedFromQuery.current = false;
+    if (nextSearch) setPatientSearch(nextSearch);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (openedFromQuery.current || isRegistryLoading || selectedPatient) return;
+    if (!incomingSearch && !incomingPatientId) return;
+    const match = incomingPatientId
+      ? patients.find((row) => String(row.patient_id) === incomingPatientId)
+      : patients.length === 1
+        ? patients[0]
+        : undefined;
+    if (!match) return;
+    openedFromQuery.current = true;
+    void fetchPatientDetail(match);
+  }, [patients, isRegistryLoading, selectedPatient, incomingSearch, incomingPatientId]);
 
   useEffect(() => {
     if (selectedPatient) fetchHistory(historyPage);

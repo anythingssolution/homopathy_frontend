@@ -9,6 +9,7 @@ import { useReviewDate } from '../ReviewDateContext';
 import { fetchReportModule, parseIsoDate } from '../lib';
 
 const COLORS = ['#549E9E', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6', '#EC4899'];
+const PAGE_SIZE = 8;
 
 type PatientRow = {
   key: string;
@@ -90,6 +91,7 @@ export default function DiagnosisPage() {
   const { dateFilter, setDateFilter, customDateRange, setCustomDateRange, range } = useReviewDate();
   const [history, setHistory] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [openKey, setOpenKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -124,6 +126,14 @@ export default function DiagnosisPage() {
         .includes(q),
     );
   }, [groups, search]);
+
+  useEffect(() => {
+    setPage(1);
+    setOpenKey('');
+  }, [search, dateFilter, range.from, range.to]);
+
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const slice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const labeledConsults = groups.reduce((sum, group) => sum + group.consults, 0);
   const uniquePatients = new Set(
@@ -214,7 +224,7 @@ export default function DiagnosisPage() {
               </p>
             ) : (
               <div className="divide-y divide-slate-50">
-                {filtered.map((group) => {
+                {slice.map((group) => {
                   const open = openKey === group.key;
                   const share = labeledConsults > 0 ? Math.round((group.consults / labeledConsults) * 100) : 0;
                   return (
@@ -299,6 +309,35 @@ export default function DiagnosisPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+            {pages > 1 && (
+              <div className="no-print flex items-center justify-between gap-2 px-4 py-3 border-t border-slate-50">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  {t('reports_next.window.showing', {
+                    from: (page - 1) * PAGE_SIZE + 1,
+                    to: Math.min(page * PAGE_SIZE, filtered.length),
+                    total: filtered.length,
+                  })}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={page === 1}
+                    onClick={() => setPage((p) => p - 1)}
+                    className="cursor-pointer text-xs font-black uppercase text-[#549E9E] disabled:opacity-40"
+                  >
+                    {t('reports_next.prev')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={page === pages}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="cursor-pointer text-xs font-black uppercase text-[#549E9E] disabled:opacity-40"
+                  >
+                    {t('reports_next.next')}
+                  </button>
+                </div>
               </div>
             )}
           </div>

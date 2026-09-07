@@ -23,10 +23,26 @@ export const localIsoDate = (value: Date) => {
 };
 
 export const parseIsoDate = (value: unknown): Date | null => {
-  const raw = String(value || '').slice(0, 10);
-  const [year, month, day] = raw.split('-').map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  const dayPart = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!dayPart) return null;
+
+  // Datetimes must use the local calendar day. UTC "2026-09-06T18:30:00Z" is
+  // 7 Sept midnight in India — slicing YYYY-MM-DD would wrongly show yesterday.
+  if (/T|\s|Z/i.test(raw.slice(10))) {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+    }
+  }
+
+  return new Date(Number(dayPart[1]), Number(dayPart[2]) - 1, Number(dayPart[3]));
 };
 
 const startOfLocalDay = (value = new Date()) => {
@@ -56,7 +72,7 @@ export const rangeForFollowUpFilter = (dateFilter: string, custom: CustomRange):
     return { from: localIsoDate(today), to: localIsoDate(today) };
   }
   if (dateFilter === '1_week') {
-    to.setDate(to.getDate() + 7);
+    to.setDate(to.getDate() + 6);
   } else if (dateFilter === '1_month') {
     to.setMonth(to.getMonth() + 1);
   } else if (dateFilter.endsWith('_months') || dateFilter.endsWith('_month')) {
@@ -184,6 +200,89 @@ export const consultRateFromDaily = (rows: any[] | undefined) => {
     completed,
     rate: total > 0 ? Math.round((completed / total) * 100) : 0,
   };
+};
+
+export const REPORT_WINDOWS = [
+  'overdue',
+  'today',
+  '1_week',
+  '1_month',
+  '2_months',
+  '3_months',
+  '6_months',
+  '1_year',
+  '2_years',
+  '3_years',
+  'custom',
+] as const;
+
+export const parseReportWindow = (value: string | null | undefined, fallback: string) => {
+  const raw = String(value || '').trim();
+  return REPORT_WINDOWS.includes(raw as (typeof REPORT_WINDOWS)[number]) ? raw : fallback;
+};
+
+export const nowCardHref = (path: string, window: string) =>
+  `${path}?window=${encodeURIComponent(window)}&from=now`;
+
+const DUE_WINDOW_KEYS: Record<string, string> = {
+  overdue: 'reports_next.follow_ups.filter_overdue',
+  today: 'reports_next.follow_ups.filter_today',
+  '1_week': 'reports_next.follow_ups.filter_week',
+  '1_month': 'reports_next.follow_ups.filter_month',
+  '2_months': 'reports_next.follow_ups.filter_2_months',
+  '3_months': 'reports_next.follow_ups.filter_3_months',
+  '6_months': 'reports_next.follow_ups.filter_6_months',
+  '1_year': 'reports_next.follow_ups.filter_1_year',
+  '2_years': 'reports_next.follow_ups.filter_2_years',
+  '3_years': 'reports_next.follow_ups.filter_3_years',
+  custom: 'reports_next.custom',
+};
+
+const HISTORY_WINDOW_KEYS: Record<string, string> = {
+  today: 'reports_next.today',
+  '1_week': 'reports_next.one_week',
+  '1_month': 'reports_next.one_month',
+  '2_months': 'reports_next.two_months',
+  '3_months': 'reports_next.last_three_months',
+  '6_months': 'reports_next.six_months',
+  '1_year': 'reports_next.one_year',
+  '2_years': 'reports_next.two_years',
+  '3_years': 'reports_next.three_years',
+  custom: 'reports_next.custom',
+};
+
+export const reportWindowLabelKey = (id: string, mode: 'due' | 'history' = 'history') => {
+  const map = mode === 'due' ? DUE_WINDOW_KEYS : HISTORY_WINDOW_KEYS;
+  return map[id] || 'reports_next.selected_period';
+};
+
+export const formatReportWindowLabel = (
+  translate: (key: string) => string,
+  dateFilter: string,
+  custom: CustomRange,
+  dateLocale: string,
+  mode: 'due' | 'history' = 'history',
+) => {
+  if (dateFilter === 'custom' && custom.from && custom.to) {
+    const fmt = (iso: string) => {
+      const date = parseIsoDate(iso);
+      return date ? date.toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' }) : iso;
+    };
+    return `${fmt(custom.from)} – ${fmt(custom.to)}`;
+  }
+  return translate(reportWindowLabelKey(dateFilter, mode));
+};
+
+export const patientRecordsHref = (item: {
+  patient_mobile_no?: unknown;
+  patient_full_name?: unknown;
+  fk_patient_id?: unknown;
+}) => {
+  const search = String(item.patient_mobile_no || item.patient_full_name || '').trim();
+  if (!search) return '';
+  const params = new URLSearchParams({ search });
+  if (item.fk_patient_id) params.set('patient_id', String(item.fk_patient_id));
+  return `/patient-records?${params.toString()}`;
 };
 
 export const rupee = (value: unknown) =>

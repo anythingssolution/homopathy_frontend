@@ -7,6 +7,7 @@ import {
   consultRateFromDaily,
   fetchReportModule,
   isoDate,
+  nowCardHref,
   rangeForFilter,
   rangeForFollowUpFilter,
   rupee,
@@ -18,6 +19,8 @@ type Tile = {
   to: string;
   label: string;
   hint: string;
+  window: string;
+  windowTone: string;
   value: string;
   icon: React.ElementType;
   tone: string;
@@ -92,41 +95,51 @@ export default function TodayPage() {
   const delta = thisRate - lastRate;
   const tiles: Tile[] = [
     {
-      to: '/reports-next/appointments',
+      to: nowCardHref('/reports-next/appointments', 'today'),
       label: t('reports_next.today_page.pending_visits'),
       hint: t('reports_next.today_page.pending_visits_hint'),
+      window: t('reports_next.window.today'),
+      windowTone: 'bg-rose-500 text-white',
       value: String(pendingVisits),
       icon: CalendarCheck,
       tone: 'border-rose-100 bg-rose-50/60',
     },
     {
-      to: '/reports-next/follow-ups',
+      to: nowCardHref('/reports-next/follow-ups', '3_months'),
       label: t('reports_next.today_page.follow_ups'),
       hint: t('reports_next.today_page.follow_ups_hint'),
+      window: t('reports_next.window.next_3_months'),
+      windowTone: 'bg-amber-500 text-white',
       value: String(followUps),
       icon: ClipboardList,
       tone: 'border-amber-100 bg-amber-50/60',
     },
     {
-      to: '/reports-next/first-consults',
+      to: nowCardHref('/reports-next/first-consults', 'today'),
       label: t('reports_next.today_page.first_consults'),
       hint: t('reports_next.today_page.first_consults_hint'),
+      window: t('reports_next.window.today'),
+      windowTone: 'bg-sky-500 text-white',
       value: String(firstConsults),
       icon: UserPlus,
       tone: 'border-sky-100 bg-sky-50/60',
     },
     {
-      to: '/reports-next/collections',
+      to: nowCardHref('/reports-next/collections', '3_months'),
       label: t('reports_next.today_page.unpaid'),
       hint: t('reports_next.today_page.unpaid_hint', { amount: rupee(unpaidAmount) }),
+      window: t('reports_next.window.last_3_months'),
+      windowTone: 'bg-red-500 text-white',
       value: String(unpaidCount),
       icon: Banknote,
       tone: 'border-red-100 bg-red-50/50',
     },
     {
-      to: '/reports-next/dispensary',
+      to: nowCardHref('/reports-next/dispensary', '3_months'),
       label: t('reports_next.today_page.ready_rx'),
       hint: t('reports_next.today_page.ready_rx_hint'),
+      window: t('reports_next.window.last_3_months'),
+      windowTone: 'bg-[#2d8789] text-white',
       value: String(readyRx),
       icon: Pill,
       tone: 'border-[#549E9E]/20 bg-[#e7f5f4]',
@@ -178,10 +191,10 @@ export default function TodayPage() {
                   to={tile.to}
                   className={`rounded-2xl border p-5 transition hover:-translate-y-0.5 ${tile.tone}`}
                 >
-                  <div className="flex items-center justify-between">
-                    <Icon size={18} className="text-[#2d8789]" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                      {t('reports_next.today_page.open')}
+                  <div className="flex items-start justify-between gap-2">
+                    <Icon size={18} className="text-[#2d8789] shrink-0 mt-0.5" />
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-widest shadow-sm ${tile.windowTone}`}>
+                      {tile.window}
                     </span>
                   </div>
                   <p className="mt-4 text-4xl font-black text-slate-900">{tile.value}</p>

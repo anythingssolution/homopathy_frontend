@@ -18,6 +18,8 @@ interface SummaryMetricCardProps {
     label: string;
   };
   subtitle?: string;
+  formula?: { value: number; label: string; className: string }[];
+  formulaResultLabel?: string;
   sparkline?: number[];
   progress?: number;
   delay?: number;
@@ -94,6 +96,8 @@ export const SummaryMetricCard: React.FC<SummaryMetricCardProps> = ({
   theme,
   trend,
   subtitle,
+  formula,
+  formulaResultLabel,
   sparkline,
   progress,
   delay = 0,
@@ -104,60 +108,95 @@ export const SummaryMetricCard: React.FC<SummaryMetricCardProps> = ({
   const sparkMax = Math.max(...chartData.map((point) => point.value), 0);
   const TrendIcon = trend?.direction === 'up' ? ArrowUp : trend?.direction === 'down' ? ArrowDown : ArrowRight;
   const clampedProgress = Math.max(0, Math.min(100, progress ?? 0));
-  const footer = trend?.label || subtitle;
   const hasChart = typeof progress === 'number' || Boolean(sparkline && sparkline.length > 0);
+  const showSubtitle = Boolean(!formula?.length && subtitle && subtitle !== trend?.label);
+  const showTrend = Boolean(!formula?.length && trend?.label);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className={`flex min-h-[76px] items-center justify-between gap-3 overflow-visible px-4 py-3 rounded-2xl border shadow-sm ${styles.card}`}
+      className={`flex flex-col justify-center min-h-[76px] gap-1 px-4 py-3 rounded-2xl border shadow-sm overflow-hidden ${styles.card}`}
     >
-      <div className="flex items-center gap-2 min-w-0">
-        <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${styles.iconWrap}`}>
-          <Icon size={14} className={styles.icon} />
+      <div className="flex items-center justify-between gap-3 w-full min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${styles.iconWrap}`}>
+            <Icon size={14} className={styles.icon} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-gray-500 leading-tight truncate">{title}</p>
+            <p className="text-lg font-black text-gray-900 leading-none mt-0.5">{value}</p>
+            {showSubtitle && (
+              <p className="mt-0.5 text-[10px] leading-tight font-semibold text-gray-500">{subtitle}</p>
+            )}
+            {showTrend && (
+              <p className={`mt-0.5 text-[10px] leading-tight font-semibold flex items-center gap-1 ${toneClass[trend!.tone]}`}>
+                <TrendIcon size={10} className="shrink-0" />
+                <span>{trend!.label}</span>
+              </p>
+            )}
+          </div>
         </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium text-gray-500 leading-tight">{title}</p>
-          <p className="text-lg font-black text-gray-900 leading-none mt-0.5">{value}</p>
-          {footer && (
-            <p className={`mt-0.5 text-[10px] leading-tight font-semibold flex items-center gap-1 ${trend ? toneClass[trend.tone] : 'text-gray-500'}`}>
-              {trend && <TrendIcon size={10} className="shrink-0" />}
-              <span>{footer}</span>
-            </p>
-          )}
-        </div>
+
+        {hasChart && (
+          typeof progress === 'number' ? (
+            <CircularProgress value={clampedProgress} stroke={styles.stroke} track={styles.progressTrack} />
+          ) : (
+          <div className="h-[44px] w-[84px] shrink-0 overflow-visible">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 8 }}>
+                <defs>
+                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={styles.fillFrom} stopOpacity={0.7} />
+                    <stop offset="95%" stopColor={styles.fillFrom} stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <YAxis hide domain={[0, Math.max(sparkMax * 1.25, 1)]} />
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke={styles.stroke}
+                  strokeWidth={2}
+                  fill={`url(#${gradientId})`}
+                  dot={false}
+                  activeDot={false}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          )
+        )}
       </div>
 
-      {hasChart && (
-        typeof progress === 'number' ? (
-          <CircularProgress value={clampedProgress} stroke={styles.stroke} track={styles.progressTrack} />
-        ) : (
-        <div className="h-[44px] w-[84px] shrink-0 overflow-visible">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 8 }}>
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={styles.fillFrom} stopOpacity={0.7} />
-                  <stop offset="95%" stopColor={styles.fillFrom} stopOpacity={0.05} />
-                </linearGradient>
-              </defs>
-              <YAxis hide domain={[0, Math.max(sparkMax * 1.25, 1)]} />
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke={styles.stroke}
-                strokeWidth={2}
-                fill={`url(#${gradientId})`}
-                dot={false}
-                activeDot={false}
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+      {formula && formula.length > 0 && (
+        <div className="w-full min-w-0 grid grid-cols-4 gap-x-1 pt-1">
+          {formula.map((part, index) => (
+            <div key={`${part.label}-${index}`} className="min-w-0 overflow-hidden text-center">
+              <p className="flex items-center justify-center gap-px leading-none">
+                {index > 0 && (
+                  <span className="shrink-0 text-[8px] font-black text-slate-300">−</span>
+                )}
+                <span className={`text-[10px] font-black tabular-nums ${part.className}`}>
+                  {part.value}
+                </span>
+              </p>
+              <p className={`mt-0.5 text-[6px] font-black uppercase leading-none tracking-normal whitespace-nowrap ${part.className}`}>
+                {part.label}
+              </p>
+            </div>
+          ))}
+          <div className="min-w-0 overflow-hidden text-center">
+            <p className="flex items-center justify-center gap-px leading-none">
+              <span className="shrink-0 text-[8px] font-black text-slate-400">=</span>
+              <span className="text-[10px] font-black tabular-nums text-gray-900">{value}</span>
+            </p>
+            <p className="mt-0.5 text-[6px] font-black uppercase leading-none tracking-normal whitespace-nowrap text-gray-700">
+              {formulaResultLabel || 'Total'}
+            </p>
+          </div>
         </div>
-        )
       )}
     </motion.div>
   );

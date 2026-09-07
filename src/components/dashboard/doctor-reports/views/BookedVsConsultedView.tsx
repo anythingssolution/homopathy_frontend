@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Calendar,
@@ -14,6 +15,9 @@ import {
   RefreshCcw,
   AlertCircle,
   FileText,
+  Eye,
+  X,
+  Download,
 } from 'lucide-react';
 import {
   BarChart,
@@ -29,6 +33,8 @@ import { FilterDropdown } from '../components/FilterDropdown';
 import { SummaryMetricCard } from '../components/SummaryMetricCard';
 import ChartInfoButton from '../components/ChartInfoButton';
 import { useTranslation } from 'react-i18next';
+import { useNotifications } from '../../../../context/NotificationContext';
+import PrescriptionPrint from '../../../PrescriptionPrint';
 
 interface BookedVsConsultedViewProps {
   token: string | null;
@@ -71,6 +77,7 @@ const AutoSizedChart: React.FC<{ children: (width: number, height: number) => Re
 
 export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ token }) => {
   const { t, i18n } = useTranslation();
+  const { addToast } = useNotifications();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
@@ -83,6 +90,33 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPrescriptionPreview, setShowPrescriptionPreview] = useState<any | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
+
+  const openPrescriptionPreview = async (patient: any) => {
+    if (!token || !patient?.appointment_id || !patient?.consultation_id) return;
+    setIsPreviewLoading(true);
+    try {
+      const response = await fetch(`/api/v1/doctors/consultations/${patient.appointment_id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || t('reports.bvc.prescription_load_failed'));
+      }
+      const consultation = result.data?.consultation;
+      const appointment = result.data?.appointment;
+      if (!consultation) {
+        throw new Error(t('reports.bvc.prescription_load_failed'));
+      }
+      setShowPrescriptionPreview({ consultation, appointment });
+    } catch (previewError: any) {
+      addToast(previewError.message || t('reports.bvc.prescription_load_failed'), 'error');
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
 
   const fetchDrilldownReport = async (year: number, month: number | null, date: string | null) => {
     setIsLoading(true);
@@ -115,6 +149,7 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
   useEffect(() => {
     fetchDrilldownReport(selectedYear, selectedMonth, selectedDate);
     setDayPage(1);
+    setShowPrescriptionPreview(null);
   }, [selectedYear, selectedMonth, selectedDate, token]);
 
   // Available Years dropdown options
@@ -198,6 +233,15 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
     const startIndex = (dayPage - 1) * daysPerPage;
     return formattedDays.slice(startIndex, startIndex + daysPerPage);
   }, [formattedDays, daysPerPage, dayPage]);
+
+  const countNum = (value: unknown) => Math.max(0, Number(value || 0));
+  const netBooked = (created: unknown, rejected: unknown, cancelled: unknown) =>
+    Math.max(0, countNum(created) - countNum(rejected) - countNum(cancelled));
+  const bookedFormula = (created: unknown, rejected: unknown, cancelled: unknown) => [
+    { value: countNum(created), label: t('reports.bvc.booked'), className: 'text-[#2d8789]' },
+    { value: countNum(rejected), label: t('reports.bvc.rejected'), className: 'text-violet-600' },
+    { value: countNum(cancelled), label: t('reports.cancelled'), className: 'text-rose-500' },
+  ];
 
   const maxDayPages = useMemo(() => {
     if (formattedDays.length === 0 || daysPerPage === 0) return 1;
@@ -298,10 +342,11 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
               <div className="grid grid-cols-6 gap-3">
                 <SummaryMetricCard
                   title={t('reports.bvc.total_booked_year', { year: selectedYear })}
-                  value={data.total_booked_year}
+                  value={netBooked(data.total_booked_year, data.total_rejected_year, data.total_cancelled_year)}
                   icon={CalendarCheck}
                   theme="teal"
-                  subtitle={t('reports.bvc.appointments_created')}
+                  formula={bookedFormula(data.total_booked_year, data.total_rejected_year, data.total_cancelled_year)}
+                  formulaResultLabel={t('reports.bvc.net_result')}
                   delay={0}
                 />
                 <SummaryMetricCard
@@ -488,10 +533,11 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
               <div className="grid grid-cols-6 gap-3">
                 <SummaryMetricCard
                   title={t('reports.bvc.booked_in', { month: monthLabel(data.month) })}
-                  value={data.total_booked_month}
+                  value={netBooked(data.total_booked_month, data.total_rejected_month, data.total_cancelled_month)}
                   icon={CalendarCheck}
                   theme="teal"
-                  subtitle={t('reports.bvc.appointments_created')}
+                  formula={bookedFormula(data.total_booked_month, data.total_rejected_month, data.total_cancelled_month)}
+                  formulaResultLabel={t('reports.bvc.net_result')}
                   delay={0}
                 />
                 <SummaryMetricCard
@@ -736,10 +782,11 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
               <div className="grid grid-cols-6 gap-3">
                 <SummaryMetricCard
                   title={t('reports.bvc.total_booked')}
-                  value={data.total_booked}
+                  value={netBooked(data.total_booked, data.total_rejected, data.total_cancelled)}
                   icon={Users}
                   theme="teal"
-                  subtitle={t('reports.bvc.appointments_created')}
+                  formula={bookedFormula(data.total_booked, data.total_rejected, data.total_cancelled)}
+                  formulaResultLabel={t('reports.bvc.net_result')}
                   delay={0}
                 />
                 <SummaryMetricCard
@@ -883,6 +930,7 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
                           <th className="p-4">{t('reports.bvc.col_branch')}</th>
                           <th className="p-4">{t('reports.bvc.col_slot')}</th>
                           <th className="p-4 text-center">{t('reports.bvc.col_status')}</th>
+                          <th className="p-4 text-center">{t('reports.bvc.col_action')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 text-xs font-bold text-gray-700">
@@ -928,6 +976,24 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
                                 </span>
                               )}
                             </td>
+                            <td className="p-4 text-center">
+                              {p.consultation_id ? (
+                                <button
+                                  type="button"
+                                  disabled={isPreviewLoading}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void openPrescriptionPreview(p);
+                                  }}
+                                  className="text-[10px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest transition-colors inline-flex items-center gap-1 whitespace-nowrap text-white bg-amber-500 hover:bg-amber-600 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                  title={t('reports.bvc.view_prescription')}
+                                >
+                                  <Eye size={12} /> {t('reports.bvc.view_prescription')}
+                                </button>
+                              ) : (
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-300">—</span>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -943,6 +1009,108 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
           )}
 
         </div>
+      )}
+
+      <AnimatePresence>
+        {showPrescriptionPreview && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 lg:p-8 bg-gray-900/80 backdrop-blur-md no-print"
+            onClick={() => setShowPrescriptionPreview(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gray-100 w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col shadow-2xl rounded-3xl"
+            >
+              <div className="bg-white px-6 py-4 border-b border-gray-200 flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-[#549E9E]/10 rounded-full flex items-center justify-center text-[#549E9E]">
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">
+                      {t('patient_records.modal.prescription_preview')}
+                    </h3>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                      {t('patient_records.modal.saved_prescription_sub')}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPrescriptionLang('en')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                        prescriptionLang === 'en'
+                          ? 'bg-[#549E9E] text-white shadow-xs'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                      }`}
+                    >
+                      English
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPrescriptionLang('hi')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold tracking-wider transition-all cursor-pointer ${
+                        prescriptionLang === 'hi'
+                          ? 'bg-[#549E9E] text-white shadow-xs'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/50'
+                      }`}
+                    >
+                      हिंदी (Hindi)
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="cursor-pointer bg-[#549E9E] text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#458b8b] flex items-center gap-2 transition-all shadow-lg active:scale-95"
+                  >
+                    <Download size={16} /> {t('patient_records.modal.action.print')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPrescriptionPreview(null)}
+                    className="cursor-pointer bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-500 p-2.5 rounded-full transition-all"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+              <div
+                className="flex-1 overflow-auto p-4 md:p-12 bg-gray-200/50 flex justify-center items-start overscroll-contain"
+                data-lenis-prevent
+              >
+                <div
+                  className="bg-white shadow-xl shrink-0 p-0 md:p-8 rounded-sm border border-gray-100 mx-auto flex flex-col"
+                  style={{ width: '210mm', minHeight: '297mm' }}
+                >
+                  <PrescriptionPrint
+                    consultation={showPrescriptionPreview.consultation}
+                    appointment={showPrescriptionPreview.appointment}
+                    lang={prescriptionLang}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {showPrescriptionPreview && createPortal(
+        <div className="print-only">
+          <PrescriptionPrint
+            consultation={showPrescriptionPreview.consultation}
+            appointment={showPrescriptionPreview.appointment}
+            lang={prescriptionLang}
+          />
+        </div>,
+        document.body
       )}
     </div>
   );

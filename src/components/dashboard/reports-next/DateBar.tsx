@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Calendar, Printer, RefreshCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import CustomDatePicker from '../../CustomDatePicker';
 import { FilterDropdown } from '../doctor-reports/components/FilterDropdown';
-import type { CustomRange } from './lib';
+import { localIsoDate, type CustomRange } from './lib';
 
 type DateBarProps = {
   dateFilter: string;
@@ -30,19 +30,31 @@ export const DateBar: React.FC<DateBarProps> = ({
   const { t } = useTranslation();
   const isDue = mode === 'due';
 
+  useEffect(() => {
+    if (dateFilter !== 'custom') return;
+    if (customDateRange.from && customDateRange.to) return;
+    const today = localIsoDate(new Date());
+    onCustomDateRange((prev) => ({
+      from: prev.from || today,
+      to: prev.to || today,
+    }));
+  }, [dateFilter, customDateRange.from, customDateRange.to, onCustomDateRange]);
+
   const presets = isDue
     ? [
+        { id: 'custom', label: t('reports_next.custom') },
         { id: 'overdue', label: t('reports_next.follow_ups.filter_overdue') },
         { id: 'today', label: t('reports_next.follow_ups.filter_today') },
         { id: '1_week', label: t('reports_next.follow_ups.filter_week') },
         { id: '1_month', label: t('reports_next.follow_ups.filter_month') },
-        { id: 'custom', label: t('reports_next.custom') },
+        { id: '3_months', label: t('reports_next.follow_ups.filter_3_months') },
       ]
     : [
+        { id: 'custom', label: t('reports_next.custom') },
         { id: 'today', label: t('reports_next.today') },
         { id: '1_week', label: t('reports_next.one_week') },
         { id: '1_month', label: t('reports_next.one_month') },
-        { id: 'custom', label: t('reports_next.custom') },
+        { id: '3_months', label: t('reports_next.last_three_months') },
       ];
 
   return (
@@ -73,19 +85,20 @@ export const DateBar: React.FC<DateBarProps> = ({
             compact
             label={t('reports_next.more_options')}
             value={
-              dateFilter.endsWith('_months') || dateFilter.endsWith('_years') || dateFilter === '1_year'
+              (dateFilter.endsWith('_months') && dateFilter !== '1_month' && dateFilter !== '3_months')
+              || dateFilter.endsWith('_years')
+              || dateFilter === '1_year'
                 ? dateFilter
                 : ''
             }
             onChange={onDateFilter}
             icon={Calendar}
             options={[
-              { id: '2_months', label: t('reports_next.two_months') },
-              { id: '3_months', label: t('reports_next.three_months') },
-              { id: '6_months', label: t('reports_next.six_months') },
-              { id: '1_year', label: t('reports_next.one_year') },
-              { id: '2_years', label: t('reports_next.two_years') },
-              { id: '3_years', label: t('reports_next.three_years') },
+              { id: '2_months', label: isDue ? t('reports_next.follow_ups.filter_2_months') : t('reports_next.two_months') },
+              { id: '6_months', label: isDue ? t('reports_next.follow_ups.filter_6_months') : t('reports_next.six_months') },
+              { id: '1_year', label: isDue ? t('reports_next.follow_ups.filter_1_year') : t('reports_next.one_year') },
+              { id: '2_years', label: isDue ? t('reports_next.follow_ups.filter_2_years') : t('reports_next.two_years') },
+              { id: '3_years', label: isDue ? t('reports_next.follow_ups.filter_3_years') : t('reports_next.three_years') },
             ]}
           />
         </div>
@@ -108,22 +121,22 @@ export const DateBar: React.FC<DateBarProps> = ({
           </div>
         )}
       </div>
-      <div className="flex items-center gap-2 self-stretch md:self-auto">
+      <div className="flex items-center gap-2 self-stretch md:self-auto shrink-0">
         {showPrint && (
           <button
             type="button"
             onClick={() => window.print()}
-            className="cursor-pointer bg-white text-gray-600 px-3.5 py-1.5 rounded-lg font-black text-[11px] uppercase tracking-widest hover:border-[#549E9E] transition-all flex items-center gap-2 border border-gray-200 justify-center"
+            className="cursor-pointer bg-white text-gray-600 px-3.5 py-1.5 rounded-lg font-black text-[11px] uppercase tracking-widest hover:border-[#549E9E] transition-all inline-flex items-center gap-2 border border-gray-200 justify-center whitespace-nowrap shrink-0"
           >
-            <Printer size={13} /> {t('reports_next.print')}
+            <Printer size={13} className="shrink-0" /> {t('reports_next.print')}
           </button>
         )}
         <button
           type="button"
           onClick={onRefresh}
-          className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-3.5 py-1.5 rounded-lg font-black text-[11px] uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border border-[#549E9E]/10 justify-center"
+          className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-3.5 py-1.5 rounded-lg font-black text-[11px] uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all inline-flex items-center gap-2 border border-[#549E9E]/10 justify-center whitespace-nowrap shrink-0"
         >
-          <RefreshCcw size={13} className={loading ? 'animate-spin' : ''} /> {t('reports_next.refresh')}
+          <RefreshCcw size={13} className={`shrink-0 ${loading ? 'animate-spin' : ''}`} /> {t('reports_next.refresh')}
         </button>
       </div>
     </div>

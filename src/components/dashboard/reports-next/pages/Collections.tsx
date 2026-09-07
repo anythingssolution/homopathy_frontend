@@ -3,7 +3,9 @@ import { AlertCircle, RefreshCcw, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../../context/AuthContext';
 import { DateBar } from '../DateBar';
+import { WindowBanner } from '../WindowBanner';
 import { fetchReportModule, num, parseIsoDate, rangeForFilter, rupee, type CustomRange } from '../lib';
+import { useReportWindow } from '../useReportWindow';
 
 const formatDate = (value: unknown, locale: string) => {
   const raw = String(value || '');
@@ -17,7 +19,7 @@ export default function CollectionsPage() {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const { token } = useAuth();
-  const [dateFilter, setDateFilter] = useState('1_month');
+  const { dateFilter, setDateFilter, fromCard } = useReportWindow('3_months');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
   const [data, setData] = useState<any>(null);
   const [search, setSearch] = useState('');
@@ -95,6 +97,7 @@ export default function CollectionsPage() {
         loading={loading}
         showPrint
       />
+      <WindowBanner dateFilter={dateFilter} count={dues.length} fromCard={fromCard} />
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 flex items-center gap-2">
           <AlertCircle size={16} /> {error}

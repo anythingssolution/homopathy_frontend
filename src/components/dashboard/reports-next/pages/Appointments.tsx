@@ -1,25 +1,29 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, CalendarCheck, CheckCircle2, RefreshCcw, ShieldPlus } from 'lucide-react';
+import { AlertCircle, CalendarCheck, CheckCircle2, Clock, Percent, RefreshCcw, XCircle } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../../context/AuthContext';
 import { BookedVsConsultedView } from '../../doctor-reports/views/BookedVsConsultedView';
+import { SummaryMetricCard } from '../../doctor-reports/components/SummaryMetricCard';
 import { DateBar } from '../DateBar';
 import {
   consultRateFromDaily,
   fetchReportModule,
   num,
+  parseIsoDate,
   rangeForFilter,
+  reportWindowLabelKey,
   statusCount,
   type CustomRange,
 } from '../lib';
+import { useReportWindow } from '../useReportWindow';
 
 export default function AppointmentsPage() {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const { token } = useAuth();
   const [tab, setTab] = useState<'status' | 'came'>('status');
-  const [dateFilter, setDateFilter] = useState('1_week');
+  const { dateFilter, setDateFilter } = useReportWindow('1_week');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
   const [data, setData] = useState<any>(null);
   const [prevData, setPrevData] = useState<any>(null);
@@ -61,7 +65,8 @@ export default function AppointmentsPage() {
   const pending = statusCount(data?.status_appointments, 'pending');
   const cancelled = statusCount(data?.status_appointments, 'cancelled');
   const confirmed = statusCount(data?.status_appointments, 'confirmed');
-  const total = completed + pending + cancelled + confirmed;
+  const waiting = pending + confirmed;
+  const total = completed + waiting + cancelled;
   const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
   const prev = consultRateFromDaily(prevData?.date_wise_appointments);
   const delta = rate - prev.rate;
@@ -72,9 +77,14 @@ export default function AppointmentsPage() {
     completed: num(row.completed_appointments),
   }));
 
+  const windowLabel =
+    dateFilter === 'custom' && customDateRange.from && customDateRange.to
+      ? `${parseIsoDate(customDateRange.from)?.toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' }) || customDateRange.from} – ${parseIsoDate(customDateRange.to)?.toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' }) || customDateRange.to}`
+      : t(reportWindowLabelKey(dateFilter, 'history'));
+
   const pie = [
     { name: t('reports_next.completed'), value: completed, color: '#10B981' },
-    { name: t('reports_next.pending'), value: pending, color: '#F59E0B' },
+    { name: t('reports_next.pending'), value: waiting, color: '#F59E0B' },
     { name: t('reports_next.cancelled'), value: cancelled, color: '#EF4444' },
   ].filter((item) => item.value > 0);
 
@@ -125,18 +135,49 @@ export default function AppointmentsPage() {
             <p className="text-sm font-semibold text-slate-400 py-12 text-center">{t('reports_next.empty_try_week')}</p>
           ) : (
             <>
-              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-                <Kpi icon={CalendarCheck} label={t('reports_next.pending')} value={pending} />
-                <Kpi icon={CheckCircle2} label={t('reports_next.completed')} value={completed} />
-                <Kpi icon={CalendarCheck} label={t('reports_next.total')} value={total} />
-                <Kpi
-                  icon={ShieldPlus}
-                  label={t('reports_next.consultation_rate')}
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+                <SummaryMetricCard
+                  title={t('reports_next.total')}
+                  value={total}
+                  icon={CalendarCheck}
+                  theme="teal"
+                  subtitle={windowLabel}
+                />
+                <SummaryMetricCard
+                  title={t('reports_next.completed')}
+                  value={completed}
+                  icon={CheckCircle2}
+                  theme="green"
+                  subtitle={windowLabel}
+                />
+                <SummaryMetricCard
+                  title={t('reports_next.pending')}
+                  value={waiting}
+                  icon={Clock}
+                  theme="amber"
+                  subtitle={windowLabel}
+                />
+                <SummaryMetricCard
+                  title={t('reports_next.cancelled')}
+                  value={cancelled}
+                  icon={XCircle}
+                  theme="rose"
+                  subtitle={windowLabel}
+                />
+                <SummaryMetricCard
+                  title={t('reports_next.consultation_rate')}
                   value={`${rate}%`}
-                  sub={
+                  icon={Percent}
+                  theme="blue"
+                  subtitle={windowLabel}
+                  trend={
                     prev.total > 0
-                      ? t('reports_next.vs_last_period', { points: Math.abs(delta), dir: delta >= 0 ? '+' : '−' })
-                      : t('reports_next.selected_period')
+                      ? {
+                          direction: delta >= 0 ? 'up' : 'down',
+                          tone: delta >= 0 ? 'good' : 'bad',
+                          label: t('reports_next.vs_last_period', { points: Math.abs(delta), dir: delta >= 0 ? '+' : '−' }),
+                        }
+                      : undefined
                   }
                 />
               </div>
@@ -187,22 +228,3 @@ export default function AppointmentsPage() {
     </div>
   );
 }
-
-const Kpi = ({
-  icon: Icon,
-  label,
-  value,
-  sub,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: string | number;
-  sub?: string;
-}) => (
-  <div className="rounded-xl border border-gray-100 bg-white p-4">
-    <Icon size={16} className="text-[#549E9E]" />
-    <p className="mt-2 text-2xl font-black text-slate-900">{value}</p>
-    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
-    {sub && <p className="mt-1 text-[10px] font-bold text-[#2d8789]">{sub}</p>}
-  </div>
-);

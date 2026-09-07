@@ -1,18 +1,30 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, RefreshCcw, Search } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { AlertCircle, Banknote, CheckCircle2, Clock, RefreshCcw, Search, Ticket } from 'lucide-react';
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../../context/AuthContext';
+import { SummaryMetricCard } from '../../doctor-reports/components/SummaryMetricCard';
 import { DateBar } from '../DateBar';
-import { fetchReportModule, num, rangeForFilter, rupee, type CustomRange } from '../lib';
+import {
+  fetchReportModule,
+  formatReportWindowLabel,
+  num,
+  patientRecordsHref,
+  rangeForFilter,
+  rupee,
+  type CustomRange,
+} from '../lib';
+import { useReportWindow } from '../useReportWindow';
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 25;
 
 export default function DispensaryPage() {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
+  const navigate = useNavigate();
   const { token } = useAuth();
-  const [dateFilter, setDateFilter] = useState('1_month');
+  const { dateFilter, setDateFilter } = useReportWindow('3_months');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
   const [data, setData] = useState<any>(null);
   const [prevSummary, setPrevSummary] = useState<any>(null);
@@ -67,6 +79,16 @@ export default function DispensaryPage() {
   const revenue = num(summary.total_pricing_amount);
   const prevRevenue = num(prevSummary?.total_pricing_amount);
   const revDelta = prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : 0;
+  const readyCount = num(summary.ready_prescriptions_count);
+  const processedCount = num(summary.processed_prescriptions_count);
+  const ticket =
+    readyCount + processedCount > 0 ? revenue / (readyCount + processedCount) : 0;
+  const windowLabel = formatReportWindowLabel(t, dateFilter, customDateRange, dateLocale);
+
+  const openPatientRecord = (item: any) => {
+    const href = patientRecordsHref(item);
+    if (href) navigate(href);
+  };
 
   const trend = (data?.date_wise_summary || []).map((row: any) => ({
     date: new Date(row.appointment_date).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' }),
@@ -106,14 +128,43 @@ export default function DispensaryPage() {
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Mini label={t('reports_next.dispensary.ready')} value={num(summary.ready_prescriptions_count)} />
-            <Mini label={t('reports_next.dispensary.processed')} value={num(summary.processed_prescriptions_count)} />
-            <Mini
-              label={t('reports_next.dispensary.revenue')}
-              value={rupee(revenue)}
-              sub={prevRevenue > 0 ? t('reports_next.pct_vs_last', { pct: Math.abs(revDelta), dir: revDelta >= 0 ? '+' : '−' }) : undefined}
+            <SummaryMetricCard
+              title={t('reports_next.dispensary.ready')}
+              value={readyCount}
+              icon={Clock}
+              theme="amber"
+              subtitle={windowLabel}
             />
-            <Mini label={t('reports_next.dispensary.ticket')} value={rupee(summary.total_pricing_amount && (num(summary.ready_prescriptions_count) + num(summary.processed_prescriptions_count) > 0) ? revenue / (num(summary.ready_prescriptions_count) + num(summary.processed_prescriptions_count)) : 0)} />
+            <SummaryMetricCard
+              title={t('reports_next.dispensary.processed')}
+              value={processedCount}
+              icon={CheckCircle2}
+              theme="green"
+              subtitle={windowLabel}
+            />
+            <SummaryMetricCard
+              title={t('reports_next.dispensary.revenue')}
+              value={rupee(revenue)}
+              icon={Banknote}
+              theme="teal"
+              subtitle={windowLabel}
+              trend={
+                prevRevenue > 0
+                  ? {
+                      direction: revDelta >= 0 ? 'up' : 'down',
+                      tone: revDelta >= 0 ? 'good' : 'bad',
+                      label: t('reports_next.pct_vs_last', { pct: Math.abs(revDelta), dir: revDelta >= 0 ? '+' : '−' }),
+                    }
+                  : undefined
+              }
+            />
+            <SummaryMetricCard
+              title={t('reports_next.dispensary.ticket')}
+              value={rupee(ticket)}
+              icon={Ticket}
+              theme="blue"
+              subtitle={windowLabel}
+            />
           </div>
 
           <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
@@ -144,11 +195,15 @@ export default function DispensaryPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {slice.map((item: any, idx: number) => (
-                      <tr key={idx}>
+                      <tr
+                        key={idx}
+                        onClick={() => openPatientRecord(item)}
+                        className="cursor-pointer hover:bg-slate-50/80"
+                      >
                         <td className="px-5 py-3 text-sm font-black text-[#2d8789]">{item.token_number || '—'}</td>
                         <td className="px-5 py-3">
-                          <p className="text-sm font-black text-slate-800">{item.patient_full_name}</p>
-                          <p className="text-[11px] text-slate-400">{item.patient_mobile_no}</p>
+                          <p className="text-sm font-black text-[#2d8789]">{item.patient_full_name}</p>
+                          <p className="text-[11px] text-slate-400">{item.patient_mobile_no || '—'}</p>
                         </td>
                         <td className="px-5 py-3 text-xs font-bold text-slate-600">{item.doctor_name}</td>
                         <td className="px-5 py-3 text-xs font-bold text-slate-500">{item.treatment_name}</td>
@@ -159,13 +214,22 @@ export default function DispensaryPage() {
               </div>
             )}
             {pages > 1 && (
-              <div className="no-print flex justify-end gap-2 px-4 py-3">
+              <div className="no-print flex items-center justify-between gap-2 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  {t('reports_next.window.showing', {
+                    from: (page - 1) * PAGE_SIZE + 1,
+                    to: Math.min(page * PAGE_SIZE, filtered.length),
+                    total: filtered.length,
+                  })}
+                </p>
+                <div className="flex gap-2">
                 <button type="button" disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="text-xs font-black uppercase text-[#549E9E] disabled:opacity-40">
                   {t('reports_next.prev')}
                 </button>
                 <button type="button" disabled={page === pages} onClick={() => setPage((p) => p + 1)} className="text-xs font-black uppercase text-[#549E9E] disabled:opacity-40">
                   {t('reports_next.next')}
                 </button>
+                </div>
               </div>
             )}
           </div>
@@ -205,11 +269,3 @@ export default function DispensaryPage() {
     </div>
   );
 }
-
-const Mini = ({ label, value, sub }: { label: string; value: string | number; sub?: string }) => (
-  <div className="rounded-xl border border-gray-100 bg-white p-4">
-    <p className="text-xl font-black text-slate-900">{value}</p>
-    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
-    {sub && <p className="mt-1 text-[10px] font-bold text-[#2d8789]">{sub}</p>}
-  </div>
-);

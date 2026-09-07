@@ -1,17 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertCircle, RefreshCcw, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../../context/AuthContext';
 import { DateBar } from '../DateBar';
+import { WindowBanner } from '../WindowBanner';
 import { fetchReportModule, parseIsoDate, rangeForFollowUpFilter, type CustomRange } from '../lib';
+import { useReportWindow } from '../useReportWindow';
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 25;
 
 export default function FollowUpsPage() {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
+  const navigate = useNavigate();
   const { token } = useAuth();
-  const [dateFilter, setDateFilter] = useState('1_week');
+  const { dateFilter, setDateFilter, fromCard } = useReportWindow('3_months');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
   const [rows, setRows] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -43,15 +47,26 @@ export default function FollowUpsPage() {
     setPage(1);
   }, [search, dateFilter]);
 
+  const range = useMemo(
+    () => rangeForFollowUpFilter(dateFilter, customDateRange),
+    [dateFilter, customDateRange],
+  );
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return rows.filter((item) =>
-      [item.patient_full_name, item.patient_mobile_no, item.treatment_name, item.branch_name, item.status]
+    const from = parseIsoDate(range.from);
+    const to = parseIsoDate(range.to);
+    return rows.filter((item) => {
+      const due = parseIsoDate(item.due_date);
+      if (from && to && due && (due < from || due > to)) {
+        return false;
+      }
+      return [item.patient_full_name, item.patient_mobile_no, item.treatment_name, item.branch_name, item.status]
         .join(' ')
         .toLowerCase()
-        .includes(q),
-    );
-  }, [rows, search]);
+        .includes(q);
+    });
+  }, [rows, search, range]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const slice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -72,6 +87,14 @@ export default function FollowUpsPage() {
     return { label, hint: t('reports_next.follow_ups.in_days', { days }), overdue: false };
   };
 
+  const openPatientRecord = (item: any) => {
+    const search = String(item.patient_mobile_no || item.patient_full_name || '').trim();
+    if (!search) return;
+    const params = new URLSearchParams({ search });
+    if (item.fk_patient_id) params.set('patient_id', String(item.fk_patient_id));
+    navigate(`/patient-records?${params.toString()}`);
+  };
+
   return (
     <div className="space-y-5">
       <div>
@@ -88,7 +111,8 @@ export default function FollowUpsPage() {
         loading={loading}
         showPrint
       />
-      <p className="text-[11px] font-semibold text-slate-400 -mt-2">
+      <WindowBanner mode="due" dateFilter={dateFilter} count={filtered.length} fromCard={fromCard} />
+      <p className="text-[11px] font-semibold text-slate-400">
         {dateFilter === 'overdue'
           ? t('reports_next.follow_ups.hint_overdue')
           : t('reports_next.follow_ups.hint_upcoming')}
@@ -133,10 +157,18 @@ export default function FollowUpsPage() {
                 {slice.map((item: any, idx: number) => {
                   const meta = dueMeta(item.due_date);
                   return (
-                  <tr key={`${item.followup_id}-${idx}`}>
+                  <tr
+                    key={`${item.followup_id}-${idx}`}
+                    onClick={() => openPatientRecord(item)}
+                    className="cursor-pointer hover:bg-slate-50/80"
+                  >
                     <td className="px-5 py-3">
-                      <p className="text-sm font-black text-slate-800">{item.patient_full_name}</p>
-                      <p className="text-[11px] font-semibold text-slate-400">{item.patient_mobile_no}</p>
+                      <p className="text-sm font-black text-[#2d8789]">{item.patient_full_name}</p>
+                      {item.patient_mobile_no ? (
+                        <p className="text-[11px] font-semibold text-slate-400">{item.patient_mobile_no}</p>
+                      ) : (
+                        <p className="text-[11px] font-semibold text-slate-400">—</p>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-xs font-bold text-slate-600">{item.treatment_name}</td>
                     <td className="px-5 py-3">
@@ -160,13 +192,22 @@ export default function FollowUpsPage() {
           </div>
         )}
         {pages > 1 && (
-          <div className="no-print flex justify-end gap-2 px-4 py-3 border-t border-slate-50">
+          <div className="no-print flex items-center justify-between gap-2 px-4 py-3 border-t border-slate-50">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              {t('reports_next.window.showing', {
+                from: (page - 1) * PAGE_SIZE + 1,
+                to: Math.min(page * PAGE_SIZE, filtered.length),
+                total: filtered.length,
+              })}
+            </p>
+            <div className="flex gap-2">
             <button type="button" disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="text-xs font-black uppercase text-[#549E9E] disabled:opacity-40">
               {t('reports_next.prev')}
             </button>
             <button type="button" disabled={page === pages} onClick={() => setPage((p) => p + 1)} className="text-xs font-black uppercase text-[#549E9E] disabled:opacity-40">
               {t('reports_next.next')}
             </button>
+            </div>
           </div>
         )}
       </div>

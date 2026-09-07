@@ -1,20 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, RefreshCcw, Search } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { AlertCircle, CalendarCheck, CheckCircle2, Clock, Percent, RefreshCcw, Search, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../../context/AuthContext';
+import { SummaryMetricCard } from '../../doctor-reports/components/SummaryMetricCard';
 import { DateBar } from '../DateBar';
-import { fetchReportModule, parseIsoDate, rangeForFilter, type CustomRange } from '../lib';
+import {
+  fetchReportModule,
+  formatReportWindowLabel,
+  parseIsoDate,
+  patientRecordsHref,
+  rangeForFilter,
+  type CustomRange,
+} from '../lib';
+import { useReportWindow } from '../useReportWindow';
 
-const PAGE_SIZE = 8;
-
-const personKey = (item: any) =>
-  String(item.person_key || `${item.fk_patient_id || item.patient_full_name}:${item.fk_patient_family_member_id || 0}`);
+const PAGE_SIZE = 25;
 
 export default function FirstConsultationsPage() {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
+  const navigate = useNavigate();
   const { token } = useAuth();
-  const [dateFilter, setDateFilter] = useState('1_week');
+  const { dateFilter, setDateFilter } = useReportWindow('1_week');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
   const [rows, setRows] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -56,10 +64,18 @@ export default function FirstConsultationsPage() {
     );
   }, [rows, search]);
 
-  const activeRows = filtered.filter((item) => String(item.status || '').toLowerCase() !== 'cancelled');
-  const uniquePatients = new Set(activeRows.map(personKey)).size;
-  const consulted = activeRows.filter((item) => Number(item.is_consulted) === 1).length;
-  const camePct = uniquePatients > 0 ? Math.round((consulted / activeRows.length) * 100) : 0;
+  const cancelledRows = filtered.filter((item) => String(item.status || '').toLowerCase() === 'cancelled');
+  const waitingRows = filtered.filter((item) => {
+    const status = String(item.status || '').toLowerCase();
+    return status !== 'cancelled' && Number(item.is_consulted) !== 1;
+  });
+  const consultedRows = filtered.filter((item) => Number(item.is_consulted) === 1);
+  const total = filtered.length;
+  const consulted = consultedRows.length;
+  const waiting = waitingRows.length;
+  const cancelled = cancelledRows.length;
+  const camePct = total > 0 ? Math.round((consulted / total) * 100) : 0;
+  const windowLabel = formatReportWindowLabel(t, dateFilter, customDateRange, dateLocale);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const slice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -81,6 +97,11 @@ export default function FirstConsultationsPage() {
     return { label, hint: t('reports_next.first_consults.in_days', { days: Math.abs(days) }) };
   };
 
+  const openPatientRecord = (item: any) => {
+    const href = patientRecordsHref(item);
+    if (href) navigate(href);
+  };
+
   return (
     <div className="space-y-5">
       <div>
@@ -96,14 +117,45 @@ export default function FirstConsultationsPage() {
         loading={loading}
         showPrint
       />
-      <p className="text-[11px] font-semibold text-slate-400 -mt-2">
+      <p className="text-[11px] font-semibold text-slate-400">
         {t('reports_next.first_consults.hint')}
       </p>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Mini label={t('reports_next.first_consults.patients')} value={uniquePatients} />
-        <Mini label={t('reports_next.first_consults.booked')} value={filtered.length} />
-        <Mini label={t('reports_next.first_consults.consulted')} value={consulted} />
-        <Mini label={t('reports_next.consultation_rate')} value={`${camePct}%`} />
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        <SummaryMetricCard
+          title={t('reports_next.total')}
+          value={total}
+          icon={CalendarCheck}
+          theme="teal"
+          subtitle={windowLabel}
+        />
+        <SummaryMetricCard
+          title={t('reports_next.completed')}
+          value={consulted}
+          icon={CheckCircle2}
+          theme="green"
+          subtitle={windowLabel}
+        />
+        <SummaryMetricCard
+          title={t('reports_next.pending')}
+          value={waiting}
+          icon={Clock}
+          theme="amber"
+          subtitle={windowLabel}
+        />
+        <SummaryMetricCard
+          title={t('reports_next.cancelled')}
+          value={cancelled}
+          icon={XCircle}
+          theme="rose"
+          subtitle={windowLabel}
+        />
+        <SummaryMetricCard
+          title={t('reports_next.consultation_rate')}
+          value={`${camePct}%`}
+          icon={Percent}
+          theme="blue"
+          subtitle={windowLabel}
+        />
       </div>
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 flex items-center gap-2">
@@ -146,16 +198,15 @@ export default function FirstConsultationsPage() {
                   const meta = visitMeta(item.appointment_date);
                   const seen = Number(item.is_consulted) === 1;
                   return (
-                    <tr key={`${item.appointment_id}-${idx}`}>
+                    <tr
+                      key={`${item.appointment_id}-${idx}`}
+                      onClick={() => openPatientRecord(item)}
+                      className="cursor-pointer hover:bg-slate-50/80"
+                    >
                       <td className="px-5 py-3">
-                        <p className="text-sm font-black text-slate-800">{item.patient_full_name}</p>
+                        <p className="text-sm font-black text-[#2d8789]">{item.patient_full_name}</p>
                         {item.patient_mobile_no ? (
-                          <a
-                            href={`tel:${item.patient_mobile_no}`}
-                            className="text-[11px] font-semibold text-[#2d8789] hover:underline cursor-pointer"
-                          >
-                            {item.patient_mobile_no}
-                          </a>
+                          <p className="text-[11px] font-semibold text-slate-400">{item.patient_mobile_no}</p>
                         ) : (
                           <p className="text-[11px] font-semibold text-slate-400">—</p>
                         )}
@@ -168,7 +219,15 @@ export default function FirstConsultationsPage() {
                       </td>
                       <td className="px-5 py-3 text-xs font-bold text-slate-600">{item.slot_name || '—'}</td>
                       <td className="px-5 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        <p
+                          className={`text-[10px] font-black uppercase tracking-widest ${
+                            String(item.status || '').toLowerCase() === 'cancelled'
+                              ? 'text-rose-500'
+                              : seen
+                                ? 'text-emerald-600'
+                                : 'text-slate-500'
+                          }`}
+                        >
                           {item.status || '—'}
                         </p>
                         {seen && (
@@ -185,7 +244,15 @@ export default function FirstConsultationsPage() {
           </div>
         )}
         {pages > 1 && (
-          <div className="no-print flex justify-end gap-2 px-4 py-3 border-t border-slate-50">
+          <div className="no-print flex items-center justify-between gap-2 px-4 py-3 border-t border-slate-50">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              {t('reports_next.window.showing', {
+                from: (page - 1) * PAGE_SIZE + 1,
+                to: Math.min(page * PAGE_SIZE, filtered.length),
+                total: filtered.length,
+              })}
+            </p>
+            <div className="flex gap-2">
             <button
               type="button"
               disabled={page === 1}
@@ -202,16 +269,10 @@ export default function FirstConsultationsPage() {
             >
               {t('reports_next.next')}
             </button>
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 }
-
-const Mini = ({ label, value }: { label: string; value: string | number }) => (
-  <div className="rounded-xl border border-gray-100 bg-white p-4">
-    <p className="text-xl font-black text-slate-900">{value}</p>
-    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
-  </div>
-);

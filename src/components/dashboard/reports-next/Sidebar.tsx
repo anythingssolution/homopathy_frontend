@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   Activity,
   Banknote,
@@ -45,6 +45,8 @@ const Badge = ({ count, active }: { count: number; active: boolean }) => {
 
 export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
+  const pathActive = (path: string) => pathname === path;
 
   return (
     <div className="w-full h-full bg-white border-b md:border-b-0 md:border-r border-gray-200 flex flex-col p-4 overflow-hidden">
@@ -88,8 +90,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
               </>
             )}
           </NavLink>
-          <NavLink to="/reports-next/follow-ups" className={({ isActive }) => itemClass(isActive)}>
-            {({ isActive }) => (
+          <NavLink
+            to="/reports-next/follow-ups?window=3_months"
+            className={() => itemClass(pathActive('/reports-next/follow-ups'))}
+          >
+            {() => {
+              const isActive = pathActive('/reports-next/follow-ups');
+              return (
               <>
                 <ClipboardList size={18} className={isActive ? 'text-white' : 'text-gray-400'} />
                 <span className="text-xs font-bold uppercase tracking-widest leading-tight flex-1">
@@ -97,7 +104,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
                 </span>
                 <Badge count={badges.followUps} active={isActive} />
               </>
-            )}
+              );
+            }}
           </NavLink>
           <NavLink to="/reports-next/first-consults" className={({ isActive }) => itemClass(isActive)}>
             {({ isActive }) => (
@@ -109,8 +117,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
               </>
             )}
           </NavLink>
-          <NavLink to="/reports-next/dispensary" className={({ isActive }) => itemClass(isActive)}>
-            {({ isActive }) => (
+          <NavLink
+            to="/reports-next/dispensary?window=3_months"
+            className={() => itemClass(pathActive('/reports-next/dispensary'))}
+          >
+            {() => {
+              const isActive = pathActive('/reports-next/dispensary');
+              return (
               <>
                 <Pill size={18} className={isActive ? 'text-white' : 'text-gray-400'} />
                 <span className="text-xs font-bold uppercase tracking-widest leading-tight flex-1">
@@ -118,10 +131,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
                 </span>
                 <Badge count={badges.dispensary} active={isActive} />
               </>
-            )}
+              );
+            }}
           </NavLink>
-          <NavLink to="/reports-next/collections" className={({ isActive }) => itemClass(isActive)}>
-            {({ isActive }) => (
+          <NavLink
+            to="/reports-next/collections?window=3_months"
+            className={() => itemClass(pathActive('/reports-next/collections'))}
+          >
+            {() => {
+              const isActive = pathActive('/reports-next/collections');
+              return (
               <>
                 <Banknote size={18} className={isActive ? 'text-white' : 'text-gray-400'} />
                 <span className="text-xs font-bold uppercase tracking-widest leading-tight flex-1">
@@ -129,7 +148,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
                 </span>
                 <Badge count={badges.collections} active={isActive} />
               </>
-            )}
+              );
+            }}
           </NavLink>
         </div>
 
