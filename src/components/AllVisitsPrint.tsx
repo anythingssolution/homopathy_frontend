@@ -439,13 +439,13 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                 <div className="flex justify-between items-stretch w-full mb-2">
                   <div className="flex-1 pr-4">
                     <h4 className="text-[#cc3333] font-black text-[12px] mb-1">
-                      {isHi ? "निर्देश एवं परहेज :-" : "Instructions & Precautions :-"}
+                      निर्देश एवं परहेज :-
                     </h4>
                     <ol className="text-[10px] font-bold text-gray-800 space-y-0.5 leading-tight list-none">
-                      <li>{isHi ? "1. बैगन, बीज वाली सब्जी, तेल-मसाला, खटाई अचार कम, रात में दूध एवं दही नहीं।" : "1. Avoid brinjal, seed vegetables, oily-spicy food, pickles, sour items. No milk/curd at night."}</li>
-                      <li>{isHi ? "2. औषधि खाने से पहले और बाद में 30 मिनिट तक कुछ भी नहीं खाना चाहिए।" : "2. Do not eat or drink anything 30 minutes before and after taking medicine."}</li>
-                      <li>{isHi ? "3. कृपया पर्ची को साथ अवश्य लावें।" : "3. Please bring this prescription slip on your next visit."}</li>
-                      <li>{isHi ? "4. क्रानिक (जटिल रोगी) कृपया पहले से समय लेकर पधारें।" : "4. Chronic patients should book an appointment in advance."}</li>
+                      <li>1. बैगन, बीज वाली सब्जी, तेल-मसाला, खटाई अचार कम, रात में दूध एवं दही नहीं।</li>
+                      <li>2. औषधि खाने से पहले और बाद में 30 मिनिट तक कुछ भी नहीं खाना चाहिए।</li>
+                      <li>3. कृपया पर्ची को साथ अवश्य लावें।</li>
+                      <li>4. क्रानिक (जटिल रोगी) कृपया पहले से समय लेकर पधारें।</li>
                     </ol>
                   </div>
                   <div className="w-[210px] border-[1.5px] border-[#1a2b4c] rounded-md py-1.5 px-2 text-center shrink-0 bg-white shadow-xs">

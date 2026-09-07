@@ -52,9 +52,7 @@ export default function DoctorClinicHistory() {
   const [search, setSearch] = useState(() => location.state?.patientSearch || "");
   const [fromDate, setFromDate] = useState(() => {
     if (location.state?.fromDate) return location.state.fromDate;
-    const d = new Date();
-    d.setDate(1);
-    return d.toISOString().split("T")[0];
+    return new Date().toISOString().split("T")[0];
   });
   const [toDate, setToDate] = useState(() => {
     if (location.state?.toDate) return location.state.toDate;

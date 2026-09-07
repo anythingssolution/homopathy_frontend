@@ -470,28 +470,20 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                   {/* Instructions */}
                   <div className="flex-1 pr-4">
                     <h4 className="text-[#cc3333] font-black text-[12px] mb-1">
-                      {isHi ? "निर्देश एवं परहेज :-" : "Instructions & Precautions :-"}
+                      निर्देश एवं परहेज :-
                     </h4>
                     <ol className="text-[10px] font-bold text-gray-800 space-y-0.5 leading-tight list-none">
                       <li>
-                        {isHi
-                          ? "1. बैगन, बीज वाली सब्जी, तेल-मसाला, खटाई अचार कम, रात में दूध एवं दही नहीं।"
-                          : "1. Avoid brinjal, seed vegetables, oily-spicy food, pickles, sour items. No milk/curd at night."}
+                        1. बैगन, बीज वाली सब्जी, तेल-मसाला, खटाई अचार कम, रात में दूध एवं दही नहीं।
                       </li>
                       <li>
-                        {isHi
-                          ? "2. औषधि खाने से पहले और बाद में 30 मिनिट तक कुछ भी नहीं खाना चाहिए।"
-                          : "2. Do not eat or drink anything 30 minutes before and after taking medicine."}
+                        2. औषधि खाने से पहले और बाद में 30 मिनिट तक कुछ भी नहीं खाना चाहिए।
                       </li>
                       <li>
-                        {isHi
-                          ? "3. कृपया पर्ची को साथ अवश्य लावें।"
-                          : "3. Please bring this prescription slip on your next visit."}
+                        3. कृपया पर्ची को साथ अवश्य लावें।
                       </li>
                       <li>
-                        {isHi
-                          ? "4. क्रानिक (जटिल रोगी) कृपया पहले से समय लेकर पधारें।"
-                          : "4. Chronic patients should book an appointment in advance."}
+                        4. क्रानिक (जटिल रोगी) कृपया पहले से समय लेकर पधारें।
                       </li>
                     </ol>
                   </div>
