@@ -2413,11 +2413,31 @@ export default function ConsultationPage() {
       if (result.data.medication_duration_days) {
         setGlobalDuration(getDurationKeyFromDays(Number(result.data.medication_duration_days)));
       }
+
+      setChiefComplaints(String(result.data.symptoms || ""));
+      const previousAdvice = String(result.data.treatment_advice || "");
+      let previousDiagnosis = String(result.data.diagnosis || "");
+      let previousFindings = previousAdvice;
+      if (previousAdvice.startsWith("Diagnosis: ")) {
+        const adviceParts = previousAdvice.split("\n\n");
+        if (!previousDiagnosis) {
+          previousDiagnosis = adviceParts[0].replace("Diagnosis: ", "");
+        }
+        previousFindings = adviceParts.slice(1).join("\n\n");
+      }
+      setDiagnosis(previousDiagnosis);
+      setTreatmentNotes(previousFindings);
+      setQuickNumericInput(String(result.data.quick_formula_input || ""));
+      setIsQuickPreviewOpen(false);
+
       setRepeatedFromConsultationId(Number(result.data.source_consultation_id));
       setUniversalRemark(String(result.data.universal_remark || ""));
       setIsPrescriptionOpen(true);
       addToast(
-        "Previous treatment copied as a draft. Review it before saving.",
+        t(
+          "consultation_modal.repeat_draft_copied",
+          "Previous treatment copied as a draft. Review it before saving.",
+        ),
         "success",
       );
     } catch (error) {
@@ -2435,16 +2455,22 @@ export default function ConsultationPage() {
   const loadRepeatTreatmentDraft = () => {
     if (!currentApp?.appointment_id || !isFollowUpVisit || isReadOnly) return;
 
-    const hasExistingMedicineData =
+    const hasExistingDraft =
       medications.some((item) => item.name.trim()) ||
-      otherMedications.some((item) => item.name.trim());
+      otherMedications.some((item) => item.name.trim()) ||
+      Boolean(chiefComplaints.trim()) ||
+      Boolean(treatmentNotes.trim()) ||
+      Boolean(diagnosis.trim()) ||
+      Boolean(quickNumericInput.trim());
 
-    if (hasExistingMedicineData) {
+    if (hasExistingDraft) {
       setConfirmModal({
         isOpen: true,
-        title: "Replace Medicine Draft?",
-        message:
-          "Current medicine draft will be replaced with the previous treatment. Continue?",
+        title: t("consultation_modal.repeat_replace_title", "Replace Current Draft?"),
+        message: t(
+          "consultation_modal.repeat_replace_message",
+          "Chief complaint, clinical findings, diagnosis, quick numeric entry, and medicines will be replaced with the previous treatment. Continue?",
+        ),
         onConfirm: () => {
           void executeLoadRepeatTreatmentDraft();
         },
@@ -3310,6 +3336,22 @@ export default function ConsultationPage() {
                 {hasNoAdvice ? "✓" : ""}
               </div>
             </label>
+            {!isReadOnly && isFollowUpVisit && (
+              <button
+                type="button"
+                onClick={() => {
+                  void loadRepeatTreatmentDraft();
+                }}
+                disabled={isLoadingRepeatDraft}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all text-[10.5px] font-black uppercase tracking-wider rounded-xl cursor-pointer disabled:opacity-60"
+              >
+                <RotateCcw
+                  size={13}
+                  className={isLoadingRepeatDraft ? "animate-spin" : ""}
+                />
+                {t("consultation_modal.repeat_previous_treatment", "Repeat Previous Treatment")}
+              </button>
+            )}
           </div>
         </div>
         {isEditingCompletedConsultation && (
@@ -5141,22 +5183,6 @@ export default function ConsultationPage() {
             </button>
             {!isReadOnly && (
               <div className="flex flex-wrap items-center justify-end gap-2">
-                {isFollowUpVisit && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void loadRepeatTreatmentDraft();
-                    }}
-                    disabled={isLoadingRepeatDraft}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all text-[9.5px] font-black uppercase tracking-wider rounded-xl cursor-pointer disabled:opacity-60"
-                  >
-                    <RotateCcw
-                      size={13}
-                      className={isLoadingRepeatDraft ? "animate-spin" : ""}
-                    />
-                    Repeat Previous Treatment
-                  </button>
-                )}
                 <button
                   tabIndex={-1}
                   onClick={addMedication}
