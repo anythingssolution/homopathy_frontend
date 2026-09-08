@@ -3,9 +3,13 @@ import { AnimatePresence, motion } from 'motion/react';
 import { AlertCircle, Check, CheckCircle2, ChevronDown, IndianRupee, Plus, RefreshCcw, Search, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
+import { useTranslation } from 'react-i18next';
 import { formatConsultationMedicineText } from '../../utils/prescriptionFormat';
 import MedicationDuePaymentPanel from './MedicationDuePaymentPanel';
+import PaymentReceipt from '../PaymentReceipt';
+import { useLenisNestedScroll } from '../../hooks/useLenisNestedScroll';
 import { buildMedicationPaymentPayload, formatMoney } from '../../utils/medicationDues';
+import { receiptFromAllocation, type PaymentReceiptData } from '../../utils/paymentReceipt';
 import type { AllocationOrder, AccountDues, DueBill } from '../../utils/medicationDues';
 
 const money = (value: number | string | null | undefined) => Number(value || 0).toFixed(2);
@@ -159,6 +163,7 @@ function SearchableDropdown({
 export default function RepeatMedicine() {
   const { token } = useAuth();
   const { addToast } = useNotifications();
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -183,6 +188,9 @@ export default function RepeatMedicine() {
   const [deliveryRemark, setDeliveryRemark] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [collectionReceipt, setCollectionReceipt] = useState<PaymentReceiptData | null>(null);
+  const billSectionRef = useRef<HTMLDivElement>(null);
+  const bindBillScroll = useLenisNestedScroll();
 
   const totalAmount = useMemo(() => {
     const prescribedTotal = Object.entries(selectedMedicineIds).reduce((sum, [id, checked]) => {
@@ -193,6 +201,34 @@ export default function RepeatMedicine() {
     const deliveryTotal = isCourierDelivery ? (Number(courierCharge || 0) || 0) : 0;
     return Number((prescribedTotal + additionalTotal + deliveryTotal).toFixed(2));
   }, [additionalMedicines, courierCharge, isCourierDelivery, medicineAmounts, selectedMedicineIds]);
+
+  const previousPending = Number(
+    lastPrescription?.account_dues?.total_pending || selectedPatient?.account_dues?.total_pending || 0,
+  );
+  const includePrevious = allocationOrder !== 'CURRENT_ONLY' && previousPending > 0;
+  const collectTarget = Number((includePrevious ? totalAmount + previousPending : totalAmount).toFixed(2));
+  const receivedNow = splitPayment
+    ? Number(((Number(cashAmount || 0) || 0) + (Number(onlineAmount || 0) || 0)).toFixed(2))
+    : Number((collectedAmount === '' ? collectTarget : Number(collectedAmount || 0)).toFixed(2));
+  const payingPreviousOnly = totalAmount <= 0 && includePrevious && receivedNow > 0;
+  const canSubmit = !isSaving && (totalAmount > 0 || payingPreviousOnly);
+  const submitButtonLabel = isSaving
+    ? (payingPreviousOnly
+      ? t('repeat_medicine.collecting', 'Collecting...')
+      : t('repeat_medicine.creating', 'Creating...'))
+    : payingPreviousOnly
+      ? t('repeat_medicine.pay_previous_dues', 'Pay Previous Dues')
+      : (totalAmount > 0 && includePrevious
+        ? t('repeat_medicine.bill_and_pay_dues', 'Bill + Pay Dues')
+        : t('repeat_medicine.create_repeat_bill', 'Create Repeat Bill'));
+
+  useEffect(() => {
+    if (splitPayment || collectedAmount === '') return;
+    const current = Number(collectedAmount || 0);
+    if (Number.isFinite(current) && current > collectTarget + 0.001) {
+      setCollectedAmount(money(collectTarget));
+    }
+  }, [collectTarget, collectedAmount, splitPayment]);
 
   useEffect(() => {
     const fetchTextMedicines = async () => {
@@ -392,30 +428,32 @@ export default function RepeatMedicine() {
       }))
       .filter((item) => item.medicine_value || item.amount || item.reason);
 
-    if (medicines.length === 0 && additional.length === 0) {
+    if (medicines.length === 0 && additional.length === 0 && !payingPreviousOnly) {
       addToast('Select medicine or add medical medicine', 'warning');
       return;
     }
 
-    if (additional.some((item) => !item.medicine_value || item.amount <= 0)) {
+    if (!payingPreviousOnly && additional.some((item) => !item.medicine_value || item.amount <= 0)) {
       addToast('Medical Added medicine me name aur amount mandatory hai', 'warning');
       return;
     }
 
-    if (totalAmount <= 0) {
+    if (!payingPreviousOnly && totalAmount <= 0) {
       addToast('Total amount greater than 0 hona chahiye', 'warning');
       return;
     }
 
-    const previousPending = Number(lastPrescription?.account_dues?.total_pending || selectedPatient.account_dues?.total_pending || 0);
-    const received = splitPayment
-      ? (Number(cashAmount || 0) || 0) + (Number(onlineAmount || 0) || 0)
-      : (collectedAmount === '' ? totalAmount : Number(collectedAmount || 0));
+    if (payingPreviousOnly && receivedNow <= 0) {
+      addToast(t('repeat_medicine.enter_previous_amount', 'Enter the previous amount being collected'), 'warning');
+      return;
+    }
+
+    const received = receivedNow;
     if (Number.isNaN(received) || received < 0) {
       addToast('Please enter a valid amount received. Use 0 if the patient is borrowing the full bill.', 'warning');
       return;
     }
-    if (allocationOrder !== 'CURRENT_FIRST' && received > totalAmount + 0.001) {
+    if (!includePrevious && received > totalAmount + 0.001) {
       addToast('Tick previous pending to collect more than today\'s medicine bill', 'warning');
       return;
     }
@@ -432,13 +470,55 @@ export default function RepeatMedicine() {
       return;
     }
 
-    if (isCourierDelivery && !courierAddress.trim()) {
+    if (!payingPreviousOnly && isCourierDelivery && !courierAddress.trim()) {
       addToast('Courier address mandatory hai', 'warning');
       return;
     }
 
+    const paymentPayload = buildMedicationPaymentPayload({
+      splitPayment,
+      cashAmount,
+      onlineAmount,
+      paymentMode,
+      collectedAmount: String(received),
+      transactionReference,
+      paymentRemark: remark.trim() || (payingPreviousOnly ? 'Previous pending collected' : 'Repeat Medicine'),
+      allocationOrder: payingPreviousOnly ? 'PREVIOUS_FIRST' : allocationOrder,
+    });
+
     setIsSaving(true);
     try {
+      const receiptPatient = {
+        name: selectedPatient.full_name,
+        mobile: selectedPatient.mobile_no,
+      };
+      let nextReceipt: PaymentReceiptData | null = null;
+      if (payingPreviousOnly) {
+        const response = await fetch(`/api/v1/bills/patients/${selectedPatient.patient_id}/collect-dues`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(paymentPayload),
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.message || 'Previous dues collection failed');
+        addToast(t('repeat_medicine.previous_dues_collected', 'Previous dues collected'), 'success');
+        nextReceipt = receiptFromAllocation({
+          patientName: receiptPatient.name,
+          patientMobile: receiptPatient.mobile,
+          allocation: result.data?.payment_allocation,
+          paymentMode,
+          cashAmount,
+          onlineAmount,
+          splitPayment,
+          remainingTotal: Number(result.data?.outstanding?.total_pending || 0),
+          noNewBill: true,
+          remark: paymentPayload.remark || remark.trim() || null,
+          transactionReference: transactionReference.trim() || null,
+        });
+      } else {
       const response = await fetch('/api/v1/medical/repeat-medicine/bills', {
         method: 'POST',
         headers: {
@@ -459,21 +539,28 @@ export default function RepeatMedicine() {
             tracking_no: isCourierDelivery ? (trackingNo.trim() || null) : null,
             delivery_remark: isCourierDelivery ? (deliveryRemark.trim() || null) : null,
           },
-          payment: buildMedicationPaymentPayload({
-            splitPayment,
-            cashAmount,
-            onlineAmount,
-            paymentMode,
-            collectedAmount: String(received),
-            transactionReference,
-            paymentRemark: remark.trim() || 'Repeat Medicine',
-            allocationOrder,
-          }),
+          payment: paymentPayload,
         }),
       });
       const result = await response.json();
       if (!result.success) throw new Error(result.message || 'Repeat bill failed');
       addToast(`Repeat Medicine bill created: ${result.data?.bill_number || ''}`, 'success');
+      nextReceipt = receiptFromAllocation({
+        patientName: receiptPatient.name,
+        patientMobile: receiptPatient.mobile,
+        allocation: result.data?.payment_allocation,
+        paymentMode,
+        cashAmount,
+        onlineAmount,
+        splitPayment,
+        remainingTotal: Number(result.data?.payment_allocation?.total_remaining || 0),
+        currentBillNumber: result.data?.bill_number || null,
+        noNewBill: false,
+        remark: paymentPayload.remark || remark.trim() || null,
+        transactionReference: transactionReference.trim() || null,
+      });
+      }
+      if (nextReceipt) setCollectionReceipt(nextReceipt);
       setLastPrescription(null);
       setSelectedPatient(null);
       setNoPreviousPrescriptionMessage('');
@@ -498,8 +585,29 @@ export default function RepeatMedicine() {
   const activeAccountDues = lastPrescription?.account_dues || selectedPatient?.account_dues;
   const canShowBillPanel = Boolean(lastPrescription || (selectedPatient && noPreviousPrescriptionMessage));
 
+  useEffect(() => {
+    if (!canShowBillPanel || isLoading) return undefined;
+    const node = billSectionRef.current;
+    if (!node) return undefined;
+    const timer = window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('lenis:scrollTo', {
+        detail: { target: node, offset: -96 },
+      }));
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [
+    canShowBillPanel,
+    isLoading,
+    selectedPatient?.patient_id,
+    lastPrescription?.prescription?.consultation_id,
+    noPreviousPrescriptionMessage,
+  ]);
+
   return (
     <div className="space-y-6 pb-12">
+      {collectionReceipt && (
+        <PaymentReceipt data={collectionReceipt} onClose={() => setCollectionReceipt(null)} />
+      )}
       <div className="bg-white border border-gray-200 p-6 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
@@ -555,9 +663,9 @@ export default function RepeatMedicine() {
       </div>
 
       {canShowBillPanel && activePatient && (
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
-          <div className="bg-white border border-gray-200 p-6 shadow-sm space-y-5">
-            <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-4">
+        <div ref={billSectionRef} className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+          <div className="bg-white border border-gray-200 p-4 shadow-sm space-y-3">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3">
               <div>
                 <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">
                   {activePatient.full_name}
@@ -574,20 +682,20 @@ export default function RepeatMedicine() {
             </div>
 
             {lastPrescription ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {(lastPrescription.prescription.medications || []).map((med) => {
                 const checked = Boolean(selectedMedicineIds[med.consultation_medication_id]);
                 return (
-                  <div key={med.consultation_medication_id} className="grid grid-cols-[auto_1fr_140px] gap-4 items-center border border-gray-100 p-4">
+                  <div key={med.consultation_medication_id} className="grid grid-cols-[auto_1fr_120px] gap-3 items-center border border-gray-100 px-3 py-2">
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={(e) => setSelectedMedicineIds((state) => ({ ...state, [med.consultation_medication_id]: e.target.checked }))}
-                      className="w-5 h-5 accent-[#549E9E]"
+                      className="w-4 h-4 accent-[#549E9E]"
                     />
                     <div className="min-w-0">
                       <p className="text-sm font-black text-gray-800 truncate">{med.medicine_value}</p>
-                      {med.remark && <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{med.remark}</p>}
+                      {med.remark && <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{med.remark}</p>}
                     </div>
                     <input
                       type="number"
@@ -597,14 +705,14 @@ export default function RepeatMedicine() {
                       disabled={!checked}
                       onChange={(e) => setMedicineAmounts((state) => ({ ...state, [med.consultation_medication_id]: e.target.value }))}
                       placeholder="Amount"
-                      className="bg-gray-50 border border-gray-100 px-3 py-2 text-xs font-bold outline-none focus:border-[#549E9E] disabled:opacity-40"
+                      className="bg-gray-50 border border-gray-100 px-3 py-1.5 text-xs font-bold outline-none focus:border-[#549E9E] disabled:opacity-40"
                     />
                   </div>
                 );
                 })}
               </div>
             ) : (
-              <div className="border border-amber-100 bg-amber-50/50 p-4">
+              <div className="border border-amber-100 bg-amber-50/50 p-3">
                 <p className="text-xs font-black text-amber-700 uppercase tracking-widest">
                   Previous prescription available nahi hai
                 </p>
@@ -614,13 +722,13 @@ export default function RepeatMedicine() {
               </div>
             )}
 
-            <div className="border border-amber-100 bg-amber-50/40 p-5 space-y-4">
+            <div className="border border-amber-100 bg-amber-50/40 p-3 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-black text-amber-700 uppercase tracking-widest">Medical Added</h4>
-                  <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mt-1">Reason optional</p>
+                  <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mt-0.5">Reason optional</p>
                 </div>
-                <button onClick={addAdditionalMedicine} className="px-3 py-2 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                <button onClick={addAdditionalMedicine} className="px-3 py-1.5 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                   <Plus size={14} /> Add
                 </button>
               </div>
@@ -687,16 +795,23 @@ export default function RepeatMedicine() {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 p-6 shadow-sm h-max space-y-5">
-            <div className="flex items-center gap-3 text-[#549E9E]">
-              <CheckCircle2 size={20} />
-              <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">Repeat Bill</h3>
-            </div>
-            <div className="bg-[#549E9E]/5 border border-[#549E9E]/10 p-5">
-              <p className="text-[10px] font-black text-[#549E9E]/70 uppercase tracking-widest">Today's Bill</p>
-              <p className="text-3xl font-black text-[#549E9E] mt-1">₹ {money(totalAmount)}</p>
+          <div className="bg-white border border-gray-200 shadow-sm flex flex-col sticky top-24 max-h-[calc(100vh-7rem)]">
+            <div className="shrink-0 flex items-center justify-between gap-3 border-b border-gray-100 px-3 py-2">
+              <div className="flex items-center gap-2 text-[#549E9E]">
+                <CheckCircle2 size={18} />
+                <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">Repeat Bill</h3>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-black uppercase tracking-widest text-[#549E9E]/70">Today's Bill</p>
+                <p className="text-lg font-black text-[#549E9E]">₹ {money(totalAmount)}</p>
+              </div>
             </div>
 
+            <div
+              ref={bindBillScroll}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 space-y-3"
+              data-lenis-prevent
+            >
             <MedicationDuePaymentPanel
               todayAmount={totalAmount}
               previousBills={(activeAccountDues?.bills || []) as DueBill[]}
@@ -715,11 +830,13 @@ export default function RepeatMedicine() {
               onlineAmount={onlineAmount}
               onOnlineAmountChange={setOnlineAmount}
               showRemark={false}
+              compact
             />
 
-            <div className="border border-gray-100 bg-gray-50/60 p-4 space-y-3">
+            {totalAmount > 0 && (
+            <div className="border border-gray-100 bg-gray-50/60 p-2.5 space-y-2">
               <div className="grid grid-cols-2 gap-2">
-                <label className={`flex items-center gap-3 border px-4 py-3 cursor-pointer ${!isCourierDelivery ? 'bg-[#549E9E]/10 border-[#549E9E]/20 text-[#549E9E]' : 'bg-white border-gray-100 text-gray-500'}`}>
+                <label className={`flex items-center gap-2 border px-2.5 py-2 cursor-pointer ${!isCourierDelivery ? 'bg-[#549E9E]/10 border-[#549E9E]/20 text-[#549E9E]' : 'bg-white border-gray-100 text-gray-500'}`}>
                   <input
                     type="checkbox"
                     checked={!isCourierDelivery}
@@ -728,7 +845,7 @@ export default function RepeatMedicine() {
                   />
                   <span className="text-[10px] font-black uppercase tracking-widest">Hand Delivery</span>
                 </label>
-                <label className={`flex items-center gap-3 border px-4 py-3 cursor-pointer ${isCourierDelivery ? 'bg-[#549E9E]/10 border-[#549E9E]/20 text-[#549E9E]' : 'bg-white border-gray-100 text-gray-500'}`}>
+                <label className={`flex items-center gap-2 border px-2.5 py-2 cursor-pointer ${isCourierDelivery ? 'bg-[#549E9E]/10 border-[#549E9E]/20 text-[#549E9E]' : 'bg-white border-gray-100 text-gray-500'}`}>
                   <input
                     type="checkbox"
                     checked={isCourierDelivery}
@@ -740,12 +857,12 @@ export default function RepeatMedicine() {
               </div>
 
               {isCourierDelivery && (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <textarea
                     value={courierAddress}
                     onChange={(e) => setCourierAddress(e.target.value)}
                     placeholder="Courier address"
-                    className="w-full bg-white border border-gray-100 px-4 py-3 text-xs font-bold outline-none min-h-[80px]"
+                    className="w-full bg-white border border-gray-100 px-3 py-2 text-xs font-bold outline-none min-h-[64px]"
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <input
@@ -755,43 +872,50 @@ export default function RepeatMedicine() {
                       value={courierCharge}
                       onChange={(e) => setCourierCharge(e.target.value)}
                       placeholder="Courier charge"
-                      className="bg-white border border-gray-100 px-4 py-3 text-xs font-bold outline-none"
+                      className="bg-white border border-gray-100 px-3 py-2 text-xs font-bold outline-none"
                     />
                     <input
                       value={trackingNo}
                       onChange={(e) => setTrackingNo(e.target.value)}
                       placeholder="Tracking no"
-                      className="bg-white border border-gray-100 px-4 py-3 text-xs font-bold outline-none"
+                      className="bg-white border border-gray-100 px-3 py-2 text-xs font-bold outline-none"
                     />
                   </div>
                   <input
                     value={deliveryRemark}
                     onChange={(e) => setDeliveryRemark(e.target.value)}
                     placeholder="Delivery remark"
-                    className="w-full bg-white border border-gray-100 px-4 py-3 text-xs font-bold outline-none"
+                    className="w-full bg-white border border-gray-100 px-3 py-2 text-xs font-bold outline-none"
                   />
                 </div>
-              )}
+                )}
             </div>
+            )}
 
             <textarea
               value={remark}
               onChange={(e) => setRemark(e.target.value)}
-              placeholder="Bill remark"
-              className="w-full bg-gray-50 border border-gray-100 px-4 py-3 text-xs font-bold outline-none min-h-[90px]"
+              placeholder={payingPreviousOnly ? 'Payment remark' : 'Bill remark'}
+              className="w-full bg-gray-50 border border-gray-100 px-3 py-2 text-xs font-bold outline-none min-h-[56px]"
             />
+            </div>
 
+            <div className="shrink-0 sticky bottom-0 z-20 border-t border-gray-100 bg-white p-3 space-y-2">
             <button
+              type="button"
               onClick={createRepeatBill}
-              disabled={isSaving || totalAmount <= 0}
-              className="w-full py-4 bg-[#549E9E] text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+              disabled={!canSubmit}
+              className="w-full py-2.5 bg-[#549E9E] text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
             >
-              {isSaving ? 'Creating...' : 'Create Repeat Bill'}
+              {submitButtonLabel}
             </button>
 
-            <div className="flex gap-2 text-[10px] font-bold text-gray-400 leading-relaxed">
+            <div className="flex gap-2 text-[10px] font-bold text-gray-400 leading-snug">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              Repeat sirf last doctor prescription ke basis par banega. Medical Added medicine me reason optional hai.
+              {payingPreviousOnly
+                ? t('repeat_medicine.previous_only_hint', 'No new medicine bill. This payment is applied to previous pending in billing.')
+                : t('repeat_medicine.repeat_hint', 'Repeat sirf last doctor prescription ke basis par banega. Medical Added medicine me reason optional hai.')}
+            </div>
             </div>
           </div>
         </div>

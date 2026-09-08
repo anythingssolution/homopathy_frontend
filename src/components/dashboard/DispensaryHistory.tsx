@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -30,10 +30,14 @@ import { useNotifications } from '../../context/NotificationContext';
 import CustomDatePicker from '../CustomDatePicker';
 import Pagination from '../Pagination';
 import { getDosePreview, getMedicationPricingAmount, getMedicationRoleLabel, formatNumericMedicineWithFormula } from '../../utils/prescriptionFormat';
+import { getLocalDateString } from '../../utils/date';
+import { useLenisNestedScroll } from '../../hooks/useLenisNestedScroll';
 import { useTranslation } from 'react-i18next';
 import MedicationDispensingStatus from '../MedicationDispensingStatus';
 import PrescriptionPrint from '../PrescriptionPrint';
 import PaymentSplitDisplay from '../PaymentSplitDisplay';
+import PaymentReceipt from '../PaymentReceipt';
+import { receiptFromPayments, isSameLocalDay, formatReceiptDateTime, type PaymentReceiptData } from '../../utils/paymentReceipt';
 
 const getValidPrescriptionConsultationId = (record: any) => {
   const id = Number(record?.consultation_id);
@@ -114,65 +118,103 @@ const formatHistoryDateTime = (value: any) => {
   });
 };
 
-const getPaymentEventTime = (payment: any) => payment?.collected_at || payment?.created_at || null;
-
-const getPaymentEventKey = (payment: any) => {
-  const eventTime = getPaymentEventTime(payment);
-  if (!eventTime) return '';
-  const parsedTime = new Date(eventTime).getTime();
-  const normalizedTime = Number.isNaN(parsedTime) ? String(eventTime) : String(parsedTime);
-
-  return `${normalizedTime}|${String(payment?.payment_mode || '').toUpperCase()}`;
+const toLocalDateKey = (value: any) => {
+  if (!value) return '';
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const date = new Date(raw.includes('T') || raw.includes(' ') ? raw.replace(' ', 'T') : `${raw}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  return getLocalDateString(date);
 };
 
+const getIncomingPreviousPayments = (record: any) => (
+  Array.isArray(record?.medication_bill?.payments) ? record.medication_bill.payments : []
+).filter((payment: any) => String(payment?.allocation_kind || '').toUpperCase() === 'PREVIOUS');
+
+const getLaterPendingReceivedAmount = (record: any) => {
+  const fromBreakdown = getBreakdownAmount(record, 'later_pending_received', 0);
+  if (fromBreakdown > 0) return fromBreakdown;
+  return getIncomingPreviousPayments(record).reduce((sum: number, payment: any) => (
+    sum + Number(payment.amount || 0)
+  ), 0);
+};
+
+const isPreviousAmountReceivedRow = (record: any, filterDate?: string) => {
+  const laterReceived = getLaterPendingReceivedAmount(record);
+  const previousPayments = getIncomingPreviousPayments(record);
+  if (laterReceived <= 0 && previousPayments.length === 0) return false;
+
+  const visitDate = toLocalDateKey(record?.appointment?.appointment_date || record?.created_at);
+  const filterKey = filterDate && filterDate !== 'all' ? filterDate : getLocalDateString();
+  if (!visitDate || visitDate === filterKey) return false;
+
+  return previousPayments.some((payment: any) => toLocalDateKey(payment.collected_at || payment.created_at) === filterKey)
+    || (laterReceived > 0 && isSameLocalDay(getBillPaymentBreakdown(record)?.last_received_at));
+};
+
+const isPrintableRemark = (value: any) => {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  const normalized = text.toLowerCase();
+  if (normalized === 'no dispensing notes provided.') return false;
+  if (/^repeat medicine/i.test(text) && /delivery/i.test(text)) return false;
+  return true;
+};
+
+const formatInvoiceMoney = (value: number) => `₹ ${Number(value || 0).toFixed(2)}`;
+
 const RepeatMedicineInvoice = ({ record }: { record: any }) => {
-  const medicines = record?.prescription?.medications || [];
-  const tests = record?.prescription?.tests || [];
+  const medicines = (record?.prescription?.medications || []).filter((medicine: any) => (
+    String(medicine?.dispense_status || '').toUpperCase() !== 'VOID'
+  ));
+  const tests = (record?.prescription?.tests || []).filter((test: any) => (
+    String(test?.dispense_status || '').toUpperCase() !== 'VOID'
+  ));
   const pricing = record?.prescription?.pricing || {};
-  const deliveryMode = record?.prescription?.delivery_mode === 'COURIER' ? 'Courier' : 'Hand Delivery';
+  const quickFormulaInput = record?.prescription?.quick_formula_input;
+  const durationDays = record?.prescription?.medication_duration_days;
+  const isCourier = record?.prescription?.delivery_mode === 'COURIER';
   const deliveryDetails = record?.prescription?.delivery_details || {};
   const courierCharge = Number(record?.prescription?.courier_charge || 0);
-  const billNumber = record?.appointment?.auid || record?.bill_number || '-';
+  const billNumber = record?.medication_bill?.bill_number || record?.appointment?.auid || record?.bill_number || '-';
   const billDate = record?.appointment?.appointment_date || record?.created_at;
   const isRepeat = Boolean(record?.is_repeat_medicine);
+  const showDelivery = isRepeat || isCourier;
   const totalAmount = Number(pricing.total_amount || record?.medication_bill?.total_amount || 0);
   const paidAmount = getBreakdownAmount(record, 'total_paid', getBillAmountValue(record, 'paid_amount'));
   const pendingAmount = getBreakdownAmount(record, 'pending_amount', getBillAmountValue(record, 'pending_amount'));
-  const otherPendingAmount = getOtherPendingAmount(record);
-  const accountPendingAfterThisBill = getAccountPendingAfterThisBill(record);
   const previousPendingRemaining = getPreviousPendingRemainingAmount(record);
-  const cashAmount = getBreakdownAmount(record, 'cash_received_at_billing', Number(record?.medication_bill?.cash_amount || 0));
-  const onlineAmount = getBreakdownAmount(record, 'online_received_at_billing', Number(record?.medication_bill?.online_amount || 0));
-  const directReceivedAmount = getBreakdownAmount(record, 'received_at_billing', Number((cashAmount + onlineAmount).toFixed(2)));
+  const otherPendingAmount = getOtherPendingAmount(record);
+  const cashAmount = Number(record?.medication_bill?.cash_amount || 0);
+  const onlineAmount = Number(record?.medication_bill?.online_amount || 0);
   const payments = Array.isArray(record?.medication_bill?.payments) ? record.medication_bill.payments : [];
-  const directBillPayments = payments.filter((payment: any) => (
+  const thisBillPayments = payments.filter((payment: any) => (
     String(payment?.allocation_kind || 'CURRENT').toUpperCase() !== 'PREVIOUS'
   ));
-  const incomingLaterPendingReceipts = payments.filter((payment: any) => (
+  const laterPayments = payments.filter((payment: any) => (
     String(payment?.allocation_kind || '').toUpperCase() === 'PREVIOUS'
   ));
   const previousPendingPaidWithThisBill = Array.isArray(record?.medication_bill?.previous_pending_settlements)
     ? record.medication_bill.previous_pending_settlements
     : [];
-  const incomingLaterPendingTotal = getBreakdownAmount(record, 'later_pending_received', incomingLaterPendingReceipts.reduce((sum: number, payment: any) => (
-    sum + Number(payment.amount || 0)
-  ), 0));
   const previousPendingPaidTotal = getBreakdownAmount(record, 'previous_pending_paid', previousPendingPaidWithThisBill.reduce((sum: number, payment: any) => (
     sum + Number(payment.amount || 0)
   ), 0));
-  const paymentTimelineRows = [...directBillPayments, ...incomingLaterPendingReceipts, ...previousPendingPaidWithThisBill];
-  const lastPayment = paymentTimelineRows
-    .filter((payment: any) => getPaymentEventTime(payment))
-    .sort((a: any, b: any) => new Date(getPaymentEventTime(b)).getTime() - new Date(getPaymentEventTime(a)).getTime())[0];
-  const lastPaymentKey = getPaymentEventKey(lastPayment);
-  const lastReceivedAmount = getBreakdownAmount(record, 'last_received_amount', lastPaymentKey
-    ? Math.max(
-      Number(lastPayment?.collection_total_amount || 0),
-      paymentTimelineRows
-        .filter((payment: any) => getPaymentEventKey(payment) === lastPaymentKey)
-        .reduce((sum: number, payment: any) => sum + Number(payment.amount || 0), 0)
-    )
-    : 0);
+  const paymentLines = [...thisBillPayments, ...laterPayments];
+  const showPaymentLines = paymentLines.length > 1 || laterPayments.length > 0;
+  const paidModeLabel = [
+    cashAmount > 0 ? `Cash ${formatInvoiceMoney(cashAmount)}` : null,
+    onlineAmount > 0 ? `Online ${formatInvoiceMoney(onlineAmount)}` : null,
+  ].filter(Boolean).join(' + ')
+    || String(record?.medication_bill?.payment_mode || '').trim()
+    || (paidAmount > 0 ? 'Paid' : 'Unpaid');
+  const invoiceRemarks = [
+    isCourier ? deliveryDetails.delivery_remark : null,
+    pricing.remark,
+  ].filter(isPrintableRemark);
+  const paymentStatus = String(record?.medication_bill?.payment_status || record?.prescription?.payment_status || (
+    pendingAmount > 0 ? 'PENDING' : 'PAID'
+  )).toUpperCase();
 
   return (
     <div className="repeat-invoice-print-only hidden bg-white text-gray-900 font-sans p-8">
@@ -195,27 +237,29 @@ const RepeatMedicineInvoice = ({ record }: { record: any }) => {
               <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Date</span>
               <span className="text-right font-black">{billDate ? new Date(billDate).toLocaleDateString('en-GB') : '-'}</span>
               <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Status</span>
-              <span className="text-right font-black">{record?.medication_bill?.payment_status || record?.prescription?.payment_status || 'PAID'}</span>
+              <span className="text-right font-black">{paymentStatus}</span>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 border-y border-gray-300 text-xs">
-          <div className="border-r border-gray-300 p-5">
+        <div className={`grid border-y border-gray-300 text-xs ${showDelivery ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <div className={showDelivery ? 'border-r border-gray-300 p-5' : 'p-5'}>
             <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Bill To</p>
             <p className="mt-2 text-base font-black uppercase">{record?.patient?.full_name || '-'}</p>
             <p className="mt-1 font-bold text-gray-600">{record?.patient?.mobile_no || '-'}</p>
           </div>
-          <div className="p-5">
-            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Delivery</p>
-            <p className="mt-2 text-base font-black">{isRepeat ? deliveryMode : 'Hand Delivery'}</p>
-            {isRepeat && record?.prescription?.delivery_mode === 'COURIER' && (
-              <div className="mt-1 font-bold text-gray-600 leading-relaxed">
-                <p>{deliveryDetails.courier_address || '-'}</p>
-                {deliveryDetails.tracking_no && <p>Tracking: {deliveryDetails.tracking_no}</p>}
-              </div>
-            )}
-          </div>
+          {showDelivery && (
+            <div className="p-5">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Delivery</p>
+              <p className="mt-2 text-base font-black">{isCourier ? 'Courier' : 'Hand Delivery'}</p>
+              {isCourier && (
+                <div className="mt-1 font-bold text-gray-600 leading-relaxed">
+                  <p>{deliveryDetails.courier_address || '-'}</p>
+                  {deliveryDetails.tracking_no && <p>Tracking: {deliveryDetails.tracking_no}</p>}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="p-5">
@@ -223,228 +267,155 @@ const RepeatMedicineInvoice = ({ record }: { record: any }) => {
             <thead>
               <tr className="bg-[#eaf5f5] text-gray-900">
                 <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">#</th>
-                <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">Item Description</th>
-                <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">Type</th>
+                <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">Medicine / Item</th>
                 <th className="border border-gray-300 px-3 py-2 text-right text-[10px] font-black uppercase tracking-widest">Amount</th>
               </tr>
             </thead>
             <tbody>
-              {medicines.map((medicine: any, index: number) => (
-                <tr key={medicine.consultation_medication_id || index}>
-                  <td className="w-12 border border-gray-300 px-3 py-2 font-bold text-gray-500">{index + 1}</td>
-                  <td className="border border-gray-300 px-3 py-2 font-bold">{medicine.medicine_value}</td>
-                  <td className="border border-gray-300 px-3 py-2 font-bold">
-                    {String(medicine.added_by_role || '').toUpperCase() === 'MEDICAL' ? 'Medical Added' : 'Prescribed'}
+              {medicines.map((medicine: any, index: number) => {
+                const dosePreview = getDosePreview(medicine, durationDays, {
+                  quickFormulaInput,
+                  style: 'full',
+                });
+                const addedAtDispensary = String(medicine.added_by_role || '').toUpperCase() === 'MEDICAL';
+                return (
+                  <tr key={medicine.consultation_medication_id || index}>
+                    <td className="w-12 border border-gray-300 px-3 py-2 font-bold text-gray-500">{index + 1}</td>
+                    <td className="border border-gray-300 px-3 py-2">
+                      <p className="font-black">
+                        {formatNumericMedicineWithFormula(medicine.medicine_value, quickFormulaInput)}
+                      </p>
+                      {dosePreview && (
+                        <p className="mt-0.5 font-bold text-gray-600">{dosePreview}</p>
+                      )}
+                      {medicine.remark && (
+                        <p className="mt-0.5 font-bold text-gray-500">{medicine.remark}</p>
+                      )}
+                      {addedAtDispensary && (
+                        <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">Added at dispensary</p>
+                      )}
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 text-right font-black align-top">
+                      {formatInvoiceMoney(Number(getMedicationPricingAmount(pricing, medicine) || 0))}
+                    </td>
+                  </tr>
+                );
+              })}
+              {tests.map((test: any, index: number) => (
+                <tr key={test.consultation_test_id || index}>
+                  <td className="w-12 border border-gray-300 px-3 py-2 font-bold text-gray-500">{medicines.length + index + 1}</td>
+                  <td className="border border-gray-300 px-3 py-2">
+                    <p className="font-black">{test.test_name}</p>
+                    <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">Test / Lab</p>
                   </td>
-                  <td className="border border-gray-300 px-3 py-2 text-right font-black">
-                    ₹ {Number(getMedicationPricingAmount(pricing, medicine) || 0).toFixed(2)}
+                  <td className="border border-gray-300 px-3 py-2 text-right font-black align-top">
+                    {formatInvoiceMoney(Number(test.amount || 0))}
                   </td>
                 </tr>
               ))}
-              {tests.map((test: any, index: number) => {
-                const isVoided = String(test.dispense_status || '').toUpperCase() === 'VOID';
-                return (
-                <tr key={test.consultation_test_id || index} className={isVoided ? 'text-red-700' : ''}>
-                  <td className="w-12 border border-gray-300 px-3 py-2 font-bold text-gray-500">{medicines.length + index + 1}</td>
-                  <td className="border border-gray-300 px-3 py-2 font-bold">
-                    {test.test_name}
-                    {isVoided && (
-                      <div className="mt-1 text-[10px] font-bold uppercase tracking-widest">
-                        Removed: {test.void_reason || 'No reason given'}
-                      </div>
-                    )}
-                  </td>
-                  <td className="border border-gray-300 px-3 py-2 font-bold">{isVoided ? 'Test / Lab (Removed)' : 'Test / Lab'}</td>
-                  <td className="border border-gray-300 px-3 py-2 text-right font-black">
-                    ₹ {Number(isVoided ? 0 : test.amount || 0).toFixed(2)}
-                  </td>
-                </tr>
-                );
-              })}
               {courierCharge > 0 && (
                 <tr>
                   <td className="w-12 border border-gray-300 px-3 py-2 font-bold text-gray-500">{medicines.length + tests.length + 1}</td>
-                  <td className="border border-gray-300 px-3 py-2 font-bold">Courier Charge</td>
-                  <td className="border border-gray-300 px-3 py-2 font-bold">Delivery</td>
-                  <td className="border border-gray-300 px-3 py-2 text-right font-black">₹ {courierCharge.toFixed(2)}</td>
+                  <td className="border border-gray-300 px-3 py-2 font-black">Courier Charge</td>
+                  <td className="border border-gray-300 px-3 py-2 text-right font-black">{formatInvoiceMoney(courierCharge)}</td>
                 </tr>
               )}
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={3} className="border border-gray-300 bg-gray-100 px-3 py-3 text-right font-black uppercase tracking-widest">Total Bill Amount</td>
+                <td colSpan={2} className="border border-gray-300 bg-gray-100 px-3 py-3 text-right font-black uppercase tracking-widest">Total</td>
                 <td className="border border-gray-300 bg-gray-100 px-3 py-3 text-right text-lg font-black">
-                  ₹ {totalAmount.toFixed(2)}
+                  {formatInvoiceMoney(totalAmount)}
                 </td>
               </tr>
             </tfoot>
           </table>
 
-          <div className="mt-5 grid grid-cols-[1fr_300px] gap-8">
-            <div className="text-xs">
-              <h2 className="mb-2 text-[11px] font-black uppercase tracking-widest text-[#0b946f]">Payment Instructions</h2>
-              <p className="font-bold text-gray-500">Payment Mode</p>
-              <p className="mt-1 font-black text-gray-900">
-                Cash ₹ {cashAmount.toFixed(2)} / Online ₹ {onlineAmount.toFixed(2)}
-              </p>
-              {incomingLaterPendingTotal > 0 && (
-                <>
-                  <p className="mt-3 font-bold text-gray-500">Later Pending Received</p>
-                  <p className="mt-1 font-black text-gray-900">₹ {incomingLaterPendingTotal.toFixed(2)}</p>
-                </>
-              )}
-              {pendingAmount > 0 && (
-                <>
-                  <p className="mt-3 font-bold text-orange-600">Still Pending For This Bill</p>
-                  <p className="mt-1 text-lg font-black text-orange-700">₹ {pendingAmount.toFixed(2)}</p>
-                </>
-              )}
-              {previousPendingPaidTotal > 0 && (
-                <>
-                  <p className="mt-3 font-bold text-gray-500">Previous Pending Paid With This Bill</p>
-                  <p className="mt-1 font-black text-gray-900">₹ {previousPendingPaidTotal.toFixed(2)}</p>
-                  <p className="mt-3 font-bold text-orange-600">Previous Pending Remaining</p>
-                  <p className="mt-1 text-lg font-black text-orange-700">₹ {previousPendingRemaining.toFixed(2)}</p>
-                </>
-              )}
-              {otherPendingAmount > 0 && previousPendingPaidTotal <= 0 && (
-                <>
-                  <p className="mt-3 font-bold text-orange-600">Other Pending Bills</p>
-                  <p className="mt-1 text-lg font-black text-orange-700">₹ {otherPendingAmount.toFixed(2)}</p>
-                </>
-              )}
-              {((isRepeat && record?.prescription?.delivery_details?.delivery_remark) || pricing.remark) && (
-                <>
-                  <p className="mt-3 font-bold text-gray-500">Remark</p>
-                  {isRepeat && record?.prescription?.delivery_details?.delivery_remark && (
-                    <p className="mt-1 font-black text-gray-900">{record.prescription.delivery_details.delivery_remark}</p>
-                  )}
-                  {pricing.remark && <p className="mt-1 font-black text-gray-900">{pricing.remark}</p>}
-                </>
-              )}
+          <div className="mt-6 ml-auto w-[320px] text-xs">
+            <div className="flex items-start justify-between gap-4 py-1">
+              <span className="font-bold text-gray-600">Paid</span>
+              <span className="text-right font-black">
+                {formatInvoiceMoney(paidAmount)}
+                {paidAmount > 0 && (
+                  <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    {paidModeLabel}
+                  </span>
+                )}
+              </span>
             </div>
-
-            <div className="text-xs">
-              <div className="border-y border-[#0b946f] py-3">
-                <div className="flex items-center justify-between py-1">
-                  <span className="font-black">Current Bill Total</span>
-                  <span className="font-black">₹ {totalAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between py-1">
-                  <span className="font-bold text-gray-600">Received At Billing</span>
-                  <span className="font-bold">₹ {directReceivedAmount.toFixed(2)}</span>
-                </div>
-                {incomingLaterPendingTotal > 0 && (
-                  <div className="flex items-center justify-between py-1">
-                    <span className="font-bold text-gray-600">Later Pending Received</span>
-                    <span className="font-bold">₹ {incomingLaterPendingTotal.toFixed(2)}</span>
-                  </div>
-                )}
-                {previousPendingPaidTotal > 0 && (
-                  <div className="flex items-center justify-between py-1">
-                    <span className="font-bold text-gray-600">Previous Pending Paid</span>
-                    <span className="font-bold">₹ {previousPendingPaidTotal.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between border-t border-[#0b946f] pt-2 mt-1">
-                  <span className="font-black">Total Paid</span>
-                  <span className="font-black">₹ {paidAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between py-1">
-                  <span className="font-bold text-gray-600">
-                    Last Received{lastPayment ? ` (${formatHistoryDateTime(getPaymentEventTime(lastPayment))})` : ''}
-                  </span>
-                  <span className="font-bold">₹ {lastReceivedAmount.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between border-t border-[#0b946f] pt-2 mt-1">
-                  <span className="font-black">Current Bill Balance Due</span>
-                  <span className={`font-black ${pendingAmount > 0 ? 'text-orange-700' : 'text-gray-900'}`}>
-                    ₹ {pendingAmount.toFixed(2)}
-                  </span>
-                </div>
-                {previousPendingPaidTotal > 0 && (
-                  <div className="flex items-center justify-between py-1">
-                    <span className="font-bold text-gray-600">Previous Pending Remaining</span>
-                    <span className={`font-bold ${previousPendingRemaining > 0 ? 'text-orange-700' : 'text-emerald-700'}`}>
-                      ₹ {previousPendingRemaining.toFixed(2)}
-                    </span>
-                  </div>
-                )}
-                {accountPendingAfterThisBill > pendingAmount && (
-                  <div className="flex items-center justify-between border-t border-[#0b946f] pt-2 mt-1">
-                    <span className="font-black">Patient Total Pending</span>
-                    <span className={`font-black ${accountPendingAfterThisBill > 0 ? 'text-orange-700' : 'text-emerald-700'}`}>
-                      ₹ {accountPendingAfterThisBill.toFixed(2)}
-                    </span>
-                  </div>
-                )}
+            {showPaymentLines && (
+              <div className="mt-1 border-t border-gray-200 pt-1">
+                {paymentLines.map((payment: any, index: number) => {
+                  const isLater = String(payment?.allocation_kind || '').toUpperCase() === 'PREVIOUS';
+                  return (
+                    <div key={payment.payment_id || index} className="flex items-start justify-between gap-4 py-0.5 text-gray-600">
+                      <span className="min-w-0 font-bold">
+                        {isLater ? 'Paid later' : 'Paid at billing'}
+                        <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                          {formatHistoryDateTime(payment.collected_at || payment.created_at)}
+                          {payment.payment_mode ? ` · ${payment.payment_mode}` : ''}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-black text-gray-800">
+                        {formatInvoiceMoney(Number(payment.amount || 0))}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
+            )}
+            {previousPendingPaidTotal > 0 && (
+              <div className="mt-1 border-t border-gray-200 pt-1">
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="font-bold text-gray-600">Old dues paid with this bill</span>
+                  <span className="font-black">{formatInvoiceMoney(previousPendingPaidTotal)}</span>
+                </div>
+                {previousPendingPaidWithThisBill.map((payment: any, index: number) => (
+                  <div key={payment.payment_id || index} className="flex items-center justify-between py-0.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                    <span>{payment.bill_number ? `Bill ${payment.bill_number}` : 'Previous bill'}</span>
+                    <span>{formatInvoiceMoney(Number(payment.amount || 0))}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="font-bold text-gray-600">Old dues remaining</span>
+                  <span className={`font-black ${previousPendingRemaining > 0 ? 'text-orange-700' : 'text-gray-900'}`}>
+                    {formatInvoiceMoney(previousPendingRemaining)}
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="mt-1 flex items-center justify-between border-t border-[#0b946f] pt-2">
+              <span className="font-black">Balance due</span>
+              <span className={`font-black ${pendingAmount > 0 ? 'text-orange-700' : 'text-gray-900'}`}>
+                {formatInvoiceMoney(pendingAmount)}
+              </span>
             </div>
+            {otherPendingAmount > 0 && previousPendingPaidTotal <= 0 && (
+              <div className="flex items-center justify-between py-1">
+                <span className="font-bold text-gray-600">Other bills pending</span>
+                <span className="font-black text-orange-700">{formatInvoiceMoney(otherPendingAmount)}</span>
+              </div>
+            )}
           </div>
 
-          {(directBillPayments.length > 0 || incomingLaterPendingReceipts.length > 0 || previousPendingPaidWithThisBill.length > 0) && (
-            <div className="mt-5">
-              <h2 className="mb-2 text-[11px] font-black uppercase tracking-widest text-gray-900">Payment Timeline</h2>
-              <table className="w-full border-collapse text-[10px]">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-gray-300 px-2 py-1.5 text-left font-black uppercase tracking-widest">Payment Type</th>
-                    <th className="border border-gray-300 px-2 py-1.5 text-left font-black uppercase tracking-widest">Date / Mode</th>
-                    <th className="border border-gray-300 px-2 py-1.5 text-right font-black uppercase tracking-widest">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {directBillPayments.map((payment: any, index: number) => (
-                    <tr key={`print-payment-${payment.payment_id || index}`}>
-                      <td className="border border-gray-300 px-2 py-1.5 font-bold">Received At Billing</td>
-                      <td className="border border-gray-300 px-2 py-1.5">
-                        {formatHistoryDateTime(payment.collected_at || payment.created_at)} / {payment.payment_mode || '-'}
-                      </td>
-                      <td className="border border-gray-300 px-2 py-1.5 text-right font-black">
-                        ₹ {Number(payment.amount || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                  {incomingLaterPendingReceipts.map((payment: any, index: number) => (
-                    <tr key={`print-incoming-later-pending-${payment.payment_id || index}`}>
-                      <td className="border border-gray-300 px-2 py-1.5 font-bold">Later Pending Received</td>
-                      <td className="border border-gray-300 px-2 py-1.5">
-                        {formatHistoryDateTime(payment.collected_at || payment.created_at)} / {payment.payment_mode || '-'}
-                        {payment.bill_number ? ` / Via ${payment.bill_number}` : ''}
-                      </td>
-                      <td className="border border-gray-300 px-2 py-1.5 text-right font-black">
-                        ₹ {Number(payment.amount || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                  {previousPendingPaidWithThisBill.map((payment: any, index: number) => (
-                    <tr key={`print-previous-pending-paid-${payment.payment_id || index}`}>
-                      <td className="border border-gray-300 px-2 py-1.5 font-bold">Previous Pending Paid</td>
-                      <td className="border border-gray-300 px-2 py-1.5">
-                        {formatHistoryDateTime(payment.collected_at || payment.created_at)} / {payment.payment_mode || '-'}
-                        {payment.bill_number ? ` / Bill ${payment.bill_number}` : ''}
-                        {payment.pending_after !== null && payment.pending_after !== undefined
-                          ? ` / Balance ${Number(payment.pending_after || 0).toFixed(2)}`
-                          : ''}
-                      </td>
-                      <td className="border border-gray-300 px-2 py-1.5 text-right font-black">
-                        ₹ {Number(payment.amount || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {invoiceRemarks.length > 0 && (
+            <div className="mt-5 text-xs">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Notes</p>
+              {invoiceRemarks.map((remark: string, index: number) => (
+                <p key={index} className="mt-1 font-bold text-gray-700">{remark}</p>
+              ))}
             </div>
           )}
 
           <div className="mt-10 flex justify-between border-t border-gray-300 pt-5 text-xs font-bold">
-            <span>Generated by Medical</span>
+            <span>Dispensary copy</span>
             <span className="text-center">
               <span className="block h-8"></span>
               Authorized Signatory
             </span>
           </div>
         </div>
+
       </div>
       <style>{`
         @media print {
@@ -484,6 +455,7 @@ export default function DispensaryHistory() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
+  const [collectionReceipt, setCollectionReceipt] = useState<PaymentReceiptData | null>(null);
   const [previewPrescription, setPreviewPrescription] = useState<any | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
@@ -498,6 +470,9 @@ export default function DispensaryHistory() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
+  const bindModalScroll = useLenisNestedScroll();
+  const bindLeftScroll = useLenisNestedScroll();
+  const bindRightScroll = useLenisNestedScroll();
 
   const fetchPrescriptions = useCallback(async (pageNum = page) => {
     setIsLoading(true);
@@ -563,6 +538,40 @@ export default function DispensaryHistory() {
     setRemark(p.prescription?.pricing?.remark || 'No dispensing notes provided.');
   };
 
+  useEffect(() => {
+    if (!selectedPrescription) return undefined;
+    const previousBody = document.body.style.overflow;
+    const previousHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    window.dispatchEvent(new Event('lenis:stop'));
+    return () => {
+      document.body.style.overflow = previousBody;
+      document.documentElement.style.overflow = previousHtml;
+      window.dispatchEvent(new Event('lenis:start'));
+    };
+  }, [selectedPrescription]);
+
+  const openPaymentReceipt = (record: any) => {
+    const payments = [
+      ...(Array.isArray(record?.medication_bill?.payments) ? record.medication_bill.payments : []),
+      ...(Array.isArray(record?.medication_bill?.previous_pending_settlements)
+        ? record.medication_bill.previous_pending_settlements
+        : []),
+    ];
+    const data = receiptFromPayments({
+      patientName: record?.patient?.full_name || '',
+      patientMobile: record?.patient?.mobile_no,
+      payments,
+      remainingTotal: getAccountPendingAfterThisBill(record),
+    });
+    if (!data) {
+      addToast(t('payment_receipt.none', 'No payment found to print'), 'warning');
+      return;
+    }
+    setCollectionReceipt(data);
+  };
+
   const openPrescriptionPreview = async (consultationId?: number | string | null) => {
     if (!token || !consultationId) return;
     setIsPreviewLoading(true);
@@ -587,6 +596,13 @@ export default function DispensaryHistory() {
   };
 
   const getDispensaryStatus = (record: any) => {
+    if (isPreviousAmountReceivedRow(record, filterDate)) {
+      return {
+        label: t('dispensary_history.previous_amount_received', 'Previous amount received'),
+        icon: IndianRupee,
+        className: 'bg-blue-50 text-blue-700 border-blue-100',
+      };
+    }
     if (getBillAmountValue(record, 'pending_amount') > 0) {
       return {
         label: 'Partial Payment',
@@ -633,13 +649,18 @@ export default function DispensaryHistory() {
   const PaymentColumnSummary = ({ record }: { record: any }) => {
     const paid = getBreakdownAmount(record, 'total_paid', getBillAmountValue(record, 'paid_amount'));
     const pending = getBreakdownAmount(record, 'pending_amount', getBillAmountValue(record, 'pending_amount'));
-    const accountPending = getAccountPendingAfterThisBill(record);
-    const laterPendingReceived = getBreakdownAmount(record, 'later_pending_received', 0);
-    const previousPendingPaid = getBreakdownAmount(record, 'previous_pending_paid', 0);
-    const previousPendingRemaining = getPreviousPendingRemainingAmount(record);
+    const laterPendingReceived = getLaterPendingReceivedAmount(record);
+    const lastReceivedAt = getBillPaymentBreakdown(record)?.last_received_at
+      || getIncomingPreviousPayments(record)[0]?.collected_at;
+    const previousReceived = isPreviousAmountReceivedRow(record, filterDate);
 
     return (
       <div className="flex flex-col gap-1.5">
+        {previousReceived && (
+          <span className="inline-flex w-fit px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100 text-[9px] font-black uppercase tracking-widest">
+            {t('dispensary_history.previous_amount_received', 'Previous amount received')}
+          </span>
+        )}
         <PaymentSplitDisplay
           cashAmount={record.medication_bill?.cash_amount}
           onlineAmount={record.medication_bill?.online_amount}
@@ -654,16 +675,21 @@ export default function DispensaryHistory() {
             <span className="text-gray-300">No Pending</span>
           )}
           {laterPendingReceived > 0 && (
-            <span className="text-blue-600">Later Received ₹ {laterPendingReceived.toFixed(2)}</span>
+            <span className="text-blue-600">
+              {t('dispensary_history.later_received', 'Later Received')} ₹ {laterPendingReceived.toFixed(2)}
+            </span>
           )}
-          {previousPendingPaid > 0 && (
-            <span className="text-blue-600">Prev Paid ₹ {previousPendingPaid.toFixed(2)}</span>
+          {!previousReceived && getBreakdownAmount(record, 'previous_pending_paid', 0) > 0 && (
+            <span className="text-blue-600">Prev Paid ₹ {getBreakdownAmount(record, 'previous_pending_paid', 0).toFixed(2)}</span>
           )}
-          {previousPendingPaid > 0 && previousPendingRemaining > 0 && (
-            <span className="text-orange-600">Prev Bal ₹ {previousPendingRemaining.toFixed(2)}</span>
-          )}
-          {accountPending > pending && (
-            <span className="text-orange-600">Total Pending ₹ {accountPending.toFixed(2)}</span>
+          {lastReceivedAt && (
+            <span className={`normal-case tracking-normal ${isSameLocalDay(lastReceivedAt) ? 'text-blue-700' : 'text-gray-400'}`}>
+              {isSameLocalDay(lastReceivedAt)
+                ? t('dispensary_history.paid_today', 'Paid today')
+                : t('dispensary_history.last_paid', 'Last paid')}
+              {' '}
+              {formatReceiptDateTime(lastReceivedAt)}
+            </span>
           )}
         </div>
       </div>
@@ -753,6 +779,9 @@ export default function DispensaryHistory() {
 
   return (
     <div className="space-y-8 pb-12">
+      {collectionReceipt && (
+        <PaymentReceipt data={collectionReceipt} onClose={() => setCollectionReceipt(null)} />
+      )}
       {/* Filters Card */}
       <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -777,7 +806,7 @@ export default function DispensaryHistory() {
         </div>
 
         <div className="pt-4 border-t border-gray-100">
-          <CustomDatePicker label={t('dispensary_history.filters.appointment_date', 'Appointment Date')} value={filterDate} onChange={setFilterDate} />
+          <CustomDatePicker label={t('dispensary_history.filters.appointment_date', 'Visit / payment date')} value={filterDate} onChange={setFilterDate} />
         </div>
       </div>
 
@@ -814,6 +843,11 @@ export default function DispensaryHistory() {
                         <RefreshCcw size={16} />
                         <span className="text-[8px] font-black uppercase tracking-widest mt-1">Repeat</span>
                       </div>
+                    ) : isPreviousAmountReceivedRow(p, filterDate) ? (
+                      <div className="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg">
+                        <IndianRupee size={16} />
+                        <span className="text-[8px] font-black uppercase tracking-widest mt-1">Prev</span>
+                      </div>
                     ) : (
                       <div className="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-gray-50 rounded-lg">
                         <span className="text-lg font-black text-[#549E9E]">
@@ -833,6 +867,11 @@ export default function DispensaryHistory() {
                       {p.is_repeat_medicine && (
                         <span className="inline-flex mt-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-md text-[9px] font-black uppercase tracking-widest">
                           Repeat Medicine
+                        </span>
+                      )}
+                      {isPreviousAmountReceivedRow(p, filterDate) && (
+                        <span className="inline-flex mt-1 px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-md text-[9px] font-black uppercase tracking-widest">
+                          {t('dispensary_history.previous_amount_received', 'Previous amount received')}
                         </span>
                       )}
                       <div className="flex items-center gap-2 mt-1">
@@ -857,7 +896,10 @@ export default function DispensaryHistory() {
                 <div className="flex flex-wrap items-center justify-between text-[10px] font-bold text-gray-500 mt-2 pt-2 border-t border-gray-50 gap-2">
                   <div className="flex items-center gap-1.5">
                     <Calendar size={12} className="text-[#549E9E]" />
-                    {p.appointment?.appointment_date ? new Date(p.appointment.appointment_date).toLocaleDateString('en-GB') : 'N/A'} • {p.appointment?.slot_name}
+                    {p.appointment?.appointment_date ? new Date(p.appointment.appointment_date).toLocaleDateString('en-GB') : 'N/A'}
+                    {isPreviousAmountReceivedRow(p, filterDate)
+                      ? ` • ${t('dispensary_history.original_visit', 'Original visit')}`
+                      : ` • ${p.appointment?.slot_name}`}
                   </div>
                   <div className="flex items-center gap-1.5">
                     <MapPin size={12} className="text-[#E6C682]" />
@@ -925,7 +967,14 @@ export default function DispensaryHistory() {
                       <span className="text-xs font-black text-gray-300">{((page - 1) * 20 + idx + 1).toString().padStart(2, '0')}</span>
                     </td>
                     <td className="px-5 py-4">
-                      {p.is_repeat_medicine ? (
+                      {isPreviousAmountReceivedRow(p, filterDate) ? (
+                        <div className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg">
+                          <IndianRupee size={14} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">
+                            {t('dispensary_history.prev_short', 'Prev')}
+                          </span>
+                        </div>
+                      ) : p.is_repeat_medicine ? (
                         <div className="inline-flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg">
                           <RefreshCcw size={14} />
                           <span className="text-[10px] font-black uppercase tracking-widest">Repeat</span>
@@ -960,6 +1009,11 @@ export default function DispensaryHistory() {
                             Repeat Medicine
                           </span>
                         )}
+                        {isPreviousAmountReceivedRow(p, filterDate) && (
+                          <span className="inline-flex mt-1 px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-md text-[9px] font-black uppercase tracking-widest">
+                            {t('dispensary_history.previous_amount_received', 'Previous amount received')}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
@@ -968,10 +1022,16 @@ export default function DispensaryHistory() {
                           <Calendar size={13} className="text-[#549E9E]" />
                           {p.appointment?.appointment_date ? new Date(p.appointment.appointment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
                         </div>
-                        <div className="flex items-center gap-2 text-gray-400 text-[10px] font-bold uppercase tracking-widest">
-                          <Clock size={13} />
-                          {p.appointment?.slot_name}
-                        </div>
+                        {isPreviousAmountReceivedRow(p, filterDate) ? (
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-blue-600">
+                            {t('dispensary_history.original_visit', 'Original visit')}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-gray-400 text-[10px] font-bold uppercase tracking-widest">
+                            <Clock size={13} />
+                            {p.appointment?.slot_name}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -1046,17 +1106,17 @@ export default function DispensaryHistory() {
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               className="relative w-full max-w-5xl h-[90vh] bg-white rounded-none border-2 border-gray-100 shadow-2xl overflow-hidden flex flex-col"
             >
-              <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100 bg-white flex-shrink-0">
-                  <div>
-                    <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight">Prescription Details</h2>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Patient: {selectedPrescription.patient?.full_name}</p>
+              <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100 bg-white flex-shrink-0">
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-black text-gray-800 uppercase tracking-tight">Prescription Details</h2>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Patient: {selectedPrescription.patient?.full_name}</p>
                     {selectedPrescription.is_repeat_medicine && (
-                      <span className="inline-flex mt-2 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 text-[9px] font-black uppercase tracking-widest">
+                      <span className="inline-flex mt-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 text-[9px] font-black uppercase tracking-widest">
                         Repeat Medicine
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     {getValidPrescriptionConsultationId(selectedPrescription) && (
                       <button
                         onClick={() => openPrescriptionPreview(getValidPrescriptionConsultationId(selectedPrescription))}
@@ -1075,6 +1135,13 @@ export default function DispensaryHistory() {
                       Print Invoice
                     </button>
                     <button
+                      onClick={() => openPaymentReceipt(selectedPrescription)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white text-[#549E9E] border border-[#549E9E]/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#549E9E]/10 transition-colors"
+                    >
+                      <Printer size={14} />
+                      {t('payment_receipt.print_slip', 'Print payment receipt')}
+                    </button>
+                    <button
                       onClick={() => setSelectedPrescription(null)}
                       className="w-10 h-10 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
                     >
@@ -1083,18 +1150,22 @@ export default function DispensaryHistory() {
                   </div>
                 </div>
 
-              <div className="flex-1 min-h-0 overflow-y-scroll overscroll-contain p-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+              <div
+                ref={bindModalScroll}
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 lg:overflow-hidden"
+                data-lenis-prevent
+              >
+              <div className="grid grid-cols-1 gap-4 lg:h-full lg:min-h-0 lg:grid-cols-2">
                   {/* Left Side: Medication List */}
-                  <div className="space-y-4">
-                    <div className="bg-gray-50 border border-gray-100 p-6 space-y-4">
+                  <div ref={bindLeftScroll} className="space-y-3 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pr-1" data-lenis-prevent>
+                    <div className="bg-gray-50 border border-gray-100 p-3 space-y-2">
                       <h3 className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest flex items-center gap-2">
                         <Pill size={14} />
                         Medication List
                       </h3>
 
                       {(selectedPrescription.prescription?.medications || []).length > 0 ? (
-                        <div className="space-y-4">
+                        <div className="space-y-2">
                           {selectedPrescription.prescription.medications.map((med: any, idx: number) => {
                             const medAmount = getMedicationPricingAmount(selectedPrescription.prescription?.pricing, med);
                             const dosePreview = getDosePreview(
@@ -1109,17 +1180,17 @@ export default function DispensaryHistory() {
                             const roleLabel = getMedicationRoleLabel(med);
 
                             return (
-                              <div key={idx} className="bg-white p-5 border border-gray-100 shadow-sm flex items-center justify-between gap-4 group/med transition-all">
-                                <div className="flex-1">
+                              <div key={idx} className="bg-white p-3 border border-gray-100 flex items-center justify-between gap-3">
+                                <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-sm font-black text-gray-800">{formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input)}</p>
                                     {roleLabel && (
-                                      <span className="px-2 py-1 rounded-md bg-[#549E9E]/10 text-[#549E9E] text-[9px] font-black uppercase tracking-widest">
+                                      <span className="px-2 py-0.5 rounded-md bg-[#549E9E]/10 text-[#549E9E] text-[9px] font-black uppercase tracking-widest">
                                         {roleLabel}
                                       </span>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                                  <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                                     <span className="text-[9px] font-black text-[#549E9E]/70 tracking-wide">
                                       {dosePreview || t('dispense.no_dose_details', 'No dose details')}
                                     </span>
@@ -1134,7 +1205,7 @@ export default function DispensaryHistory() {
                                     pricing={selectedPrescription.prescription?.pricing}
                                   />
                                 </div>
-                                <div className="text-xs font-black text-gray-600">
+                                <div className="text-xs font-black text-gray-600 shrink-0">
                                   ₹ {medAmount}
                                 </div>
                               </div>
@@ -1142,15 +1213,15 @@ export default function DispensaryHistory() {
                           })}
                         </div>
                       ) : (
-                        <div className="bg-amber-50 p-6 border border-amber-100 flex flex-col items-center justify-center gap-3 text-amber-600 text-center rounded-3xl">
-                          <AlertCircle size={32} strokeWidth={1.5} />
-                          <p className="text-xs font-black uppercase tracking-widest leading-loose">No medications prescribed<br />for this visit.</p>
+                        <div className="bg-amber-50 p-4 border border-amber-100 flex flex-col items-center justify-center gap-2 text-amber-600 text-center">
+                          <AlertCircle size={24} strokeWidth={1.5} />
+                          <p className="text-xs font-black uppercase tracking-widest leading-relaxed">No medications prescribed<br />for this visit.</p>
                         </div>
                       )}
                     </div>
 
                     {(selectedPrescription.prescription?.tests || []).length > 0 && (
-                      <div className="bg-amber-50/60 border border-amber-100 p-6 space-y-4">
+                      <div className="bg-amber-50/60 border border-amber-100 p-3 space-y-2">
                         <h3 className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2">
                           <FlaskConical size={14} />
                           Tests / Lab
@@ -1161,18 +1232,18 @@ export default function DispensaryHistory() {
                           )}
                         </h3>
 
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                           {selectedPrescription.prescription.tests.map((test: any, idx: number) => {
                             const isVoided = String(test.dispense_status || '').toUpperCase() === 'VOID';
                             return (
                             <div
                               key={test.consultation_test_id || idx}
-                              className={`bg-white p-4 border shadow-sm flex items-start justify-between gap-4 ${
+                              className={`bg-white p-3 border flex items-start justify-between gap-3 ${
                                 isVoided ? 'border-red-200' : 'border-amber-100'
                               }`}
                             >
                               <div className="flex items-start gap-3 min-w-0">
-                                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black ${
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
                                   isVoided ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                                 }`}>
                                   {idx + 1}
@@ -1186,7 +1257,7 @@ export default function DispensaryHistory() {
                                       reasonLabel="Reason"
                                     />
                                   ) : (
-                                    <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-amber-600">Doctor recommended test</p>
+                                    <p className="mt-0.5 text-[10px] font-black uppercase tracking-widest text-amber-600">Doctor recommended test</p>
                                   )}
                                 </div>
                               </div>
@@ -1202,50 +1273,46 @@ export default function DispensaryHistory() {
                   </div>
 
                   {/* Right Side: Billing Summary & Remarks */}
-                  <div className="space-y-8 flex flex-col">
-                    <div className="bg-[#549E9E]/[0.03] border-2 border-[#549E9E]/10 p-8 space-y-6">
-                      <div className="flex items-center justify-between border-b border-[#549E9E]/10 pb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#549E9E] text-white rounded-xl flex items-center justify-center">
-                            <IndianRupee size={20} />
+                  <div ref={bindRightScroll} className="lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pr-1" data-lenis-prevent>
+                    <div className="bg-[#549E9E]/[0.03] border border-[#549E9E]/10 p-3 space-y-2.5">
+                      <div className="flex items-center justify-between gap-3 border-b border-[#549E9E]/10 pb-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 bg-[#549E9E] text-white rounded-lg flex items-center justify-center shrink-0">
+                            <IndianRupee size={16} />
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-[10px] font-black text-[#549E9E]/60 uppercase tracking-widest">Total Bill Amount</p>
-                            <p className="text-2xl font-black text-[#549E9E]">₹ {amount}</p>
+                            <p className="text-xl font-black text-[#549E9E]">₹ {amount}</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest block mb-1">Items</span>
-                          <span className="bg-[#549E9E]/10 text-[#549E9E] px-2 py-1 rounded-md text-[10px] font-black">
-                            {(selectedPrescription.prescription?.medications || []).filter((med: any) => String(med.dispense_status || '').toUpperCase() !== 'VOID').length
+                        <div className="text-right shrink-0 space-y-1">
+                          <span className="bg-[#549E9E]/10 text-[#549E9E] px-2 py-0.5 rounded-md text-[10px] font-black">
+                            Items {(selectedPrescription.prescription?.medications || []).filter((med: any) => String(med.dispense_status || '').toUpperCase() !== 'VOID').length
                               + (selectedPrescription.prescription?.tests || []).filter((test: any) => String(test.dispense_status || '').toUpperCase() !== 'VOID').length}
                           </span>
+                          <div className="flex justify-end">
+                            <PaymentSplitDisplay
+                              cashAmount={selectedPrescription.medication_bill?.cash_amount}
+                              onlineAmount={selectedPrescription.medication_bill?.online_amount}
+                              paymentMode={selectedPrescription.medication_bill?.payment_mode}
+                              chips
+                            />
+                          </div>
                         </div>
                       </div>
 
                       <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Payment mode</p>
-                        <PaymentSplitDisplay
-                          cashAmount={selectedPrescription.medication_bill?.cash_amount}
-                          onlineAmount={selectedPrescription.medication_bill?.online_amount}
-                          paymentMode={selectedPrescription.medication_bill?.payment_mode}
-                        />
                         {selectedPendingAmount > 0 && (
-                          <div className="mt-4 rounded-xl border border-orange-100 bg-orange-50 p-4">
-                            <div className="flex items-center justify-between gap-4">
-                              <div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-orange-500">Still Pending For This Bill</p>
-                                <p className="mt-1 text-xs font-bold text-orange-700">
-                                  Baad me payment receive hone ke baad bhi is bill me pending amount bacha hai.
-                                </p>
-                              </div>
-                              <span className="shrink-0 text-xl font-black text-orange-700">
+                          <div className="mt-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-orange-500">Still Pending For This Bill</p>
+                              <span className="shrink-0 text-sm font-black text-orange-700">
                                 ₹ {selectedPendingAmount.toFixed(2)}
                               </span>
                             </div>
                           </div>
                         )}
-                        <div className="mt-4 grid grid-cols-1 gap-2 rounded-xl border border-gray-100 bg-white p-3">
+                        <div className="mt-2 grid grid-cols-1 gap-1 rounded-lg border border-gray-100 bg-white px-3 py-2">
                           <div className="flex items-center justify-between text-[11px] font-bold">
                             <span className="text-gray-500">Paid Amount</span>
                             <span className="font-black text-emerald-600">
@@ -1253,7 +1320,7 @@ export default function DispensaryHistory() {
                             </span>
                           </div>
                           {selectedReceivedAtBilling > 0 && (
-                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-1 text-[11px] font-bold">
                               <span className="text-gray-500">Received At Billing</span>
                               <span className="font-black text-emerald-600">
                                 ₹ {selectedReceivedAtBilling.toFixed(2)}
@@ -1261,7 +1328,7 @@ export default function DispensaryHistory() {
                             </div>
                           )}
                           {selectedIncomingLaterPendingTotal > 0 && (
-                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-1 text-[11px] font-bold">
                               <span className="text-gray-500">Later Pending Received</span>
                               <span className="font-black text-blue-600">
                                 ₹ {selectedIncomingLaterPendingTotal.toFixed(2)}
@@ -1269,7 +1336,7 @@ export default function DispensaryHistory() {
                             </div>
                           )}
                           {selectedPreviousPendingPaidTotal > 0 && (
-                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-1 text-[11px] font-bold">
                               <span className="text-gray-500">Previous Pending Paid With This Bill</span>
                               <span className="font-black text-blue-600">
                                 ₹ {selectedPreviousPendingPaidTotal.toFixed(2)}
@@ -1277,7 +1344,7 @@ export default function DispensaryHistory() {
                             </div>
                           )}
                           {selectedPreviousPendingPaidTotal > 0 && (
-                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-1 text-[11px] font-bold">
                               <span className="text-gray-500">Previous Pending Remaining</span>
                               <span className={`font-black ${selectedPreviousPendingRemaining > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
                                 ₹ {selectedPreviousPendingRemaining.toFixed(2)}
@@ -1285,21 +1352,21 @@ export default function DispensaryHistory() {
                             </div>
                           )}
                           {selectedOtherPendingAmount > 0 && selectedPreviousPendingPaidTotal <= 0 && (
-                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-1 text-[11px] font-bold">
                               <span className="text-gray-500">Other Pending Bills</span>
                               <span className="font-black text-orange-600">
                                 ₹ {selectedOtherPendingAmount.toFixed(2)}
                               </span>
                             </div>
                           )}
-                          <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                          <div className="flex items-center justify-between border-t border-gray-50 pt-1 text-[11px] font-bold">
                             <span className="text-gray-500">Current Bill Pending</span>
                             <span className={`font-black ${selectedPendingAmount > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
                               ₹ {selectedPendingAmount.toFixed(2)}
                             </span>
                           </div>
                           {selectedAccountPendingAfterThisBill > selectedPendingAmount && (
-                            <div className="flex items-center justify-between border-t border-gray-50 pt-2 text-[11px] font-bold">
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-1 text-[11px] font-bold">
                               <span className="text-gray-700">Patient Total Pending</span>
                               <span className={`font-black ${selectedAccountPendingAfterThisBill > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
                                 ₹ {selectedAccountPendingAfterThisBill.toFixed(2)}
@@ -1308,11 +1375,11 @@ export default function DispensaryHistory() {
                           )}
                         </div>
                         {(selectedDirectBillPayments.length > 0 || selectedIncomingLaterPendingReceipts.length > 0 || selectedLaterPendingReceipts.length > 0) && (
-                          <div className="mt-4 rounded-xl border border-gray-100 bg-white p-3">
-                            <p className="mb-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">Payment Timeline</p>
-                            <div className="space-y-2">
+                          <div className="mt-2 rounded-lg border border-gray-100 bg-white px-3 py-2">
+                            <p className="mb-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Payment Timeline</p>
+                            <div className="space-y-1.5">
                               {selectedDirectBillPayments.map((payment: any, index: number) => (
-                                <div key={`payment-${payment.payment_id || index}`} className="flex items-start justify-between gap-3 border-t border-gray-50 pt-2 first:border-t-0 first:pt-0">
+                                <div key={`payment-${payment.payment_id || index}`} className="flex items-start justify-between gap-3 border-t border-gray-50 pt-1.5 first:border-t-0 first:pt-0">
                                   <div className="min-w-0">
                                     <p className="text-[11px] font-black text-gray-700">This Bill Received</p>
                                     <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">
@@ -1325,7 +1392,7 @@ export default function DispensaryHistory() {
                                 </div>
                               ))}
                               {selectedIncomingLaterPendingReceipts.map((payment: any, index: number) => (
-                                <div key={`incoming-later-pending-${payment.payment_id || index}`} className="flex items-start justify-between gap-3 border-t border-gray-50 pt-2 first:border-t-0 first:pt-0">
+                                <div key={`incoming-later-pending-${payment.payment_id || index}`} className="flex items-start justify-between gap-3 border-t border-gray-50 pt-1.5 first:border-t-0 first:pt-0">
                                   <div className="min-w-0">
                                     <p className="text-[11px] font-black text-gray-700">Later Pending Received</p>
                                     <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">
@@ -1342,7 +1409,7 @@ export default function DispensaryHistory() {
                                 </div>
                               ))}
                               {selectedLaterPendingReceipts.map((payment: any, index: number) => (
-                                <div key={`later-pending-${payment.payment_id || index}`} className="flex items-start justify-between gap-3 border-t border-gray-50 pt-2 first:border-t-0 first:pt-0">
+                                <div key={`later-pending-${payment.payment_id || index}`} className="flex items-start justify-between gap-3 border-t border-gray-50 pt-1.5 first:border-t-0 first:pt-0">
                                   <div className="min-w-0">
                                     <p className="text-[11px] font-black text-gray-700">Previous Pending Paid</p>
                                     <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">
@@ -1363,15 +1430,17 @@ export default function DispensaryHistory() {
                         )}
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Dispensing Remark / Notes</label>
-                        <div className="w-full bg-white border-2 border-gray-100 py-4 px-6 text-sm font-bold text-gray-700 min-h-[180px] shadow-inner">
-                          {remark}
+                      {remark && remark !== 'No dispensing notes provided.' && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Dispensing Remark / Notes</label>
+                          <div className="w-full bg-white border border-gray-100 py-2 px-3 text-xs font-bold text-gray-700">
+                            {remark}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {selectedPrescription.is_repeat_medicine && (
-                        <div className="bg-white border-2 border-gray-100 p-4 space-y-2">
+                        <div className="bg-white border border-gray-100 p-3 space-y-1.5">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Delivery</span>
                             <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest">
@@ -1399,7 +1468,7 @@ export default function DispensaryHistory() {
                 </div>
               </div>
             </motion.div>
-            {selectedPrescription && !previewPrescription && (
+            {selectedPrescription && !previewPrescription && !collectionReceipt && (
               <RepeatMedicineInvoice record={selectedPrescription} />
             )}
           </div>

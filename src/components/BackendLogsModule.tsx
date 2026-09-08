@@ -209,7 +209,7 @@ export default function BackendLogsModule() {
             </p>
 
             <a
-              href="/booking"
+              href="/login"
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#2b5d37] bg-[#08110c] px-4 py-3 text-sm font-bold uppercase tracking-[0.25em] text-[#8fffa6] transition hover:border-[#60ff93] hover:bg-[#0d1b12]"
             >
               Go to Login

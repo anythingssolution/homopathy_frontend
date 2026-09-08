@@ -6,33 +6,55 @@ interface PaginationProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  alwaysShow?: boolean;
+  totalItems?: number;
+  pageSize?: number;
 }
 
-export default function Pagination({ currentPage, totalPages, onPageChange }: PaginationProps) {
+export default function Pagination({
+  currentPage,
+  totalPages,
+  onPageChange,
+  alwaysShow = false,
+  totalItems,
+  pageSize,
+}: PaginationProps) {
   const { t } = useTranslation();
-  if (totalPages <= 1) return null;
+  if (!alwaysShow && totalPages <= 1) return null;
+
+  const safeTotalPages = Math.max(1, totalPages);
+  const from =
+    totalItems !== undefined && pageSize
+      ? totalItems === 0
+        ? 0
+        : Math.min((currentPage - 1) * pageSize + 1, totalItems)
+      : null;
+  const to =
+    totalItems !== undefined && pageSize
+      ? Math.min(currentPage * pageSize, totalItems)
+      : null;
 
   const getPageNumbers = () => {
     const pages: (number | string)[] = [];
     const maxVisible = 5;
     
-    if (totalPages <= maxVisible) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    if (safeTotalPages <= maxVisible) {
+      for (let i = 1; i <= safeTotalPages; i++) pages.push(i);
     } else {
       pages.push(1);
       
       if (currentPage > 3) pages.push('...');
       
       const start = Math.max(2, currentPage - 1);
-      const end = Math.min(totalPages - 1, currentPage + 1);
+      const end = Math.min(safeTotalPages - 1, currentPage + 1);
       
       for (let i = start; i <= end; i++) {
         if (!pages.includes(i)) pages.push(i);
       }
       
-      if (currentPage < totalPages - 2) pages.push('...');
+      if (currentPage < safeTotalPages - 2) pages.push('...');
       
-      if (!pages.includes(totalPages)) pages.push(totalPages);
+      if (!pages.includes(safeTotalPages)) pages.push(safeTotalPages);
     }
     return pages;
   };
@@ -40,7 +62,9 @@ export default function Pagination({ currentPage, totalPages, onPageChange }: Pa
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-gray-100 bg-white">
       <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-        {t('common.page_of', { current: currentPage, total: totalPages })}
+        {from !== null && to !== null && totalItems !== undefined
+          ? t('common.showing_of', { from, to, total: totalItems })
+          : t('common.page_of', { current: currentPage, total: safeTotalPages })}
       </div>
       <div className="flex items-center gap-2">
         <button
@@ -75,9 +99,9 @@ export default function Pagination({ currentPage, totalPages, onPageChange }: Pa
 
         <button
           onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
+          disabled={currentPage === safeTotalPages}
           className={`p-2 rounded-lg border transition-all ${
-            currentPage === totalPages
+            currentPage === safeTotalPages
               ? 'border-gray-100 text-gray-300 cursor-not-allowed'
               : 'border-gray-200 text-gray-600 hover:border-[#549E9E] hover:text-[#549E9E] cursor-pointer'
           }`}

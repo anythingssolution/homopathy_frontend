@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, User, CheckCircle2, MapPin, ChevronDown, Phone, X, Smartphone, Download, Zap, Users, Lock, Mail, Stethoscope, Eye, EyeOff, Key, MessageSquare, Link2 } from 'lucide-react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { useLenisNestedScroll } from '../hooks/useLenisNestedScroll';
@@ -219,6 +219,30 @@ const SegmentedOTPInput = ({
   );
 };
 
+const getSafeReturnPath = (from?: { pathname?: string; search?: string } | null) => {
+  const pathname = String(from?.pathname || '');
+  if (!pathname.startsWith('/') || pathname.startsWith('//') || pathname === '/login') {
+    return null;
+  }
+  return `${pathname}${from?.search || ''}`;
+};
+
+const getPostAuthPath = (
+  role?: string | null,
+  roleCode?: string | null,
+  from?: { pathname?: string; search?: string } | null,
+) => {
+  const rc = String(roleCode || '').toUpperCase();
+  const rl = String(role || '').toLowerCase();
+  if (rc === 'DOC' || rl === 'doc' || rl === 'doctor') {
+    return '/doctor-portal';
+  }
+  if (rc === 'REC' || rc === 'MED' || ['receptionist', 'medical', 'rec', 'med'].includes(rl)) {
+    return '/medical-welcome';
+  }
+  return getSafeReturnPath(from) || '/dashboard';
+};
+
 export default function Booking() {
   type ReceptionistPatientOption = {
     patient_id: number;
@@ -283,27 +307,40 @@ export default function Booking() {
   const [regCaptchaToken, setRegCaptchaToken] = useState<string | null>(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { login, isAuthenticated, token, user, branchScope } = useAuth();
+  const { login, isAuthenticated, isLoading, token, user, branchScope } = useAuth();
   const { t, i18n } = useTranslation();
   const { addToast } = useNotifications();
 
-  // Redirect non-patient roles away from booking page
+  // Keep /login for auth screens and /booking for the appointment form.
   useEffect(() => {
-    if (isAuthenticated && user) {
-      // Do not redirect if we are inside a cross-role view
-      if (window.location.pathname.startsWith('/cross-role')) {
-        return;
+    if (isLoading) return;
+    if (window.location.pathname.startsWith('/cross-role')) return;
+
+    const pathname = location.pathname;
+    const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from || null;
+
+    if (!isAuthenticated) {
+      if (pathname === '/booking') {
+        navigate('/login', { replace: true, state: { from: location } });
       }
-      const rc = user.role_code?.toUpperCase();
-      const rl = user.role?.toLowerCase();
-      if (rc === 'DOC' || rl === 'doc' || rl === 'doctor') {
-        navigate('/doctor-portal', { replace: true });
-      } else if (rc === 'MED' || rl === 'med' || rl === 'medical') {
-        navigate('/medical-welcome', { replace: true });
-      }
+      return;
     }
-  }, [isAuthenticated, user, navigate]);
+
+    if (pathname === '/login') {
+      navigate(getPostAuthPath(user?.role, user?.role_code, from), { replace: true });
+      return;
+    }
+
+    const rc = user?.role_code?.toUpperCase();
+    const rl = user?.role?.toLowerCase();
+    if (rc === 'DOC' || rl === 'doc' || rl === 'doctor') {
+      navigate('/doctor-portal', { replace: true });
+    } else if (rc === 'MED' || rl === 'med' || rl === 'medical') {
+      navigate('/medical-welcome', { replace: true });
+    }
+  }, [isAuthenticated, isLoading, user, location.pathname, location.search, location.state, navigate, location]);
 
   const isReceptionist = user?.role_code === 'REC' ||
     user?.role?.toLowerCase() === 'rec' ||
@@ -1044,10 +1081,11 @@ export default function Booking() {
               role: 'patient'
             }, result.data.token, result.data.branch_scope || null);
 
+            const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from || null;
             setShowSuccess(true);
             setTimeout(() => {
               setShowSuccess(false);
-              navigate('/dashboard');
+              navigate(getPostAuthPath('patient', 'PAT', from), { replace: true });
             }, 2000);
           } else {
             setErrors({ general: result.message || 'Registration failed' });
@@ -1100,14 +1138,8 @@ export default function Booking() {
               can_access_medical_module: patientData.can_access_medical_module !== undefined ? patientData.can_access_medical_module : result.data.can_access_medical_module
             }, result.data.token, result.data.branch_scope || null);
 
-            const pwRoleLower = pwRole?.toLowerCase();
-            if (pwRoleCode === 'DOC' || pwRoleLower === 'doc' || pwRoleLower === 'doctor') {
-              navigate('/doctor-portal', { replace: true });
-            } else if (pwRoleCode === 'REC' || pwRoleCode === 'MED' || pwRoleLower === 'receptionist' || pwRoleLower === 'medical' || pwRoleLower === 'rec' || pwRoleLower === 'med') {
-              navigate('/medical-welcome', { replace: true });
-            } else {
-              navigate('/dashboard', { replace: true });
-            }
+            const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from || null;
+            navigate(getPostAuthPath(pwRole, pwRoleCode, from), { replace: true });
           } else {
             setErrors({ loginPassword: result.message || 'Invalid credentials' });
           }
@@ -1195,14 +1227,8 @@ export default function Booking() {
                 can_access_medical_module: patientData.can_access_medical_module !== undefined ? patientData.can_access_medical_module : result.data.can_access_medical_module
               }, result.data.token, result.data.branch_scope || null);
 
-              const roleLower = userRole?.toLowerCase();
-              if (userRoleCode === 'DOC' || userRole === 'doc' || userRole === 'DOC' || roleLower === 'doctor') {
-                navigate('/doctor-portal', { replace: true });
-              } else if (userRoleCode === 'REC' || userRoleCode === 'MED' || userRole === 'REC' || userRole === 'MED' || roleLower === 'receptionist' || roleLower === 'medical' || roleLower === 'med' || roleLower === 'rec') {
-                navigate('/medical-welcome', { replace: true });
-              } else {
-                navigate('/dashboard', { replace: true });
-              }
+              const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from || null;
+              navigate(getPostAuthPath(userRole, userRoleCode, from), { replace: true });
             } else {
               setErrors({ loginOtp: result.message || 'Invalid OTP' });
             }

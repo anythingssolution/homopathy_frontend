@@ -501,7 +501,7 @@ export default function Navigation() {
                 </div>
               </motion.button>
             ) : (
-              <Link to="/booking">
+              <Link to="/login">
                 <motion.button
                   whileHover={{ scale: 1.02, backgroundColor: 'rgba(84, 158, 158, 0.05)' }}
                   whileTap={{ scale: 0.98 }}
@@ -749,7 +749,7 @@ export default function Navigation() {
                     </span>
                   </motion.button>
                 ) : (
-                  <Link to="/booking" className="block w-full">
+                  <Link to="/login" className="block w-full">
                     <motion.button
                       whileTap={{ scale: 0.98 }}
                       className="w-full flex items-center justify-center gap-3 p-3 border border-gray-150 bg-gray-50/60 text-[#2d8789] rounded-xl transition-all hover:bg-gray-100 hover:shadow-sm"

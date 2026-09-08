@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 // import { Link } from 'react-router-dom';
-import { AlertCircle, Banknote, CreditCard, Phone, RefreshCcw, Search, Wallet } from 'lucide-react';
+import { AlertCircle, Banknote, CreditCard, Phone, Printer, RefreshCcw, Search, Wallet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../context/AuthContext';
 import CustomDatePicker from '../../CustomDatePicker';
 import AppointmentTokenBadge from '../../AppointmentTokenBadge';
+import PaymentReceipt from '../../PaymentReceipt';
+import { formatReceiptDateTime, receiptFromPayments, type PaymentReceiptData } from '../../../utils/paymentReceipt';
 import { FilterDropdown } from '../doctor-reports/components/FilterDropdown';
 import { fetchReportModule, type CustomRange } from '../reports-next/lib';
 import VisitDrawer from './VisitDrawer';
@@ -12,6 +14,7 @@ import { ConsultantsPanel, EarningsPanel, MixBar, SessionPanel } from './Breakdo
 import {
   consultantTotals,
   daysBetween,
+  fetchBillPayments,
   fetchBillRows,
   groupVisits,
   money,
@@ -45,6 +48,8 @@ export default function BillsNext() {
   const [rangeBills, setRangeBills] = useState<any[]>([]);
   const [dueBills, setDueBills] = useState<any[]>([]);
   const [todayBills, setTodayBills] = useState<any[]>([]);
+  const [previousPayments, setPreviousPayments] = useState<any[]>([]);
+  const [collectionReceipt, setCollectionReceipt] = useState<PaymentReceiptData | null>(null);
   const [reports, setReports] = useState<any>(null);
   const [selectedVisit, setSelectedVisit] = useState<VisitRow | null>(null);
   const [visitDetail, setVisitDetail] = useState<any | null>(null);
@@ -69,11 +74,21 @@ export default function BillsNext() {
       setDueBills(outstanding);
       setReports(billing);
       setTodayBills(todayRows || inRange);
+      try {
+        setPreviousPayments(await fetchBillPayments(token, {
+          from_date: range.from,
+          to_date: range.to,
+          allocation_kind: 'PREVIOUS',
+        }));
+      } catch {
+        setPreviousPayments([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('bills_next.fetch_failed'));
       setRangeBills([]);
       setDueBills([]);
       setTodayBills([]);
+      setPreviousPayments([]);
       setReports(null);
     } finally {
       setLoading(false);
@@ -91,7 +106,7 @@ export default function BillsNext() {
     const billed = visits.reduce((sum, row) => sum + row.grand_total, 0);
     const collected = visits.reduce((sum, row) => sum + row.grand_paid, 0);
     const pendingInRange = visits.reduce((sum, row) => sum + row.grand_pending, 0);
-    const recovered = visits.reduce((sum, row) => sum + row.paid_towards_previous_pending, 0);
+    const recovered = previousPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     const cash = rangeBills.reduce((sum, bill) => sum + Number(bill.cash_amount || 0), 0);
     const online = rangeBills.reduce((sum, bill) => sum + Number(bill.online_amount || 0), 0);
     const consult = visits.reduce((sum, row) => sum + row.consult_total, 0);
@@ -114,7 +129,7 @@ export default function BillsNext() {
       collectionPct,
       visitCount: visits.length,
     };
-  }, [visits, rangeBills, dueBills]);
+  }, [visits, rangeBills, dueBills, previousPayments]);
 
   const todayDuePatients = useMemo(() => {
     const todayIds = new Set(todayVisits.map((row) => Number(row.patient_id)).filter(Boolean));
@@ -208,6 +223,38 @@ export default function BillsNext() {
     void openVisit(match || groupVisits([bill])[0]);
   };
 
+  const openCollectionReceipt = (payments: any[], patientName: string, mobile?: string | null) => {
+    const data = receiptFromPayments({
+      patientName,
+      patientMobile: mobile,
+      payments,
+    });
+    if (!data) return;
+    setCollectionReceipt(data);
+  };
+
+  const openPaymentVisit = async (payment: any) => {
+    const billId = Number(payment.bill_id);
+    if (!billId || !token) return;
+    try {
+      const response = await fetch(`/api/v1/bills/${billId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json();
+      if (!result.success || !result.data) return;
+      const visit = groupVisits([{
+        ...result.data,
+        patient_full_name: payment.patient_full_name || result.data.patient_full_name,
+        patient_mobile_no: payment.patient_mobile_no || result.data.patient_mobile_no,
+        appointment_date: payment.original_bill_date || result.data.appointment_date,
+        auid: payment.auid || result.data.auid,
+      }])[0];
+      if (visit) void openVisit(visit);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const formatDate = (value?: string) => {
     if (!value) return '—';
     const date = value.includes('T') ? new Date(value) : new Date(`${value}T00:00:00`);
@@ -219,6 +266,9 @@ export default function BillsNext() {
 
   return (
     <div className="space-y-5 pb-10">
+      {collectionReceipt && (
+        <PaymentReceipt data={collectionReceipt} onClose={() => setCollectionReceipt(null)} />
+      )}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]">{branchName}</p>
@@ -363,6 +413,68 @@ export default function BillsNext() {
           </div>
         </div>
       </div>
+
+      {previousPayments.length > 0 && (
+        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-50">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+              {t('bills_next.old_dues_collected', 'Old dues collected')}
+            </p>
+            <p className="mt-1 text-[11px] font-semibold text-slate-500">
+              {t('bills_next.old_dues_collected_sub', 'Money received on these dates against earlier bills. This is not a new bill.')}
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[640px]">
+              <thead>
+                <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <th className="px-4 py-3">{t('bills_next.col_paid_at', 'Paid at')}</th>
+                  <th className="px-4 py-3">{t('bills_next.col_patient')}</th>
+                  <th className="px-4 py-3">{t('payment_receipt.bill_no', 'Bill no')}</th>
+                  <th className="px-4 py-3 text-right">{t('bills_next.collected')}</th>
+                  <th className="px-4 py-3" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {previousPayments.map((payment) => (
+                  <tr key={payment.payment_id} className="hover:bg-[#549E9E]/[0.04]">
+                    <td className="px-4 py-3 text-xs font-bold text-slate-600">
+                      {formatReceiptDateTime(payment.collected_at, dateLocale)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-black text-slate-800">{payment.patient_full_name || '—'}</p>
+                      <p className="text-[11px] font-semibold text-slate-400">{payment.patient_mobile_no || ''}</p>
+                    </td>
+                    <td className="px-4 py-3 text-xs font-bold text-slate-500">{payment.bill_number || '—'}</td>
+                    <td className="px-4 py-3 text-right text-sm font-black text-emerald-600">{moneyExact(payment.amount)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => openCollectionReceipt(
+                          [payment],
+                          payment.patient_full_name || 'Patient',
+                          payment.patient_mobile_no,
+                        )}
+                        className="mr-3 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-[#2d8789]"
+                      >
+                        <Printer size={12} />
+                        {t('payment_receipt.print', 'Print')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void openPaymentVisit(payment)}
+                        className="text-[10px] font-black uppercase tracking-widest text-slate-400"
+                      >
+                        {t('bills_next.open')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {([
@@ -627,6 +739,11 @@ export default function BillsNext() {
         detail={visitDetail}
         loading={detailLoading}
         patientDues={dueBills.filter((bill) => Number(bill.patient_id) === Number(selectedVisit?.patient_id))}
+        onPrintReceipt={() => openCollectionReceipt(
+          visitDetail?.payments || [],
+          selectedVisit?.patient_full_name || visitDetail?.appointment?.patient_full_name || 'Patient',
+          selectedVisit?.patient_mobile_no || visitDetail?.appointment?.patient_mobile_no,
+        )}
         onClose={() => {
           setSelectedVisit(null);
           setVisitDetail(null);

@@ -28,7 +28,7 @@ export const useApi = () => {
       if (response.status === 401) {
         // Session expired or invalid token
         await logout();
-        window.location.href = '/booking';
+        window.location.href = '/login';
         return null;
       }
 

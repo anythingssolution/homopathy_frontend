@@ -28,6 +28,7 @@ type Props = {
   onlineAmount: string;
   onOnlineAmountChange: (value: string) => void;
   showRemark?: boolean;
+  compact?: boolean;
 };
 
 const AmountNumberInput = ({
@@ -67,6 +68,7 @@ export default function MedicationDuePaymentPanel({
   onlineAmount,
   onOnlineAmountChange,
   showRemark = true,
+  compact = false,
 }: Props) {
   const [duesOpen, setDuesOpen] = useState(true);
   const [paymentDropdownOpen, setPaymentDropdownOpen] = useState(false);
@@ -152,17 +154,17 @@ export default function MedicationDuePaymentPanel({
   };
 
   return (
-    <div className="space-y-3">
+    <div className={compact ? 'space-y-2' : 'space-y-3'}>
       {previousPending > 0 && (
         <div className="overflow-hidden rounded-xl border-2 border-orange-200 bg-orange-50/70">
           <button
             type="button"
             onClick={() => setDuesOpen((open) => !open)}
-            className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+            className={`flex w-full items-center justify-between gap-3 text-left ${compact ? 'px-2.5 py-2' : 'px-3 py-2.5'}`}
           >
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-orange-500">Previous pending</p>
-              <p className="text-lg font-black text-orange-600">{formatMoney(previousPending)}</p>
+              <p className={`font-black text-orange-600 ${compact ? 'text-base' : 'text-lg'}`}>{formatMoney(previousPending)}</p>
               <p className="mt-0.5 text-[10px] font-bold text-orange-500/80">
                 Old unpaid medicine bill{previousBills.length === 1 ? '' : 's'}
               </p>
@@ -173,22 +175,22 @@ export default function MedicationDuePaymentPanel({
             </div>
           </button>
           {duesOpen && (
-            <div className="space-y-2 border-t border-orange-100 bg-white/80 p-3">
+            <div className={`space-y-1.5 border-t border-orange-100 bg-white/80 ${compact ? 'p-2' : 'p-3 space-y-2'}`}>
               {previousBills.map((bill) => (
-                <div key={bill.bill_id} className="rounded-lg border border-orange-100 bg-white px-3 py-2">
+                <div key={bill.bill_id} className={`rounded-lg border border-orange-100 bg-white ${compact ? 'px-2.5 py-1.5' : 'px-3 py-2'}`}>
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs font-black text-gray-800">
                         {bill.is_repeat_medicine ? 'Repeat Medicine' : (bill.treatment_name || 'Consultation')}
                       </p>
-                      <p className="mt-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                      <p className="mt-0.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
                         <Calendar size={11} />
                         {formatDueDate(bill.due_date || bill.created_at)}
                         {bill.auid ? ` • ${bill.auid}` : ''}
                         {bill.consultation_id ? ` • Consult #${bill.consultation_id}` : ''}
                       </p>
                     </div>
-                    <p className="text-sm font-black text-orange-600">{formatMoney(bill.pending_amount)}</p>
+                    <p className="shrink-0 text-sm font-black text-orange-600">{formatMoney(bill.pending_amount)}</p>
                   </div>
                 </div>
               ))}
@@ -197,7 +199,7 @@ export default function MedicationDuePaymentPanel({
         </div>
       )}
 
-      <div className="space-y-2 rounded-xl border border-gray-100 bg-white px-3 py-3">
+      <div className={`space-y-2 rounded-xl border border-gray-100 bg-white ${compact ? 'px-2.5 py-2' : 'px-3 py-3'}`}>
         <div className="flex items-center justify-between gap-3">
           <span className="text-[11px] font-bold text-gray-500">Today's medicines</span>
           <span className="text-sm font-black text-[#549E9E]">{formatMoney(todayAmount)}</span>
@@ -219,7 +221,7 @@ export default function MedicationDuePaymentPanel({
       </div>
 
       {previousPending > 0 && (
-        <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2.5">
+        <label className={`flex cursor-pointer items-start gap-2 rounded-xl border border-gray-100 bg-white ${compact ? 'px-2.5 py-2' : 'px-3 py-2.5'}`}>
           <input
             type="checkbox"
             checked={includePrevious}
@@ -228,16 +230,20 @@ export default function MedicationDuePaymentPanel({
           />
           <span>
             <span className="block text-[11px] font-black text-gray-700">
-              Also collect previous pending {formatMoney(previousPending)}
+              {todayAmount > 0
+                ? `Also collect previous pending ${formatMoney(previousPending)}`
+                : `Collect previous pending ${formatMoney(previousPending)}`}
             </span>
             <span className="mt-0.5 block text-[10px] font-bold leading-snug text-gray-400">
-              Tick this to add old dues in this payment. You can still type a smaller extra amount if they cannot pay all of it.
+              {todayAmount > 0
+                ? 'Tick this to add old dues in this payment. You can still type a smaller extra amount if they cannot pay all of it.'
+                : 'Tick this if they came only to pay old dues. No new medicine bill is created.'}
             </span>
           </span>
         </label>
       )}
 
-      <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2.5">
+      <label className={`flex cursor-pointer items-start gap-2 rounded-xl border border-gray-100 bg-white ${compact ? 'px-2.5 py-2' : 'px-3 py-2.5'}`}>
         <input
           type="checkbox"
           checked={splitPayment}
@@ -253,7 +259,7 @@ export default function MedicationDuePaymentPanel({
       </label>
 
       {splitPayment ? (
-        <div className="space-y-3 rounded-xl border border-gray-100 bg-white px-3 py-3">
+        <div className={`space-y-2 rounded-xl border border-gray-100 bg-white ${compact ? 'px-2.5 py-2' : 'px-3 py-3 space-y-3'}`}>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">Cash</label>
@@ -308,11 +314,13 @@ export default function MedicationDuePaymentPanel({
                 value={collectedAmount}
                 onChange={(event) => onCollectedAmountChange(event.target.value)}
                 placeholder="0"
-                className="w-full rounded-full border-none bg-gray-50 py-2.5 pl-8 pr-4 text-xs font-black text-gray-700 outline-none transition-all focus:ring-2 focus:ring-[#549E9E]/20"
+                className={`w-full rounded-full border-none bg-gray-50 pl-8 pr-4 text-xs font-black text-gray-700 outline-none transition-all focus:ring-2 focus:ring-[#549E9E]/20 ${compact ? 'py-2' : 'py-2.5'}`}
               />
             </div>
             <p className="pl-1 text-[10px] font-bold text-gray-400">
-              {includePrevious
+              {todayAmount <= 0
+                ? 'This amount goes to previous pending. Type less if they can pay only part of the old bill.'
+                : includePrevious
                 ? 'Pay today first. Extra money goes to previous pending. Type less if they can pay only part of the old bill.'
                 : 'This amount is for today\'s medicines. Type less if they will pay the rest later.'}
             </p>
@@ -324,7 +332,7 @@ export default function MedicationDuePaymentPanel({
               <button
                 type="button"
                 onClick={() => setPaymentDropdownOpen((open) => !open)}
-                className="flex w-full cursor-pointer items-center justify-between rounded-full bg-gray-50 py-2.5 pl-4 pr-3 text-xs font-black text-gray-700 outline-none transition-all focus:ring-2 focus:ring-[#549E9E]/20"
+                className={`flex w-full cursor-pointer items-center justify-between rounded-full bg-gray-50 pl-4 pr-3 text-xs font-black text-gray-700 outline-none transition-all focus:ring-2 focus:ring-[#549E9E]/20 ${compact ? 'py-2' : 'py-2.5'}`}
               >
                 <span>{paymentMode === 'CASH' ? '💵 Cash' : '📱 Online (UPI / Paytm / Card)'}</span>
                 <ChevronDown size={12} className={`text-[#549E9E] ${paymentDropdownOpen ? 'rotate-180' : ''}`} />
@@ -392,7 +400,7 @@ export default function MedicationDuePaymentPanel({
         </div>
       )}
 
-      <div className="space-y-1.5 rounded-xl border border-gray-100 bg-white px-3 py-3">
+      <div className={`space-y-1 rounded-xl border border-gray-100 bg-white ${compact ? 'px-2.5 py-2' : 'px-3 py-3 space-y-1.5'}`}>
         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">This payment</p>
         {splitPayment && (
           <>
@@ -406,10 +414,12 @@ export default function MedicationDuePaymentPanel({
             </div>
           </>
         )}
+        {todayAmount > 0 && (
         <div className="flex items-center justify-between text-[11px] font-bold">
           <span className="text-gray-500">Paying for today</span>
           <span className="font-black text-[#549E9E]">{formatMoney(preview.currentApplied)}</span>
         </div>
+        )}
         {previousPending > 0 && (
           <div className="flex items-center justify-between text-[11px] font-bold">
             <span className="text-gray-500">Paying for previous</span>

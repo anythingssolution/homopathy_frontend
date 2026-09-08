@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { Building2, ChevronDown, ClipboardList, Loader2, Check } from 'lucide-react';
+import { Building2, ChevronDown, ClipboardList, Loader2, Check, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -26,6 +26,11 @@ export default function StaffBranchSwitcher({ reloadOnChange = true }: { reloadO
     roleValue === 'doctor' ||
     roleValue === 'rec' ||
     roleValue === 'receptionist';
+  const showCreatePatientButton =
+    showPreviousPatientsButton ||
+    roleValue === 'med' ||
+    roleValue === 'medical' ||
+    roleValue === 'meds';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -69,6 +74,15 @@ export default function StaffBranchSwitcher({ reloadOnChange = true }: { reloadO
 
   return (
     <div className="mb-2 flex flex-wrap items-stretch justify-end gap-2">
+      {showCreatePatientButton && (
+        <Link
+          to="/staff-patients"
+          className="inline-flex items-center justify-center gap-2 rounded-[24px] border border-[#549E9E]/25 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-[#2d8789] shadow-sm transition hover:border-[#549E9E] hover:bg-[#e7f5f4] hover:shadow-md"
+        >
+          <UserPlus size={16} />
+          {t('staff_patients.nav_button', 'Create Patient')}
+        </Link>
+      )}
       {showPreviousPatientsButton && (
         <Link
           to="/previous-patients"

@@ -57,6 +57,7 @@ import ManageCMS from './components/dashboard/ManageCMS';
 import DoctorFormulaMasterPage from './components/dashboard/DoctorFormulaMasterPage';
 import ReceptionPatientManagement from './components/dashboard/ReceptionPatientManagement';
 import PreviousManualPatients from './components/dashboard/PreviousManualPatients';
+import StaffCreatePatients from './components/dashboard/StaffCreatePatients';
 
 function HomePage() {
   const { isAuthenticated, user } = useAuth();
@@ -106,8 +107,17 @@ function AnimatedRoutes() {
 
     const stopLenis = () => lenis.stop();
     const startLenis = () => lenis.start();
+    const scrollToTarget = (event: Event) => {
+      const detail = (event as CustomEvent<{ target?: Element | string | number; offset?: number }>).detail || {};
+      if (detail.target == null) return;
+      lenis.scrollTo(detail.target, {
+        offset: Number(detail.offset || 0),
+        duration: 0.9,
+      });
+    };
     window.addEventListener('lenis:stop', stopLenis);
     window.addEventListener('lenis:start', startLenis);
+    window.addEventListener('lenis:scrollTo', scrollToTarget);
 
     function raf(time: number) {
       lenis.raf(time);
@@ -119,6 +129,7 @@ function AnimatedRoutes() {
     return () => {
       window.removeEventListener('lenis:stop', stopLenis);
       window.removeEventListener('lenis:start', startLenis);
+      window.removeEventListener('lenis:scrollTo', scrollToTarget);
       lenis.destroy();
       lenisRef.current = null;
     };
@@ -176,6 +187,7 @@ function AnimatedRoutes() {
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/treatments" element={<Treatments />} />
+            <Route path="/login" element={<Booking />} />
             <Route path="/booking" element={<Booking />} />
             <Route path="/contact" element={<Contact />} />
             <Route
@@ -238,6 +250,7 @@ function AnimatedRoutes() {
               <Route path="/book-appointment" element={<Booking />} />
               <Route path="/reception-patients" element={<ProtectedRoute allowedRoles={['REC', 'rec', 'receptionist']}><ReceptionPatientManagement /></ProtectedRoute>} />
               <Route path="/previous-patients" element={<ProtectedRoute allowedRoles={['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist']}><PreviousManualPatients /></ProtectedRoute>} />
+              <Route path="/staff-patients" element={<ProtectedRoute allowedRoles={['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical', 'MEDS', 'meds']}><StaffCreatePatients /></ProtectedRoute>} />
               <Route path="/my-appointments" element={<ProtectedRoute allowedRoles={['patient', 'PAT']}><MyAppointments /></ProtectedRoute>} />
               <Route path="/clinic-history" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorClinicHistory /></ProtectedRoute>} />
               <Route path="/patient-records" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical']}><PatientRecords /></ProtectedRoute>} />

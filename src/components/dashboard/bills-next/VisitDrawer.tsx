@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { Phone, RefreshCcw, X } from 'lucide-react';
+import { Phone, Printer, RefreshCcw, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import AppointmentTokenBadge from '../../AppointmentTokenBadge';
 import PaymentSplitDisplay from '../../PaymentSplitDisplay';
@@ -14,6 +14,7 @@ type VisitDrawerProps = {
   loading: boolean;
   patientDues: any[];
   onClose: () => void;
+  onPrintReceipt?: () => void;
 };
 
 const StatusBadge = ({ status }: { status?: string }) => {
@@ -30,7 +31,7 @@ const StatusBadge = ({ status }: { status?: string }) => {
   );
 };
 
-export default function VisitDrawer({ visit, detail, loading, patientDues, onClose }: VisitDrawerProps) {
+export default function VisitDrawer({ visit, detail, loading, patientDues, onClose, onPrintReceipt }: VisitDrawerProps) {
   const { t } = useTranslation();
   const bindScroll = useLenisNestedScroll();
   const open = Boolean(visit) || loading;
@@ -221,9 +222,21 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
 
                   {payments.length > 0 && (
                     <div>
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
-                        {t('bills_next.drawer.payments')}
-                      </h3>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          {t('bills_next.drawer.payments')}
+                        </h3>
+                        {onPrintReceipt && (
+                          <button
+                            type="button"
+                            onClick={onPrintReceipt}
+                            className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-[#2d8789]"
+                          >
+                            <Printer size={12} />
+                            {t('payment_receipt.print', 'Print receipt')}
+                          </button>
+                        )}
+                      </div>
                       <div className="space-y-2">
                         {payments.map((payment: any) => (
                           <div key={payment.payment_id} className="flex items-center justify-between rounded-xl border border-gray-100 px-4 py-3">

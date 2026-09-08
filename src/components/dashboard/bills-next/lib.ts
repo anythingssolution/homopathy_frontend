@@ -285,3 +285,13 @@ export async function fetchBillRows(token: string, query: Record<string, string>
   if (!result.success) throw new Error(result.message || 'Failed to fetch bills');
   return Array.isArray(result.data) ? result.data : [];
 }
+
+export async function fetchBillPayments(token: string, query: Record<string, string>) {
+  const params = new URLSearchParams({ limit: '1000', ...query });
+  const response = await fetch(`/api/v1/bills/payments?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const result = await response.json();
+  if (!result.success) throw new Error(result.message || 'Failed to fetch payments');
+  return Array.isArray(result.data) ? result.data : [];
+}

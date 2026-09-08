@@ -29,7 +29,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
 
   if (!isAuthenticated) {
     // Redirect to login page but save the attempted url
-    return <Navigate to="/booking" state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role) && !(user.role_code && allowedRoles.includes(user.role_code))) {
