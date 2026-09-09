@@ -22,7 +22,9 @@ import {
   MapPin,
   XCircle,
   Hash,
-  Download
+  Download,
+  Printer,
+  Edit2
 } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import { dedupedFetch } from '../../utils/dedupedFetch';
@@ -424,9 +426,25 @@ export default function MedicalDashboard() {
   ) => {
     const today = Number(todayTotal) || 0;
     setAmount(String(today));
+
+    if (prescription?.workflow_status === 'PROCESSED_BY_MEDICAL') return;
+
+    let paidAlready = 0;
+    if (prescription?.account_dues?.bills) {
+      const currentBill = prescription.account_dues.bills.find(
+        (b: any) => b.bill_type === 'MEDICATION' && String(b.consultation_id) === String(prescription.consultation_id)
+      );
+      if (currentBill) {
+        paidAlready = Number(currentBill.paid_amount) || 0;
+      }
+    }
+
+    let actualToday = today - paidAlready;
+    if (actualToday < 0) actualToday = 0;
+
     const previousPending = Number(prescription?.account_dues?.total_pending || 0);
     const includePrevious = order !== 'CURRENT_ONLY' && previousPending > 0;
-    setCollectedAmount((includePrevious ? today + previousPending : today).toFixed(2));
+    setCollectedAmount((includePrevious ? actualToday + previousPending : actualToday).toFixed(2));
   };
 
   const openPrescriptionPreview = async (consultationId?: number | string | null) => {
@@ -523,16 +541,27 @@ export default function MedicalDashboard() {
           return sum + (parseFloat(String(pricingItem?.amount ?? 0)) || 0);
         }, 0)
         + testsTotal;
-      setAmount(
-        pricing.total_amount && Number(pricing.total_amount) !== 0
-          ? pricing.total_amount.toString()
-          : computedBaseTotal.toString()
-      );
-      setCollectedAmount(
-        pricing.total_amount && Number(pricing.total_amount) !== 0
-          ? Number(pricing.total_amount).toFixed(2)
-          : Number(computedBaseTotal || 0).toFixed(2)
-      );
+      const initialTotal = pricing.total_amount && Number(pricing.total_amount) !== 0
+        ? Number(pricing.total_amount)
+        : computedBaseTotal;
+      setAmount(initialTotal.toString());
+      
+      let paidAlready = 0;
+      if (p?.account_dues?.bills) {
+        const currentBill = p.account_dues.bills.find(
+          (b: any) => b.bill_type === 'MEDICATION' && String(b.consultation_id) === String(p.consultation_id)
+        );
+        if (currentBill) {
+          paidAlready = Number(currentBill.paid_amount) || 0;
+        }
+      }
+      
+      let initialActualToday = initialTotal - paidAlready;
+      if (initialActualToday < 0) initialActualToday = 0;
+
+      setCollectedAmount(p.workflow_status === 'PROCESSED_BY_MEDICAL'
+        ? Number(p.medication_bill?.paid_amount || 0).toFixed(2)
+        : initialActualToday.toFixed(2));
       setRemark(pricing.remark || '');
     } else {
       setMedAmounts({});
@@ -738,6 +767,8 @@ export default function MedicalDashboard() {
   };
 
   const handleSubmitDispensing = async (processAfterSave = true) => {
+    const correctingReceived = selectedPrescription.workflow_status === 'PROCESSED_BY_MEDICAL';
+    if (correctingReceived) processAfterSave = false;
     const meds = (selectedPrescription.prescription?.medications || []).filter((m: any) => m.added_by_role !== 'MEDICAL');
     const hasEmptyAmount = meds.some(
       (_: any, i: number) =>
@@ -762,6 +793,10 @@ export default function MedicalDashboard() {
     const received = splitPayment
       ? (Number(cashAmount || 0) || 0) + (Number(onlineAmount || 0) || 0)
       : (Number(collectedAmount || 0) || 0);
+    if (correctingReceived && (!Number.isFinite(Number(collectedAmount)) || received < 0 || received > todayTotal)) {
+      addToast('Amount received must be between 0 and the medicine bill total', 'error');
+      return;
+    }
     if (processAfterSave && (Number.isNaN(received) || received < 0)) {
       addToast('Please enter a valid amount received. Use 0 if the patient is borrowing the full bill.', 'error');
       return;
@@ -794,6 +829,10 @@ export default function MedicalDashboard() {
         consultation_id: selectedPrescription.consultation_id,
         remark: remark,
         process_after_save: processAfterSave,
+        received_correction: correctingReceived ? {
+          amount: received,
+          expected_paid_amount: Number(selectedPrescription.medication_bill?.paid_amount || 0),
+        } : undefined,
         medications: meds.map((m: any, i: number) => ({
           consultation_medication_id: m.consultation_medication_id,
           medicine_value: m.medicine_value,
@@ -971,22 +1010,42 @@ export default function MedicalDashboard() {
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-gray-50 flex flex-col gap-2">
-                  <button
-                    onClick={() => openPrescriptionPreview(p.consultation_id)}
-                    disabled={isPreviewLoading || !p.consultation_id}
-                    className="w-full inline-flex justify-center items-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
-                  >
-                    <FileText size={16} /> {t('medical_dashboard.table.view_prescription', 'View Prescription')}
-                  </button>
-                  <button
-                    onClick={() => handleDispense(p)}
-                    className={`w-full inline-flex justify-center items-center gap-2 px-4 py-3 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer ${p.appointment?.status === 'Completed'
-                        ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20'
-                        : 'bg-[#549E9E] hover:bg-[#438787] shadow-[#549E9E]/20'
-                      }`}
-                  >
-                    <Stethoscope size={16} /> {t('medical_dashboard.table.dispense', 'Dispense')}
-                  </button>
+                  {p.workflow_status === 'PROCESSED_BY_MEDICAL' ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openPrescriptionPreview(p.consultation_id)}
+                        disabled={isPreviewLoading || !p.consultation_id}
+                        className="w-1/2 inline-flex justify-center items-center gap-2 px-4 py-3 bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                      >
+                        <Printer size={16} /> {t('medical_dashboard.table.print', 'Print')}
+                      </button>
+                      <button
+                        onClick={() => handleDispense(p)}
+                        className="w-1/2 inline-flex justify-center items-center gap-2 px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                      >
+                        <Edit2 size={16} /> {t('medical_dashboard.table.edit', 'Edit')}
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => openPrescriptionPreview(p.consultation_id)}
+                        disabled={isPreviewLoading || !p.consultation_id}
+                        className="w-full inline-flex justify-center items-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                      >
+                        <FileText size={16} /> {t('medical_dashboard.table.view_prescription', 'View Prescription')}
+                      </button>
+                      <button
+                        onClick={() => handleDispense(p)}
+                        className={`w-full inline-flex justify-center items-center gap-2 px-4 py-3 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer ${p.appointment?.status === 'Completed'
+                            ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20'
+                            : 'bg-[#549E9E] hover:bg-[#438787] shadow-[#549E9E]/20'
+                          }`}
+                      >
+                        <Stethoscope size={16} /> {t('medical_dashboard.table.dispense', 'Dispense')}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))
@@ -1086,22 +1145,42 @@ export default function MedicalDashboard() {
                     </td>
                     <td className="px-5 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => openPrescriptionPreview(p.consultation_id)}
-                          disabled={isPreviewLoading || !p.consultation_id}
-                          className="inline-flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
-                        >
-                          <FileText size={14} /> {t('medical_dashboard.table.view_prescription', 'View Prescription')}
-                        </button>
-                        <button
-                          onClick={() => handleDispense(p)}
-                          className={`inline-flex items-center gap-2 px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer ${p.appointment?.status === 'Completed'
-                              ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20'
-                              : 'bg-[#549E9E] hover:bg-[#438787] shadow-[#549E9E]/20'
-                            }`}
-                        >
-                          <Stethoscope size={14} /> {t('medical_dashboard.table.dispense', 'Dispense')}
-                        </button>
+                        {p.workflow_status === 'PROCESSED_BY_MEDICAL' ? (
+                          <>
+                            <button
+                              onClick={() => openPrescriptionPreview(p.consultation_id)}
+                              disabled={isPreviewLoading || !p.consultation_id}
+                              className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                            >
+                              <Printer size={14} /> {t('medical_dashboard.table.print', 'Print')}
+                            </button>
+                            <button
+                              onClick={() => handleDispense(p)}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                            >
+                              <Edit2 size={14} /> {t('medical_dashboard.table.edit', 'Edit')}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => openPrescriptionPreview(p.consultation_id)}
+                              disabled={isPreviewLoading || !p.consultation_id}
+                              className="inline-flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                            >
+                              <FileText size={14} /> {t('medical_dashboard.table.view_prescription', 'View Prescription')}
+                            </button>
+                            <button
+                              onClick={() => handleDispense(p)}
+                              className={`inline-flex items-center gap-2 px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer ${p.appointment?.status === 'Completed'
+                                  ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20'
+                                  : 'bg-[#549E9E] hover:bg-[#438787] shadow-[#549E9E]/20'
+                                }`}
+                            >
+                              <Stethoscope size={14} /> {t('medical_dashboard.table.dispense', 'Dispense')}
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </motion.tr>
@@ -1556,6 +1635,16 @@ export default function MedicalDashboard() {
                     </div>
 
                     <div className="space-y-3">
+                      {selectedPrescription.workflow_status === 'PROCESSED_BY_MEDICAL' ? (
+                        <div className="space-y-2 border border-gray-200 bg-white p-3">
+                          <label htmlFor="corrected-received" className="text-xs font-bold">Amount Received</label>
+                          <input id="corrected-received" type="number" min="0" step="0.01"
+                            value={collectedAmount} onChange={e => setCollectedAmount(e.target.value)}
+                            className="w-full border border-gray-200 p-2 text-sm font-bold" />
+                          <p className="text-xs text-gray-500">Correct the total already received for this bill. Save Changes updates the existing payment.</p>
+                          <p className="text-sm font-bold">Pending after correction: {formatMoney(Math.max(0, Number(amount || 0) - Number(collectedAmount || 0)))}</p>
+                        </div>
+                      ) : (
                       <MedicationDuePaymentPanel
                         todayAmount={parseFloat(amount) || 0}
                         previousBills={(selectedPrescription.account_dues?.bills || []) as DueBill[]}
@@ -1576,6 +1665,7 @@ export default function MedicalDashboard() {
                         onlineAmount={onlineAmount}
                         onOnlineAmountChange={setOnlineAmount}
                       />
+                      )}
                     </div>
                   </div>
 
@@ -1589,7 +1679,7 @@ export default function MedicalDashboard() {
                       <FileText size={15} />
                       {t('dispense.save_changes', 'Save Changes')}
                     </button>
-                    <button
+                    {selectedPrescription.workflow_status !== 'PROCESSED_BY_MEDICAL' && <button
                       type="button"
                       onClick={() => handleSubmitDispensing(true)}
                       disabled={isSubmitting}
@@ -1603,7 +1693,7 @@ export default function MedicalDashboard() {
                           {t('dispense.confirm_dispensed', 'Confirm & Mark as Dispensed')}
                         </>
                       )}
-                    </button>
+                    </button>}
                   </div>
                 </div>
               </div>

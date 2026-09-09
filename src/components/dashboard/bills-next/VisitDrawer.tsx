@@ -18,6 +18,7 @@ type VisitDrawerProps = {
 };
 
 const StatusBadge = ({ status }: { status?: string }) => {
+  const { t } = useTranslation();
   const normalized = String(status || '').toUpperCase();
   const styles: Record<string, string> = {
     PAID: 'bg-emerald-50 text-emerald-700 border-emerald-100',
@@ -26,7 +27,7 @@ const StatusBadge = ({ status }: { status?: string }) => {
   };
   return (
     <span className={`inline-flex px-2.5 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${styles[normalized] || 'bg-gray-50 text-gray-500 border-gray-100'}`}>
-      {normalized || '—'}
+      {normalized === 'PARTIAL' ? t('bills_next.pending', 'Pending') : normalized || '—'}
     </span>
   );
 };
@@ -161,8 +162,15 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                               {Array.isArray(bill.items) && bill.items.length > 0 ? bill.items.map((item: any, index: number) => (
-                                <tr key={item.bill_item_id || index}>
-                                  <td className="px-4 py-3 font-medium text-slate-800 break-words">{item.item_name}</td>
+                                <tr key={item.bill_item_id || index} className={item.item_type === 'TEST' ? 'bg-amber-50/60' : undefined}>
+                                  <td className="px-4 py-3 font-medium text-slate-800 break-words">
+                                    {item.item_type === 'TEST' && (
+                                      <span className="mb-1 inline-block rounded border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                                        {t('bills_next.invoice.test', 'Test / Investigation')}
+                                      </span>
+                                    )}
+                                    <p className={item.item_type === 'TEST' ? 'font-bold text-amber-950' : undefined}>{item.item_name}</p>
+                                  </td>
                                   <td className="px-3 py-3 text-right text-slate-600">{item.quantity ?? '—'}</td>
                                   <td className="px-3 py-3 text-right text-slate-600 whitespace-nowrap">{moneyExact(item.unit_price)}</td>
                                   <td className="px-4 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">{moneyExact(item.amount)}</td>

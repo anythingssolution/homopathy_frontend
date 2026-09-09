@@ -6,6 +6,7 @@ type AppointmentTokenBadgeProps = {
   tokenNumber?: string | number | null;
   position?: string | number | null;
   compact?: boolean;
+  hideEmpty?: boolean;
 };
 
 const toPositiveInt = (value?: string | number | null) => {
@@ -18,12 +19,14 @@ export default function AppointmentTokenBadge({
   tokenNumber,
   position,
   compact = false,
+  hideEmpty = false,
 }: AppointmentTokenBadgeProps) {
-  const token = tokenDisplay || tokenNumber || null;
+  const rawToken = tokenDisplay || tokenNumber || null;
+  const token = hideEmpty && ['-', '—', '–'].includes(String(rawToken).trim()) ? null : rawToken;
   const queuePosition = toPositiveInt(position);
 
   if (!token && queuePosition == null) {
-    return <span className="text-[10px] font-bold text-gray-300">—</span>;
+    return hideEmpty ? null : <span className="text-[10px] font-bold text-gray-300">—</span>;
   }
 
   return (

@@ -226,7 +226,7 @@ const RepeatMedicineInvoice = ({ record }: { record: any }) => {
               {record?.appointment?.branch_name || 'Homeopathy Clinic'}
             </p>
             <p className="mt-4 inline-block border border-[#549E9E] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
-              {isRepeat ? 'Repeat Medicine' : 'Dispensary'}
+              {record?.is_direct_medicine ? 'Direct Medicine' : isRepeat ? 'Repeat Medicine' : 'Dispensary'}
             </p>
           </div>
           <div className="w-72 border-l border-gray-300 bg-white p-6 text-xs font-bold">
@@ -866,7 +866,7 @@ export default function DispensaryHistory() {
                     {p.is_repeat_medicine ? (
                       <div className="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg">
                         <RefreshCcw size={16} />
-                        <span className="text-[8px] font-black uppercase tracking-widest mt-1">Repeat</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest mt-1">{p.is_direct_medicine ? 'Direct' : 'Repeat'}</span>
                       </div>
                     ) : isPreviousAmountReceivedRow(p, filterDate) ? (
                       <div className="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg">
@@ -891,7 +891,7 @@ export default function DispensaryHistory() {
                       )}
                       {p.is_repeat_medicine && (
                         <span className="inline-flex mt-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-md text-[9px] font-black uppercase tracking-widest">
-                          Repeat Medicine
+                          {p.is_direct_medicine ? 'Direct Medicine' : 'Repeat Medicine'}
                         </span>
                       )}
                       {isPreviousAmountReceivedRow(p, filterDate) && (
@@ -988,7 +988,7 @@ export default function DispensaryHistory() {
                       ) : p.is_repeat_medicine ? (
                         <div className="inline-flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg">
                           <RefreshCcw size={14} />
-                          <span className="text-[10px] font-black uppercase tracking-widest">Repeat</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest">{p.is_direct_medicine ? 'Direct' : 'Repeat'}</span>
                         </div>
                       ) : (
                         <div className="w-12 h-12 flex items-center justify-center text-gray-800 relative group/token">
@@ -1017,7 +1017,7 @@ export default function DispensaryHistory() {
                         )}
                         {p.is_repeat_medicine && (
                           <span className="inline-flex mt-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-md text-[9px] font-black uppercase tracking-widest">
-                            Repeat Medicine
+                            {p.is_direct_medicine ? 'Direct Medicine' : 'Repeat Medicine'}
                           </span>
                         )}
                         {isPreviousAmountReceivedRow(p, filterDate) && (
@@ -1107,7 +1107,7 @@ export default function DispensaryHistory() {
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Patient: {selectedPrescription.patient?.full_name}</p>
                     {selectedPrescription.is_repeat_medicine && (
                       <span className="inline-flex mt-1 px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 text-[9px] font-black uppercase tracking-widest">
-                        Repeat Medicine
+                        {selectedPrescription.is_direct_medicine ? 'Direct Medicine' : 'Repeat Medicine'}
                       </span>
                     )}
                   </div>

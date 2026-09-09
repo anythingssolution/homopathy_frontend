@@ -1,7 +1,8 @@
+import VisitListPrint from './VisitListPrint';
 import useListPagination from './useListPagination';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 // import { Link } from 'react-router-dom';
-import { AlertCircle, Banknote, CreditCard, Phone, RefreshCcw, Search, Wallet } from 'lucide-react';
+import { AlertCircle, Banknote, CreditCard, Phone, Printer, RefreshCcw, Search, Wallet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../context/AuthContext';
 import CustomDatePicker from '../../CustomDatePicker';
@@ -23,6 +24,7 @@ import {
   fetchBillRows,
   groupVisits,
   filterVisits,
+  withPreviousPayments,
   money,
   moneyExact,
   rangeForLocalFilter,
@@ -52,6 +54,8 @@ export default function BillsNext() {
   const [ageing, setAgeing] = useState<AgeingFilter>('all');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
+  const [printList, setPrintList] = useState(false);
+  const closeListPrint = useCallback(() => setPrintList(false), []);
   const [showRecovered, setShowRecovered] = useState(false);
   const [visitsPage, setVisitsPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -166,8 +170,12 @@ export default function BillsNext() {
   }, [dueBills, ageing, search]);
 
   const filteredVisits = useMemo(
-    () => filterVisits(visits, category, search),
-    [visits, search, category],
+    () => {
+      if (category !== 'all' && category !== 'previous_pending') return filterVisits(visits, category, search);
+      const combined = withPreviousPayments(category === 'all' ? visits : [], previousPayments);
+      return filterVisits(combined, 'all', search);
+    },
+    [visits, previousPayments, search, category],
   );
 
   const visitsTotalPages = Math.max(1, Math.ceil(filteredVisits.length / VISITS_PAGE_SIZE));
@@ -283,6 +291,10 @@ export default function BillsNext() {
 
   return (
     <div className="space-y-5 pb-10">
+      {printList && <VisitListPrint rows={filteredVisits} branch={branchName} from={range.from} to={range.to}
+        category={category === 'consultation' ? t('bills_next.extra.consultations') : t(`bills_next.extra.${category}`)}
+        search={search} onClose={closeListPrint} />}
+
       {collectionReceipt && (
         <PaymentReceipt data={collectionReceipt} onClose={() => setCollectionReceipt(null)} />
       )}
@@ -483,7 +495,7 @@ export default function BillsNext() {
       <div className="flex flex-wrap gap-2">
         {([
           { id: 'attention', label: t('bills_next.tab_attention'), count: cockpit.dueCount },
-          { id: 'visits', label: t('bills_next.tab_visits'), count: cockpit.visitCount },
+          { id: 'visits', label: t('bills_next.tab_visits'), count: cockpit.visitCount + previousPayments.length },
           { id: 'practice', label: t('bills_next.tab_practice') },
           { id: 'consultants', label: t('bills_next.tab_consultants') },
           { id: 'morning', label: t('bills_next.tab_morning') },
@@ -519,11 +531,15 @@ export default function BillsNext() {
 
       {tab === 'visits' && (
         <div className="flex flex-wrap gap-2">
-          {['all', 'consultation', 'repeat', 'medical_only', 'courier'].map((kind) => (
+          {['all', 'consultation', 'repeat', 'medical_only', 'courier', 'previous_pending'].map((kind) => (
             <button key={kind} onClick={() => setCategory(kind)} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${category === kind ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-gray-200'}`}>
               {kind === 'consultation' ? t('bills_next.extra.consultations', 'Consultations') : t(`bills_next.extra.${kind}`)}
             </button>
           ))}
+          <button type="button" disabled={loading || filteredVisits.length === 0} onClick={() => setPrintList(true)}
+            className="ml-auto inline-flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-700 disabled:opacity-40">
+            <Printer size={14} /> {t('bills_next.print_list', 'Print List')}
+          </button>
         </div>
       )}
 
@@ -655,16 +671,26 @@ export default function BillsNext() {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {pagedVisits.map((row) => (
+                    row.previous_payment ? <tr key={row.group_key} className="bg-teal-50/40">
+                      <td className="px-4 py-3"><span className="rounded-md border border-teal-200 bg-teal-50 px-2 py-1 text-[10px] font-black text-teal-700">{t('bills_next.extra.previous_pending')}</span></td>
+                      <td className="px-4 py-3"><p className="text-sm font-black text-slate-800">{row.patient_full_name}</p><p className="text-[11px] text-slate-500">{formatReceiptDateTime(row.created_at, dateLocale)}</p></td>
+                      <td className="px-4 py-3 text-xs text-slate-500"><p>{row.previous_payment.bill_number}</p><p>{t('bills_next.extra.previous_pending')} · {row.previous_payment.payment_mode}</p></td>
+                      <td className="px-4 py-3" />
+                      <td className="px-4 py-3 text-right font-black text-teal-700">{moneyExact(row.paid_towards_previous_pending)}</td>
+                      <td className="px-4 py-3 text-right text-xs">{row.previous_payment.pending_after != null && <>{t('bills_next.pending')}: {moneyExact(row.previous_payment.pending_after)}</>}</td>
+                      <td className="px-4 py-3 text-right"><button className="text-xs font-bold text-teal-700" onClick={() => openCollectionReceipt([row.previous_payment], row.patient_full_name || '', row.patient_mobile_no)}>{t('bills_next.receipt', 'Receipt')}</button><button className="ml-3 text-xs font-bold text-teal-700" onClick={() => void openRecoveredBill(row.previous_payment)}>{t('bills_next.original_bill', 'Original Bill')}</button></td>
+                    </tr> :
                     <tr
                       key={row.group_key}
                       onClick={() => void openVisit(row)}
-                      className={`cursor-pointer hover:bg-[#549E9E]/[0.04] ${row.grand_pending > 0 ? 'bg-amber-50/30' : ''}`}
+                      className={`cursor-pointer ${row.overall_payment_status === 'PARTIAL' ? 'bg-sky-50/60 hover:bg-sky-100/60' : row.overall_payment_status === 'UNPAID' ? 'bg-orange-50/60 hover:bg-orange-100/60' : 'hover:bg-[#549E9E]/[0.04]'}`}
                     >
                       <td className="px-4 py-3">
                         <AppointmentTokenBadge
                           tokenDisplay={row.display_token_display}
                           tokenNumber={row.token_number}
                           position={row.queue_position}
+                          hideEmpty
                           compact
                         />
                         <div className="mt-1 flex flex-wrap gap-1">
@@ -701,9 +727,11 @@ export default function BillsNext() {
                         {row.paid_towards_previous_pending > 0 ? moneyExact(row.paid_towards_previous_pending) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <p className={`text-sm font-black ${row.grand_pending > 0 ? 'text-amber-600' : 'text-slate-300'}`}>
-                          {row.grand_pending > 0 ? moneyExact(row.grand_pending) : '—'}
-                        </p>
+                        {row.grand_pending > 0 && (
+                          <p className={`text-sm font-black ${row.overall_payment_status === 'PARTIAL' ? 'text-sky-700' : 'text-orange-700'}`}>
+                            {moneyExact(row.grand_pending)}
+                          </p>
+                        )}
                         <StatusDot status={row.overall_payment_status} />
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -825,10 +853,11 @@ const MiniStat = ({ label, value }: { label: string; value: string }) => (
 );
 
 const StatusDot = ({ status }: { status: string }) => {
+  const { t } = useTranslation();
   const map: Record<string, string> = {
-    PAID: 'text-emerald-600',
-    PARTIAL: 'text-sky-600',
-    UNPAID: 'text-amber-600',
+    PAID: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    PARTIAL: 'border-sky-200 bg-sky-100 text-sky-800',
+    UNPAID: 'border-orange-200 bg-orange-100 text-orange-800',
   };
-  return <p className={`text-[10px] font-black uppercase tracking-widest ${map[status] || 'text-slate-400'}`}>{status}</p>;
+  return <p className={`mt-1 inline-block rounded-md border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest ${map[status] || 'border-slate-200 text-slate-400'}`}>{status === 'PARTIAL' ? t('bills_next.pending', 'Pending') : status}</p>;
 };

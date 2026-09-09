@@ -1,3 +1,4 @@
+import ClinicHistoryListPrint from './ClinicHistoryListPrint';
 import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
@@ -5,6 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { motion, AnimatePresence } from "motion/react";
 import {
   History,
+  Printer,
   Search,
   RefreshCcw,
   AlertCircle,
@@ -69,6 +71,26 @@ const PendingPaymentRow = ({ payment }: { payment: any }) => {
   </div>;
 };
 
+const RepeatMedicineHistoryRow = ({ bill }: { bill: any }) => {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language.startsWith('hi') ? 'hi-IN' : 'en-GB';
+  const money = (value: any) => Number(value || 0).toLocaleString(locale, { style: 'currency', currency: 'INR' });
+  return <div className="flex flex-wrap items-start justify-between gap-3 border-l-4 border-violet-400 bg-violet-50/60 px-4 py-3">
+    <div>
+      <p className="text-[10px] font-black uppercase tracking-wide text-violet-700">{t(bill.is_direct_medicine ? 'clinic_history.direct_medicine' : 'clinic_history.repeat_medicine')}</p>
+      <p className="mt-1 text-sm font-bold text-slate-800">{bill.patient_full_name}</p>
+      <p className="mt-1 text-xs text-slate-600">{new Date(bill.created_at).toLocaleString(locale)} · {bill.branch_name}</p>
+      <p className="mt-1 text-xs text-slate-500">{t('payment_receipt.bill_no', 'Bill no')}: {bill.bill_number}</p>
+      <p className="mt-1 text-[10px] text-slate-500">{t(bill.is_direct_medicine ? 'clinic_history.direct_event_note' : 'clinic_history.repeat_event_note')}</p>
+    </div>
+    <div className="text-right text-xs text-slate-600">
+      <p className="text-base font-bold text-violet-700">{money(bill.total_amount)}</p>
+      <p className="mt-1">{t('bills_next.collected', 'Collected')}: {money(bill.paid_amount)}</p>
+      <p className="mt-1">{t('bills_next.pending', 'Pending')}: {money(bill.pending_amount)}</p>
+    </div>
+  </div>;
+};
+
 export default function DoctorClinicHistory() {
   const { t } = useTranslation();
   const { token, branchScope } = useAuth();
@@ -76,6 +98,10 @@ export default function DoctorClinicHistory() {
   const selectedBranchId = branchScope?.selected_branch_id ? Number(branchScope.selected_branch_id) : null;
 
   const [historyItems, setHistoryItems] = useState<any[]>([]);
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+  const [printData, setPrintData] = useState<{ rows: any[]; filters: string } | null>(null);
+  const closeListPrint = useCallback(() => setPrintData(null), []);
+
   const [isLoading, setIsLoading] = useState(false);
   const { addToast } = useNotifications();
 
@@ -225,6 +251,33 @@ export default function DoctorClinicHistory() {
     );
   };
 
+  const printHistoryList = async () => {
+    if (isPreparingPrint) return;
+    setIsPreparingPrint(true);
+    try {
+      const params = new URLSearchParams({ page_size: '100' });
+      if (fromDate && fromDate !== 'all') params.set('from_date', fromDate);
+      if (toDate && toDate !== 'all') params.set('to_date', toDate);
+      if (filterStatus && filterStatus !== 'all') params.set('status', filterStatus);
+      if (search.trim()) params.set('patient_search', search.trim());
+      if (selectedBranchId) params.set('branch_id', String(selectedBranchId));
+      const rows: any[] = [];
+      let pages = 1;
+      for (let page = 1; page <= pages; page++) {
+        params.set('page', String(page));
+        const response = await fetch(`/api/v1/doctors/consultations-history?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || 'Unable to load print list');
+        rows.push(...(result.data || []));
+        pages = Number(result.meta?.total_pages || 1);
+      }
+      if (!rows.length) { addToast(t('clinic_history.no_print_records', 'No records to print'), 'warning'); return; }
+      setPrintData({ rows, filters: [fromDate, toDate, t(`clinic_history.filters.${String(filterStatus).toLowerCase()}`, filterStatus), search.trim()].filter(Boolean).join(' · ') });
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Unable to load print list', 'error');
+    } finally { setIsPreparingPrint(false); }
+  };
+
   const fetchHistory = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -305,6 +358,7 @@ export default function DoctorClinicHistory() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
+      {printData && <ClinicHistoryListPrint rows={printData.rows} filters={printData.filters} onClose={closeListPrint} />}
       <div className="bg-[#549E9E] p-6 text-white shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
@@ -317,6 +371,11 @@ export default function DoctorClinicHistory() {
             )}
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={printHistoryList} disabled={isPreparingPrint || isLoading || !historyItems.length}
+          className="bg-white text-[#549E9E] px-4 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 disabled:opacity-50">
+          <Printer size={14} /> {isPreparingPrint ? t('common.loading', 'Loading...') : t('bills_next.print_list', 'Print List')}
+        </button>
         <button
           onClick={fetchHistory}
           className="cursor-pointer bg-white text-[#549E9E] px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-gray-50 flex items-center gap-2 transition-colors"
@@ -324,6 +383,7 @@ export default function DoctorClinicHistory() {
           <RefreshCcw size={14} className={isLoading ? "animate-spin" : ""} />{" "}
           {t("clinic_history.refresh", "Refresh")}
         </button>
+        </div>
       </div>
 
       <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
@@ -403,6 +463,7 @@ export default function DoctorClinicHistory() {
             <div className="sm:hidden divide-y divide-gray-100">
               {historyItems
                 .map((item, idx) => {
+                  if (['REPEAT_MEDICINE', 'DIRECT_MEDICINE'].includes(item.record_type)) return <RepeatMedicineHistoryRow key={`repeat-${item.bill.bill_id}`} bill={item.bill} />;
                   if (item.record_type === 'PENDING_PAYMENT') return <PendingPaymentRow key={`payment-${item.payment.payment_id}`} payment={item.payment} />;
                   const { appointment, consultation } = item;
                   const emrSummary = getChainSummary(item.follow_up_chain);
@@ -584,6 +645,7 @@ export default function DoctorClinicHistory() {
                 <tbody className="divide-y divide-gray-100">
                   {historyItems
                     .map((item, idx) => {
+                      if (['REPEAT_MEDICINE', 'DIRECT_MEDICINE'].includes(item.record_type)) return <tr key={`repeat-${item.bill.bill_id}`}><td colSpan={7}><RepeatMedicineHistoryRow bill={item.bill} /></td></tr>;
                       if (item.record_type === 'PENDING_PAYMENT') return <tr key={`payment-${item.payment.payment_id}`}><td colSpan={7}><PendingPaymentRow payment={item.payment} /></td></tr>;
                       const { appointment, consultation } = item;
                       const emrSummary = getChainSummary(item.follow_up_chain);

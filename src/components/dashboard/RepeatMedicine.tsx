@@ -618,9 +618,9 @@ export default function RepeatMedicine() {
       <div className="bg-white border border-gray-200 p-6 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <h2 className="text-lg font-black text-gray-800 uppercase tracking-tight">Repeat Medicine</h2>
+            <h2 className="text-lg font-black text-gray-800 uppercase tracking-tight">{t('repeat_medicine.title', 'Repeat Medicine / Receive Pending')}</h2>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-              Last prescription based medicine repeat
+              {t('repeat_medicine.menu_hint', 'Repeat medicines or collect old dues')}
             </p>
           </div>
           <div className="flex gap-2 w-full lg:w-auto">

@@ -916,6 +916,11 @@
     }
   },
   "bills_next": {
+    "print_serial": "क्र.सं.",
+    "print_list": "सूची प्रिंट करें",
+    "print_count": "{{count}} विज़िट",
+    "print_search": "खोज",
+
     "recovered_note": "इन तारीखों में पुराने बिलों पर मिले भुगतान",
     "remaining_after_payment": "भुगतान के बाद बिल का बकाया",
     "original_bill": "पुराना बिल",
@@ -923,6 +928,7 @@
     "no_recovered": "इन तारीखों में पुराने बकाये का भुगतान नहीं मिला।",
 
     "invoice": {
+      "test": "जाँच / टेस्ट",
       "title": "बिल विवरण",
       "description": "विवरण",
       "quantity": "मात्रा",
@@ -1032,6 +1038,7 @@
       "this_bill": "यह बिल"
     },
     "extra": {
+      "previous_pending": "पुराना बकाया प्राप्त",
       "direct_medicine": "सीधे मेडिकल से दवा",
       "consultations": "परामर्श",
       "received": "इस अवधि में प्राप्त राशि",
@@ -1189,6 +1196,8 @@
     "vitals": "विटल्स"
   },
   "repeat_medicine": {
+    "title": "रिपीट दवा / बकाया प्राप्त करें",
+    "menu_hint": "दोबारा दवा दें या पुराना बकाया लें",
     "create_repeat_bill": "रिपीट बिल बनाएँ",
     "pay_previous_dues": "पुराना बकाया लें",
     "bill_and_pay_dues": "बिल + बकाया",
@@ -1400,6 +1409,17 @@
     "update_success": "शाखा सफलतापूर्वक अपडेट हुई"
   },
   "clinic_history": {
+    "direct_medicine": "सीधी दवा बिक्री",
+    "direct_event_note": "मेडिकल से सीधे दी गई दवा; नया परामर्श नहीं",
+    "print_records": "रिकॉर्ड",
+    "print_date": "तारीख / समय",
+    "print_branch": "शाखा",
+    "print_received": "प्राप्त",
+    "no_print_records": "प्रिंट करने के लिए कोई रिकॉर्ड नहीं है",
+
+    "repeat_medicine": "रिपीट मेडिसिन",
+    "repeat_event_note": "पुराने प्रिस्क्रिप्शन से दोबारा दवा; नया परामर्श नहीं",
+
     "pending_payment": "पुराने बकाये का भुगतान मिला",
     "original_bill": "मूल बिल",
     "payment_only": "केवल भुगतान — नया परामर्श या दवा नहीं",
@@ -2124,6 +2144,12 @@
     "success_update": "पिछला मरीज सफलतापूर्वक अपडेट हुआ"
   },
   "staff_patients": {
+    "optional_email": "ईमेल (वैकल्पिक)",
+    "optional_address": "पता (वैकल्पिक)",
+    "optional_ward_no": "वार्ड नंबर (वैकल्पिक)",
+    "optional_vidhan_sabha": "विधान सभा (वैकल्पिक)",
+    "optional_pincode": "पिनकोड (वैकल्पिक)",
+    "optional_city": "शहर (वैकल्पिक)",
     "nav_button": "मरीज बनाएँ",
     "eyebrow": "स्टाफ डेस्क",
     "title": "मरीज बनाएँ",

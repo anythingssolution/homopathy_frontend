@@ -174,6 +174,7 @@ export default function StaffCreatePatients() {
     mobile_no: '',
     age: '',
     gender: 'other',
+    email: '', address: '', ward_no: '', vidhan_sabha: '', pincode: '', city: '',
   });
 
   const genderOptions = [
@@ -378,6 +379,12 @@ export default function StaffCreatePatients() {
           mobile_no: form.mobile_no.trim(),
           age,
           gender: form.gender,
+          email: form.email.trim(),
+          address: form.address.trim(),
+          ward_no: form.ward_no.trim(),
+          vidhan_sabha: form.vidhan_sabha.trim(),
+          pincode: form.pincode.trim(),
+          city: form.city.trim(),
           registration_token: registrationToken,
         }),
       });
@@ -393,7 +400,7 @@ export default function StaffCreatePatients() {
           ? t('staff_patients.success_create_id', { id: createdUuid })
           : t('staff_patients.success_create'),
       );
-      setForm({ full_name: '', mobile_no: '', age: '', gender: 'other' });
+      setForm({ full_name: '', mobile_no: '', age: '', gender: 'other', email: '', address: '', ward_no: '', vidhan_sabha: '', pincode: '', city: '' });
       resetMobileVerification();
       setCreatedFrom(todayIsoDate());
       setCreatedTo(todayIsoDate());
@@ -461,7 +468,7 @@ export default function StaffCreatePatients() {
                   <button
                     type="button"
                     onClick={() => {
-                      setForm((current) => ({ ...current, full_name: '', age: '', gender: 'other' }));
+                      setForm((current) => ({ ...current, full_name: '', age: '', gender: 'other', email: '', address: '', ward_no: '', vidhan_sabha: '', pincode: '', city: '' }));
                       resetMobileVerification();
                     }}
                     className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 px-4 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:border-[#549E9E]"
@@ -558,6 +565,23 @@ export default function StaffCreatePatients() {
                     disabled={!mobileVerified}
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {([
+                  ['email', 'Email', 255], ['address', 'Address', 150], ['ward_no', 'Ward No.', 50],
+                  ['vidhan_sabha', 'Vidhan Sabha', 150], ['pincode', 'Pincode', 6], ['city', 'City', 100],
+                ] as const).map(([field, label, maxLength]) => (
+                  <label key={field} className="block text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+                    {t(`staff_patients.optional_${field}`, `${label} (Optional)`)}
+                    <input type={field === 'email' ? 'email' : 'text'} value={form[field]}
+                      maxLength={maxLength} disabled={!mobileVerified}
+                      inputMode={field === 'pincode' ? 'numeric' : undefined}
+                      pattern={field === 'pincode' ? '[0-9]{6}' : undefined}
+                      onChange={event => setForm(current => ({ ...current, [field]: field === 'pincode' ? event.target.value.replace(/\D/g, '') : event.target.value }))}
+                      className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-4 text-sm font-semibold normal-case tracking-normal outline-none focus:border-[#549E9E] disabled:bg-slate-50" />
+                  </label>
+                ))}
               </div>
 
               <div className="flex flex-col items-center gap-2 pt-1">

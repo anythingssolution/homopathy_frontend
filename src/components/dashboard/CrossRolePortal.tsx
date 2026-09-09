@@ -20,10 +20,11 @@ import MedicalDashboard from './MedicalDashboard';
 import DispensaryHistory from './DispensaryHistory';
 import MedicalProductMaster from './MedicalProductMaster';
 import MedicalProductImport from './MedicalProductImport';
+import TestMaster from './TestMaster';
 import RepeatMedicine from './RepeatMedicine';
 import Booking from '../Booking';
 
-type MedicalTab = 'prescriptions' | 'repeat-medicine' | 'dispensary-history' | 'product-master' | 'product-import';
+type MedicalTab = 'prescriptions' | 'repeat-medicine' | 'dispensary-history' | 'product-master' | 'product-import' | 'test-master';
 type ReceptionistTab = 'queue-billing' | 'book-appointment';
 
 export default function CrossRolePortal({ targetRole }: { targetRole: 'medical' | 'receptionist' }) {
@@ -69,10 +70,11 @@ export default function CrossRolePortal({ targetRole }: { targetRole: 'medical' 
     }
     const tabs: { id: MedicalTab; label: string; icon: React.ElementType }[] = [
       { id: 'prescriptions', label: t('cross_role.prescriptions', 'Prescriptions'), icon: Pill },
-      { id: 'repeat-medicine', label: t('cross_role.repeat_medicine', 'Repeat Medicine'), icon: Repeat2 },
+      { id: 'repeat-medicine', label: t('repeat_medicine.title', 'Repeat Medicine / Receive Pending'), icon: Repeat2 },
       { id: 'dispensary-history', label: t('cross_role.dispensary_history', 'Dispensary History'), icon: History },
       { id: 'product-master', label: t('cross_role.product_master', 'Product Master'), icon: Pill },
       { id: 'product-import', label: t('cross_role.product_import', 'Product Import'), icon: FileSpreadsheet },
+      ...(isDoctor ? [{ id: 'test-master' as MedicalTab, label: 'Test Master', icon: FileText }] : []),
     ];
 
     return (
@@ -114,7 +116,7 @@ export default function CrossRolePortal({ targetRole }: { targetRole: 'medical' 
         </motion.div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-2 bg-gray-100 p-1.5 rounded-xl w-max mb-6">
+        <div className="flex flex-wrap gap-2 bg-gray-100 p-1.5 rounded-xl mb-6">
           {tabs.map((tab) => {
             const TabIcon = tab.icon;
             return (
@@ -140,6 +142,7 @@ export default function CrossRolePortal({ targetRole }: { targetRole: 'medical' 
         {medicalTab === 'dispensary-history' && <DispensaryHistory />}
         {medicalTab === 'product-master' && <MedicalProductMaster />}
         {medicalTab === 'product-import' && <MedicalProductImport />}
+        {medicalTab === 'test-master' && isDoctor && <TestMaster />}
       </div>
     );
   }

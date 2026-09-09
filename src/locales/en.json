@@ -882,6 +882,17 @@
     "empty_desc": "You haven't registered any family members yet. Add family members to easily book appointments for them."
   },
   "clinic_history": {
+    "direct_medicine": "Direct Medicine",
+    "direct_event_note": "Medicines supplied directly by Medical; no new consultation",
+    "print_records": "records",
+    "print_date": "Date / time",
+    "print_branch": "Branch",
+    "print_received": "Received",
+    "no_print_records": "No records to print",
+
+    "repeat_medicine": "Repeat Medicine",
+    "repeat_event_note": "Medicines repeated from a previous prescription; no new consultation",
+
     "pending_payment": "Pending Payment Received",
     "original_bill": "Original bill",
     "payment_only": "Payment only — no new consultation or medicines",
@@ -952,6 +963,11 @@
     }
   },
   "bills_next": {
+    "print_serial": "S.No.",
+    "print_list": "Print List",
+    "print_count": "{{count}} visits",
+    "print_search": "Search",
+
     "recovered_note": "Payments collected on these dates against older bills",
     "remaining_after_payment": "Bill balance after payment",
     "original_bill": "Original bill",
@@ -959,6 +975,7 @@
     "no_recovered": "No old dues recovered on these dates.",
 
     "invoice": {
+      "test": "Test / Investigation",
       "title": "Bill details",
       "description": "Description",
       "quantity": "Qty",
@@ -1068,6 +1085,7 @@
       "this_bill": "This bill"
     },
     "extra": {
+      "previous_pending": "Previous Pending",
       "direct_medicine": "Direct Medicine",
       "consultations": "Consultations",
       "received": "Received in this period",
@@ -1167,6 +1185,8 @@
     "vitals": "Vitals"
   },
   "repeat_medicine": {
+    "title": "Repeat Medicine / Receive Pending",
+    "menu_hint": "Repeat medicines or collect old dues",
     "create_repeat_bill": "Create Repeat Bill",
     "pay_previous_dues": "Pay Previous Dues",
     "bill_and_pay_dues": "Bill + Pay Dues",
@@ -2066,6 +2086,12 @@
     "success_update": "Previous patient updated successfully"
   },
   "staff_patients": {
+    "optional_email": "Email (Optional)",
+    "optional_address": "Address (Optional)",
+    "optional_ward_no": "Ward No. (Optional)",
+    "optional_vidhan_sabha": "Vidhan Sabha (Optional)",
+    "optional_pincode": "Pincode (Optional)",
+    "optional_city": "City (Optional)",
     "nav_button": "Create Patient",
     "eyebrow": "Staff Desk",
     "title": "Create Patient",

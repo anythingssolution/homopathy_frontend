@@ -5,6 +5,7 @@ export type WorkTab = 'attention' | 'visits' | 'practice' | 'consultants' | 'mor
 export type AgeingFilter = 'all' | 'week' | 'month' | 'older';
 
 export type VisitRow = {
+  previous_payment?: any;
   group_key: string;
   appointment_id: number | null;
   is_repeat_medicine: boolean;
@@ -334,10 +335,27 @@ export const paymentSource = (payment: any) => {
   return 'repeat';
 };
 
-export const isOlderDuePayment = (payment: any) =>
-  payment.allocation_kind === 'PREVIOUS' ||
-  (Boolean(payment.original_bill_date && payment.collected_at) &&
-    String(payment.original_bill_date).slice(0, 10) < String(payment.collected_at).slice(0, 10));
+const clinicDateKey = (value: unknown) => {
+  if (!value) return '';
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  // MySQL date-only values are serialized as UTC instants; compare clinic dates.
+  if (!/[zZ]$|[+-]\d{2}:?\d{2}$/.test(text)) return text.slice(0, 10);
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  return ['year', 'month', 'day'].map((kind) => parts.find((part) => part.type === kind)?.value).join('-');
+};
+
+export const isOlderDuePayment = (payment: any) => {
+  if (payment.is_previous_due != null) return Number(payment.is_previous_due) === 1;
+  if (payment.allocation_kind === 'PREVIOUS') return true;
+  const billDate = clinicDateKey(payment.original_bill_date);
+  const receivedDate = clinicDateKey(payment.collected_at);
+  return Boolean(billDate && receivedDate && billDate < receivedDate);
+};
 
 // Filter the globally sorted visits before pagination; retain their original POS.
 export const filterVisits = (visits: VisitRow[], category: string, search = '') => {
@@ -354,6 +372,28 @@ export const filterVisits = (visits: VisitRow[], category: string, search = '') 
     (!q || [row.patient_full_name, row.patient_mobile_no, row.auid, row.treatment_name]
       .join(' ').toLowerCase().includes(q)),
   );
+};
+
+export const withPreviousPayments = (visits: VisitRow[], payments: any[]): VisitRow[] => {
+  const result = visits.map(row => ({ ...row, paid_towards_previous_pending: 0 }));
+  const stamp = (value: unknown) => new Date(String(value || '')).getTime() || 0;
+  const receipts: VisitRow[] = payments.map(payment => ({
+    group_key: `previous-payment-${payment.payment_id}`, previous_payment: payment,
+    appointment_id: null, is_repeat_medicine: false, bills: [],
+    patient_id: payment.patient_id, patient_full_name: payment.patient_full_name,
+    patient_mobile_no: payment.patient_mobile_no, auid: payment.bill_number,
+    appointment_date: clinicDateKey(payment.collected_at), created_at: payment.collected_at,
+    grand_total: 0, grand_paid: 0, grand_pending: 0, paid_towards_this_bill: 0,
+    paid_towards_previous_pending: Number(payment.amount || 0),
+    consult_total: 0, medicine_total: 0, test_total: 0, courier_total: 0,
+    cash_amount: 0, online_amount: 0, overall_payment_status: 'PAID',
+  }));
+  // Insert receipt events between visits without changing the established POS order.
+  for (const receipt of receipts.sort((a,b) => stamp(b.created_at)-stamp(a.created_at))) {
+    const index = result.findIndex(row => stamp(row.previous_payment ? row.created_at : row.consultation_completed_at || row.created_at || row.appointment_date) < stamp(receipt.created_at));
+    if (index < 0) result.push(receipt); else result.splice(index,0,receipt);
+  }
+  return result;
 };
 
 const isVisibleFreeFollowUpVisit = (visit: VisitRow) => {

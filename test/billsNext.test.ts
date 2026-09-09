@@ -1,6 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { groupVisits, filterVisits, fetchBillRows, billCategory, paymentSource, isOlderDuePayment } from '../src/components/dashboard/bills-next/lib.ts';
+import { groupVisits, filterVisits, fetchBillRows, billCategory, paymentSource, isOlderDuePayment, withPreviousPayments } from '../src/components/dashboard/bills-next/lib.ts';
+
+test('previous receipts merge between visits without creating bills, duplicating totals or assigning POS', () => {
+ const visits = groupVisits([
+   bill(1,{queue_position:2,consultation_completed_at:'2026-09-08T12:00:00+05:30'}),
+   bill(2,{queue_position:1,consultation_completed_at:'2026-09-08T10:00:00+05:30'}),
+ ]);
+ const receipt={payment_id:99,amount:100,collected_at:'2026-09-08T11:00:00+05:30',patient_full_name:'Previous payer',bill_number:'OLD-1'};
+ const rows=withPreviousPayments(visits,[receipt]);
+ assert.deepEqual(rows.map(r=>r.group_key),['apt-1','previous-payment-99','apt-2']);
+ assert.equal(rows[1].queue_position,undefined);
+ assert.equal(rows.reduce((n,r)=>n+r.grand_total,0),600);
+ assert.equal(rows.reduce((n,r)=>n+r.grand_paid,0),600);
+ assert.equal(rows.reduce((n,r)=>n+r.paid_towards_previous_pending,0),100);
+ assert.equal(filterVisits(withPreviousPayments([],[receipt]),'all','OLD-1').length,1);
+});
 
 const bill = (id: number, extra: any = {}) => ({bill_id:id, appointment_id:id, bill_type:'CONSULTATION', appointment_date:'2026-09-08', total_amount:300, paid_amount:300, pending_amount:0, payment_status:'PAID', ...extra});
 
@@ -84,4 +99,14 @@ test('Consultation includes eligible follow-ups and hides only incomplete zero-f
  assert.deepEqual(filterVisits(visits,'follow_up').map(r=>r.group_key).sort(),['apt-2','apt-3','apt-6']);
  assert.deepEqual(filterVisits(visits,'consultation').map(r=>r.group_key).sort(),['apt-2','apt-3','apt-5','apt-6']);
  assert.equal(visits.length,6);
+});
+
+test('old dues uses clinic dates and backend classification, not UTC date slices', () => {
+ const sameDay = {allocation_kind:'CURRENT',original_bill_date:'2026-09-08T18:30:00.000Z',collected_at:'2026-09-09T05:00:00.000Z',amount:860.02};
+ const oldDue = {allocation_kind:'PREVIOUS',amount:100};
+ assert.equal(isOlderDuePayment(sameDay),false);
+ assert.equal(isOlderDuePayment({...sameDay,collected_at:'2026-09-09T19:00:00.000Z'}),true);
+ assert.equal(isOlderDuePayment({...sameDay,is_previous_due:0}),false);
+ assert.equal(isOlderDuePayment({...sameDay,is_previous_due:1}),true);
+ assert.equal([sameDay,oldDue].filter(isOlderDuePayment).reduce((sum,p)=>sum+p.amount,0),100);
 });
