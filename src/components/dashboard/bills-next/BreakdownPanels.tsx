@@ -1,6 +1,8 @@
+import Pagination from '../../Pagination';
+import useListPagination from './useListPagination';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { money, moneyExact, mergeConsultants, mergeMedicines, sessionBundle } from './lib';
+import { money, mergeConsultants, mergeMedicines, sessionBundle } from './lib';
 
 type MixBarProps = {
   label: string;
@@ -40,10 +42,12 @@ const Mini = ({ label, value }: { label: string; value: string }) => (
 const ConsultantTable = ({ rows }: { rows: any[] }) => {
   const { t } = useTranslation();
   const list = mergeConsultants(rows);
+  const pagination = useListPagination(list);
   if (list.length === 0) {
     return <p className="py-10 text-center text-sm font-semibold text-slate-400">{t('bills_next.no_consultants')}</p>;
   }
   return (
+    <div>
     <div className="overflow-x-auto">
       <table className="w-full text-left min-w-[720px]">
         <thead>
@@ -60,7 +64,7 @@ const ConsultantTable = ({ rows }: { rows: any[] }) => {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
-          {list.map((row) => (
+          {pagination.rows.map((row) => (
             <tr key={row.doctor_id || row.doctor_name}>
               <td className="px-4 py-3 text-sm font-black text-slate-800">{row.doctor_name}</td>
               <td className="px-4 py-3 text-center text-sm font-black text-slate-700">{row.total_consultations}</td>
@@ -76,18 +80,21 @@ const ConsultantTable = ({ rows }: { rows: any[] }) => {
         </tbody>
       </table>
     </div>
+    <Pagination {...pagination.controls} />
+    </div>
   );
 };
 
 const MedicineList = ({ rows }: { rows: any[] }) => {
   const { t } = useTranslation();
   const list = mergeMedicines(rows);
+  const pagination = useListPagination(list);
   if (list.length === 0) {
     return <p className="py-10 text-center text-sm font-semibold text-slate-400">{t('bills_next.no_meds')}</p>;
   }
   return (
     <div className="space-y-2">
-      {list.map((med) => (
+      {pagination.rows.map((med) => (
         <div key={med.name} className="flex items-center justify-between gap-3 rounded-xl border border-gray-50 px-3 py-2.5">
           <div className="min-w-0">
             <p className="text-sm font-black text-slate-800 truncate">{med.name}</p>
@@ -98,6 +105,7 @@ const MedicineList = ({ rows }: { rows: any[] }) => {
           <p className="text-sm font-black text-emerald-600 shrink-0">{money(med.gross)}</p>
         </div>
       ))}
+      <Pagination {...pagination.controls} />
     </div>
   );
 };
@@ -153,49 +161,6 @@ export function SessionPanel({
           <h3 className="text-sm font-black text-slate-800 mb-3">{t('bills_next.top_meds')}</h3>
           <MedicineList rows={meds} />
         </div>
-      </div>
-    </div>
-  );
-}
-
-export function EarningsPanel({
-  consultant,
-  medicine,
-}: {
-  consultant: any;
-  medicine: any;
-}) {
-  const { t } = useTranslation();
-  const bundle = sessionBundle(consultant);
-  const merged = mergeConsultants([...bundle.morning, ...bundle.evening]);
-  const source = {
-    consult: merged.reduce((sum, row) => sum + Number(row.consultation_revenue || 0), 0),
-    medicine: merged.reduce((sum, row) => sum + Number(row.medication_revenue || 0), 0),
-    tests: merged.reduce((sum, row) => sum + Number(row.test_lab_revenue || 0), 0),
-    courier: merged.reduce((sum, row) => sum + Number(row.courier_revenue || 0), 0),
-  };
-  const max = Math.max(source.consult, source.medicine, source.tests, source.courier, 1);
-  const meds = mergeMedicines([...sessionBundle(medicine).morning, ...sessionBundle(medicine).evening]);
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div className="rounded-2xl border border-gray-100 bg-white p-5 space-y-4">
-        <div>
-          <h3 className="text-sm font-black text-slate-800">{t('bills_next.tab_earnings')}</h3>
-          <p className="text-[11px] font-semibold text-slate-400">{t('bills_next.earnings_sub')}</p>
-        </div>
-        <MixBar label={t('bills_next.consult')} value={source.consult} max={max} />
-        <MixBar label={t('bills_next.medicine')} value={source.medicine} max={max} tone="violet" />
-        <MixBar label={t('bills_next.tests')} value={source.tests} max={max} tone="amber" />
-        <MixBar label={t('bills_next.courier')} value={source.courier} max={max} tone="sky" />
-        <p className="text-sm font-black text-slate-800 pt-2">
-          {t('bills_next.col_gross')}: {moneyExact(source.consult + source.medicine + source.tests + source.courier)}
-        </p>
-      </div>
-      <div className="rounded-2xl border border-gray-100 bg-white p-5">
-        <h3 className="text-sm font-black text-slate-800">{t('bills_next.top_meds')}</h3>
-        <p className="text-[11px] font-semibold text-slate-400 mb-4">{t('bills_next.earnings_meds_sub')}</p>
-        <MedicineList rows={meds} />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { getLocalDateString } from '../../../utils/date';
 import { parseIsoDate, type CustomRange } from '../reports-next/lib';
 
-export type WorkTab = 'attention' | 'visits' | 'practice' | 'consultants' | 'morning' | 'evening' | 'earnings';
+export type WorkTab = 'attention' | 'visits' | 'practice' | 'consultants' | 'morning' | 'evening';
 export type AgeingFilter = 'all' | 'week' | 'month' | 'older';
 
 export type VisitRow = {
@@ -26,6 +26,8 @@ export type VisitRow = {
   cash_amount: number;
   online_amount: number;
   consultation_completed_at?: string | null;
+  consultation_started_at?: string | null;
+  created_at?: string | null;
   bills: any[];
   grand_total: number;
   grand_paid: number;
@@ -34,6 +36,8 @@ export type VisitRow = {
   paid_towards_previous_pending: number;
   consult_total: number;
   medicine_total: number;
+  test_total: number;
+  courier_total: number;
   overall_payment_status: 'PAID' | 'PARTIAL' | 'UNPAID';
 };
 
@@ -102,6 +106,8 @@ export const groupVisits = (bills: any[]): VisitRow[] => {
     const groupKey = appointmentId ? `apt-${appointmentId}` : `bill-${bill.bill_id}`;
     const billType = String(bill.bill_type || '').toUpperCase();
     const amount = Number(bill.total_amount || 0);
+    const tests = Number(bill.test_amount ?? (bill.items || []).filter((item: any) => item.item_type === 'TEST').reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0));
+    const courier = Number(bill.courier_amount ?? (bill.items || []).filter((item: any) => String(item.item_name).toLowerCase() === 'courier charge').reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0));
 
     if (!grouped.has(groupKey)) {
       grouped.set(groupKey, {
@@ -112,7 +118,7 @@ export const groupVisits = (bills: any[]): VisitRow[] => {
         appointment_date: bill.appointment_date,
         token_number: bill.token_number,
         display_token_display: bill.display_token_display,
-        queue_position: bill.queue_position,
+        queue_position: appointmentId ? bill.queue_position : null,
         start_time: bill.start_time,
         patient_id: bill.patient_id,
         patient_full_name: bill.patient_full_name,
@@ -125,7 +131,9 @@ export const groupVisits = (bills: any[]): VisitRow[] => {
         payment_mode: bill.payment_mode || null,
         cash_amount: 0,
         online_amount: 0,
-        consultation_completed_at: bill.consultation_completed_at || null,
+        consultation_completed_at: appointmentId ? bill.consultation_completed_at || null : null,
+        consultation_started_at: appointmentId ? bill.consultation_started_at || null : null,
+        created_at: bill.created_at || null,
         bills: [],
         grand_total: 0,
         grand_paid: 0,
@@ -134,13 +142,15 @@ export const groupVisits = (bills: any[]): VisitRow[] => {
         paid_towards_previous_pending: 0,
         consult_total: 0,
         medicine_total: 0,
+        test_total: 0,
+        courier_total: 0,
         overall_payment_status: 'UNPAID',
       });
     }
 
     const entry = grouped.get(groupKey)!;
     if (!entry.payment_mode && bill.payment_mode) entry.payment_mode = bill.payment_mode;
-    if (!entry.consultation_completed_at && bill.consultation_completed_at) {
+    if (appointmentId && !entry.consultation_completed_at && bill.consultation_completed_at) {
       entry.consultation_completed_at = bill.consultation_completed_at;
     }
     entry.bills.push(bill);
@@ -152,7 +162,11 @@ export const groupVisits = (bills: any[]): VisitRow[] => {
     entry.paid_towards_this_bill += Number(bill.paid_towards_this_bill || 0);
     entry.paid_towards_previous_pending += Number(bill.paid_towards_previous_pending || 0);
     if (billType === 'CONSULTATION') entry.consult_total += amount;
-    else entry.medicine_total += amount;
+    else {
+      entry.test_total += tests;
+      entry.courier_total += courier;
+      entry.medicine_total += amount - tests - courier;
+    }
   });
 
   return Array.from(grouped.values())
@@ -171,17 +185,24 @@ export const groupVisits = (bills: any[]): VisitRow[] => {
         cash_amount: cash,
         online_amount: online,
         payment_mode: cash > 0 && online > 0 ? 'MIXED' : online > 0 ? 'ONLINE' : cash > 0 ? 'CASH' : entry.payment_mode,
-        overall_payment_status: deriveStatus(entry.grand_paid, entry.grand_pending, entry.grand_total),
+        overall_payment_status: entry.bills.every((bill) => bill.payment_status === 'PAID') ? 'PAID' as const : deriveStatus(entry.grand_paid, entry.grand_pending, entry.grand_total),
       };
     })
     .sort((a, b) => {
-      const completion = dateOrder(b.consultation_completed_at) - dateOrder(a.consultation_completed_at);
-      if (completion !== 0) return completion;
+      // Newest date/session first, then the displayed POS in descending order.
       const dateDiff = dateOrder(b.appointment_date) - dateOrder(a.appointment_date);
       if (dateDiff !== 0) return dateDiff;
-      const slotDiff = timeOrder(a.start_time) - timeOrder(b.start_time);
+      const slotDiff = timeOrder(b.start_time) - timeOrder(a.start_time);
       if (slotDiff !== 0) return slotDiff;
-      return Number(a.appointment_id || 0) - Number(b.appointment_id || 0);
+      const position = Number(b.queue_position || 0) - Number(a.queue_position || 0);
+      if (position !== 0) return position;
+      const completion = dateOrder(b.consultation_completed_at) - dateOrder(a.consultation_completed_at);
+      if (completion !== 0) return completion;
+      const started = dateOrder(b.consultation_started_at) - dateOrder(a.consultation_started_at);
+      if (started !== 0) return started;
+      const created = dateOrder(b.created_at) - dateOrder(a.created_at);
+      if (created !== 0) return created;
+      return Number(b.appointment_id || b.bills[0]?.bill_id || 0) - Number(a.appointment_id || a.bills[0]?.bill_id || 0);
     });
 };
 
@@ -276,22 +297,68 @@ export const consultantTotals = (value: any) => {
   };
 };
 
-export async function fetchBillRows(token: string, query: Record<string, string>) {
-  const params = new URLSearchParams({ limit: '1000', ...query });
-  const response = await fetch(`/api/v1/bills?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const result = await response.json();
-  if (!result.success) throw new Error(result.message || 'Failed to fetch bills');
-  return Array.isArray(result.data) ? result.data : [];
+async function fetchAllPages(token: string, path: string, query: Record<string, string>) {
+  const rows: any[] = [];
+  let page = 1;
+  let totalPages = 1;
+  do {
+    const params = new URLSearchParams({ ...query, billing_scope: 'branch', limit: '1000', page: String(page) });
+    const response = await fetch(`${path}?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.message || 'Failed to fetch billing data');
+    rows.push(...(Array.isArray(result.data) ? result.data : []));
+    totalPages = Number(result.meta?.total_pages || 1);
+    page += 1;
+  } while (page <= totalPages);
+  return rows;
 }
 
-export async function fetchBillPayments(token: string, query: Record<string, string>) {
-  const params = new URLSearchParams({ limit: '1000', ...query });
-  const response = await fetch(`/api/v1/bills/payments?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const result = await response.json();
-  if (!result.success) throw new Error(result.message || 'Failed to fetch payments');
-  return Array.isArray(result.data) ? result.data : [];
-}
+export const fetchBillRows = (token: string, query: Record<string, string>) =>
+  fetchAllPages(token, '/api/v1/bills', query);
+
+export const fetchBillPayments = (token: string, query: Record<string, string>) =>
+  fetchAllPages(token, '/api/v1/bills/payments', query);
+
+export const billCategory = (bill: any) => {
+  if (bill.bill_type === 'CONSULTATION') return bill.payment_settlement_type === 'FOLLOW_UP' ? 'follow_up' : 'consultation';
+  if (bill.delivery_mode === 'COURIER') return 'courier';
+  if (!bill.appointment_id) return !bill.consultation_id || String(bill.remark || '').includes('Medical Only') ? 'medical_only' : 'repeat';
+  return 'medication';
+};
+
+// Use the originating bill, not the receipt remark, to identify the medicine flow.
+export const paymentSource = (payment: any) => {
+  if (payment.bill_type === 'CONSULTATION') return 'consultation';
+  if (payment.appointment_id) return 'token_medicine';
+  if (!payment.consultation_id || String(payment.bill_remark || '').includes('Medical Only')) return 'medical_only';
+  return 'repeat';
+};
+
+export const isOlderDuePayment = (payment: any) =>
+  payment.allocation_kind === 'PREVIOUS' ||
+  (Boolean(payment.original_bill_date && payment.collected_at) &&
+    String(payment.original_bill_date).slice(0, 10) < String(payment.collected_at).slice(0, 10));
+
+// Filter the globally sorted visits before pagination; retain their original POS.
+export const filterVisits = (visits: VisitRow[], category: string, search = '') => {
+  const q = search.toLowerCase().trim();
+  return visits.filter((row) =>
+    (category === 'all' || row.bills.some((bill) => {
+      const kind = billCategory(bill);
+      if (category === 'consultation' && kind === 'follow_up') {
+        return isVisibleFreeFollowUpVisit(row);
+      }
+      return kind === category;
+    })) &&
+    (category !== 'follow_up' || isVisibleFreeFollowUpVisit(row)) &&
+    (!q || [row.patient_full_name, row.patient_mobile_no, row.auid, row.treatment_name]
+      .join(' ').toLowerCase().includes(q)),
+  );
+};
+
+const isVisibleFreeFollowUpVisit = (visit: VisitRow) => {
+  if (!visit.appointment_id) return true;
+  const consultationBills = visit.bills.filter((bill) => bill.bill_type === 'CONSULTATION');
+  if (consultationBills.length === 0 || visit.consult_total > 0) return true;
+  return visit.bills.some((bill) => bill.appointment_status === 'Completed' || Boolean(bill.actual_completed_at));
+};

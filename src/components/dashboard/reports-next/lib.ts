@@ -153,9 +153,9 @@ export async function fetchReportModule(
   module: string,
   from: string,
   to: string,
-  options?: { force?: boolean },
+  options?: { force?: boolean; branchBilling?: boolean },
 ) {
-  const key = reportCacheKey(token, module, from, to);
+  const key = reportCacheKey(token, module, from, to) + (options?.branchBilling ? ':branch-billing' : '');
   if (!options?.force) {
     const cached = reportCache.get(key);
     if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
@@ -167,6 +167,7 @@ export async function fetchReportModule(
 
   const request = (async () => {
     const params = new URLSearchParams({ from, to });
+    if (options?.branchBilling) params.set('billing_scope', 'branch');
     const res = await fetch(`/api/v1/reports/${module}?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     });

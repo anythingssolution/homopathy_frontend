@@ -192,26 +192,33 @@ export default function RepeatMedicine() {
   const billSectionRef = useRef<HTMLDivElement>(null);
   const bindBillScroll = useLenisNestedScroll();
 
+  const hasMedicineSelection = Object.values(selectedMedicineIds).some(Boolean)
+    || additionalMedicines.some((item) => Boolean(item.medicine_value.trim() || item.name.trim() || Number(item.amount || 0)));
+
   const totalAmount = useMemo(() => {
     const prescribedTotal = Object.entries(selectedMedicineIds).reduce((sum, [id, checked]) => {
       if (!checked) return sum;
       return sum + (Number(medicineAmounts[Number(id)] || 0) || 0);
     }, 0);
     const additionalTotal = additionalMedicines.reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
-    const deliveryTotal = isCourierDelivery ? (Number(courierCharge || 0) || 0) : 0;
+    const deliveryTotal = hasMedicineSelection && isCourierDelivery ? (Number(courierCharge || 0) || 0) : 0;
     return Number((prescribedTotal + additionalTotal + deliveryTotal).toFixed(2));
-  }, [additionalMedicines, courierCharge, isCourierDelivery, medicineAmounts, selectedMedicineIds]);
+  }, [additionalMedicines, courierCharge, hasMedicineSelection, isCourierDelivery, medicineAmounts, selectedMedicineIds]);
 
   const previousPending = Number(
     lastPrescription?.account_dues?.total_pending || selectedPatient?.account_dues?.total_pending || 0,
   );
-  const includePrevious = allocationOrder !== 'CURRENT_ONLY' && previousPending > 0;
+  const previousOnlyMode = !hasMedicineSelection && previousPending > 0;
+  const effectiveAllocationOrder = previousOnlyMode ? 'PREVIOUS_FIRST' : allocationOrder;
+  const includePrevious = effectiveAllocationOrder !== 'CURRENT_ONLY' && previousPending > 0;
   const collectTarget = Number((includePrevious ? totalAmount + previousPending : totalAmount).toFixed(2));
   const receivedNow = splitPayment
     ? Number(((Number(cashAmount || 0) || 0) + (Number(onlineAmount || 0) || 0)).toFixed(2))
     : Number((collectedAmount === '' ? collectTarget : Number(collectedAmount || 0)).toFixed(2));
-  const payingPreviousOnly = totalAmount <= 0 && includePrevious && receivedNow > 0;
-  const canSubmit = !isSaving && (totalAmount > 0 || payingPreviousOnly);
+  const payingPreviousOnly = !hasMedicineSelection && totalAmount <= 0 && includePrevious;
+  const canSubmit = !isSaving && Number.isFinite(receivedNow) && receivedNow >= 0
+    && receivedNow <= collectTarget + 0.001
+    && (totalAmount > 0 || (payingPreviousOnly && receivedNow > 0));
   const submitButtonLabel = isSaving
     ? (payingPreviousOnly
       ? t('repeat_medicine.collecting', 'Collecting...')
@@ -483,7 +490,7 @@ export default function RepeatMedicine() {
       collectedAmount: String(received),
       transactionReference,
       paymentRemark: remark.trim() || (payingPreviousOnly ? 'Previous pending collected' : 'Repeat Medicine'),
-      allocationOrder: payingPreviousOnly ? 'PREVIOUS_FIRST' : allocationOrder,
+      allocationOrder: effectiveAllocationOrder,
     });
 
     setIsSaving(true);
@@ -690,7 +697,10 @@ export default function RepeatMedicine() {
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={(e) => setSelectedMedicineIds((state) => ({ ...state, [med.consultation_medication_id]: e.target.checked }))}
+                      onChange={(e) => {
+                        setSelectedMedicineIds((state) => ({ ...state, [med.consultation_medication_id]: e.target.checked }));
+                        setCollectedAmount('');
+                      }}
                       className="w-4 h-4 accent-[#549E9E]"
                     />
                     <div className="min-w-0">
@@ -815,13 +825,13 @@ export default function RepeatMedicine() {
             <MedicationDuePaymentPanel
               todayAmount={totalAmount}
               previousBills={(activeAccountDues?.bills || []) as DueBill[]}
-              collectedAmount={collectedAmount === '' ? money(totalAmount) : collectedAmount}
+              collectedAmount={collectedAmount === '' ? money(collectTarget) : collectedAmount}
               onCollectedAmountChange={setCollectedAmount}
               paymentMode={paymentMode}
               onPaymentModeChange={setPaymentMode}
               transactionReference={transactionReference}
               onTransactionReferenceChange={setTransactionReference}
-              allocationOrder={allocationOrder}
+              allocationOrder={effectiveAllocationOrder}
               onAllocationOrderChange={setAllocationOrder}
               splitPayment={splitPayment}
               onSplitPaymentChange={setSplitPayment}

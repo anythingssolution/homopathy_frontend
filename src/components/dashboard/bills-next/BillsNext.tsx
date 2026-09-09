@@ -1,22 +1,28 @@
+import useListPagination from './useListPagination';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 // import { Link } from 'react-router-dom';
-import { AlertCircle, Banknote, CreditCard, Phone, Printer, RefreshCcw, Search, Wallet } from 'lucide-react';
+import { AlertCircle, Banknote, CreditCard, Phone, RefreshCcw, Search, Wallet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../context/AuthContext';
 import CustomDatePicker from '../../CustomDatePicker';
+import Pagination from '../../Pagination';
 import AppointmentTokenBadge from '../../AppointmentTokenBadge';
 import PaymentReceipt from '../../PaymentReceipt';
 import { formatReceiptDateTime, receiptFromPayments, type PaymentReceiptData } from '../../../utils/paymentReceipt';
 import { FilterDropdown } from '../doctor-reports/components/FilterDropdown';
 import { fetchReportModule, type CustomRange } from '../reports-next/lib';
 import VisitDrawer from './VisitDrawer';
-import { ConsultantsPanel, EarningsPanel, MixBar, SessionPanel } from './BreakdownPanels';
+import { ConsultantsPanel, MixBar, SessionPanel } from './BreakdownPanels';
 import {
+  billCategory,
+  paymentSource,
+  isOlderDuePayment,
   consultantTotals,
   daysBetween,
   fetchBillPayments,
   fetchBillRows,
   groupVisits,
+  filterVisits,
   money,
   moneyExact,
   rangeForLocalFilter,
@@ -25,6 +31,8 @@ import {
   type VisitRow,
   type WorkTab,
 } from './lib';
+
+const VISITS_PAGE_SIZE = 10;
 
 const DATE_PRESETS = [
   { id: 'today', labelKey: 'bills_next.today' },
@@ -43,12 +51,15 @@ export default function BillsNext() {
   const [tab, setTab] = useState<WorkTab>('attention');
   const [ageing, setAgeing] = useState<AgeingFilter>('all');
   const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('all');
+  const [showRecovered, setShowRecovered] = useState(false);
+  const [visitsPage, setVisitsPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [rangeBills, setRangeBills] = useState<any[]>([]);
   const [dueBills, setDueBills] = useState<any[]>([]);
   const [todayBills, setTodayBills] = useState<any[]>([]);
-  const [previousPayments, setPreviousPayments] = useState<any[]>([]);
+  const [receivedPayments, setReceivedPayments] = useState<any[]>([]);
   const [collectionReceipt, setCollectionReceipt] = useState<PaymentReceiptData | null>(null);
   const [reports, setReports] = useState<any>(null);
   const [selectedVisit, setSelectedVisit] = useState<VisitRow | null>(null);
@@ -64,31 +75,24 @@ export default function BillsNext() {
     setError('');
     try {
       const needToday = range.from !== today.from || range.to !== today.to;
-      const [inRange, outstanding, billing, todayRows] = await Promise.all([
+      const [inRange, outstanding, billing, todayRows, receipts] = await Promise.all([
         fetchBillRows(token, { from_date: range.from, to_date: range.to }),
         fetchBillRows(token, { outstanding: 'true' }),
-        fetchReportModule(token, 'billing', range.from, range.to, { force: true }),
+        fetchReportModule(token, 'billing', range.from, range.to, { force: true, branchBilling: true }),
         needToday ? fetchBillRows(token, { from_date: today.from, to_date: today.to }) : Promise.resolve(null),
+        fetchBillPayments(token, { from_date: range.from, to_date: range.to }),
       ]);
       setRangeBills(inRange);
       setDueBills(outstanding);
       setReports(billing);
       setTodayBills(todayRows || inRange);
-      try {
-        setPreviousPayments(await fetchBillPayments(token, {
-          from_date: range.from,
-          to_date: range.to,
-          allocation_kind: 'PREVIOUS',
-        }));
-      } catch {
-        setPreviousPayments([]);
-      }
+      setReceivedPayments(receipts);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('bills_next.fetch_failed'));
       setRangeBills([]);
       setDueBills([]);
       setTodayBills([]);
-      setPreviousPayments([]);
+      setReceivedPayments([]);
       setReports(null);
     } finally {
       setLoading(false);
@@ -102,18 +106,21 @@ export default function BillsNext() {
   const visits = useMemo(() => groupVisits(rangeBills), [rangeBills]);
   const todayVisits = useMemo(() => groupVisits(todayBills), [todayBills]);
 
+  const previousPayments = useMemo(() => receivedPayments.filter(isOlderDuePayment), [receivedPayments]);
+
   const cockpit = useMemo(() => {
     const billed = visits.reduce((sum, row) => sum + row.grand_total, 0);
-    const collected = visits.reduce((sum, row) => sum + row.grand_paid, 0);
+    const paidOnBills = visits.reduce((sum, row) => sum + row.grand_paid, 0);
+    const collected = receivedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     const pendingInRange = visits.reduce((sum, row) => sum + row.grand_pending, 0);
     const recovered = previousPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-    const cash = rangeBills.reduce((sum, bill) => sum + Number(bill.cash_amount || 0), 0);
-    const online = rangeBills.reduce((sum, bill) => sum + Number(bill.online_amount || 0), 0);
+    const cash = receivedPayments.filter((p) => p.payment_mode === 'CASH').reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const online = receivedPayments.filter((p) => p.payment_mode === 'ONLINE').reduce((sum, p) => sum + Number(p.amount || 0), 0);
     const consult = visits.reduce((sum, row) => sum + row.consult_total, 0);
     const medicine = visits.reduce((sum, row) => sum + row.medicine_total, 0);
     const openDues = dueBills.reduce((sum, bill) => sum + Number(bill.pending_amount || 0), 0);
     const duePatients = new Set(dueBills.map((bill) => String(bill.patient_id || bill.bill_id))).size;
-    const collectionPct = billed <= 0 ? 0 : Math.min(100, Math.round((collected / billed) * 100));
+    const collectionPct = billed <= 0 ? 0 : Math.min(100, Math.round((paidOnBills / billed) * 100));
     return {
       billed,
       collected,
@@ -123,13 +130,15 @@ export default function BillsNext() {
       online,
       consult,
       medicine,
+      tests: visits.reduce((sum, row) => sum + row.test_total, 0),
+      courier: visits.reduce((sum, row) => sum + row.courier_total, 0),
       openDues,
       duePatients,
       dueCount: dueBills.length,
       collectionPct,
       visitCount: visits.length,
     };
-  }, [visits, rangeBills, dueBills, previousPayments]);
+  }, [visits, rangeBills, dueBills, previousPayments, receivedPayments]);
 
   const todayDuePatients = useMemo(() => {
     const todayIds = new Set(todayVisits.map((row) => Number(row.patient_id)).filter(Boolean));
@@ -156,20 +165,34 @@ export default function BillsNext() {
       .sort((a, b) => b.days_unpaid - a.days_unpaid || Number(b.pending_amount || 0) - Number(a.pending_amount || 0));
   }, [dueBills, ageing, search]);
 
-  const filteredVisits = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return visits;
-    return visits.filter((row) =>
-      [row.patient_full_name, row.patient_mobile_no, row.auid, row.treatment_name]
-        .join(' ')
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [visits, search]);
+  const filteredVisits = useMemo(
+    () => filterVisits(visits, category, search),
+    [visits, search, category],
+  );
+
+  const visitsTotalPages = Math.max(1, Math.ceil(filteredVisits.length / VISITS_PAGE_SIZE));
+  const currentVisitsPage = Math.min(visitsPage, visitsTotalPages);
+  const pagedVisits = filteredVisits.slice(
+    (currentVisitsPage - 1) * VISITS_PAGE_SIZE,
+    currentVisitsPage * VISITS_PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    setVisitsPage(1);
+  }, [search, category, range.from, range.to, branchScope?.selected_branch_id]);
+
+  useEffect(() => {
+    setVisitsPage((page) => Math.min(page, visitsTotalPages));
+  }, [visitsTotalPages]);
 
   const practice = useMemo(() => consultantTotals(reports?.revenue_by_consultant), [reports]);
-  const medicines = useMemo(() => topMedicines(reports?.revenue_by_medicine), [reports]);
-  const mixMax = Math.max(cockpit.consult, cockpit.medicine, 1);
+  const medicines = useMemo(() => topMedicines(reports?.revenue_by_medicine, Infinity), [reports]);
+  const mixMax = Math.max(cockpit.consult, cockpit.medicine, cockpit.tests, cockpit.courier, 1);
+  const recoveredPagination = useListPagination(previousPayments, `${range.from}:${range.to}:${branchScope?.selected_branch_id}:${showRecovered}`);
+  const listScope = `${range.from}:${range.to}:${branchScope?.selected_branch_id}:${tab}`;
+  const duesPagination = useListPagination(filteredDues, `${listScope}:${search}:${ageing}`);
+  const medicinesPagination = useListPagination(medicines, listScope);
+
 
   const openVisit = async (entry: VisitRow) => {
     setSelectedVisit(entry);
@@ -177,22 +200,23 @@ export default function BillsNext() {
     setVisitDetail(null);
     try {
       if (entry.appointment_id) {
-        const response = await fetch(`/api/v1/bills/appointment/${entry.appointment_id}/summary`, {
+        const response = await fetch(`/api/v1/bills/appointment/${entry.appointment_id}/summary?billing_scope=branch`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const result = await response.json();
-        if (result.success) {
+        if (response.ok && result.success) {
           setVisitDetail(result.data);
           return;
         }
       }
       const billIds = entry.bills.map((bill) => Number(bill.bill_id)).filter(Boolean);
       const detailed = await Promise.all(billIds.map(async (billId) => {
-        const response = await fetch(`/api/v1/bills/${billId}`, {
+        const response = await fetch(`/api/v1/bills/${billId}?billing_scope=branch`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const result = await response.json();
-        return result.success ? result.data : entry.bills.find((bill) => Number(bill.bill_id) === billId);
+        if (!response.ok || !result.success) throw new Error(result.message || 'Unable to load bill');
+        return result.data;
       }));
       const bills = detailed.filter(Boolean);
       const payments = Array.from(new Map(bills.flatMap((bill: any) => [
@@ -210,7 +234,8 @@ export default function BillsNext() {
         },
       });
     } catch {
-      setVisitDetail({ appointment: entry, bills: entry.bills, payments: [], summary: entry });
+      setError(t('bills_next.extra.detail_error'));
+      setSelectedVisit(null);
     } finally {
       setDetailLoading(false);
     }
@@ -218,7 +243,7 @@ export default function BillsNext() {
 
   const openDueBill = (bill: any) => {
     const match = [...visits, ...todayVisits].find(
-      (row) => Number(row.appointment_id) === Number(bill.appointment_id) || row.bills.some((item) => Number(item.bill_id) === Number(bill.bill_id)),
+      (row) => (bill.appointment_id && Number(row.appointment_id) === Number(bill.appointment_id)) || row.bills.some((item) => Number(item.bill_id) === Number(bill.bill_id)),
     );
     void openVisit(match || groupVisits([bill])[0]);
   };
@@ -233,25 +258,17 @@ export default function BillsNext() {
     setCollectionReceipt(data);
   };
 
-  const openPaymentVisit = async (payment: any) => {
-    const billId = Number(payment.bill_id);
-    if (!billId || !token) return;
+  const openRecoveredBill = async (payment: any) => {
     try {
-      const response = await fetch(`/api/v1/bills/${billId}`, {
+      const response = await fetch(`/api/v1/bills/${payment.bill_id}?billing_scope=branch`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const result = await response.json();
-      if (!result.success || !result.data) return;
-      const visit = groupVisits([{
-        ...result.data,
-        patient_full_name: payment.patient_full_name || result.data.patient_full_name,
-        patient_mobile_no: payment.patient_mobile_no || result.data.patient_mobile_no,
-        appointment_date: payment.original_bill_date || result.data.appointment_date,
-        auid: payment.auid || result.data.auid,
-      }])[0];
+      if (!response.ok || !result.success || !result.data) throw new Error('Bill unavailable');
+      const visit = groupVisits([result.data])[0];
       if (visit) void openVisit(visit);
     } catch {
-      /* ignore */
+      setError(t('bills_next.extra.detail_error'));
     }
   };
 
@@ -353,7 +370,7 @@ export default function BillsNext() {
       )}
 
       <p className="text-sm font-semibold text-slate-600 leading-relaxed">
-        {t('bills_next.insight', {
+        {t('bills_next.extra.insight', {
           collected: money(cockpit.collected),
           pct: cockpit.collectionPct,
           pending: money(cockpit.openDues),
@@ -364,9 +381,9 @@ export default function BillsNext() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Metric
-          label={t('bills_next.collected')}
+          label={t('bills_next.extra.received')}
           value={money(cockpit.collected)}
-          sub={t('bills_next.of_billed', { amount: money(cockpit.billed), visits: cockpit.visitCount })}
+          sub={t('bills_next.extra.received_sub')}
         />
         <Metric
           label={t('bills_next.open_dues')}
@@ -378,6 +395,8 @@ export default function BillsNext() {
           label={t('bills_next.old_dues')}
           value={money(cockpit.recovered)}
           sub={t('bills_next.old_dues_sub')}
+          onClick={() => setShowRecovered((open) => !open)}
+          expanded={showRecovered}
         />
         <Metric
           label={t('bills_next.collection_rate')}
@@ -386,11 +405,57 @@ export default function BillsNext() {
         />
       </div>
 
+      {showRecovered && (
+        <section id="recovered-payments" className="rounded-2xl border border-teal-200 bg-white overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-800">{t('bills_next.old_dues')} · {moneyExact(cockpit.recovered)}</h2>
+              <p className="mt-1 text-xs text-slate-500">{formatDate(range.from)} – {formatDate(range.to)} · {t('bills_next.recovered_note')}</p>
+            </div>
+            <button type="button" onClick={() => setShowRecovered(false)} className="text-xs font-bold text-slate-500">{t('common.close', 'Close')}</button>
+          </div>
+          {loading ? <p className="p-6 text-center">{t('common.loading', 'Loading...')}</p> : <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[850px] text-left text-xs">
+                <thead className="bg-slate-50 text-slate-500"><tr>
+                  <th className="p-3">{t('bills_next.col_paid_at', 'Paid at')}</th>
+                  <th className="p-3">{t('bills_next.col_patient')}</th>
+                  <th className="p-3">{t('bills_next.original_bill', 'Original bill')}</th>
+                  <th className="p-3">{t('bills_next.payment_source.heading')}</th>
+                  <th className="p-3 text-right">{t('bills_next.collected')}</th>
+                  <th className="p-3 text-right">{t('bills_next.remaining_after_payment')}</th>
+                  <th className="p-3"><span className="sr-only">{t('bills_next.open')}</span></th>
+                </tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recoveredPagination.rows.map((payment) => <tr key={payment.payment_id}>
+                    <td className="p-3 whitespace-nowrap">{formatReceiptDateTime(payment.collected_at, dateLocale)}</td>
+                    <td className="p-3"><p className="font-bold">{payment.patient_full_name || '—'}</p><p className="mt-1 text-slate-500">{payment.patient_mobile_no}</p></td>
+                    <td className="p-3"><p className="font-semibold">{payment.bill_number}</p><p className="mt-1 text-slate-500">{formatDate(payment.original_bill_date)}</p></td>
+                    <td className="p-3"><span className="inline-block rounded bg-teal-50 px-2 py-1 font-semibold text-teal-700">{t(`bills_next.payment_source.${paymentSource(payment)}`)}</span>{payment.display_token_display && <p className="mt-1">Token {payment.display_token_display}</p>}</td>
+                    <td className="p-3 text-right"><p className="font-bold text-emerald-700">{moneyExact(payment.amount)}</p><p className="mt-1 text-slate-500">{payment.payment_mode}</p></td>
+                    <td className="p-3 text-right font-semibold">{payment.pending_after == null ? '—' : moneyExact(payment.pending_after)}</td>
+                    <td className="p-3"><div className="flex flex-col gap-2 items-start">
+                      <button type="button" onClick={() => openCollectionReceipt([payment], payment.patient_full_name || 'Patient', payment.patient_mobile_no)} className="font-bold text-teal-700">{t('bills_next.receipt', 'Payment Receipt')}</button>
+                      <button type="button" onClick={() => void openRecoveredBill(payment)} className="font-semibold text-slate-500">{t('bills_next.original_bill', 'Original bill')}</button>
+                    </div></td>
+                  </tr>)}
+                  {previousPayments.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-slate-500">{t('bills_next.no_recovered')}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <Pagination {...recoveredPagination.controls} />
+          </>}
+        </section>
+      )}
+
+      <p className="text-xs font-semibold text-slate-500">{t('bills_next.of_billed', { amount: moneyExact(cockpit.billed), visits: cockpit.visitCount })} · {t('bills_next.extra.bill_date_note')}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="rounded-xl border border-gray-100 bg-white p-4">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">{t('bills_next.mix')}</p>
           <MixBar label={t('bills_next.consult')} value={cockpit.consult} max={mixMax} />
           <MixBar label={t('bills_next.medicine')} value={cockpit.medicine} max={mixMax} tone="violet" />
+          <MixBar label={t('bills_next.tests')} value={cockpit.tests} max={mixMax} tone="amber" />
+          <MixBar label={t('bills_next.extra.courier_charge')} value={cockpit.courier} max={mixMax} tone="sky" />
         </div>
         <div className="rounded-xl border border-gray-100 bg-white p-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -414,67 +479,6 @@ export default function BillsNext() {
         </div>
       </div>
 
-      {previousPayments.length > 0 && (
-        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-50">
-            <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
-              {t('bills_next.old_dues_collected', 'Old dues collected')}
-            </p>
-            <p className="mt-1 text-[11px] font-semibold text-slate-500">
-              {t('bills_next.old_dues_collected_sub', 'Money received on these dates against earlier bills. This is not a new bill.')}
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[640px]">
-              <thead>
-                <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  <th className="px-4 py-3">{t('bills_next.col_paid_at', 'Paid at')}</th>
-                  <th className="px-4 py-3">{t('bills_next.col_patient')}</th>
-                  <th className="px-4 py-3">{t('payment_receipt.bill_no', 'Bill no')}</th>
-                  <th className="px-4 py-3 text-right">{t('bills_next.collected')}</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {previousPayments.map((payment) => (
-                  <tr key={payment.payment_id} className="hover:bg-[#549E9E]/[0.04]">
-                    <td className="px-4 py-3 text-xs font-bold text-slate-600">
-                      {formatReceiptDateTime(payment.collected_at, dateLocale)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-black text-slate-800">{payment.patient_full_name || '—'}</p>
-                      <p className="text-[11px] font-semibold text-slate-400">{payment.patient_mobile_no || ''}</p>
-                    </td>
-                    <td className="px-4 py-3 text-xs font-bold text-slate-500">{payment.bill_number || '—'}</td>
-                    <td className="px-4 py-3 text-right text-sm font-black text-emerald-600">{moneyExact(payment.amount)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => openCollectionReceipt(
-                          [payment],
-                          payment.patient_full_name || 'Patient',
-                          payment.patient_mobile_no,
-                        )}
-                        className="mr-3 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-[#2d8789]"
-                      >
-                        <Printer size={12} />
-                        {t('payment_receipt.print', 'Print')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void openPaymentVisit(payment)}
-                        className="text-[10px] font-black uppercase tracking-widest text-slate-400"
-                      >
-                        {t('bills_next.open')}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       <div className="flex flex-wrap gap-2">
         {([
@@ -484,7 +488,6 @@ export default function BillsNext() {
           { id: 'consultants', label: t('bills_next.tab_consultants') },
           { id: 'morning', label: t('bills_next.tab_morning') },
           { id: 'evening', label: t('bills_next.tab_evening') },
-          { id: 'earnings', label: t('bills_next.tab_earnings') },
         ] as const).map((item) => (
           <button
             key={item.id}
@@ -511,6 +514,16 @@ export default function BillsNext() {
             placeholder={t('bills_next.search')}
             className="w-full pl-9 pr-4 py-2.5 border border-gray-100 rounded-xl text-sm font-semibold outline-none focus:border-[#549E9E] bg-white"
           />
+        </div>
+      )}
+
+      {tab === 'visits' && (
+        <div className="flex flex-wrap gap-2">
+          {['all', 'consultation', 'repeat', 'medical_only', 'courier'].map((kind) => (
+            <button key={kind} onClick={() => setCategory(kind)} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${category === kind ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-gray-200'}`}>
+              {kind === 'consultation' ? t('bills_next.extra.consultations', 'Consultations') : t(`bills_next.extra.${kind}`)}
+            </button>
+          ))}
         </div>
       )}
 
@@ -565,7 +578,7 @@ export default function BillsNext() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {filteredDues.map((bill) => {
+                    {duesPagination.rows.map((bill) => {
                       const inClinic = todayDuePatients.some((row) => Number(row.bill_id) === Number(bill.bill_id) || Number(row.patient_id) === Number(bill.patient_id));
                       return (
                         <tr key={bill.bill_id} className={inClinic ? 'bg-amber-50/40' : ''}>
@@ -618,10 +631,12 @@ export default function BillsNext() {
                 </table>
               </div>
             )}
+            <Pagination {...duesPagination.controls} />
           </div>
         </div>
       ) : tab === 'visits' ? (
         <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+          <p className="border-b border-gray-100 px-4 py-3 text-xs font-semibold text-slate-500">{t('bills_next.extra.sequence_note')}</p>
           {filteredVisits.length === 0 ? (
             <p className="py-14 text-center text-sm font-semibold text-slate-400">{t('bills_next.no_visits')}</p>
           ) : (
@@ -629,7 +644,7 @@ export default function BillsNext() {
               <table className="w-full text-left min-w-[780px]">
                 <thead>
                   <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    <th className="px-4 py-3">{t('bills_next.col_token')}</th>
+                    <th className="px-4 py-3">{t('bills_next.extra.pos_token')}</th>
                     <th className="px-4 py-3">{t('bills_next.col_patient')}</th>
                     <th className="px-4 py-3">{t('bills_next.mix')}</th>
                     <th className="px-4 py-3 text-right">{t('bills_next.collected')}</th>
@@ -639,7 +654,7 @@ export default function BillsNext() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {filteredVisits.map((row) => (
+                  {pagedVisits.map((row) => (
                     <tr
                       key={row.group_key}
                       onClick={() => void openVisit(row)}
@@ -652,17 +667,34 @@ export default function BillsNext() {
                           position={row.queue_position}
                           compact
                         />
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {Array.from(new Set(row.bills.map((bill) => billCategory({ ...bill, delivery_mode: null }))))
+                            .filter((kind) => kind === 'repeat' || kind === 'medical_only')
+                            .map((kind) => (
+                              <span
+                                key={kind}
+                                className={`inline-flex rounded-md border px-2 py-1 text-[10px] font-black ${kind === 'repeat' ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-sky-200 bg-sky-50 text-sky-700'}`}
+                              >
+                                {t(kind === 'repeat' ? 'bills_next.extra.repeat' : 'bills_next.extra.direct_medicine')}
+                              </span>
+                            ))}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-sm font-black text-slate-800">{row.patient_full_name || '—'}</p>
+
                         <p className="text-[11px] font-semibold text-slate-400">
                           {formatDate(row.appointment_date)}
                           {row.treatment_name ? ` · ${row.treatment_name}` : ''}
                         </p>
+                        {row.consultation_completed_at && <p className="mt-1 text-[10px] font-semibold text-[#2d8789]">{t('bills_next.extra.consulted_at')}: {formatReceiptDateTime(row.consultation_completed_at, dateLocale)}</p>}
                       </td>
                       <td className="px-4 py-3 text-[11px] font-bold text-slate-500">
                         <p>{t('bills_next.consult')} {money(row.consult_total)}</p>
                         <p>{t('bills_next.medicine')} {money(row.medicine_total)}</p>
+                        {row.test_total > 0 && <p>{t('bills_next.tests')} {money(row.test_total)}</p>}
+                        {row.courier_total > 0 && <p>{t('bills_next.extra.courier_charge')} {money(row.courier_total)}</p>}
+                        <p className="mt-1 text-[10px] text-[#2d8789]">{Array.from(new Set(row.bills.map(billCategory))).map((kind) => t(`bills_next.extra.${kind}`)).join(' · ')}</p>
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-black text-emerald-600">{moneyExact(row.grand_paid)}</td>
                       <td className="px-4 py-3 text-right text-sm font-black text-[#2d8789]">
@@ -685,6 +717,14 @@ export default function BillsNext() {
               </table>
             </div>
           )}
+          <Pagination
+            currentPage={currentVisitsPage}
+            totalPages={visitsTotalPages}
+            onPageChange={setVisitsPage}
+            totalItems={filteredVisits.length}
+            pageSize={VISITS_PAGE_SIZE}
+            alwaysShow
+          />
         </div>
       ) : tab === 'practice' ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -709,7 +749,7 @@ export default function BillsNext() {
               <p className="py-10 text-center text-sm font-semibold text-slate-400">{t('bills_next.no_meds')}</p>
             ) : (
               <div className="space-y-2">
-                {medicines.map((med) => (
+                {medicinesPagination.rows.map((med) => (
                   <div key={med.name} className="flex items-center justify-between gap-3 rounded-xl border border-gray-50 px-3 py-2.5">
                     <div className="min-w-0">
                       <p className="text-sm font-black text-slate-800 truncate">{med.name}</p>
@@ -722,17 +762,16 @@ export default function BillsNext() {
                 ))}
               </div>
             )}
+            <Pagination {...medicinesPagination.controls} />
           </div>
         </div>
       ) : tab === 'consultants' ? (
-        <ConsultantsPanel consultant={reports?.revenue_by_consultant} />
+        <ConsultantsPanel key={listScope} consultant={reports?.revenue_by_consultant} />
       ) : tab === 'morning' ? (
-        <SessionPanel slot="morning" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} />
+        <SessionPanel key={listScope} slot="morning" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} />
       ) : tab === 'evening' ? (
-        <SessionPanel slot="evening" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} />
-      ) : (
-        <EarningsPanel consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} />
-      )}
+        <SessionPanel key={listScope} slot="evening" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} />
+      ) : null}
 
       <VisitDrawer
         visit={selectedVisit}
@@ -758,18 +797,25 @@ const Metric = ({
   value,
   sub,
   emphasis,
+  onClick,
+  expanded,
 }: {
   label: string;
   value: string;
   sub?: string;
   emphasis?: boolean;
-}) => (
-  <div className={`rounded-xl border p-4 ${emphasis ? 'border-amber-200 bg-amber-50/60' : 'border-gray-100 bg-white'}`}>
+  onClick?: () => void;
+  expanded?: boolean;
+}) => {
+  const Tag = onClick ? 'button' : 'div';
+  return (
+  <Tag type={onClick ? 'button' : undefined} onClick={onClick} aria-expanded={expanded} aria-controls={onClick ? 'recovered-payments' : undefined} className={`text-left rounded-xl border p-4 ${onClick ? 'cursor-pointer hover:border-teal-400 focus-visible:outline-teal-600' : ''} ${emphasis ? 'border-amber-200 bg-amber-50/60' : 'border-gray-100 bg-white'}`}>
     <p className="text-xl font-black text-slate-900">{value}</p>
     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</p>
     {sub && <p className="mt-1 text-[11px] font-semibold text-slate-500">{sub}</p>}
-  </div>
-);
+  </Tag>
+  );
+};
 
 const MiniStat = ({ label, value }: { label: string; value: string }) => (
   <div className="rounded-xl border border-gray-100 bg-slate-50/70 px-3 py-3">

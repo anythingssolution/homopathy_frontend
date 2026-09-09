@@ -109,7 +109,7 @@ function AnimatedRoutes() {
     const startLenis = () => lenis.start();
     const scrollToTarget = (event: Event) => {
       const detail = (event as CustomEvent<{ target?: Element | string | number; offset?: number }>).detail || {};
-      if (detail.target == null) return;
+      if (detail.target == null || (detail.target instanceof Element && !(detail.target instanceof HTMLElement))) return;
       lenis.scrollTo(detail.target, {
         offset: Number(detail.offset || 0),
         duration: 0.9,

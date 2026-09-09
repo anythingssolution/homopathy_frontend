@@ -916,6 +916,32 @@
     }
   },
   "bills_next": {
+    "recovered_note": "इन तारीखों में पुराने बिलों पर मिले भुगतान",
+    "remaining_after_payment": "भुगतान के बाद बिल का बकाया",
+    "original_bill": "पुराना बिल",
+    "receipt": "भुगतान रसीद",
+    "no_recovered": "इन तारीखों में पुराने बकाये का भुगतान नहीं मिला।",
+
+    "invoice": {
+      "title": "बिल विवरण",
+      "description": "विवरण",
+      "quantity": "मात्रा",
+      "rate": "दर",
+      "amount": "राशि",
+      "subtotal": "बिल का योग",
+      "total": "कुल बिल",
+      "payment_history": "भुगतान इतिहास"
+    },
+    "payment_source": {
+      "heading": "भुगतान किसका / स्रोत",
+      "consultation": "परामर्श शुल्क (टोकन)",
+      "token_medicine": "टोकन के प्रिस्क्रिप्शन की दवाइयाँ",
+      "medical_only": "केवल मेडिकल बिक्री (बिना प्रिस्क्रिप्शन)",
+      "repeat": "मेडिकल रिपीट (पुराना प्रिस्क्रिप्शन)",
+      "old_due": "पुराने बकाये का भुगतान",
+      "current_bill": "वर्तमान बिल का भुगतान",
+      "bill_date": "मूल बिल की तारीख"
+    },
     "title": "बिल",
     "subtitle": "क्लिनिक की कमाई, बकाया मरीज, और जिन विज़िट में अभी राशि बाकी है।",
     "compare_old": "पुरानी बिल सूची खोलें →",
@@ -1004,6 +1030,33 @@
       "bills": "बिल",
       "payments": "भुगतान",
       "this_bill": "यह बिल"
+    },
+    "extra": {
+      "direct_medicine": "सीधे मेडिकल से दवा",
+      "consultations": "परामर्श",
+      "received": "इस अवधि में प्राप्त राशि",
+      "received_sub": "चुनी हुई तारीखों में प्राप्त सभी नकद और ऑनलाइन भुगतान, पुराने बकाये सहित।",
+      "insight": "इन तारीखों में {{collected}} प्राप्त हुए। {{count}} मरीजों का कुल {{pending}} बकाया है। प्राप्त राशि में पुराने बिलों की {{recovered}} वसूली शामिल है।",
+      "bill_date_note": "बिल विजिट/बिल की तारीख से हैं; प्राप्त राशि भुगतान की तारीख से है। वसूली प्रतिशत इन बिलों का है।",
+      "receipts": "प्राप्त भुगतान",
+      "no_receipts": "इस अवधि में कोई भुगतान प्राप्त नहीं हुआ।",
+      "all": "सभी बिल प्रकार",
+      "consultation": "परामर्श",
+      "follow_up": "निःशुल्क फॉलो-अप",
+      "medication": "प्रिस्क्रिप्शन की दवाइयाँ",
+      "repeat": "रिपीट दवाइयाँ",
+      "medical_only": "केवल मेडिकल बिक्री",
+      "courier": "कूरियर डिलीवरी",
+      "courier_charge": "कूरियर शुल्क",
+      "detail_error": "बिल का विवरण लोड नहीं हुआ। कृपया बिल दोबारा खोलें।",
+      "reference": "ट्रांजैक्शन संदर्भ",
+      "collector": "भुगतान लेने वाले",
+      "tracking": "ट्रैकिंग नंबर",
+      "received_by": "प्राप्तकर्ता",
+      "hand_delivery": "हाथों-हाथ डिलीवरी",
+      "sequence_note": "नई तारीख/सत्र पहले; हर सत्र में बड़ा POS पहले। POS परामर्श पूरा होने का क्रम है; अधूरे परामर्श का POS नहीं है।",
+      "pos_token": "POS / टोकन",
+      "consulted_at": "परामर्श पूरा हुआ"
     }
   },
   "consultation_modal": {
@@ -1193,6 +1246,9 @@
     "loading": "पर्चे प्राप्त किए जा रहे हैं..."
   },
   "dispensary_history": {
+    "original_bill": "पुराना बिल",
+    "original_prescription": "पुराना प्रिस्क्रिप्शन",
+    "payment_receipt": "भुगतान रसीद",
     "search_placeholder": "रोगी का नाम, AUID खोजें...",
     "refresh": "रीफ्रेश करें",
     "filters": {
@@ -1216,9 +1272,9 @@
     "loading": "इतिहास प्राप्त किया जा रहा है...",
     "paid_today": "आज भुगतान",
     "last_paid": "आखिरी भुगतान",
-    "previous_amount_received": "पुरानी राशि प्राप्त",
+    "previous_amount_received": "पुराने बिल का भुगतान",
     "later_received": "बाद में प्राप्त",
-    "original_visit": "मूल विज़िट",
+    "original_visit": "मूल बिल / विज़िट की तारीख",
     "prev_short": "पुरानी"
   },
   "receptionist": {
@@ -1344,6 +1400,11 @@
     "update_success": "शाखा सफलतापूर्वक अपडेट हुई"
   },
   "clinic_history": {
+    "pending_payment": "पुराने बकाये का भुगतान मिला",
+    "original_bill": "मूल बिल",
+    "payment_only": "केवल भुगतान — नया परामर्श या दवा नहीं",
+    "bill_balance": "भुगतान के बाद बिल का बकाया",
+
     "title": "क्लिनिक इतिहास",
     "subtitle": "पूर्ण किए गए परामर्श और चिकित्सा रिकॉर्ड देखें",
     "refresh": "रिफ्रेश करें",
@@ -1669,7 +1730,6 @@
       "col_branch": "शाखा",
       "col_slot": "स्लॉट",
       "col_status": "कंसल्टेशन स्थिति",
-      "col_action": "कार्रवाई",
       "view_prescription": "नुस्खा देखें",
       "prescription_load_failed": "नुस्खा लोड नहीं हो सका",
       "status_consulted": "कंसल्ट",

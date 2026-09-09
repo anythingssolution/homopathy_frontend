@@ -4,85 +4,6 @@
     "whom_booking_for": "Whom are you booking this appointment for?",
     "self": "Self",
     "family_member": "Family Member",
-    "symptoms_reason": "Symptoms / Reason (Optional)",
-    "symptoms_placeholder": "Describe your symptoms or reason for visit...",
-    "clinic_location": "Clinic Location",
-    "treatment_type": "Treatment Type",
-    "appointment_date": "Appointment Date",
-    "time_slot_label": "Time Slot",
-    "select_family_member": "Select Family Member",
-    "no_family_members": "No active family members registered. You can add them in your",
-    "family_members_page": "Family Members Page",
-    "add_them_in": "."
-  },
-  "common": {
-    "home": "Home",
-    "about": "About Us",
-    "treatments": "Treatments",
-    "contact": "Contact",
-    "booking": "Booking",
-    "login": "Login",
-    "register": "Register",
-    "logout": "Logout",
-    "dashboard": "Dashboard",
-    "language": "Language",
-    "gallery": "Gallery",
-    "contact_us": "Contact Us",
-    "patient_portal": "Patient Portal",
-    "login_register": "Login / Register",
-    "clinic_status": "Clinic Status",
-    "doctor_in": "Doctor In",
-    "doctor_out": "Doctor Out",
-    "homeopathy_health": "HOMEOPATHY & HEALTH",
-    "testimonials_title": "Testimonials",
-    "view_all_reviews": "View All Reviews",
-    "nav_sub": {
-      "welcome": "WELCOME",
-      "habitown": "HABITOWN",
-      "services": "SERVICES",
-      "photos": "PHOTOS",
-      "reservation": "RESERVATION",
-      "support": "SUPPORT"
-    },
-    "got_it": "Got It, Thanks!",
-    "optional": "Optional",
-    "add": "Add",
-    "logout_modal": {
-      "title": "Confirm Logout",
-      "description": "Are you sure you want to log out of your account?",
-      "cancel": "Cancel",
-      "confirm": "Yes, Logout"
-    },
-    "page_of": "Page {{current}} of {{total}}",
-    "showing_of": "Showing {{from}}-{{to}} of {{total}}"
-  },
-  "hero": {
-    "title": "Holistic Healing through Homeopathy",
-    "subtitle": "Experience the gentle power of natural medicine with Dr. Trivedi's expert care.",
-    "cta_book": "Book Appointment",
-    "cta_learn": "Learn More",
-    "slide": "Slide",
-    "connect": "Connect",
-    "hours": "Hours",
-    "clinic_schedule": "Clinic Schedule",
-    "online_support": "Online Support",
-    "story_title": "Healing Naturally, Living Better",
-    "story_subtitle": "A Holistic Approach to Health",
-    "story_description_1": "In the spring of 2022, I established \"Dr. Trivedi's Homeopathy Clinic\" with a vision to provide gentle, safe, and holistic healthcare for all.",
-    "story_description_2": "Moving beyond just \"treatment,\" our philosophy is \"healing the body from within.\"",
-    "story_description_3": "We focus on addressing the root cause of illness and strengthening the body's natural ability to heal.",
-    "wellness_hub": "Wellness Hub",
-    "consultation_room": "Consultation Room",
-    "doctors": "Doctors",
-    "story_label": "STORY",
-    "connect_with_us": "Connect with us",
-    "view_map": "Map"
-  },
-  "booking": {
-    "booking_for": "Booking for",
-    "whom_booking_for": "Whom are you booking this appointment for?",
-    "self": "Self",
-    "family_member": "Family Member",
     "select_family_member": "Select Family Member",
     "no_family_members": "No active family members registered. You can add them in your",
     "family_members_page": "Family Members Page",
@@ -200,6 +121,69 @@
     "booking_success_desc": "Your appointment has been successfully scheduled. You can view it in your dashboard.",
     "reg_success_desc": "Your account has been created successfully. You can now book appointments.",
     "view_appointments": "View Appointments"
+  },
+  "common": {
+    "home": "Home",
+    "about": "About Us",
+    "treatments": "Treatments",
+    "contact": "Contact",
+    "booking": "Booking",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "dashboard": "Dashboard",
+    "language": "Language",
+    "gallery": "Gallery",
+    "contact_us": "Contact Us",
+    "patient_portal": "Patient Portal",
+    "login_register": "Login / Register",
+    "clinic_status": "Clinic Status",
+    "doctor_in": "Doctor In",
+    "doctor_out": "Doctor Out",
+    "homeopathy_health": "HOMEOPATHY & HEALTH",
+    "testimonials_title": "Testimonials",
+    "view_all_reviews": "View All Reviews",
+    "nav_sub": {
+      "welcome": "WELCOME",
+      "habitown": "HABITOWN",
+      "services": "SERVICES",
+      "photos": "PHOTOS",
+      "reservation": "RESERVATION",
+      "support": "SUPPORT"
+    },
+    "got_it": "Got It, Thanks!",
+    "optional": "Optional",
+    "add": "Add",
+    "logout_modal": {
+      "title": "Confirm Logout",
+      "description": "Are you sure you want to log out of your account?",
+      "cancel": "Cancel",
+      "confirm": "Yes, Logout"
+    },
+    "page_of": "Page {{current}} of {{total}}",
+    "showing_of": "Showing {{from}}-{{to}} of {{total}}"
+  },
+  "hero": {
+    "title": "Holistic Healing through Homeopathy",
+    "subtitle": "Experience the gentle power of natural medicine with Dr. Trivedi's expert care.",
+    "cta_book": "Book Appointment",
+    "cta_learn": "Learn More",
+    "slide": "Slide",
+    "connect": "Connect",
+    "hours": "Hours",
+    "clinic_schedule": "Clinic Schedule",
+    "online_support": "Online Support",
+    "story_title": "Healing Naturally, Living Better",
+    "story_subtitle": "A Holistic Approach to Health",
+    "story_description_1": "In the spring of 2022, I established \"Dr. Trivedi's Homeopathy Clinic\" with a vision to provide gentle, safe, and holistic healthcare for all.",
+    "story_description_2": "Moving beyond just \"treatment,\" our philosophy is \"healing the body from within.\"",
+    "story_description_3": "We focus on addressing the root cause of illness and strengthening the body's natural ability to heal.",
+    "wellness_hub": "Wellness Hub",
+    "consultation_room": "Consultation Room",
+    "doctors": "Doctors",
+    "story_label": "STORY",
+    "connect_with_us": "Connect with us",
+    "view_map": "Map"
   },
   "consultation": {
     "doctor": "Doctor",
@@ -898,6 +882,11 @@
     "empty_desc": "You haven't registered any family members yet. Add family members to easily book appointments for them."
   },
   "clinic_history": {
+    "pending_payment": "Pending Payment Received",
+    "original_bill": "Original bill",
+    "payment_only": "Payment only — no new consultation or medicines",
+    "bill_balance": "Bill balance after payment",
+
     "title": "Clinic History",
     "subtitle": "View completed consultations and medical records",
     "refresh": "Refresh",
@@ -906,7 +895,15 @@
       "to_date": "To Date",
       "status": "Status",
       "all_statuses": "All Statuses",
+      "completed": "Completed",
+      "pending": "Pending",
+      "cancelled": "Cancelled",
+      "search_label": "Search",
       "search_placeholder": "Search..."
+    },
+    "no_records": {
+      "title": "No Records Found",
+      "desc": "Try adjusting your dates or search query."
     },
     "table": {
       "date_time": "Date & Time",
@@ -918,10 +915,6 @@
       "view_details": "View Details",
       "view_prescription": "View Prescription",
       "print": "Print"
-    },
-    "no_records": {
-      "title": "No Records Found",
-      "desc": "Try adjusting your dates or search query."
     }
   },
   "bills": {
@@ -959,6 +952,32 @@
     }
   },
   "bills_next": {
+    "recovered_note": "Payments collected on these dates against older bills",
+    "remaining_after_payment": "Bill balance after payment",
+    "original_bill": "Original bill",
+    "receipt": "Payment Receipt",
+    "no_recovered": "No old dues recovered on these dates.",
+
+    "invoice": {
+      "title": "Bill details",
+      "description": "Description",
+      "quantity": "Qty",
+      "rate": "Rate",
+      "amount": "Amount",
+      "subtotal": "Bill subtotal",
+      "total": "Total billed",
+      "payment_history": "Payment history"
+    },
+    "payment_source": {
+      "heading": "Payment for / source",
+      "consultation": "Consultation fee (token)",
+      "token_medicine": "Token prescription medicines",
+      "medical_only": "Medical-only sale (no prescription)",
+      "repeat": "Medical repeat (previous prescription)",
+      "old_due": "Previous pending payment",
+      "current_bill": "Current bill payment",
+      "bill_date": "Original bill date"
+    },
     "title": "Bills",
     "subtitle": "How the clinic did, who still owes, and which visits still have dues.",
     "compare_old": "Open old Bills list →",
@@ -1047,6 +1066,33 @@
       "bills": "Bills",
       "payments": "Payments",
       "this_bill": "This bill"
+    },
+    "extra": {
+      "direct_medicine": "Direct Medicine",
+      "consultations": "Consultations",
+      "received": "Received in this period",
+      "received_sub": "All cash and online payments received on the selected dates, including old dues.",
+      "insight": "{{collected}} received on these dates. {{pending}} outstanding across {{count}} patients. Includes {{recovered}} recovered against older bills.",
+      "bill_date_note": "Bills use visit/bill dates; payment totals use receipt dates. Collection rate applies to these bills.",
+      "receipts": "Payments received",
+      "no_receipts": "No payments received in this period.",
+      "all": "All bill types",
+      "consultation": "Consultation",
+      "follow_up": "Free follow-up",
+      "medication": "Prescription medicines",
+      "repeat": "Repeat Medicine",
+      "medical_only": "Medical Only",
+      "courier": "Courier delivery",
+      "courier_charge": "Courier charge",
+      "detail_error": "Could not load bill details. Please try opening the bill again.",
+      "reference": "Transaction reference",
+      "collector": "Collected by",
+      "tracking": "Tracking number",
+      "received_by": "Received by",
+      "hand_delivery": "Hand delivery",
+      "sequence_note": "Newest date/session first; highest POS first within each session. POS is consultation completion order; incomplete visits have no POS.",
+      "pos_token": "POS / Token",
+      "consulted_at": "Consulted at"
     }
   },
   "consultation_modal": {
@@ -1178,6 +1224,9 @@
     "loading": "Fetching Prescriptions..."
   },
   "dispensary_history": {
+    "original_bill": "Original Bill",
+    "original_prescription": "Original Prescription",
+    "payment_receipt": "Payment Receipt",
     "search_placeholder": "Search patient name, AUID...",
     "refresh": "Refresh",
     "filters": {
@@ -1201,9 +1250,9 @@
     "loading": "Fetching History...",
     "paid_today": "Paid today",
     "last_paid": "Last paid",
-    "previous_amount_received": "Previous amount received",
+    "previous_amount_received": "Payment against old bill",
     "later_received": "Later Received",
-    "original_visit": "Original visit",
+    "original_visit": "Original bill / visit date",
     "prev_short": "Prev"
   },
   "receptionist": {
@@ -1327,37 +1376,6 @@
     "select_active": "SELECT ACTIVE BRANCH",
     "update_failed": "Failed to update branch",
     "update_success": "Branch updated successfully"
-  },
-  "clinic_history": {
-    "title": "Clinic History",
-    "subtitle": "View completed consultations and medical records",
-    "refresh": "Refresh",
-    "filters": {
-      "from_date": "From Date",
-      "to_date": "To Date",
-      "status": "Status",
-      "all_statuses": "All Statuses",
-      "completed": "Completed",
-      "pending": "Pending",
-      "cancelled": "Cancelled",
-      "search_label": "Search",
-      "search_placeholder": "Search..."
-    },
-    "no_records": {
-      "title": "No Records Found",
-      "desc": "Try adjusting your dates or search query."
-    },
-    "table": {
-      "date_time": "Date & Time",
-      "token": "Token",
-      "patient_details": "Patient Details",
-      "branch_treatment": "Branch & Treatment",
-      "status": "Status",
-      "action": "Action",
-      "view_details": "View Details",
-      "view_prescription": "View Prescription",
-      "print": "Print"
-    }
   },
   "patient_records": {
     "category": "PATIENT HISTORY & RECORDS",
@@ -1489,7 +1507,6 @@
     "parsed": "Parsed",
     "strategy": "Strategy",
     "flat_amount": "Flat Amount",
-    "multiplier": "Multiplier",
     "dosage_template": "Dosage Template",
     "price_label": "Price (₹)",
     "price_placeholder": "Price",
@@ -1655,7 +1672,6 @@
       "col_branch": "Branch",
       "col_slot": "Slot",
       "col_status": "Consultation Status",
-      "col_action": "Action",
       "view_prescription": "View Prescription",
       "prescription_load_failed": "Unable to load prescription",
       "status_consulted": "Consulted",

@@ -39,6 +39,36 @@ import { useTranslation } from "react-i18next";
 import MedicationDispensingStatus from "../MedicationDispensingStatus";
 import PaymentSplitDisplay from "../PaymentSplitDisplay";
 
+const HistoryPositionBadge = ({ appointment }: { appointment: any }) =>
+  appointment.history_queue_position != null ? (
+    <span
+      title={appointment.position_explanation || undefined}
+      className="text-[8px] font-black text-gray-900 bg-yellow-300 border border-yellow-400 px-1.5 py-0.5 rounded text-center shadow-sm whitespace-nowrap"
+    >
+      Pos #{appointment.history_queue_position}
+    </span>
+  ) : null;
+
+const PendingPaymentRow = ({ payment }: { payment: any }) => {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language.startsWith('hi') ? 'hi-IN' : 'en-GB';
+  const formatAmount = (amount: any) => Number(amount || 0).toLocaleString(locale, { style: 'currency', currency: 'INR' });
+  return <div className="flex flex-wrap items-start justify-between gap-3 border-l-4 border-blue-400 bg-blue-50/60 px-4 py-3">
+    <div>
+      <p className="text-[10px] font-black uppercase tracking-wide text-blue-700">{t('clinic_history.pending_payment', 'Pending Payment Received')}</p>
+      <p className="mt-1 text-sm font-bold text-slate-800">{payment.patient_full_name || '—'}</p>
+      <p className="mt-1 text-xs text-slate-600">{new Date(payment.collected_at).toLocaleString(locale)} · {payment.branch_name}</p>
+      <p className="mt-1 text-xs text-slate-500">{t('clinic_history.original_bill', 'Original bill')}: {payment.bill_number} · {new Date(payment.original_bill_date).toLocaleDateString(locale)}</p>
+      <p className="mt-1 text-[10px] text-slate-500">{t('clinic_history.payment_only', 'Payment only — no new consultation or medicines')}</p>
+    </div>
+    <div className="text-right">
+      <p className="text-base font-bold text-emerald-700">{formatAmount(payment.amount)}</p>
+      <p className="text-xs text-slate-500">{payment.payment_mode}</p>
+      {payment.pending_after != null && <p className="mt-1 text-xs text-slate-600">{t('clinic_history.bill_balance', 'Bill balance after payment')}: {formatAmount(payment.pending_after)}</p>}
+    </div>
+  </div>;
+};
+
 export default function DoctorClinicHistory() {
   const { t } = useTranslation();
   const { token, branchScope } = useAuth();
@@ -373,6 +403,7 @@ export default function DoctorClinicHistory() {
             <div className="sm:hidden divide-y divide-gray-100">
               {historyItems
                 .map((item, idx) => {
+                  if (item.record_type === 'PENDING_PAYMENT') return <PendingPaymentRow key={`payment-${item.payment.payment_id}`} payment={item.payment} />;
                   const { appointment, consultation } = item;
                   const emrSummary = getChainSummary(item.follow_up_chain);
                   const isPending = isPendingStatus(appointment.status);
@@ -390,6 +421,8 @@ export default function DoctorClinicHistory() {
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
+                          <div className="flex flex-col items-center gap-1 shrink-0">
+                            <HistoryPositionBadge appointment={appointment} />
                           <div className="w-12 h-12 flex flex-col items-center justify-center bg-gray-50 rounded-lg text-gray-800 font-black text-sm relative group/token shrink-0">
                             <Ticket
                               size={24}
@@ -399,6 +432,7 @@ export default function DoctorClinicHistory() {
                             <span className="relative z-10 text-primary-teal">
                               #{appointment.display_token_display || appointment.token_number}
                             </span>
+                          </div>
                           </div>
                           <div>
                             <span className="text-sm font-black text-gray-800 uppercase tracking-wider block">
@@ -550,6 +584,7 @@ export default function DoctorClinicHistory() {
                 <tbody className="divide-y divide-gray-100">
                   {historyItems
                     .map((item, idx) => {
+                      if (item.record_type === 'PENDING_PAYMENT') return <tr key={`payment-${item.payment.payment_id}`}><td colSpan={7}><PendingPaymentRow payment={item.payment} /></td></tr>;
                       const { appointment, consultation } = item;
                       const emrSummary = getChainSummary(item.follow_up_chain);
                       const isPending = isPendingStatus(appointment.status);
@@ -579,6 +614,8 @@ export default function DoctorClinicHistory() {
                             </div>
                           </td>
                           <td className="px-5 py-4">
+                            <div className="flex flex-col items-center gap-1 w-fit">
+                              <HistoryPositionBadge appointment={appointment} />
                             <div className="w-12 h-12 flex items-center justify-center text-gray-800 font-black text-sm relative group/token">
                               <Ticket
                                 size={40}
@@ -589,6 +626,7 @@ export default function DoctorClinicHistory() {
                                 {appointment.display_token_display ||
                                   appointment.token_number}
                               </span>
+                            </div>
                             </div>
                           </td>
                           <td className="px-5 py-4">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -552,13 +552,17 @@ export default function DispensaryHistory() {
     };
   }, [selectedPrescription]);
 
-  const openPaymentReceipt = (record: any) => {
-    const payments = [
+  const openPaymentReceipt = (record: any, previousOnly = false) => {
+    const allPayments = [
       ...(Array.isArray(record?.medication_bill?.payments) ? record.medication_bill.payments : []),
       ...(Array.isArray(record?.medication_bill?.previous_pending_settlements)
         ? record.medication_bill.previous_pending_settlements
         : []),
     ];
+    const payments = previousOnly
+      ? getIncomingPreviousPayments(record).filter((payment: any) =>
+          filterDate === 'all' || toLocalDateKey(payment.collected_at || payment.created_at) === (filterDate || getLocalDateString()))
+      : allPayments;
     const data = receiptFromPayments({
       patientName: record?.patient?.full_name || '',
       patientMobile: record?.patient?.mobile_no,
@@ -593,6 +597,22 @@ export default function DispensaryHistory() {
     } finally {
       setIsPreviewLoading(false);
     }
+  };
+
+  const HistoryRowActions = ({ record }: { record: any }) => {
+    const previous = isPreviousAmountReceivedRow(record, filterDate);
+    const consultationId = getValidPrescriptionConsultationId(record);
+    return <div className="flex flex-wrap items-center justify-center gap-2">
+      {previous && <button onClick={() => openPaymentReceipt(record, true)} className="inline-flex items-center gap-2 rounded-xl bg-[#549E9E] px-4 py-2 text-[10px] font-black text-white">
+        <Printer size={14} /> {t('dispensary_history.payment_receipt', 'Payment Receipt')}
+      </button>}
+      {consultationId && <button onClick={() => openPrescriptionPreview(consultationId)} disabled={isPreviewLoading} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[10px] font-bold disabled:opacity-50 ${previous ? 'border border-gray-200 text-gray-600 bg-white' : 'bg-amber-500 text-white'}`}>
+        <FileText size={14} /> {previous ? t('dispensary_history.original_prescription', 'Original Prescription') : t('dispensary_history.table.view_prescription', 'View Prescription')}
+      </button>}
+      <button onClick={() => handleViewDetails(record)} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[10px] font-bold ${previous ? 'border border-gray-200 text-gray-600 bg-white' : 'bg-[#549E9E] text-white'}`}>
+        <FileText size={14} /> {previous ? t('dispensary_history.original_bill', 'Original Bill') : t('dispensary_history.table.view', 'View')}
+      </button>
+    </div>;
   };
 
   const getDispensaryStatus = (record: any) => {
@@ -649,10 +669,15 @@ export default function DispensaryHistory() {
   const PaymentColumnSummary = ({ record }: { record: any }) => {
     const paid = getBreakdownAmount(record, 'total_paid', getBillAmountValue(record, 'paid_amount'));
     const pending = getBreakdownAmount(record, 'pending_amount', getBillAmountValue(record, 'pending_amount'));
-    const laterPendingReceived = getLaterPendingReceivedAmount(record);
-    const lastReceivedAt = getBillPaymentBreakdown(record)?.last_received_at
-      || getIncomingPreviousPayments(record)[0]?.collected_at;
     const previousReceived = isPreviousAmountReceivedRow(record, filterDate);
+    const matchingPreviousPayments = getIncomingPreviousPayments(record).filter((payment: any) =>
+      filterDate === 'all' || toLocalDateKey(payment.collected_at || payment.created_at) === (filterDate || getLocalDateString()));
+    const laterPendingReceived = previousReceived
+      ? matchingPreviousPayments.reduce((sum: number, payment: any) => sum + Number(payment.amount || 0), 0)
+      : getLaterPendingReceivedAmount(record);
+    const lastReceivedAt = previousReceived
+      ? [...matchingPreviousPayments].sort((a: any, b: any) => new Date(b.collected_at || b.created_at).getTime() - new Date(a.collected_at || a.created_at).getTime())[0]?.collected_at
+      : getBillPaymentBreakdown(record)?.last_received_at || getIncomingPreviousPayments(record)[0]?.collected_at;
 
     return (
       <div className="flex flex-col gap-1.5">
@@ -908,21 +933,7 @@ export default function DispensaryHistory() {
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-gray-50 flex flex-col gap-2">
-                  {getValidPrescriptionConsultationId(p) && (
-                    <button
-                      onClick={() => openPrescriptionPreview(getValidPrescriptionConsultationId(p))}
-                      disabled={isPreviewLoading}
-                      className="w-full inline-flex justify-center items-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
-                    >
-                      <FileText size={16} /> {t('dispensary_history.table.view_prescription', 'View Prescription')}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleViewDetails(p)}
-                    className="w-full inline-flex justify-center items-center gap-2 px-4 py-3 bg-[#549E9E] hover:bg-[#438787] text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
-                  >
-                    <FileText size={16} /> {t('dispensary_history.table.view', 'View')}
-                  </button>
+                  <HistoryRowActions record={p} />
                 </div>
               </div>
             ))
@@ -1047,23 +1058,7 @@ export default function DispensaryHistory() {
                       <PaymentColumnSummary record={p} />
                     </td>
                     <td className="px-5 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {getValidPrescriptionConsultationId(p) && (
-                          <button
-                            onClick={() => openPrescriptionPreview(getValidPrescriptionConsultationId(p))}
-                            disabled={isPreviewLoading}
-                            className="inline-flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
-                          >
-                            <FileText size={14} /> {t('dispensary_history.table.view_prescription', 'View Prescription')}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleViewDetails(p)}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-[#549E9E] hover:bg-[#438787] text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
-                        >
-                          <FileText size={14} /> {t('dispensary_history.table.view', 'View')}
-                        </button>
-                      </div>
+                      <HistoryRowActions record={p} />
                     </td>
                   </motion.tr>
                 ))
