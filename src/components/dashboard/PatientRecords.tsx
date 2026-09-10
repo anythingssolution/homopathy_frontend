@@ -35,6 +35,7 @@ const HISTORY_TYPES = [
 type PatientRegistryRow = {
   patient_id: number;
   patient_uuid?: string | null;
+  clinic_patient_no?: string | null;
   full_name?: string | null;
   age?: number | null;
   gender?: string | null;
@@ -557,6 +558,9 @@ export default function PatientRecords() {
                       </div>
                       <div>
                         <p className="text-sm font-black text-[#2d8789]">{patient.full_name}</p>
+                        <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                          {[patient.patient_uuid, patient.clinic_patient_no].filter(Boolean).join(" • ")}
+                        </p>
                       </div>
                     </div>
                   </td>

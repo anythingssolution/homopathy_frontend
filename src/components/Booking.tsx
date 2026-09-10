@@ -9,13 +9,8 @@ import { useNotifications } from '../context/NotificationContext';
 import { getSocket } from '../services/socket';
 import CustomDatePicker from './CustomDatePicker';
 import ReCAPTCHA from 'react-google-recaptcha';
-import {
-  formatTimeTo12Hour,
-  getEffectiveSlotDisplayEndTime,
-  getEffectiveSlotDisplayTime,
-  isBeforeFridayScheduleStart,
-  isDevendraNagarFridaySchedule,
-} from '../utils/dateUtils';
+import { formatTimeTo12Hour } from '../utils/dateUtils';
+import ScheduleRuleNotice from './ScheduleRuleNotice';
 const RECAPTCHA_SITE_KEY = String(import.meta.env.VITE_RECAPTCHA_SITE_KEY || '');
 
 if (!RECAPTCHA_SITE_KEY) {
@@ -526,7 +521,7 @@ export default function Booking() {
         setIsDataLoading(true);
         try {
           const isRec = rc === 'REC' || rl === 'rec' || rl === 'receptionist' || isReceptionist;
-          const endpoint = isRec ? '/api/v1/receptionist/form-data' : '/api/v1/appointments/form-data';
+          const endpoint = isRec ? '/api/v1/receptionist/booking-form-data' : '/api/v1/appointments/form-data';
 
           const response = await fetch(endpoint, {
             headers: {
@@ -566,7 +561,7 @@ export default function Booking() {
         fetchFamilyMembers();
       }
     }
-  }, [isAuthenticated, user, token, isReceptionist]);
+  }, [isAuthenticated, user, token, isReceptionist, appointmentLocation]);
 
   useEffect(() => {
     if (!formData) return;
@@ -876,7 +871,7 @@ export default function Booking() {
     const timeoutId = window.setTimeout(async () => {
       setIsPatientLookupLoading(true);
       try {
-        const response = await fetch(`/api/v1/receptionist/patients?search=${encodeURIComponent(searchValue)}`, {
+        const response = await fetch(`/api/v1/receptionist/booking-patients?search=${encodeURIComponent(searchValue)}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -1429,19 +1424,6 @@ export default function Booking() {
             return;
           }
 
-          if (
-            isBeforeFridayScheduleStart(
-              appointmentLocation,
-              appointmentDate,
-              selectedToken.estimated_start_at,
-            )
-          ) {
-            setErrors({
-              appointment:
-                'Devendra Nagar (Pandri) Friday schedule starts at 3:00 PM. Please select a token at or after 3:00 PM.',
-            });
-            return;
-          }
         }
       }
 
@@ -1962,7 +1944,6 @@ export default function Booking() {
                   <CustomSelect
                     label={t('booking.clinic_location')}
                     options={(formData?.branches || [])
-                      .filter(b => (isReceptionist && branchScope?.selected_branch_id) ? b.id === branchScope.selected_branch_id : true)
                       .map(b => ({
                         id: b.id,
                         label: b.branch_name,
@@ -2057,23 +2038,10 @@ export default function Booking() {
                                 (plateSlot?.effective_end_time || plateSlot?.end_time)) ||
                               s.end_time;
 
-                            const startLabel =
-                              hasOverride || plateMatchesSlot
-                                ? formatTimeTo12Hour(String(rawStart || ''))
-                                : getEffectiveSlotDisplayTime(
-                                    Number(appointmentLocation),
-                                    String(s.start_time || ''),
-                                    appointmentDate,
-                                  );
-                            const endLabel =
-                              hasOverride || plateMatchesSlot
-                                ? formatTimeTo12Hour(String(rawEnd || ''))
-                                : getEffectiveSlotDisplayEndTime(
-                                    Number(appointmentLocation),
-                                    String(s.start_time || ''),
-                                    String(s.end_time || ''),
-                                    appointmentDate,
-                                  );
+                            // Weekly rules are materialised as overrides by the backend, so the
+                            // override / plate timing already reflects them.
+                            const startLabel = formatTimeTo12Hour(String(rawStart || ''));
+                            const endLabel = formatTimeTo12Hour(String(rawEnd || ''));
 
                             return {
                               id: s.id,
@@ -2089,13 +2057,11 @@ export default function Booking() {
                   />
                 </div>
 
-                {isDevendraNagarFridaySchedule(appointmentLocation, appointmentDate) && (
-                  <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-xl text-amber-800 text-sm">
-                    <span className="font-semibold">Friday Schedule Note:</span>{' '}
-                    First available slot for Devendra Nagar (Pandri) Branch starts at{' '}
-                    <strong>3:00 PM</strong>.
-                  </div>
-                )}
+                <ScheduleRuleNotice
+                  branchId={appointmentLocation}
+                  appointmentDate={appointmentDate}
+                  className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-xl text-amber-800 text-sm"
+                />
 
                 {appointmentLocation && appointmentDate && (
                   <div className={`p-4 rounded-[22px] border ${

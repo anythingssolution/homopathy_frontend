@@ -14,12 +14,8 @@ import { useNotifications } from '../context/NotificationContext';
 import { useCoalescedCallback } from '../hooks/useCoalescedCallback';
 import { dedupedFetch } from '../utils/dedupedFetch';
 import CustomAlertDialog, { CustomAlertState } from './CustomAlertDialog';
-import {
-  formatTimeTo12Hour,
-  isDevendraNagarFridaySchedule,
-  normalizeTimeToSeconds,
-  FRIDAY_SCHEDULE_START_TIME,
-} from '../utils/dateUtils';
+import { formatTimeTo12Hour } from '../utils/dateUtils';
+import WeeklyScheduleRules from './dashboard/WeeklyScheduleRules';
 
 type DoctorAppointment = {
   appointment_id: number;
@@ -121,6 +117,17 @@ type DateSlotTiming = {
   override_id: number | null;
   reason: string | null;
   has_override: boolean;
+  /** Timing comes from a weekly rule (auto-applied), not a manual shift. */
+  is_recurring_rule?: boolean;
+  /** Doctor shifted this date by hand even though a weekly rule exists. */
+  is_custom_over_rule?: boolean;
+  recurring_rule?: {
+    id: number;
+    day_of_week: number;
+    day_label: string | null;
+    start_time: string;
+    description: string | null;
+  } | null;
 };
 
 const StatusBadge = ({ status }: { status: string }) => {
@@ -287,15 +294,8 @@ export default function DoctorPortal() {
   const [slotTimingMessage, setSlotTimingMessage] = useState<string | null>(null);
   const isActiveInAnotherBranch = Boolean(isDoctorGloballyAvailable && selectedBranchId && activeSessionBranchId && activeSessionBranchId !== selectedBranchId);
   const selectedDateSlotTiming = dateSlotTimings.find((slot) => slot.slot_id === selectedTimingSlotId) || null;
-  const isFridayRecurringRule = Boolean(
-    selectedDateSlotTiming?.has_override &&
-      isDevendraNagarFridaySchedule(selectedBranchId, filterDate) &&
-      (
-        !selectedDateSlotTiming.override_id ||
-        /friday|recurring/i.test(String(selectedDateSlotTiming.reason || '')) ||
-        normalizeTimeToSeconds(selectedDateSlotTiming.effective_start_time) === FRIDAY_SCHEDULE_START_TIME
-      ),
-  );
+  const isWeeklyRuleTiming = Boolean(selectedDateSlotTiming?.has_override && selectedDateSlotTiming?.is_recurring_rule);
+  const selectedWeeklyRule = selectedDateSlotTiming?.recurring_rule || null;
 
   const toTimeInputValue = (value?: string | null) => String(value || '').slice(0, 5);
   const calculateShiftedEndTime = (slot: DateSlotTiming | null, startTime: string) => {
@@ -352,7 +352,8 @@ export default function DoctorPortal() {
       return;
     }
     setOverrideStartTime(toTimeInputValue(selectedDateSlotTiming.effective_start_time));
-    setOverrideReason(selectedDateSlotTiming.reason || '');
+    // Auto-applied weekly rule reasons are internal; start with an empty remark for a manual shift.
+    setOverrideReason(selectedDateSlotTiming.is_recurring_rule ? '' : (selectedDateSlotTiming.reason || ''));
     setSlotTimingMessage(null);
   }, [selectedTimingSlotId, dateSlotTimings]);
 
@@ -1321,14 +1322,14 @@ export default function DoctorPortal() {
             <div className="flex items-center gap-4 shrink-0">
               {selectedDateSlotTiming && (
                 <span className={`hidden sm:inline-block px-3 py-1.5 text-[9px] font-black uppercase tracking-widest border rounded-md ${
-                  isFridayRecurringRule
+                  isWeeklyRuleTiming
                     ? 'bg-violet-50 text-violet-700 border-violet-200 shadow-sm'
                     : selectedDateSlotTiming.has_override
                       ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm'
                       : 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm'
                   }`}>
-                  {isFridayRecurringRule
-                    ? t('doctor_portal.recurring_rule', 'Recurring Rule')
+                  {isWeeklyRuleTiming
+                    ? t('doctor_portal.recurring_rule', 'Weekly Rule')
                     : selectedDateSlotTiming.has_override
                       ? t('doctor_portal.shifted_timing', 'Shifted Timing')
                       : t('doctor_portal.default_timing', 'Default Timing')}
@@ -1373,20 +1374,29 @@ export default function DoctorPortal() {
                           {toTimeInputValue(selectedDateSlotTiming?.default_start_time)} - {toTimeInputValue(selectedDateSlotTiming?.default_end_time)}
                         </div>
                       </div>
-                      {isFridayRecurringRule && selectedDateSlotTiming && (
+                      {selectedWeeklyRule && selectedDateSlotTiming && (
                         <div className="space-y-1.5 sm:col-span-2 md:col-span-4">
                           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
                             <span className="px-2 py-1 text-[9px] font-black uppercase tracking-widest rounded-md bg-violet-100 text-violet-800 border border-violet-200">
-                              RECURRING_RULE
+                              {t('doctor_portal.weekly_rules.badge', 'Weekly Rule')} · {selectedWeeklyRule.day_label || ''}
                             </span>
-                            <span className="text-xs font-black text-violet-800">
-                              {formatTimeTo12Hour(selectedDateSlotTiming.effective_start_time)} -{' '}
-                              {formatTimeTo12Hour(selectedDateSlotTiming.effective_end_time)}
-                            </span>
-                            <span className="text-[11px] font-bold text-violet-700">
-                              {selectedDateSlotTiming.reason ||
-                                'Devendra Nagar Friday Recurring Rule'}
-                            </span>
+                            {isWeeklyRuleTiming ? (
+                              <span className="text-xs font-black text-violet-800">
+                                {formatTimeTo12Hour(selectedDateSlotTiming.effective_start_time)} -{' '}
+                                {formatTimeTo12Hour(selectedDateSlotTiming.effective_end_time)}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-bold text-violet-800">
+                                {t('doctor_portal.weekly_rules.rule_time_is', 'Rule time is')}{' '}
+                                <span className="font-black">{formatTimeTo12Hour(selectedWeeklyRule.start_time)}</span>
+                                {' · '}
+                                {t('doctor_portal.weekly_rules.custom_for_date', 'this date uses your custom time')}{' '}
+                                <span className="font-black">{formatTimeTo12Hour(selectedDateSlotTiming.effective_start_time)}</span>
+                              </span>
+                            )}
+                            {selectedWeeklyRule.description && (
+                              <span className="text-[11px] font-bold text-violet-700">{selectedWeeklyRule.description}</span>
+                            )}
                           </div>
                         </div>
                       )}
@@ -1427,13 +1437,15 @@ export default function DoctorPortal() {
                       >
                         {isSavingSlotTiming ? t('doctor_portal.updating', 'Updating...') : t('doctor_portal.apply_shift', 'Apply Shift')}
                       </button>
-                      {selectedDateSlotTiming.has_override && (
+                      {selectedDateSlotTiming.has_override && !isWeeklyRuleTiming && (
                         <button
                           onClick={resetDateSlotTiming}
                           disabled={isSavingSlotTiming}
                           className="px-6 py-3.5 bg-white border border-gray-200 text-gray-600 text-[10px] font-black uppercase tracking-widest rounded-xl disabled:opacity-50 hover:bg-gray-50 transition-colors shadow-sm"
                         >
-                          {t('doctor_portal.reset_default', 'Reset Default')}
+                          {selectedWeeklyRule
+                            ? t('doctor_portal.weekly_rules.back_to_rule', 'Back to Weekly Rule')
+                            : t('doctor_portal.reset_default', 'Reset Default')}
                         </button>
                       )}
                     </div>
@@ -1444,6 +1456,17 @@ export default function DoctorPortal() {
                       <p className="text-[10px] font-black uppercase tracking-widest">{slotTimingMessage}</p>
                     </div>
                   )}
+
+                  <div className="border-t border-dashed border-[#549E9E]/20 pt-5">
+                    <WeeklyScheduleRules
+                      branchId={selectedBranchId}
+                      token={token}
+                      getSlotLabel={getLocalizedSlotName}
+                      onChanged={async () => {
+                        await Promise.all([fetchDateSlotTimings(), fetchAppointments(), fetchDashboardStats()]);
+                      }}
+                    />
+                  </div>
                 </div>
               </motion.div>
             )}

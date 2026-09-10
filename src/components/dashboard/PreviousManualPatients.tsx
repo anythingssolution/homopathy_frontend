@@ -290,7 +290,7 @@ export default function PreviousManualPatients() {
         },
         body: JSON.stringify({
           full_name: form.full_name.trim(),
-          patient_id: form.patient_id.trim() || null,
+          patient_id: form.patient_id.replace(/\s+/g, '').toUpperCase() || null,
           age,
           gender: form.gender,
           mobile_no: form.mobile_no,
@@ -542,10 +542,10 @@ export default function PreviousManualPatients() {
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      patient_id: event.target.value.trimStart().slice(0, 50),
+                      patient_id: event.target.value.replace(/\s+/g, '').toUpperCase().slice(0, 50),
                     }))
                   }
-                  className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                  className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold uppercase outline-none focus:border-[#549E9E]"
                   placeholder={t('previous_patients.patient_id_placeholder')}
                 />
               </label>

@@ -32,6 +32,7 @@ type FamilyMember = {
 type Patient = {
   patient_id: number;
   patient_uuid: string;
+  clinic_patient_no?: string | null;
   full_name: string;
   age: number;
   gender: 'male' | 'female' | 'other';
@@ -181,6 +182,7 @@ export default function ReceptionPatientManagement() {
     gender: 'other',
     age: '',
     relationship: '',
+    clinic_patient_no: '',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
@@ -256,6 +258,7 @@ export default function ReceptionPatientManagement() {
       gender: patient.gender,
       age: String(patient.age || ''),
       relationship: '',
+      clinic_patient_no: patient.clinic_patient_no || '',
     });
     setError('');
   };
@@ -268,6 +271,7 @@ export default function ReceptionPatientManagement() {
       gender: String(member.gender || 'other').toLowerCase(),
       age: String(member.age || ''),
       relationship: member.relationship || '',
+      clinic_patient_no: '',
     });
     setError('');
   };
@@ -300,6 +304,7 @@ export default function ReceptionPatientManagement() {
         payload.relationship = editForm.relationship.trim();
       } else {
         payload.mobile_no = editForm.mobile_no;
+        payload.clinic_patient_no = editForm.clinic_patient_no.replace(/\s+/g, '').toUpperCase();
       }
 
       const response = await fetch(
@@ -525,6 +530,7 @@ export default function ReceptionPatientManagement() {
                               </div>
                               <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 {patient.patient_uuid}
+                                {patient.clinic_patient_no ? ` • ${patient.clinic_patient_no}` : ''}
                               </p>
                             </div>
                           </div>
@@ -708,6 +714,29 @@ export default function ReceptionPatientManagement() {
                   </span>
                 )}
               </label>
+
+              {!isEditingFamily && (
+                <label className="block">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Patient ID
+                  </span>
+                  <input
+                    maxLength={50}
+                    placeholder="e.g. DTH1210"
+                    value={editForm.clinic_patient_no}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        clinic_patient_no: event.target.value.replace(/\s+/g, '').toUpperCase(),
+                      }))
+                    }
+                    className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold uppercase outline-none focus:border-[#549E9E]"
+                  />
+                  <span className="mt-2 block text-xs font-semibold text-slate-400">
+                    Clinic register number. Leave blank to remove.
+                  </span>
+                </label>
+              )}
 
               {isEditingFamily && (
                 <label className="block">

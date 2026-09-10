@@ -65,7 +65,7 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
   const bills = detail?.bills || visit?.bills || [];
   const payments = Array.isArray(detail?.payments) ? detail.payments : [];
   const visitDate = appointment?.appointment_date || visit?.appointment_date;
-  const displayDate = visitDate ? new Date(String(visitDate).slice(0, 10) + 'T00:00:00').toLocaleDateString(i18n.language.startsWith('hi') ? 'hi-IN' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const displayDate = visitDate ? new Date(String(visitDate).includes('T') ? String(visitDate) : String(visitDate).slice(0, 10) + 'T00:00:00').toLocaleDateString(i18n.language.startsWith('hi') ? 'hi-IN' : 'en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   return createPortal(
     <AnimatePresence>
@@ -95,6 +95,7 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
                 <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 px-6 py-4">
                   <div className="flex items-start gap-3 min-w-0">
                     <AppointmentTokenBadge
+                      hideEmpty
                       tokenDisplay={appointment?.display_token_display}
                       tokenNumber={appointment?.token_number || visit.token_number}
                       position={appointment?.queue_position || visit.queue_position}

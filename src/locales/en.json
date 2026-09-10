@@ -747,6 +747,33 @@
     "invalid_end_time": "Invalid end time",
     "apply_shift": "Apply Shift",
     "reset_default": "Reset Default",
+    "recurring_rule": "Weekly Rule",
+    "weekly_rules": {
+      "title": "Weekly Schedule Rules",
+      "subtitle": "Repeats every week for this branch. A date-wise shift above always wins for that date.",
+      "badge": "Weekly Rule",
+      "day": "Day",
+      "first_slot": "First slot of the day",
+      "first_slot_short": "first slot",
+      "opens_at": "Opens At",
+      "note_placeholder": "Note shown to patients (optional)",
+      "add_rule": "Add Rule",
+      "save_rule": "Save Rule",
+      "empty": "No weekly rules for this branch. Slots follow their default timing every day.",
+      "remove_confirm": "Remove?",
+      "rule_time_is": "Rule time is",
+      "custom_for_date": "this date uses your custom time",
+      "back_to_rule": "Back to Weekly Rule"
+    },
+    "days": {
+      "sunday": "Sunday",
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday"
+    },
     "updating": "Updating...",
     "no_appointments_found": "No Appointments Found",
     "try_changing_filters": "Try changing filters or date",
@@ -882,6 +909,8 @@
     "empty_desc": "You haven't registered any family members yet. Add family members to easily book appointments for them."
   },
   "clinic_history": {
+    "view_bill": "View Bill",
+    "view_receipt": "View Receipt",
     "direct_medicine": "Direct Medicine",
     "direct_event_note": "Medicines supplied directly by Medical; no new consultation",
     "print_records": "records",

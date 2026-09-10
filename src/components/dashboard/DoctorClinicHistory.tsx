@@ -1,4 +1,8 @@
 import ClinicHistoryListPrint from './ClinicHistoryListPrint';
+import VisitDrawer from './bills-next/VisitDrawer';
+import { groupVisits, type VisitRow } from './bills-next/lib';
+import PaymentReceipt from '../PaymentReceipt';
+import { receiptFromPayments, type PaymentReceiptData } from '../../utils/paymentReceipt';
 import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
@@ -51,7 +55,7 @@ const HistoryPositionBadge = ({ appointment }: { appointment: any }) =>
     </span>
   ) : null;
 
-const PendingPaymentRow = ({ payment }: { payment: any }) => {
+const PendingPaymentRow = ({ payment, actions }: { payment: any; actions: React.ReactNode }) => {
   const { t, i18n } = useTranslation();
   const locale = i18n.language.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const formatAmount = (amount: any) => Number(amount || 0).toLocaleString(locale, { style: 'currency', currency: 'INR' });
@@ -67,26 +71,30 @@ const PendingPaymentRow = ({ payment }: { payment: any }) => {
       <p className="text-base font-bold text-emerald-700">{formatAmount(payment.amount)}</p>
       <p className="text-xs text-slate-500">{payment.payment_mode}</p>
       {payment.pending_after != null && <p className="mt-1 text-xs text-slate-600">{t('clinic_history.bill_balance', 'Bill balance after payment')}: {formatAmount(payment.pending_after)}</p>}
+      {actions}
     </div>
   </div>;
 };
 
-const RepeatMedicineHistoryRow = ({ bill }: { bill: any }) => {
+const RepeatMedicineHistoryRow = ({ bill, actions }: { bill: any; actions: React.ReactNode }) => {
   const { t, i18n } = useTranslation();
   const locale = i18n.language.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const money = (value: any) => Number(value || 0).toLocaleString(locale, { style: 'currency', currency: 'INR' });
-  return <div className="flex flex-wrap items-start justify-between gap-3 border-l-4 border-violet-400 bg-violet-50/60 px-4 py-3">
+  const rowColors = bill.is_direct_medicine ? 'border-emerald-400 bg-emerald-50/60' : 'border-violet-400 bg-violet-50/60';
+  const textColor = bill.is_direct_medicine ? 'text-emerald-700' : 'text-violet-700';
+  return <div className={`flex flex-wrap items-start justify-between gap-3 border-l-4 px-4 py-3 ${rowColors}`}>
     <div>
-      <p className="text-[10px] font-black uppercase tracking-wide text-violet-700">{t(bill.is_direct_medicine ? 'clinic_history.direct_medicine' : 'clinic_history.repeat_medicine')}</p>
+      <p className={`text-[10px] font-black uppercase tracking-wide ${textColor}`}>{t(bill.is_direct_medicine ? 'clinic_history.direct_medicine' : 'clinic_history.repeat_medicine')}</p>
       <p className="mt-1 text-sm font-bold text-slate-800">{bill.patient_full_name}</p>
       <p className="mt-1 text-xs text-slate-600">{new Date(bill.created_at).toLocaleString(locale)} · {bill.branch_name}</p>
       <p className="mt-1 text-xs text-slate-500">{t('payment_receipt.bill_no', 'Bill no')}: {bill.bill_number}</p>
       <p className="mt-1 text-[10px] text-slate-500">{t(bill.is_direct_medicine ? 'clinic_history.direct_event_note' : 'clinic_history.repeat_event_note')}</p>
     </div>
     <div className="text-right text-xs text-slate-600">
-      <p className="text-base font-bold text-violet-700">{money(bill.total_amount)}</p>
+      <p className={`text-base font-bold ${textColor}`}>{money(bill.total_amount)}</p>
       <p className="mt-1">{t('bills_next.collected', 'Collected')}: {money(bill.paid_amount)}</p>
       <p className="mt-1">{t('bills_next.pending', 'Pending')}: {money(bill.pending_amount)}</p>
+      {actions}
     </div>
   </div>;
 };
@@ -104,6 +112,46 @@ export default function DoctorClinicHistory() {
 
   const [isLoading, setIsLoading] = useState(false);
   const { addToast } = useNotifications();
+  const [historyBill, setHistoryBill] = useState<{ visit: VisitRow; detail: any } | null>(null);
+  const [historyReceipt, setHistoryReceipt] = useState<PaymentReceiptData | null>(null);
+  const [openingBill, setOpeningBill] = useState(false);
+
+  const openHistoryBill = async (source: any, receiptOnly = false) => {
+    if (openingBill) return;
+    setOpeningBill(true);
+    try {
+      const response = await fetch(`/api/v1/bills/${source.bill_id}?billing_scope=branch`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success || !result.data) throw new Error(result.message || 'Unable to load bill');
+      const bill = result.data;
+      const payments = (bill.payments || []).map((payment: any) => ({ ...payment, bill_id: bill.bill_id, bill_number: bill.bill_number }));
+      if (receiptOnly) {
+        const payment = payments.find((row: any) => Number(row.payment_id) === Number(source.payment_id));
+        if (!payment) throw new Error('Payment receipt not found');
+        const receipt = receiptFromPayments({ patientName: bill.patient_full_name || source.patient_full_name,
+          patientMobile: bill.patient_mobile_no || source.patient_mobile_no,
+          payments: [{ ...payment, allocation_kind: 'PREVIOUS' }] });
+        if (!receipt) throw new Error('Payment receipt unavailable');
+        setHistoryReceipt(receipt);
+      } else {
+        const visit = groupVisits([bill])[0];
+        if (!bill.appointment_id) {
+          visit.treatment_name = t(!bill.consultation_id || /Medical Only/i.test(bill.remark || '')
+            ? 'clinic_history.direct_medicine' : 'clinic_history.repeat_medicine');
+          visit.appointment_date = bill.created_at;
+        }
+        setHistoryBill({ visit, detail: { appointment: visit, bills: [bill], payments,
+          summary: { grand_total: visit.grand_total, grand_paid: visit.grand_paid, grand_pending: visit.grand_pending } } });
+      }
+    } catch (error: any) { addToast(error.message || 'Unable to open details', 'error'); }
+    finally { setOpeningBill(false); }
+  };
+  const historyActions = (source: any, payment = false) => <div className="mt-3 flex flex-wrap justify-end gap-2">
+    {payment && <button disabled={openingBill} onClick={() => void openHistoryBill(source, true)} className="inline-flex items-center gap-1 rounded-lg bg-[#549E9E] px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><FileText size={14} />{t('clinic_history.view_receipt', 'View Receipt')}</button>}
+    <button disabled={openingBill} onClick={() => void openHistoryBill(source)} className="inline-flex items-center gap-1 rounded-lg border border-[#549E9E]/30 bg-white px-3 py-2 text-xs font-bold text-[#2d8789] disabled:opacity-50"><Eye size={14} />{payment ? t('clinic_history.original_bill', 'Original bill') : t('clinic_history.view_bill', 'View Bill')}</button>
+  </div>;
 
   const [search, setSearch] = useState(() => location.state?.patientSearch || "");
   const [fromDate, setFromDate] = useState(() => {
@@ -358,6 +406,13 @@ export default function DoctorClinicHistory() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
+      <VisitDrawer visit={historyBill?.visit || null} detail={historyBill?.detail || null} loading={false} patientDues={[]}
+        onClose={() => setHistoryBill(null)} onPrintReceipt={historyBill?.detail.payments?.length ? () => {
+          const receipt = receiptFromPayments({ patientName: historyBill.visit.patient_full_name || '',
+            patientMobile: historyBill.visit.patient_mobile_no, payments: historyBill.detail.payments });
+          if (receipt) setHistoryReceipt(receipt);
+        } : undefined} />
+      {historyReceipt && <PaymentReceipt data={historyReceipt} onClose={() => setHistoryReceipt(null)} />}
       {printData && <ClinicHistoryListPrint rows={printData.rows} filters={printData.filters} onClose={closeListPrint} />}
       <div className="bg-[#549E9E] p-6 text-white shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -463,8 +518,8 @@ export default function DoctorClinicHistory() {
             <div className="sm:hidden divide-y divide-gray-100">
               {historyItems
                 .map((item, idx) => {
-                  if (['REPEAT_MEDICINE', 'DIRECT_MEDICINE'].includes(item.record_type)) return <RepeatMedicineHistoryRow key={`repeat-${item.bill.bill_id}`} bill={item.bill} />;
-                  if (item.record_type === 'PENDING_PAYMENT') return <PendingPaymentRow key={`payment-${item.payment.payment_id}`} payment={item.payment} />;
+                  if (['REPEAT_MEDICINE', 'DIRECT_MEDICINE'].includes(item.record_type)) return <RepeatMedicineHistoryRow key={`repeat-${item.bill.bill_id}`} bill={item.bill} actions={historyActions(item.bill)} />;
+                  if (item.record_type === 'PENDING_PAYMENT') return <PendingPaymentRow key={`payment-${item.payment.payment_id}`} payment={item.payment} actions={historyActions(item.payment, true)} />;
                   const { appointment, consultation } = item;
                   const emrSummary = getChainSummary(item.follow_up_chain);
                   const isPending = isPendingStatus(appointment.status);
@@ -645,8 +700,8 @@ export default function DoctorClinicHistory() {
                 <tbody className="divide-y divide-gray-100">
                   {historyItems
                     .map((item, idx) => {
-                      if (['REPEAT_MEDICINE', 'DIRECT_MEDICINE'].includes(item.record_type)) return <tr key={`repeat-${item.bill.bill_id}`}><td colSpan={7}><RepeatMedicineHistoryRow bill={item.bill} /></td></tr>;
-                      if (item.record_type === 'PENDING_PAYMENT') return <tr key={`payment-${item.payment.payment_id}`}><td colSpan={7}><PendingPaymentRow payment={item.payment} /></td></tr>;
+                      if (['REPEAT_MEDICINE', 'DIRECT_MEDICINE'].includes(item.record_type)) return <tr key={`repeat-${item.bill.bill_id}`}><td colSpan={7}><RepeatMedicineHistoryRow bill={item.bill} actions={historyActions(item.bill)} /></td></tr>;
+                      if (item.record_type === 'PENDING_PAYMENT') return <tr key={`payment-${item.payment.payment_id}`}><td colSpan={7}><PendingPaymentRow payment={item.payment} actions={historyActions(item.payment, true)} /></td></tr>;
                       const { appointment, consultation } = item;
                       const emrSummary = getChainSummary(item.follow_up_chain);
                       const isPending = isPendingStatus(appointment.status);
