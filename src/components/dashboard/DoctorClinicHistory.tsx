@@ -1,3 +1,4 @@
+import AllVisitsPrint from '../AllVisitsPrint';
 import ClinicHistoryListPrint from './ClinicHistoryListPrint';
 import VisitDrawer from './bills-next/VisitDrawer';
 import { groupVisits, type VisitRow } from './bills-next/lib';
@@ -99,6 +100,37 @@ const RepeatMedicineHistoryRow = ({ bill, actions }: { bill: any; actions: React
   </div>;
 };
 
+
+function HistoryPrescriptions({ data, lang }: { data: any; lang: 'en' | 'hi' }) {
+  const selectedConsultation = data;
+  const consultation = data.consultation;
+  const followUpChain = Array.isArray(data.follow_up_chain) ? data.follow_up_chain : [];
+  return (
+                          <AllVisitsPrint
+                            patient={{
+                              full_name: selectedConsultation.appointment.patient_full_name,
+                              patient_uuid: selectedConsultation.appointment.patient_uuid,
+                              mobile_no: selectedConsultation.appointment.patient_mobile_no,
+                              age: selectedConsultation.appointment.patient_age,
+                              gender: selectedConsultation.appointment.patient_gender,
+                            }}
+                            visits={(followUpChain.length ? followUpChain : [{
+                              ...selectedConsultation.appointment,
+                              consultation,
+                            }]).filter((visit: any) => visit.consultation).sort((a: any, b: any) => {
+                              const dateA = new Date(a.appointment_date || 0).getTime() || 0;
+                              const dateB = new Date(b.appointment_date || 0).getTime() || 0;
+                              return dateB - dateA || Number(b.appointment_id || 0) - Number(a.appointment_id || 0);
+                            }).map((visit: any) => ({
+                              ...visit,
+                              event_date: visit.appointment_date,
+                              appointment: visit,
+                            }))}
+                            lang={lang}
+                          />
+  );
+}
+
 export default function DoctorClinicHistory() {
   const { t } = useTranslation();
   const { token, branchScope } = useAuth();
@@ -128,11 +160,13 @@ export default function DoctorClinicHistory() {
       const bill = result.data;
       const payments = (bill.payments || []).map((payment: any) => ({ ...payment, bill_id: bill.bill_id, bill_number: bill.bill_number }));
       if (receiptOnly) {
-        const payment = payments.find((row: any) => Number(row.payment_id) === Number(source.payment_id));
-        if (!payment) throw new Error('Payment receipt not found');
+        const payment = source.payment_id
+          ? payments.find((row: any) => Number(row.payment_id) === Number(source.payment_id))
+          : null;
+        if (source.payment_id && !payment) throw new Error('Payment receipt not found');
         const receipt = receiptFromPayments({ patientName: bill.patient_full_name || source.patient_full_name,
           patientMobile: bill.patient_mobile_no || source.patient_mobile_no,
-          payments: [{ ...payment, allocation_kind: 'PREVIOUS' }] });
+          payments: payment ? [{ ...payment, allocation_kind: 'PREVIOUS' }] : payments });
         if (!receipt) throw new Error('Payment receipt unavailable');
         setHistoryReceipt(receipt);
       } else {
@@ -148,9 +182,48 @@ export default function DoctorClinicHistory() {
     } catch (error: any) { addToast(error.message || 'Unable to open details', 'error'); }
     finally { setOpeningBill(false); }
   };
+  const openConsultationReceipt = async (item: any, billDetails = false) => {
+    if (openingBill) return;
+    setOpeningBill(true);
+    try {
+      const response = await fetch(`/api/v1/bills/appointment/${item.appointment.appointment_id}/summary?billing_scope=branch`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'Unable to load receipt');
+      if (billDetails) {
+        const detail = result.data;
+        const bills = (detail?.bills || []).map((bill: any) => ({ ...detail.appointment, ...bill, appointment_id: item.appointment.appointment_id }));
+        const visit = groupVisits(bills)[0];
+        if (!visit) throw new Error('Bill details unavailable');
+        setHistoryBill({ visit, detail });
+        return;
+      }
+      const receipt = receiptFromPayments({
+        patientName: item.appointment.patient_full_name,
+        patientMobile: item.appointment.patient_mobile_no,
+        payments: result.data?.payments || [],
+      });
+      if (!receipt) throw new Error('Payment receipt unavailable');
+      setHistoryReceipt(receipt);
+    } catch (error: any) {
+      addToast(error.message || 'Unable to open receipt', 'error');
+    } finally { setOpeningBill(false); }
+  };
+  const consultationReceiptAction = (item: any) => (
+    Number(item.payment_summary?.cash_amount || 0) + Number(item.payment_summary?.online_amount || 0) > 0
+      ?         <button type="button" disabled={openingBill} onClick={(event) => {
+          event.stopPropagation();
+          void openConsultationReceipt(item, true);
+        }} className="inline-flex items-center gap-1 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-[10px] font-black uppercase text-white hover:bg-emerald-700 disabled:opacity-50">
+          <Eye size={12} />{t('clinic_history.view_bill', 'View Bill')}
+        </button>
+      : null
+  );
+
   const historyActions = (source: any, payment = false) => <div className="mt-3 flex flex-wrap justify-end gap-2">
     {payment && <button disabled={openingBill} onClick={() => void openHistoryBill(source, true)} className="inline-flex items-center gap-1 rounded-lg bg-[#549E9E] px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><FileText size={14} />{t('clinic_history.view_receipt', 'View Receipt')}</button>}
-    <button disabled={openingBill} onClick={() => void openHistoryBill(source)} className="inline-flex items-center gap-1 rounded-lg border border-[#549E9E]/30 bg-white px-3 py-2 text-xs font-bold text-[#2d8789] disabled:opacity-50"><Eye size={14} />{payment ? t('clinic_history.original_bill', 'Original bill') : t('clinic_history.view_bill', 'View Bill')}</button>
+    <button disabled={openingBill} onClick={() => void openHistoryBill(source)} className="inline-flex items-center gap-1 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"><Eye size={14} />{payment ? t('clinic_history.original_bill', 'Original bill') : t('clinic_history.view_bill', 'View Bill')}</button>
   </div>;
 
   const [search, setSearch] = useState(() => location.state?.patientSearch || "");
@@ -623,7 +696,8 @@ export default function DoctorClinicHistory() {
                         </div>
                       </div>
 
-                      <div className="mt-4 pt-3 border-t border-gray-50 flex gap-2">
+                      <div className="mt-4 pt-3 border-t border-gray-50 flex flex-wrap gap-2">
+                        {consultationReceiptAction(item)}
                         <button
                           type="button"
                           disabled={isPending}
@@ -638,7 +712,7 @@ export default function DoctorClinicHistory() {
                               : "text-[#549E9E] bg-[#549E9E]/10 hover:bg-[#549E9E] hover:text-white cursor-pointer"
                           }`}
                         >
-                          {t("clinic_history.table.view_details", "View Details")}
+                          {t("clinic_history.table.view_details", "All Prescriptions")}
                         </button>
                         <button
                           type="button"
@@ -653,9 +727,9 @@ export default function DoctorClinicHistory() {
                               ? "text-gray-400 bg-gray-200 cursor-not-allowed"
                               : "text-white bg-amber-500 hover:bg-amber-600 cursor-pointer"
                           }`}
-                          title={t("clinic_history.table.view_prescription", "View Prescription")}
+                          title={t("clinic_history.table.view_prescription", "Current Prescription")}
                         >
-                          <Eye size={12} /> {t("clinic_history.table.view_prescription", "View Prescription")}
+                          <Eye size={12} /> {t("clinic_history.table.view_prescription", "Current Prescription")}
                         </button>
                       </div>
                     </motion.div>
@@ -815,7 +889,8 @@ export default function DoctorClinicHistory() {
                             />
                           </td>
                           <td className="px-5 py-4 text-center">
-                            <div className="flex items-center justify-center gap-2">
+                            <div className="flex flex-wrap items-center justify-center gap-2">
+                              {consultationReceiptAction(item)}
                               <button
                                 type="button"
                                 disabled={isPending}
@@ -832,7 +907,7 @@ export default function DoctorClinicHistory() {
                               >
                                 {t(
                                   "clinic_history.table.view_details",
-                                  "View Details",
+                                  "All Prescriptions",
                                 )}
                               </button>
                               <button
@@ -850,13 +925,13 @@ export default function DoctorClinicHistory() {
                                 }`}
                                 title={t(
                                   "clinic_history.table.view_prescription",
-                                  "View Prescription",
+                                  "Current Prescription",
                                 )}
                               >
                                 <Eye size={12} />{" "}
                                 {t(
                                   "clinic_history.table.view_prescription",
-                                  "View Prescription",
+                                  "Current Prescription",
                                 )}
                               </button>
                               {/* <button
@@ -969,32 +1044,6 @@ export default function DoctorClinicHistory() {
 
                 {(() => {
                   const consultation = selectedConsultation.consultation || {};
-                  const allMeds =
-                    selectedConsultation.consultation?.medications ||
-                    selectedConsultation.consultation?.prescription
-                      ?.medications ||
-                    [];
-                  const tests = selectedConsultation.consultation?.tests || [];
-                  const numericMeds = allMeds.filter(
-                    (m: any) => m.medicine_type?.toUpperCase() === "NUMERIC",
-                  );
-                  const textMeds = allMeds.filter(
-                    (m: any) => m.medicine_type?.toUpperCase() === "TEXT",
-                  );
-                  const pricing = selectedConsultation.pricing;
-                  const followUpChain = Array.isArray(
-                    selectedConsultation.follow_up_chain,
-                  )
-                    ? selectedConsultation.follow_up_chain
-                    : [];
-                  const hasAnyVitals = Boolean(
-                    consultation.consultation_mode ||
-                    consultation.oxygen_saturation ||
-                    consultation.blood_pressure ||
-                    consultation.patient_height ||
-                    consultation.patient_weight,
-                  );
-
                   return (
                     <div className="space-y-6">
                       <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-5">
@@ -1093,464 +1142,12 @@ export default function DoctorClinicHistory() {
                         </div>
                       </div>
 
-                      {followUpChain.length > 0 && (
-                        <div className="bg-red-50/50 border border-red-100 rounded-2xl p-5 shadow-sm space-y-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-[10px] font-black uppercase tracking-widest text-red-500">
-                                Patient EMR
-                              </p>
-                              <p className="text-sm font-bold text-gray-700">
-                                Linked visit chain for this patient case
-                              </p>
-                            </div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-red-500">
-                              {followUpChain.length} visit
-                              {followUpChain.length > 1 ? "s" : ""}
-                            </span>
-                          </div>
-
-                          <div className="space-y-3">
-                            {followUpChain.map(
-                              (chainItem: any, chainIndex: number) => {
-                                const isCurrent =
-                                  Number(chainItem.appointment_id) ===
-                                  Number(
-                                    selectedConsultation.appointment
-                                      .appointment_id,
-                                  );
-                                const isExpanded =
-                                  Number(expandedHistoryChainAppointmentId) ===
-                                  Number(chainItem.appointment_id);
-                                const chainMeds = Array.isArray(
-                                  chainItem.consultation?.medications,
-                                )
-                                  ? chainItem.consultation.medications
-                                  : [];
-                                const doctorMeds = chainMeds.filter(
-                                  (med: any) =>
-                                    String(
-                                      med?.added_by_role || "",
-                                    ).toUpperCase() !== "MEDICAL",
-                                );
-                                const medicalMeds = chainMeds.filter(
-                                  (med: any) =>
-                                    String(
-                                      med?.added_by_role || "",
-                                    ).toUpperCase() === "MEDICAL",
-                                );
-                                const chainTests = Array.isArray(
-                                  chainItem.consultation?.tests,
-                                )
-                                  ? chainItem.consultation.tests
-                                  : [];
-
-                                return (
-                                  <div
-                                    key={chainItem.appointment_id}
-                                    className={`border rounded-xl overflow-hidden ${isCurrent ? "bg-white border-red-200" : "bg-white/80 border-red-100"}`}
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setExpandedHistoryChainAppointmentId(
-                                          (prev) =>
-                                            prev === chainItem.appointment_id
-                                              ? null
-                                              : chainItem.appointment_id,
-                                        )
-                                      }
-                                      className="w-full text-left p-4 flex items-start justify-between gap-3 cursor-pointer"
-                                    >
-                                      <div className="min-w-0">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <p className="text-xs font-black uppercase tracking-widest text-gray-700">
-                                            {chainIndex + 1}.{" "}
-                                            {chainItem.treatment_name}
-                                          </p>
-                                          {isCurrent && (
-                                            <span className="px-2 py-1 bg-red-500 text-white text-[9px] font-black uppercase tracking-widest rounded-lg">
-                                              Current
-                                            </span>
-                                          )}
-                                        </div>
-                                        <p className="text-[11px] font-bold text-gray-500 mt-1">
-                                          {new Date(
-                                            chainItem.appointment_date,
-                                          ).toLocaleDateString()}{" "}
-                                          • {chainItem.auid}
-                                        </p>
-                                        <div className="flex flex-wrap gap-2 mt-2">
-                                          {chainItem.consultation?.follow_up_after_days || chainItem.consultation?.medication_duration_days ? (
-                                            <span className="px-2 py-1 bg-red-50 text-red-500 text-[9px] font-black uppercase tracking-widest rounded-lg">
-                                              {chainItem.consultation.follow_up_after_days || chainItem.consultation.medication_duration_days}{" "}
-                                              Days
-                                            </span>
-                                          ) : null}
-                                          {chainMeds.length > 0 ? (
-                                            <span className="px-2 py-1 bg-[#549E9E]/10 text-[#549E9E] text-[9px] font-black uppercase tracking-widest rounded-lg">
-                                              {chainMeds.length} Medicines
-                                            </span>
-                                          ) : null}
-                                          {medicalMeds.length > 0 ? (
-                                            <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[9px] font-black uppercase tracking-widest rounded-lg">
-                                              {medicalMeds.length} Medical Added
-                                            </span>
-                                          ) : null}
-                                          <PaymentSplitDisplay
-                                            cashAmount={chainItem.payment_summary?.cash_amount}
-                                            onlineAmount={chainItem.payment_summary?.online_amount}
-                                            paymentMode={chainItem.payment_summary?.payment_mode}
-                                            chips
-                                          />
-                                        </div>
-                                      </div>
-                                      <ChevronDown
-                                        size={18}
-                                        className={`text-red-400 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                                      />
-                                    </button>
-
-                                    {isExpanded && chainItem.consultation && (
-                                      <div className="border-t border-red-100 bg-white/80 p-4 space-y-4">
-                                        <div className="grid md:grid-cols-3 gap-3">
-                                          <div className="bg-white border border-gray-100 rounded-xl p-3">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">
-                                              Symptoms / Findings
-                                            </p>
-                                            <p className="text-xs font-bold text-gray-700 whitespace-pre-wrap">
-                                              {chainItem.consultation
-                                                .symptoms || "—"}
-                                            </p>
-                                          </div>
-                                          <div className="bg-white border border-gray-100 rounded-xl p-3">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">
-                                              Treatment Advice
-                                            </p>
-                                            <p className="text-xs font-bold text-gray-700 whitespace-pre-wrap">
-                                              {chainItem.consultation
-                                                .treatment_advice || "—"}
-                                            </p>
-                                          </div>
-                                          <div className="bg-white border border-gray-100 rounded-xl p-3">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">
-                                              Payment Mode
-                                            </p>
-                                            <PaymentSplitDisplay
-                                              cashAmount={chainItem.payment_summary?.cash_amount}
-                                              onlineAmount={chainItem.payment_summary?.online_amount}
-                                              paymentMode={chainItem.payment_summary?.payment_mode}
-                                            />
-                                          </div>
-                                        </div>
-
-                                        {doctorMeds.length > 0 && (
-                                          <div className="bg-white border border-gray-100 rounded-xl p-3 space-y-2">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-[#549E9E]">
-                                              Doctor Prescription
-                                            </p>
-                                            <div className="space-y-2">
-                                              {doctorMeds.map((med: any) => (
-                                                <div
-                                                  key={
-                                                    med.consultation_medication_id
-                                                  }
-                                                  className="border border-gray-100 rounded-lg p-3"
-                                                >
-                                                  <div className="flex items-start justify-between gap-3">
-                                                    <div>
-                                                      <p className="text-xs font-black text-gray-800 uppercase tracking-wide">
-                                                        {formatNumericMedicineWithFormula(
-                                                          med.medicine_value,
-                                                          chainItem.consultation
-                                                            ?.quick_formula_input,
-                                                        )}
-                                                      </p>
-                                                      {med.remark ? (
-                                                        <p className="text-[11px] font-bold text-gray-500 mt-1">
-                                                          {med.remark}
-                                                        </p>
-                                                      ) : null}
-                                                      <p className="text-[11px] font-bold text-gray-500 mt-1">
-                                                        {getDosePreview(
-                                                          med,
-                                                          chainItem.consultation
-                                                            .medication_duration_days,
-                                                        ) ||
-                                                          `${chainItem.consultation.medication_duration_days} days`}
-                                                      </p>
-                                                      <MedicationDispensingStatus
-                                                        medication={med}
-                                                        pricing={chainItem.pricing}
-                                                        compact
-                                                      />
-                                                    </div>
-                                                    {/* <span className="text-[11px] font-black text-[#549E9E]">
-                                                      ₹
-                                                      {Number(
-                                                        getMedicationPricingAmount(
-                                                          chainItem.pricing,
-                                                          med,
-                                                        ) || 0,
-                                                      ).toFixed(2)}
-                                                    </span> */}
-                                                  </div>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-
-                                        {medicalMeds.length > 0 && (
-                                          <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 space-y-2">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-amber-600">
-                                              Medical Added / Updated
-                                            </p>
-                                            <div className="space-y-2">
-                                              {medicalMeds.map((med: any) => (
-                                                <div
-                                                  key={
-                                                    med.consultation_medication_id
-                                                  }
-                                                  className="border border-amber-100 rounded-lg p-3 bg-white/90"
-                                                >
-                                                  <div className="flex items-start justify-between gap-3">
-                                                    <div>
-                                                      <div className="flex items-center gap-2 flex-wrap">
-                                                        <p className="text-xs font-black text-gray-800 uppercase tracking-wide">
-                                                          {formatNumericMedicineWithFormula(
-                                                            med.medicine_value,
-                                                            chainItem.consultation
-                                                              ?.quick_formula_input,
-                                                          )}
-                                                        </p>
-                                                        <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest">
-                                                          {getMedicationRoleLabel(
-                                                            med,
-                                                          ) || "Medical Added"}
-                                                        </span>
-                                                      </div>
-                                                      {med.remark ? (
-                                                        <p className="text-[11px] font-bold text-gray-500 mt-1">
-                                                          {med.remark}
-                                                        </p>
-                                                      ) : null}
-                                                      <MedicationDispensingStatus
-                                                        medication={med}
-                                                        pricing={chainItem.pricing}
-                                                        compact
-                                                      />
-                                                      <p className="text-[11px] font-bold text-gray-500 mt-1">
-                                                        {getDosePreview(
-                                                          med,
-                                                          chainItem.consultation
-                                                            .medication_duration_days,
-                                                        ) ||
-                                                          `${chainItem.consultation.medication_duration_days} days`}
-                                                      </p>
-                                                    </div>
-                                                    <span className="text-[11px] font-black text-amber-700">
-                                                      ₹
-                                                      {Number(
-                                                        getMedicationPricingAmount(
-                                                          chainItem.pricing,
-                                                          med,
-                                                        ) || 0,
-                                                      ).toFixed(2)}
-                                                    </span>
-                                                  </div>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-
-                                        {chainTests.length > 0 && (
-                                          <div className="bg-white border border-gray-100 rounded-xl p-3 space-y-2">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">
-                                              Tests
-                                            </p>
-                                            <div className="flex flex-wrap gap-2">
-                                              {chainTests.map((test: any) => (
-                                                <span
-                                                  key={
-                                                    test.consultation_test_id
-                                                  }
-                                                  className="px-3 py-2 border border-gray-100 rounded-lg text-[11px] font-bold text-gray-700 bg-gray-50"
-                                                >
-                                                  {test.test_name}{" "}
-                                                  {test.amount != null
-                                                    ? `• ₹${Number(test.amount).toFixed(2)}`
-                                                    : ""}
-                                                  {test.finding_text ? (
-                                                    <span className="block text-[10px] font-medium text-[#549E9E] mt-1">
-                                                      {test.finding_text}
-                                                      {test.finding_notes
-                                                        ? ` — ${test.finding_notes}`
-                                                        : ""}
-                                                    </span>
-                                                  ) : null}
-                                                </span>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              },
-                            )}
-                          </div>
+                      <div className="overflow-x-auto rounded-xl bg-slate-100 p-2 md:p-5">
+                        <div className="min-w-[640px] bg-white p-3 shadow-sm">
+                          <HistoryPrescriptions data={selectedConsultation} lang={prescriptionLang} />
                         </div>
-                      )}
+                      </div>
 
-                      {hasAnyVitals && (
-                        <div className="bg-white border border-[#549E9E]/10 rounded-2xl p-5 shadow-sm space-y-4">
-                          <div className="flex items-center justify-between pb-2 border-b border-gray-50">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] flex items-center gap-2">
-                              <Activity size={14} />{" "}
-                              {t(
-                                "consultation_modal.consultation_mode_vitals",
-                                "Consultation Mode & Vitals",
-                              )}
-                            </label>
-                          </div>
-
-                          <div className="flex flex-wrap gap-3">
-                            {consultation.consultation_mode && (
-                              <div className="px-4 py-3 bg-gray-50/50 border border-gray-100 rounded-xl">
-                                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">
-                                  {t(
-                                    "consultation_modal.consultation_type",
-                                    "Consultation Type",
-                                  )}
-                                </span>
-                                <p className="text-sm font-bold text-gray-800">
-                                  {consultation.consultation_mode === "ON_CALL"
-                                    ? "On Call Consultant"
-                                    : "Patient Physical Present"}
-                                </p>
-                              </div>
-                            )}
-                            {consultation.oxygen_saturation && (
-                              <div className="px-4 py-3 bg-gray-50/50 border border-gray-100 rounded-xl">
-                                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">
-                                  {t("consultation_modal.o2_value", "O2 Value")}
-                                </span>
-                                <p className="text-sm font-bold text-gray-800">
-                                  {consultation.oxygen_saturation}
-                                </p>
-                              </div>
-                            )}
-                            {consultation.blood_pressure && (
-                              <div className="px-4 py-3 bg-gray-50/50 border border-gray-100 rounded-xl">
-                                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">
-                                  {t("consultation_modal.bp_value", "BP Value")}
-                                </span>
-                                <p className="text-sm font-bold text-gray-800">
-                                  {consultation.blood_pressure}
-                                </p>
-                              </div>
-                            )}
-                            {consultation.patient_height && (
-                              <div className="px-4 py-3 bg-gray-50/50 border border-gray-100 rounded-xl">
-                                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">
-                                  {t("consultation_modal.height", "Height")}
-                                </span>
-                                <p className="text-sm font-bold text-gray-800">
-                                  {consultation.patient_height}
-                                </p>
-                              </div>
-                            )}
-                            {consultation.patient_weight && (
-                              <div className="px-4 py-3 bg-gray-50/50 border border-gray-100 rounded-xl">
-                                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">
-                                  {t("consultation_modal.weight", "Weight")}
-                                </span>
-                                <p className="text-sm font-bold text-gray-800">
-                                  {consultation.patient_weight}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {tests.length > 0 && (
-                        <div className="bg-white border border-[#549E9E]/10 rounded-2xl p-5 shadow-sm space-y-3">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
-                            {t("consultation_modal.tests", "Tests")}
-                          </label>
-                          <div className="space-y-2">
-                            {tests.map((test: any) => (
-                              <div
-                                key={test.consultation_test_id}
-                                className="border border-gray-100 rounded-xl px-3 py-2.5 bg-gray-50/70"
-                              >
-                                <p className="text-xs font-black text-gray-800">
-                                  {test.test_name}
-                                </p>
-                                {test.finding_text ? (
-                                  <p className="mt-1 text-[11px] font-bold text-gray-700 whitespace-pre-wrap">
-                                    {test.finding_text}
-                                    {test.finding_notes
-                                      ? ` — ${test.finding_notes}`
-                                      : ""}
-                                  </p>
-                                ) : (
-                                  <p className="mt-1 text-[11px] font-medium text-gray-400">
-                                    {t(
-                                      "consultation_modal.no_lab_findings_yet",
-                                      "No lab findings recorded yet.",
-                                    )}
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {(pricing || selectedConsultation.payment_summary) && (
-                        <div className="bg-[#549E9E]/5 border border-[#549E9E]/10 rounded-xl p-5">
-                          {pricing && (
-                            <>
-                              <label className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] block mb-2">
-                                Amount
-                              </label>
-                              <div className="flex items-center justify-between gap-4">
-                                <p className="text-sm font-bold text-gray-500">
-                                  Consultation prescription total
-                                </p>
-                                <div className="min-w-[160px] px-4 py-3 bg-white border border-[#549E9E]/15 rounded-lg text-right text-lg font-black text-[#549E9E]">
-                                  ₹ {pricing.total_amount || 0}
-                                </div>
-                              </div>
-                            </>
-                          )}
-                          <div className={pricing ? "mt-4" : ""}>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E] mb-2">
-                              Payment mode
-                            </p>
-                            <PaymentSplitDisplay
-                              cashAmount={selectedConsultation.payment_summary?.cash_amount}
-                              onlineAmount={selectedConsultation.payment_summary?.online_amount}
-                              paymentMode={selectedConsultation.payment_summary?.payment_mode}
-                            />
-                          </div>
-                          {pricing?.remark && (
-                            <div className="mt-4 pt-4 border-t border-[#549E9E]/10">
-                              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">
-                                Dispensing Remark
-                              </p>
-                              <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">
-                                {pricing.remark}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   );
                 })()}
@@ -1662,15 +1259,11 @@ export default function DoctorClinicHistory() {
 
       {(showPrescriptionPreview || selectedConsultation) && createPortal(
         <div className="print-only">
-          <PrescriptionPrint
-            consultation={
-              (showPrescriptionPreview || selectedConsultation).consultation
-            }
-            appointment={
-              (showPrescriptionPreview || selectedConsultation).appointment
-            }
-            lang={prescriptionLang}
-          />
+          {showPrescriptionPreview ? (
+            <PrescriptionPrint consultation={showPrescriptionPreview.consultation} appointment={showPrescriptionPreview.appointment} lang={prescriptionLang} />
+          ) : (
+            <HistoryPrescriptions data={selectedConsultation} lang={prescriptionLang} />
+          )}
         </div>,
         document.body
       )}

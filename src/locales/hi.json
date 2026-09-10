@@ -1479,8 +1479,8 @@
       "branch_treatment": "शाखा और उपचार",
       "status": "स्थिति",
       "action": "कार्रवाई",
-      "view_details": "विवरण देखें",
-      "view_prescription": "नुस्खा देखें",
+      "view_details": "सभी पर्चे",
+      "view_prescription": "वर्तमान पर्चा",
       "print": "प्रिंट"
     }
   },

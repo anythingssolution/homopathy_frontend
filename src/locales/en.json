@@ -952,8 +952,8 @@
       "branch_treatment": "Branch & Treatment",
       "status": "Status",
       "action": "Action",
-      "view_details": "View Details",
-      "view_prescription": "View Prescription",
+      "view_details": "All Prescriptions",
+      "view_prescription": "Current Prescription",
       "print": "Print"
     }
   },

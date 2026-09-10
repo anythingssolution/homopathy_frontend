@@ -515,9 +515,9 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
             print-color-adjust: exact !important;
             height: 100%;
           }
-          @page {
+          @page all-visits-prescription {
             size: auto;
-            margin: 0mm;
+            margin: 8mm 0 5mm;
           }
           body * {
             visibility: hidden;
@@ -526,18 +526,19 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
             visibility: visible;
           }
           .printable-content {
+            page: all-visits-prescription;
             position: absolute;
             left: 0;
             top: 0;
             width: 100%;
-            min-height: 100vh !important;
+            min-height: 0 !important;
             display: flex !important;
             flex-direction: column !important;
             box-sizing: border-box !important;
             background: white;
             transform: none !important;
-            padding-top: 8mm !important;
-            padding-bottom: 5mm !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
             padding-left: 10mm !important;
             padding-right: 10mm !important;
           }

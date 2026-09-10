@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal, flushSync } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { Phone, Printer, RefreshCcw, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -34,6 +34,11 @@ const StatusBadge = ({ status }: { status?: string }) => {
 
 export default function VisitDrawer({ visit, detail, loading, patientDues, onClose, onPrintReceipt }: VisitDrawerProps) {
   const { t, i18n } = useTranslation();
+  const [printingBill, setPrintingBill] = useState(false);
+  const printBill = () => {
+    flushSync(() => setPrintingBill(true));
+    try { window.print(); } finally { setPrintingBill(false); }
+  };
   const bindScroll = useLenisNestedScroll();
   const open = Boolean(visit) || loading;
 
@@ -70,7 +75,21 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden p-4">
+        <div className="bill-print-root fixed inset-0 z-[100] flex items-center justify-center overflow-hidden p-4">
+          {printingBill && <style>{`
+            @page clinic-invoice { size: A4; margin: 10mm; }
+            @media print {
+              body > *:not(.bill-print-root) { display: none !important; }
+              body > .bill-print-root { display: block !important; position: static !important; padding: 0 !important; overflow: visible !important; }
+              .bill-print-root > div:not(.bill-print-sheet) { display: none !important; }
+              .bill-print-sheet { page: clinic-invoice; display: block !important; position: static !important; height: auto !important; max-height: none !important; width: 100% !important; max-width: none !important; overflow: visible !important; transform: none !important; box-shadow: none !important; border: 0 !important; }
+              .bill-print-sheet > div { overflow: visible !important; height: auto !important; max-height: none !important; }
+              .bill-print-sheet button { display: none !important; }
+              .bill-print-sheet tr { break-inside: avoid; }
+              .bill-print-sheet thead { display: table-header-group; }
+            }
+          `}</style>}
+
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -83,7 +102,7 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             role="dialog" aria-modal="true" aria-labelledby="visit-invoice-title"
-            className="relative flex h-[min(94vh,960px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl"
+            className="bill-print-sheet relative flex h-[min(94vh,960px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             {loading || !visit ? (
@@ -117,6 +136,9 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
                     </div>
                   </div>
                   <div className="flex flex-wrap justify-end items-center gap-2">
+                    <button type="button" onClick={printBill} className="no-print inline-flex items-center gap-2 rounded-lg bg-[#549E9E] px-3 py-2 text-xs font-bold text-white">
+                      <Printer size={14} />{i18n.language.startsWith('hi') ? 'बिल प्रिंट करें' : 'Print Bill'}
+                    </button>
                     {visit.patient_mobile_no && (
                       <a
                         href={`tel:${visit.patient_mobile_no}`}
