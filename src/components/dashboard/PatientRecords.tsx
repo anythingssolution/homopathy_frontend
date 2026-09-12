@@ -8,12 +8,14 @@ import {
   Printer,
   RefreshCcw,
   Search,
+  ArrowLeft,
   User,
   Users,
   X,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { goBackOr, readViewState, usePersistViewState } from "../../utils/viewState";
 import CustomDatePicker from "../CustomDatePicker";
 import Pagination from "../Pagination";
 import PrescriptionPrint from "../PrescriptionPrint";
@@ -170,15 +172,26 @@ const getSecondaryDetail = (item: TimelineItem) => {
 export default function PatientRecords() {
   const { t } = useTranslation();
   const { token, user } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const location = useLocation();
-  const incomingSearch = String(
+  const savedRecordsView = readViewState<{
+    patientSearch: string;
+    patientPage: number;
+  }>("patient-records");
+  const routedSearch = String(
     searchParams.get("search") || (location.state as { patientSearch?: string } | null)?.patientSearch || "",
   ).trim();
+  const incomingSearch = routedSearch || savedRecordsView?.patientSearch || "";
   const incomingPatientId = String(searchParams.get("patient_id") || (location.state as { patientId?: string | number } | null)?.patientId || "").trim();
   const [patients, setPatients] = useState<PatientRegistryRow[]>([]);
   const [patientSearch, setPatientSearch] = useState(incomingSearch);
-  const [patientPage, setPatientPage] = useState(1);
+  const [patientPage, setPatientPage] = useState(() => (
+    searchParams.get("search") || (location.state as { patientSearch?: string } | null)?.patientSearch
+      ? 1
+      : Number(savedRecordsView?.patientPage || 1)
+  ));
+  usePersistViewState("patient-records", { patientSearch, patientPage });
   const [patientTotalPages, setPatientTotalPages] = useState(1);
   const [patientTotal, setPatientTotal] = useState(0);
   const [isRegistryLoading, setIsRegistryLoading] = useState(false);
@@ -319,7 +332,7 @@ export default function PatientRecords() {
 
   useEffect(() => {
     if (openedFromQuery.current || isRegistryLoading || selectedPatient) return;
-    if (!incomingSearch && !incomingPatientId) return;
+    if (!routedSearch && !incomingPatientId) return;
     const match = incomingPatientId
       ? patients.find((row) => String(row.patient_id) === incomingPatientId)
       : patients.length === 1
@@ -328,7 +341,7 @@ export default function PatientRecords() {
     if (!match) return;
     openedFromQuery.current = true;
     void fetchPatientDetail(match);
-  }, [patients, isRegistryLoading, selectedPatient, incomingSearch, incomingPatientId]);
+  }, [patients, isRegistryLoading, selectedPatient, routedSearch, incomingPatientId]);
 
   useEffect(() => {
     if (selectedPatient) fetchHistory(historyPage);
@@ -477,6 +490,14 @@ export default function PatientRecords() {
     <div className="no-print space-y-8 pb-12">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="shrink-0">
+          <button
+            type="button"
+            onClick={() => goBackOr(navigate, "/doctor-portal")}
+            className="inline-flex items-center gap-1.5 mb-2 text-[10px] font-black uppercase tracking-widest text-[#549E9E] hover:text-[#3d7f7f]"
+          >
+            <ArrowLeft size={14} />
+            {t("common.back", "Back")}
+          </button>
           <p className="text-xs font-black uppercase tracking-widest text-[#549E9E]">{t('patient_records.category', 'Patient History & Records')}</p>
           <h1 className="text-3xl font-black tracking-tight text-gray-900">{t('patient_records.title', 'Patient Registry')}</h1>
         </div>

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { readViewState, usePersistViewState } from '../utils/viewState';
 import { useTranslation } from 'react-i18next';
 import { getSocket } from '../services/socket';
 import { useNotifications } from '../context/NotificationContext';
@@ -261,15 +262,22 @@ export default function DoctorPortal() {
   const [appointments, setAppointments] = useState<DoctorAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [patientSearch, setPatientSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const savedPortalView = readViewState<{
+    patientSearch: string;
+    filterStatus: string;
+    filterDate: string;
+  }>('doctor-portal');
+  const [patientSearch, setPatientSearch] = useState(savedPortalView?.patientSearch || '');
+  const [filterStatus, setFilterStatus] = useState(savedPortalView?.filterStatus || 'all');
   const navigate = useNavigate();
   const listRef = useRef<HTMLDivElement>(null);
   const [filterDate, setFilterDate] = useState<string>(() => {
+    if (savedPortalView?.filterDate) return savedPortalView.filterDate;
     const today = new Date();
     today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
     return today.toISOString().split('T')[0];
   });
+  usePersistViewState('doctor-portal', { patientSearch, filterStatus, filterDate });
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [isCallingNext, setIsCallingNext] = useState(false);
@@ -789,7 +797,9 @@ export default function DoctorPortal() {
       queueBucket === 'IN_PROGRESS';
 
     if (appointmentStatus === 'completed' || isAlreadyStarted) {
-      navigate(`/consult/${app.appointment_id}`, { state: { app } });
+      navigate(`/consult/${app.appointment_id}`, {
+        state: { app, from: { pathname: '/doctor-portal' } },
+      });
       return;
     }
 
@@ -809,7 +819,9 @@ export default function DoctorPortal() {
       if (data.success) {
         fetchAppointments();
         fetchDashboardStats();
-        navigate(`/consult/${app.appointment_id}`, { state: { app } });
+        navigate(`/consult/${app.appointment_id}`, {
+          state: { app, from: { pathname: '/doctor-portal' } },
+        });
       } else {
         triggerCustomAlert(data.message || 'Unable to start consultation. Start doctor session first.', 'warning');
       }
@@ -836,6 +848,7 @@ export default function DoctorPortal() {
       state: {
         app,
         startEdit: true,
+        from: { pathname: '/doctor-portal' },
       },
     });
   };
@@ -845,6 +858,7 @@ export default function DoctorPortal() {
       state: {
         app,
         focusLabFindings: true,
+        from: { pathname: '/doctor-portal' },
       },
     });
   };

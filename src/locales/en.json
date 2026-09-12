@@ -131,6 +131,7 @@
     "login": "Login",
     "register": "Register",
     "logout": "Logout",
+    "back": "Back",
     "dashboard": "Dashboard",
     "language": "Language",
     "gallery": "Gallery",

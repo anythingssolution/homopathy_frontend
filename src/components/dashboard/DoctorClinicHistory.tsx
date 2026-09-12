@@ -6,7 +6,8 @@ import PaymentReceipt from '../PaymentReceipt';
 import { receiptFromPayments, type PaymentReceiptData } from '../../utils/paymentReceipt';
 import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { goBackOr, readViewState, usePersistViewState } from "../../utils/viewState";
 import { useAuth } from "../../context/AuthContext";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -25,6 +26,7 @@ import {
   Clock,
   MapPin,
   ClipboardList,
+  ArrowLeft,
   ChevronDown,
   Tag,
   CheckCircle2,
@@ -226,17 +228,27 @@ export default function DoctorClinicHistory() {
     <button disabled={openingBill} onClick={() => void openHistoryBill(source)} className="inline-flex items-center gap-1 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"><Eye size={14} />{payment ? t('clinic_history.original_bill', 'Original bill') : t('clinic_history.view_bill', 'View Bill')}</button>
   </div>;
 
-  const [search, setSearch] = useState(() => location.state?.patientSearch || "");
+  const navigate = useNavigate();
+  const savedHistoryView = readViewState<{
+    search: string;
+    fromDate: string;
+    toDate: string;
+    filterStatus: string;
+    currentPage: number;
+  }>("clinic-history");
+  const [search, setSearch] = useState(() => location.state?.patientSearch || savedHistoryView?.search || "");
   const [fromDate, setFromDate] = useState(() => {
     if (location.state?.fromDate) return location.state.fromDate;
+    if (savedHistoryView?.fromDate) return savedHistoryView.fromDate;
     return new Date().toISOString().split("T")[0];
   });
   const [toDate, setToDate] = useState(() => {
     if (location.state?.toDate) return location.state.toDate;
+    if (savedHistoryView?.toDate) return savedHistoryView.toDate;
     return new Date().toISOString().split("T")[0];
   });
   const [filterStatus, setFilterStatus] = useState(() => {
-    return location.state?.filterStatus || "all";
+    return location.state?.filterStatus || savedHistoryView?.filterStatus || "all";
   });
 
   const [selectedConsultation, setSelectedConsultation] = useState<any | null>(
@@ -251,7 +263,12 @@ export default function DoctorClinicHistory() {
     expandedHistoryChainAppointmentId,
     setExpandedHistoryChainAppointmentId,
   ] = useState<number | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(() => (
+    location.state?.fromDate || location.state?.toDate || location.state?.filterStatus || location.state?.patientSearch
+      ? 1
+      : Number(savedHistoryView?.currentPage || 1)
+  ));
+  usePersistViewState("clinic-history", { search, fromDate, toDate, filterStatus, currentPage });
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 8;
 
@@ -500,6 +517,14 @@ export default function DoctorClinicHistory() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => goBackOr(navigate, "/doctor-portal")}
+          className="cursor-pointer bg-white/15 text-white border border-white/25 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/25 flex items-center gap-2 transition-colors"
+        >
+          <ArrowLeft size={14} />
+          {t("common.back", "Back")}
+        </button>
         <button type="button" onClick={printHistoryList} disabled={isPreparingPrint || isLoading || !historyItems.length}
           className="bg-white text-[#549E9E] px-4 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 disabled:opacity-50">
           <Printer size={14} /> {isPreparingPrint ? t('common.loading', 'Loading...') : t('bills_next.print_list', 'Print List')}

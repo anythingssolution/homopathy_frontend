@@ -20,6 +20,7 @@ import {
   WandSparkles,
   RotateCcw,
   Keyboard,
+  ArrowLeft,
   Download,
   Activity,
   UserCheck,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import PatientDetailsEditModal from "./PatientDetailsEditModal";
 import AllVisitsPrint from "../AllVisitsPrint";
+import { goBackOr, type RouteFrom } from "../../utils/viewState";
 import { useNotifications } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
 import { useDoctorFormulaMaster } from "../../context/DoctorFormulaMasterContext";
@@ -673,6 +675,8 @@ export default function ConsultationPage() {
   } = useDoctorFormulaMaster();
 
   const app = state?.app;
+  const returnFrom = (state?.from || null) as RouteFrom | null;
+  const goBackToPrevious = () => goBackOr(navigate, "/doctor-portal", returnFrom);
   const shouldStartInEditMode = Boolean(state?.startEdit);
   const shouldFocusLabFindings = Boolean(state?.focusLabFindings);
   const startEditAppliedForRef = useRef<number | null>(null);
@@ -2883,7 +2887,7 @@ export default function ConsultationPage() {
           setConsultationReloadKey((key) => key + 1);
         } else {
           addToast("Consultation completed successfully", "success");
-          navigate("/doctor-portal");
+          goBackToPrevious();
         }
       } else {
         addToast(result.message || "Failed to complete consultation", "error");
@@ -3254,10 +3258,13 @@ export default function ConsultationPage() {
             </button>
           )}
           <button
-            onClick={() => navigate(-1)}
-            className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors backdrop-blur-md cursor-pointer"
+            type="button"
+            onClick={goBackToPrevious}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-colors backdrop-blur-md cursor-pointer text-[10px] font-black uppercase tracking-widest"
+            title={t("common.back", "Back")}
           >
-            <X size={20} />
+            <ArrowLeft size={15} />
+            {t("common.back", "Back")}
           </button>
         </div>
       </div>

@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { goBackOr, readViewState, usePersistViewState } from '../../utils/viewState';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Search,
+  ArrowLeft,
   RefreshCcw,
   User,
   Pill,
@@ -450,7 +453,13 @@ export default function DispensaryHistory() {
   const { t, i18n } = useTranslation();
   const { token, user, branchScope } = useAuth();
   const { addToast } = useNotifications();
-  const [patientSearch, setPatientSearch] = useState('');
+  const navigate = useNavigate();
+  const savedDispensaryView = readViewState<{
+    patientSearch: string;
+    filterDate: string;
+    page: number;
+  }>('dispensary-history');
+  const [patientSearch, setPatientSearch] = useState(savedDispensaryView?.patientSearch || '');
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -463,11 +472,13 @@ export default function DispensaryHistory() {
   const [remark, setRemark] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [filterDate, setFilterDate] = useState<string>(() => {
+    if (savedDispensaryView?.filterDate) return savedDispensaryView.filterDate;
     const today = new Date();
     today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
     return today.toISOString().split('T')[0];
   });
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => Number(savedDispensaryView?.page || 1));
+  usePersistViewState('dispensary-history', { patientSearch, filterDate, page });
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
   const bindModalScroll = useLenisNestedScroll();
@@ -810,6 +821,14 @@ export default function DispensaryHistory() {
       {/* Filters Card */}
       <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <button
+            type="button"
+            onClick={() => goBackOr(navigate, '/medical-welcome')}
+            className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#549E9E] hover:text-[#3d7f7f] shrink-0"
+          >
+            <ArrowLeft size={14} />
+            {t('common.back', 'Back')}
+          </button>
           <div className="relative group flex-1">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E] transition-colors" size={22} />
             <input
