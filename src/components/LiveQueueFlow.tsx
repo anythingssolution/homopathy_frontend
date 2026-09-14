@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Socket } from "socket.io-client";
 import {
@@ -15,6 +15,11 @@ import {
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { connectGuestSocket } from "../services/socket";
 import ScheduleRuleNotice from "./ScheduleRuleNotice";
+import {
+  playCallChime,
+  playCallTune,
+  type CallTuneSetting,
+} from "../utils/callTune";
 
 type QueueBucket = "IN_PROGRESS" | "READY" | "CALLED" | "NOT_ARRIVED";
 
@@ -227,11 +232,11 @@ const getStageTone = (stage: string) => {
       };
     case "NEXT":
       return {
-        label: "Next",
+        label: "Next Patient",
         helper: "Agla token ready",
-        dotClass: "bg-emerald-500",
-        badgeClass: "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200",
-        railClass: "border-emerald-200 bg-emerald-50",
+        dotClass: "bg-emerald-400",
+        badgeClass: "bg-emerald-600 text-white ring-1 ring-emerald-400",
+        railClass: "border-emerald-400 bg-emerald-50",
       };
     case "CALLED":
       return {
@@ -289,44 +294,37 @@ export default function LiveQueueFlow() {
   const [error, setError] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const lastRealtimeSnapshotKeyRef = useRef("");
+  const callTuneRef = useRef<CallTuneSetting>({ mode: "CHIME", custom_text: null });
+  const [callTune, setCallTune] = useState<CallTuneSetting>({ mode: "CHIME", custom_text: null });
 
-  // --- Ring-ring notification sound when consultation completes ---
-  const prevRunningTokenIdRef = useRef<number | null | undefined>(undefined); // undefined = not yet initialised
+  // First load skips sound. Later current-token changes play the branch call tune (default = existing chime).
+  const prevRunningTokenIdRef = useRef<number | null | undefined>(undefined);
 
-  const playRingSound = useCallback(() => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
+  useEffect(() => {
+    callTuneRef.current = callTune;
+  }, [callTune]);
 
-      const playBell = (startTime: number, freq: number, duration: number) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(freq, startTime);
-        gain.gain.setValueAtTime(0.35, startTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(startTime);
-        osc.stop(startTime + duration);
-      };
-
-      // Two-ring pattern: "ring-ring ... ring-ring"
-      const now = ctx.currentTime;
-      playBell(now, 830, 0.25);        // ring 1a
-      playBell(now + 0.28, 1050, 0.25); // ring 1b
-      playBell(now + 0.7, 830, 0.25);   // ring 2a
-      playBell(now + 0.98, 1050, 0.25); // ring 2b
-      playBell(now + 1.4, 830, 0.25);   // ring 3a
-      playBell(now + 1.68, 1050, 0.3);  // ring 3b (slightly longer)
-
-      // Clean up the AudioContext after sounds finish
-      setTimeout(() => ctx.close().catch(() => {}), 3000);
-    } catch (e) {
-      console.warn("[LiveQueueFlow] Could not play notification sound", e);
-    }
-  }, []);
+  useEffect(() => {
+    const branchId = requestedBranchId || snapshot.branch_id;
+    if (!branchId) return;
+    let cancelled = false;
+    fetch(`/api/v1/public/call-tune?branch_id=${branchId}`)
+      .then((response) => response.json())
+      .then((result) => {
+        if (cancelled || !result?.success || !result.data) return;
+        setCallTune({
+          mode: result.data.mode || "CHIME",
+          custom_text: result.data.custom_text || null,
+          branch_id: result.data.branch_id,
+        });
+      })
+      .catch(() => {
+        // Keep CHIME so a missing setting never silences the TV.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedBranchId, snapshot.branch_id]);
 
   useEffect(() => {
     const currentId = currentRunningToken
@@ -336,12 +334,16 @@ export default function LiveQueueFlow() {
 
     // Skip on first load (prevId === undefined)
     if (prevId !== undefined && prevId !== currentId) {
-      // Token changed → consultation completed, play ring sound
-      playRingSound();
+      const setting = callTuneRef.current;
+      if (setting.mode !== "CHIME" && currentRunningToken) {
+        void playCallTune(setting, getTokenDisplay(currentRunningToken));
+      } else {
+        playCallChime();
+      }
     }
 
     prevRunningTokenIdRef.current = currentId;
-  }, [currentRunningToken, playRingSound]);
+  }, [currentRunningToken]);
 
   const applyQueueSnapshot = (data: LiveQueueSnapshot = {}) => {
     const activeQueueById = new Map(
@@ -716,6 +718,13 @@ export default function LiveQueueFlow() {
         .first-upcoming-card {
           margin-top: .375rem;
         }
+        @keyframes next-line-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: .45; transform: scale(.85); }
+        }
+        .next-line-pulse {
+          animation: next-line-pulse 1.2s ease-in-out infinite;
+        }
         @media (min-width: 1024px) and (max-height: 900px) {
           .live-queue-flow-screen .flow-page {
             gap: .5rem;
@@ -781,7 +790,10 @@ export default function LiveQueueFlow() {
             gap: .5rem;
           }
           .live-queue-flow-screen .next-in-line-badge {
-            left: 5.25rem;
+            margin-bottom: .25rem;
+          }
+          .live-queue-flow-screen .next-in-line-card {
+            padding: .5rem .65rem;
           }
           .live-queue-flow-screen .first-upcoming-card {
             margin-top: .25rem;
@@ -1183,19 +1195,30 @@ function TokenCard({
 
   return (
     <div
-      className={`token-card relative w-full rounded-[24px] border p-3 shadow-md sm:p-4 ${tone.railClass}`}
+      className={`token-card relative w-full rounded-[24px] border p-3 shadow-md sm:p-4 ${
+        isNextInLine
+          ? "next-in-line-card border-2 border-emerald-500 bg-gradient-to-r from-emerald-100 via-emerald-50 to-white shadow-emerald-200/80 ring-2 ring-emerald-300/70"
+          : tone.railClass
+      }`}
     >
       {!isCompact && isNextInLine && (
-        <div className="next-in-line-badge pointer-events-none absolute left-[5.5rem] top-0 z-20 -translate-y-1/2 sm:left-[7rem]">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-700 ring-1 ring-emerald-200 sm:px-3 sm:py-1 sm:text-[10px]">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 sm:h-2 sm:w-2" />
-            Next in Line
+        <div className="next-in-line-badge mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-600 px-3 py-1.5 text-white shadow-sm">
+          <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] sm:text-xs">
+            <span className="next-line-pulse h-2.5 w-2.5 rounded-full bg-white" />
+            Next Patient
+          </span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-50 sm:text-[11px]">
+            Agla token ready
           </span>
         </div>
       )}
       <div className="token-card-row flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
-          <div className="serial-tile relative flex h-14 w-16 shrink-0 flex-col items-center justify-center rounded-[18px] bg-slate-950 px-2 text-white shadow-lg sm:h-16 sm:w-20 sm:rounded-[22px]">
+          <div
+            className={`serial-tile relative flex h-14 w-16 shrink-0 flex-col items-center justify-center rounded-[18px] px-2 shadow-lg sm:h-16 sm:w-20 sm:rounded-[22px] ${
+              isNextInLine ? "bg-emerald-600 text-white" : "bg-slate-950 text-white"
+            }`}
+          >
             <span className="serial-tile-value text-xl font-black leading-none sm:text-2xl">
               #{position || "-"}
             </span>
@@ -1218,7 +1241,11 @@ function TokenCard({
               </div>
             )}
             <div className="grid min-w-0 w-full max-w-[720px] grid-cols-[minmax(0,1fr)_5.75rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_6.5rem]">
-              <h3 className="patient-name min-w-0 break-words text-lg font-black leading-tight text-slate-950 sm:text-2xl">
+              <h3
+                className={`patient-name min-w-0 break-words text-lg font-black leading-tight sm:text-2xl ${
+                  isNextInLine ? "text-emerald-950" : "text-slate-950"
+                }`}
+              >
                 {getPatientDisplayName(token)}
               </h3>
               <span

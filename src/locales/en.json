@@ -735,6 +735,16 @@
     "same_slot_hold": "Same Slot Hold",
     "formula_master": "Formula Master",
     "manage_cms": "Manage CMS",
+    "call_tune": {
+      "settings": "Settings",
+      "title": "Call Tune",
+      "subtitle": "Plays on the live queue TV when the next patient enters the cabin.",
+      "mode_chime": "Current chime",
+      "mode_template": "Cabin call",
+      "mode_custom": "Custom",
+      "preview": "Preview",
+      "save": "Save"
+    },
     "manage_slot_timing": "Manage Slot Timing",
     "shift_timing_note": "Shift this date only. Token order and treatment durations stay unchanged.",
     "default_timing": "Default Timing",

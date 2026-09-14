@@ -17,6 +17,7 @@ import { dedupedFetch } from '../utils/dedupedFetch';
 import CustomAlertDialog, { CustomAlertState } from './CustomAlertDialog';
 import { formatTimeTo12Hour } from '../utils/dateUtils';
 import WeeklyScheduleRules from './dashboard/WeeklyScheduleRules';
+import CallTuneSettings from './dashboard/CallTuneSettings';
 
 type DoctorAppointment = {
   appointment_id: number;
@@ -1181,6 +1182,7 @@ export default function DoctorPortal() {
               <Layout size={15} />
               <span>{t('doctor_portal.manage_cms', 'Manage CMS')}</span>
             </button>
+            <CallTuneSettings branchId={selectedBranchId} token={token} compact />
             <button onClick={fetchAppointments}
               className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-4 py-3 text-[10px] font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-2 border-2 border-[#549E9E]/5 rounded-xl active:scale-95">
               <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
@@ -1277,6 +1279,7 @@ export default function DoctorPortal() {
                 <Layout size={16} />
                 {t('doctor_portal.manage_cms', 'Manage CMS')}
               </button>
+              <CallTuneSettings branchId={selectedBranchId} token={token} />
               <button onClick={fetchAppointments}
                 className="cursor-pointer bg-[#549E9E]/10 text-[#549E9E] px-8 py-4 text-xs font-black uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-all flex items-center gap-3 border-2 border-[#549E9E]/5 rounded-xl">
                 <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />

@@ -735,6 +735,16 @@
     "same_slot_hold": "समान स्लॉट होल्ड",
     "formula_master": "फॉर्मूला मास्टर",
     "manage_cms": "प्रबंध सीएमएस (CMS)",
+    "call_tune": {
+      "settings": "सेटिंग्स",
+      "title": "कॉल ट्यून",
+      "subtitle": "अगला मरीज़ केबिन में आने पर लाइव कतार टीवी पर बजता है।",
+      "mode_chime": "मौजूदा चाइम",
+      "mode_template": "केबिन कॉल",
+      "mode_custom": "कस्टम",
+      "preview": "सुनें",
+      "save": "सहेजें"
+    },
     "manage_slot_timing": "स्लॉट समय प्रबंधित करें",
     "shift_timing_note": "केवल इस तिथि का समय बदलें। टोकन क्रम और उपचार अवधि अपरिवर्तित रहेगी।",
     "default_timing": "डिफ़ॉल्ट समय",
