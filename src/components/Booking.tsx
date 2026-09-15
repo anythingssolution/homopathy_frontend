@@ -242,6 +242,7 @@ export default function Booking() {
   type ReceptionistPatientOption = {
     patient_id: number;
     patient_uuid: string;
+    clinic_patient_no?: string | number | null;
     full_name: string;
     age?: number;
     gender?: string;
@@ -377,6 +378,8 @@ export default function Booking() {
   const [timeSlot, setTimeSlot] = useState<number | ''>('');
   const [symptoms, setSymptoms] = useState('');
   const [isAppointmentSuccess, setIsAppointmentSuccess] = useState(false);
+  const [patientIdSearch, setPatientIdSearch] = useState('');
+  const [patientLookupError, setPatientLookupError] = useState('');
   const [patientFullName, setPatientFullName] = useState('');
   const [patientMobileNo, setPatientMobileNo] = useState('');
   const [patientAge, setPatientAge] = useState('');
@@ -847,7 +850,9 @@ export default function Booking() {
 
     const trimmedName = patientFullName.trim();
     const trimmedMobile = patientMobileNo.trim();
-    const searchValue = trimmedMobile.length >= 3 ? trimmedMobile : trimmedName;
+    setPatientLookupError('');
+    const idSearch = patientIdSearch.trim();
+    const searchValue = idSearch || (trimmedMobile.length >= 3 ? trimmedMobile : trimmedName);
 
     if (
       selectedPatient &&
@@ -860,7 +865,7 @@ export default function Booking() {
       return;
     }
 
-    if (searchValue.length < 2) {
+    if (searchValue.length < (idSearch ? 1 : 2)) {
       setIsPatientLookupLoading(false);
       setPatientSearchResults([]);
       setShowPatientSuggestions(false);
@@ -868,10 +873,12 @@ export default function Booking() {
     }
 
     const controller = new AbortController();
+    setPatientSearchResults([]);
+    setPatientLookupError('');
+    setIsPatientLookupLoading(true);
     const timeoutId = window.setTimeout(async () => {
-      setIsPatientLookupLoading(true);
       try {
-        const response = await fetch(`/api/v1/receptionist/booking-patients?search=${encodeURIComponent(searchValue)}`, {
+        const response = await fetch(`/api/v1/receptionist/booking-patients?search=${encodeURIComponent(searchValue)}${idSearch ? '&search_by=id' : ''}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -879,13 +886,17 @@ export default function Booking() {
           signal: controller.signal,
         });
         const result = await response.json();
-        if (!controller.signal.aborted && result.success) {
-          setPatientSearchResults(Array.isArray(result.data) ? result.data : []);
+        if (!response.ok || !result.success) throw new Error(result.message || 'Unable to search patients. Please retry.');
+        if (!controller.signal.aborted) {
+          const patients: ReceptionistPatientOption[] = Array.isArray(result.data) ? result.data : [];
+          setPatientSearchResults(patients);
           setShowPatientSuggestions(true);
         }
       } catch (error: any) {
         if (error?.name !== 'AbortError') {
-          console.error('Error searching receptionist patients:', error);
+          setPatientSearchResults([]);
+          setPatientLookupError('Patient search failed. Please retry before booking.');
+          setShowPatientSuggestions(true);
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -898,7 +909,7 @@ export default function Booking() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [isReceptionist, token, patientFullName, patientMobileNo, selectedPatient]);
+  }, [isReceptionist, token, patientIdSearch, patientFullName, patientMobileNo, selectedPatient]);
 
   // Validation States
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -1429,6 +1440,15 @@ export default function Booking() {
 
 
       if (isReceptionist) {
+        if (patientIdSearch.trim() && !selectedPatient) {
+          setErrors({ appointment: 'Select a patient from the ID search results, or choose New Patient.' });
+          setShowPatientSuggestions(true);
+          return;
+        }
+        if (isPatientLookupLoading || patientLookupError) {
+          setErrors({ appointment: 'Wait for patient search to finish successfully before booking.' });
+          return;
+        }
         const trimmedPatientName = patientFullName.trim();
         const trimmedPatientMobile = patientMobileNo.trim();
         const parsedPatientAge = Number(patientAge);
@@ -1553,6 +1573,96 @@ export default function Booking() {
     </div>
   );
 
+  const startNewPatient = () => {
+    setPatientIdSearch('');
+    setSelectedPatient(null);
+    setPatientFullName('');
+    setPatientMobileNo('');
+    setPatientAge('');
+    setPatientGender('');
+    setPatientSearchResults([]);
+    setPatientLookupError('');
+    setShowPatientSuggestions(false);
+    setBookedForType('SELF');
+    setSelectedFamilyMemberId('');
+    setSelectedParentAppointmentId('');
+    setErrors({});
+  };
+  const getBookingPatientDisplayId = (patient: ReceptionistPatientOption) =>
+    String(patient.clinic_patient_no ?? '').trim() || patient.patient_uuid || '';
+
+  const selectBookingPatient = (patient: ReceptionistPatientOption) => {
+    setSelectedPatient(patient);
+    setPatientIdSearch(getBookingPatientDisplayId(patient));
+    setPatientFullName(patient.full_name || '');
+    setPatientMobileNo(patient.mobile_no || '');
+    setPatientAge(patient.age != null ? String(patient.age) : '');
+    setPatientGender((patient.gender || '').toLowerCase());
+    setPatientSearchResults([]);
+    setPatientLookupError('');
+    setShowPatientSuggestions(false);
+  };
+  const patientSuggestions = (
+                        <AnimatePresence>
+                          {showPatientSuggestions && (isPatientLookupLoading || patientSearchResults.length > 0 || patientIdSearch.trim() || patientFullName.trim() || patientMobileNo.trim()) && !selectedPatient && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                              transition={{ duration: 0.2, ease: "easeOut" }}
+                              className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden z-[100]"
+                              data-lenis-prevent
+                              data-lenis-prevent-wheel
+                            >
+                              <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-200">
+                                <p className="text-xs font-semibold text-slate-600">
+                                  {isPatientLookupLoading ? 'Searching patients...' : 'Select matching patient'}
+                                </p>
+                              </div>
+
+                              {patientSearchResults.length > 0 ? (
+                                <div
+                                  ref={bindPatientSuggestionsScroll}
+                                  className="max-h-64 overflow-y-auto overscroll-contain"
+                                  data-lenis-prevent
+                                  data-lenis-prevent-wheel
+                                >
+                                  {patientSearchResults.map((patient) => (
+                                    <button
+                                      key={patient.patient_id}
+                                      type="button"
+                                      onClick={() => selectBookingPatient(patient)}
+                                      className="w-full text-left px-5 py-3 border-b last:border-b-0 border-slate-100 hover:bg-teal-50/60 focus-visible:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600 transition-colors cursor-pointer block"
+                                    >
+                                      {(patient.patient_uuid || String(patient.clinic_patient_no ?? '').trim()) && (
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px] font-extrabold tracking-wide text-teal-800">
+                                          {String(patient.clinic_patient_no ?? '').trim()
+                                            ? <span className="text-amber-800">Clinic ID: {getBookingPatientDisplayId(patient)}</span>
+                                            : <span>{patient.patient_uuid}</span>}
+                                        </div>
+                                      )}
+                                      <p className="mt-0.5 text-[15px] font-semibold text-slate-900 leading-snug break-words">{patient.full_name}</p>
+                                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-700">
+                                        {patient.mobile_no && <span className="tabular-nums">{patient.mobile_no}</span>}
+                                        {patient.age != null && <span>{patient.mobile_no && <span className="mr-2 text-slate-400" aria-hidden="true">·</span>}{t('booking.age', 'Age')} {patient.age}</span>}
+                                        {patient.gender && <span className="capitalize">{(patient.mobile_no || patient.age != null) && <span className="mr-2 text-slate-400" aria-hidden="true">·</span>}{patient.gender}</span>}
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : !isPatientLookupLoading && (
+                                <div className="px-8 py-4">
+                                  <p className="text-[11px] font-bold text-amber-600">
+                                    {patientLookupError || (patientIdSearch.trim() ? 'No patient found with this ID. Check the ID or choose New Patient.' : 'No matching existing patient found. Fill age and gender to register a new patient and book.')}
+                                  </p>
+                                  {patientIdSearch.trim() && !patientLookupError && <button type="button" onClick={startNewPatient} className="mt-3 text-sm font-bold text-teal-800 underline">New Patient</button>}
+                                </div>
+                              )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+  );
+
   return (
     <div className={`min-h-screen bg-[#FDFDF7] ${isAuthenticated ? 'pt-0' : 'pt-24 lg:pt-28'}`}>
       <div className={`max-w-4xl mx-auto px-6 relative ${isAuthenticated ? 'pb-8' : 'pb-16'}`}>
@@ -1574,8 +1684,44 @@ export default function Booking() {
 
               <form className="space-y-8" onSubmit={handleAppointmentSubmit}>
                 {isReceptionist && (
-                  <div className="grid md:grid-cols-2 gap-6 mb-2 border-b border-gray-100 pb-4">
-                    <div className="space-y-2 relative" ref={patientSuggestionsRef}>
+                  <div className="grid md:grid-cols-2 gap-6 mb-2 border-b border-gray-100 pb-4" ref={patientSuggestionsRef}>
+                    <div className="md:col-span-2 space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <label htmlFor="booking-patient-id" className="text-xs font-bold text-teal-800">Patient ID / Clinic ID</label>
+                        <button type="button" onClick={startNewPatient} className="text-xs font-bold text-teal-800 hover:underline">+ New Patient</button>
+                      </div>
+                      <div className="relative">
+                        <input id="booking-patient-id" type="text" value={patientIdSearch}
+                          onChange={e => {
+                            setPatientIdSearch(e.target.value);
+                            setSelectedPatient(null);
+                            setPatientFullName(''); setPatientMobileNo('');
+                            setPatientAge(''); setPatientGender('');
+                            setPatientSearchResults([]); setPatientLookupError('');
+                            setBookedForType('SELF'); setSelectedFamilyMemberId('');
+                            setShowPatientSuggestions(true);
+                          }}
+                          onKeyDown={e => {
+                            if (e.key !== 'Enter') return;
+                            e.preventDefault();
+                            if (selectedPatient || isPatientLookupLoading || patientLookupError) return;
+                            const typedId = patientIdSearch.trim().toLowerCase();
+                            const matches = typedId ? patientSearchResults.filter(patient =>
+                              [patient.patient_uuid, patient.clinic_patient_no].some(value =>
+                                String(value ?? '').trim().toLowerCase() === typedId,
+                              ),
+                            ) : [];
+                            if (matches.length === 1) selectBookingPatient(matches[0]);
+                            else setShowPatientSuggestions(true);
+                          }}
+                          onFocus={() => setShowPatientSuggestions(true)}
+                          placeholder="Search DTH ID or Clinic ID"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
+                        {patientIdSearch.trim() && patientSuggestions}
+                      </div>
+                      <p className="text-xs text-slate-600">Type an ID, then press Enter for an exact match or select a patient from the list.</p>
+                    </div>
+                    <div className="space-y-2 relative">
                       <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">{t('booking.patient_full_name', 'Patient Full Name')}</label>
                       <div className="relative">
                         <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
@@ -1593,65 +1739,7 @@ export default function Booking() {
                           className="w-full bg-gray-50 border-none rounded-full py-3 pl-12 pr-6 outline-none text-gray-700 font-bold focus:ring-2 focus:ring-primary-teal/20 transition-all"
                         />
 
-                        <AnimatePresence>
-                          {showPatientSuggestions && (isPatientLookupLoading || patientSearchResults.length > 0 || patientFullName.trim() || patientMobileNo.trim()) && !selectedPatient && (
-                            <motion.div
-                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                              transition={{ duration: 0.2, ease: "easeOut" }}
-                              className="absolute top-full left-0 right-0 mt-3 bg-white rounded-[30px] shadow-2xl border border-gray-100 overflow-hidden z-[100] py-2"
-                              data-lenis-prevent
-                              data-lenis-prevent-wheel
-                            >
-                              <div className="px-8 py-3 border-b border-gray-100">
-                                <p className="text-[10px] font-black text-primary-teal uppercase tracking-widest">
-                                  {isPatientLookupLoading ? 'Searching patients...' : 'Select matching patient'}
-                                </p>
-                              </div>
-
-                              {patientSearchResults.length > 0 ? (
-                                <div
-                                  ref={bindPatientSuggestionsScroll}
-                                  className="max-h-64 overflow-y-auto overscroll-contain"
-                                  data-lenis-prevent
-                                  data-lenis-prevent-wheel
-                                >
-                                  {patientSearchResults.map((patient) => (
-                                    <button
-                                      key={patient.patient_id}
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedPatient(patient);
-                                        setPatientFullName(patient.full_name || '');
-                                        setPatientMobileNo(patient.mobile_no || '');
-                                        setPatientAge(patient.age ? String(patient.age) : '');
-                                        setPatientGender((patient.gender || '').toLowerCase());
-                                        setPatientSearchResults([]);
-                                        setShowPatientSuggestions(false);
-                                      }}
-                                      className="w-full text-left px-8 py-4 border-b last:border-b-0 border-gray-100 hover:bg-primary-teal/5 hover:text-primary-teal transition-all cursor-pointer block"
-                                    >
-                                      <p className="text-sm font-bold text-gray-800 uppercase tracking-wide">{patient.full_name}</p>
-                                      <p className="text-[11px] font-medium text-gray-500 mt-0.5">
-                                        {patient.mobile_no}
-                                        {patient.patient_uuid ? ` • ${patient.patient_uuid}` : ''}
-                                        {patient.age ? ` • Age ${patient.age}` : ''}
-                                        {patient.gender ? ` • ${patient.gender}` : ''}
-                                      </p>
-                                    </button>
-                                  ))}
-                                </div>
-                              ) : !isPatientLookupLoading && (
-                                <div className="px-8 py-4">
-                                  <p className="text-[11px] font-bold text-amber-600">
-                                    No matching existing patient found. Fill age and gender to create a new patient, then the appointment will be booked.
-                                  </p>
-                                </div>
-                              )}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                        {!patientIdSearch.trim() && patientSuggestions}
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -1717,7 +1805,7 @@ export default function Booking() {
                               <p className="text-sm font-black text-gray-800 uppercase tracking-wide">{selectedPatient.full_name}</p>
                               <p className="text-[11px] font-bold text-gray-500">
                                 • {selectedPatient.mobile_no}
-                                {selectedPatient.patient_uuid ? ` • ${selectedPatient.patient_uuid}` : ''}
+                                {getBookingPatientDisplayId(selectedPatient) ? ` • ${getBookingPatientDisplayId(selectedPatient)}` : ''}
                                 {selectedPatient.age ? ` • ${t('booking.age', 'Age')} ${selectedPatient.age}` : ''}
                                 {selectedPatient.gender ? ` • ${selectedPatient.gender}` : ''}
                               </p>
@@ -1726,6 +1814,7 @@ export default function Booking() {
                           <button
                             type="button"
                             onClick={() => {
+                              setPatientIdSearch('');
                               setSelectedPatient(null);
                               setShowPatientSuggestions(true);
                             }}
