@@ -2217,14 +2217,6 @@ export default function ReceptionistPortal() {
                   branchId={selectedBranchId}
                 />
               )}
-              {/* Footer Decoration */}
-              <div className="fixed bottom-0 left-0 w-full h-1 flex opacity-20">
-                <div className="bg-blue-500 flex-1" />
-                <div className="bg-emerald-500 flex-1" />
-                <div className="bg-purple-500 flex-1" />
-                <div className="bg-primary-teal flex-1" />
-              </div>
-
               {/* Rejection Modal */}
               <AnimatePresence>
                 {isVitalsModalOpen && (
