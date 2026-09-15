@@ -1688,7 +1688,6 @@ export default function Booking() {
                     <div className="md:col-span-2 space-y-2">
                       <div className="flex items-center justify-between gap-3">
                         <label htmlFor="booking-patient-id" className="text-xs font-bold text-teal-800">Patient ID / Clinic ID</label>
-                        <button type="button" onClick={startNewPatient} className="text-xs font-bold text-teal-800 hover:underline">+ New Patient</button>
                       </div>
                       <div className="relative">
                         <input id="booking-patient-id" type="text" value={patientIdSearch}
