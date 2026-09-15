@@ -1,5 +1,6 @@
+import ClinicBillPrint from '../../print/ClinicBillPrint';
 import React, { useEffect, useMemo, useState } from 'react';
-import { createPortal, flushSync } from 'react-dom';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { Phone, Printer, RefreshCcw, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -36,8 +37,7 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
   const { t, i18n } = useTranslation();
   const [printingBill, setPrintingBill] = useState(false);
   const printBill = () => {
-    flushSync(() => setPrintingBill(true));
-    try { window.print(); } finally { setPrintingBill(false); }
+    setPrintingBill(true);
   };
   const bindScroll = useLenisNestedScroll();
   const open = Boolean(visit) || loading;
@@ -72,23 +72,13 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
   const visitDate = appointment?.appointment_date || visit?.appointment_date;
   const displayDate = visitDate ? new Date(String(visitDate).includes('T') ? String(visitDate) : String(visitDate).slice(0, 10) + 'T00:00:00').toLocaleDateString(i18n.language.startsWith('hi') ? 'hi-IN' : 'en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
-  return createPortal(
+  return <>
+    {printingBill && visit && <ClinicBillPrint onClose={() => setPrintingBill(false)} bills={bills} patient={appointment} visitDate={appointment?.appointment_id ? appointment.appointment_date : undefined} tokenLabel={appointment?.display_token_display || visit.display_token_display} />}
+    {createPortal(
     <AnimatePresence>
       {open && (
-        <div className="bill-print-root fixed inset-0 z-[100] flex items-center justify-center overflow-hidden p-4">
-          {printingBill && <style>{`
-            @page clinic-invoice { size: A4; margin: 10mm; }
-            @media print {
-              body > *:not(.bill-print-root) { display: none !important; }
-              body > .bill-print-root { display: block !important; position: static !important; padding: 0 !important; overflow: visible !important; }
-              .bill-print-root > div:not(.bill-print-sheet) { display: none !important; }
-              .bill-print-sheet { page: clinic-invoice; display: block !important; position: static !important; height: auto !important; max-height: none !important; width: 100% !important; max-width: none !important; overflow: visible !important; transform: none !important; box-shadow: none !important; border: 0 !important; }
-              .bill-print-sheet > div { overflow: visible !important; height: auto !important; max-height: none !important; }
-              .bill-print-sheet button { display: none !important; }
-              .bill-print-sheet tr { break-inside: avoid; }
-              .bill-print-sheet thead { display: table-header-group; }
-            }
-          `}</style>}
+        <div className="no-print bill-print-root fixed inset-0 z-[100] flex items-center justify-center overflow-hidden p-4">
+
 
           <motion.div
             initial={{ opacity: 0 }}
@@ -279,8 +269,8 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
         </div>
       )}
     </AnimatePresence>,
-    document.body,
-  );
+    document.body)}
+  </>;
 }
 
 function DeliveryDetails({ bill }: { bill: any }) {

@@ -1,3 +1,5 @@
+import { ClinicBillHeader } from './print/ClinicBillPrint';
+import { useAuth } from '../context/AuthContext';
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X } from 'lucide-react';
@@ -13,6 +15,8 @@ type Props = {
 
 export default function PaymentReceipt({ data, onClose }: Props) {
   const { t, i18n } = useTranslation();
+  const { branchScope } = useAuth();
+  const branch = branchScope?.selected_branch;
   const locale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
 
   return createPortal(
@@ -84,7 +88,7 @@ export default function PaymentReceipt({ data, onClose }: Props) {
         <div className="border border-gray-300">
           <div className="flex items-start justify-between bg-[#f6fbfb] p-6">
             <div>
-              <h1 className="text-2xl font-black uppercase tracking-wide">Dr. Trivedi's Homeopathy</h1>
+              <ClinicBillHeader branch={{branch_id:branch?.id, branch_name:branch?.branch_name, branch_address:branch?.address, branch_contact_no:branch?.contact_no}} />
               <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
                 {t('payment_receipt.title', 'Payment Receipt')}
               </p>

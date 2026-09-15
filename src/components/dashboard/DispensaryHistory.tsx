@@ -1,3 +1,4 @@
+import ClinicBillPrint from '../print/ClinicBillPrint';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -167,286 +168,28 @@ const isPrintableRemark = (value: any) => {
 const formatInvoiceMoney = (value: number) => `₹ ${Number(value || 0).toFixed(2)}`;
 
 const RepeatMedicineInvoice = ({ record }: { record: any }) => {
-  const medicines = (record?.prescription?.medications || []).filter((medicine: any) => (
-    String(medicine?.dispense_status || '').toUpperCase() !== 'VOID'
-  ));
-  const tests = (record?.prescription?.tests || []).filter((test: any) => (
-    String(test?.dispense_status || '').toUpperCase() !== 'VOID'
-  ));
-  const pricing = record?.prescription?.pricing || {};
-  const quickFormulaInput = record?.prescription?.quick_formula_input;
-  const durationDays = record?.prescription?.medication_duration_days;
-  const isCourier = record?.prescription?.delivery_mode === 'COURIER';
-  const deliveryDetails = record?.prescription?.delivery_details || {};
-  const courierCharge = Number(record?.prescription?.courier_charge || 0);
-  const billNumber = record?.medication_bill?.bill_number || record?.appointment?.auid || record?.bill_number || '-';
-  const billDate = record?.appointment?.appointment_date || record?.created_at;
-  const isRepeat = Boolean(record?.is_repeat_medicine);
-  const showDelivery = isRepeat || isCourier;
-  const totalAmount = Number(pricing.total_amount || record?.medication_bill?.total_amount || 0);
-  const paidAmount = getBreakdownAmount(record, 'total_paid', getBillAmountValue(record, 'paid_amount'));
-  const pendingAmount = getBreakdownAmount(record, 'pending_amount', getBillAmountValue(record, 'pending_amount'));
-  const previousPendingRemaining = getPreviousPendingRemainingAmount(record);
-  const otherPendingAmount = getOtherPendingAmount(record);
-  const cashAmount = Number(record?.medication_bill?.cash_amount || 0);
-  const onlineAmount = Number(record?.medication_bill?.online_amount || 0);
-  const payments = Array.isArray(record?.medication_bill?.payments) ? record.medication_bill.payments : [];
-  const thisBillPayments = payments.filter((payment: any) => (
-    String(payment?.allocation_kind || 'CURRENT').toUpperCase() !== 'PREVIOUS'
-  ));
-  const laterPayments = payments.filter((payment: any) => (
-    String(payment?.allocation_kind || '').toUpperCase() === 'PREVIOUS'
-  ));
-  const previousPendingPaidWithThisBill = Array.isArray(record?.medication_bill?.previous_pending_settlements)
-    ? record.medication_bill.previous_pending_settlements
-    : [];
-  const previousPendingPaidTotal = getBreakdownAmount(record, 'previous_pending_paid', previousPendingPaidWithThisBill.reduce((sum: number, payment: any) => (
-    sum + Number(payment.amount || 0)
-  ), 0));
-  const paymentLines = [...thisBillPayments, ...laterPayments];
-  const showPaymentLines = paymentLines.length > 1 || laterPayments.length > 0;
-  const paidModeLabel = [
-    cashAmount > 0 ? `Cash ${formatInvoiceMoney(cashAmount)}` : null,
-    onlineAmount > 0 ? `Online ${formatInvoiceMoney(onlineAmount)}` : null,
-  ].filter(Boolean).join(' + ')
-    || String(record?.medication_bill?.payment_mode || '').trim()
-    || (paidAmount > 0 ? 'Paid' : 'Unpaid');
-  const invoiceRemarks = [
-    isCourier ? deliveryDetails.delivery_remark : null,
-    pricing.remark,
-  ].filter(isPrintableRemark);
-  const paymentStatus = String(record?.medication_bill?.payment_status || record?.prescription?.payment_status || (
-    pendingAmount > 0 ? 'PENDING' : 'PAID'
-  )).toUpperCase();
-
-  return (
-    <div className="repeat-invoice-print-only hidden bg-white text-gray-900 font-sans p-8">
-      <div className="border border-gray-300 shadow-sm">
-        <div className="flex items-stretch justify-between bg-[#f6fbfb]">
-          <div className="flex-1 p-6">
-            <h1 className="text-2xl font-black uppercase tracking-wide text-gray-950">Dr. Trivedi's Homeopathy</h1>
-            <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-              {record?.appointment?.branch_name || 'Homeopathy Clinic'}
-            </p>
-            <p className="mt-4 inline-block border border-[#549E9E] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
-              {record?.is_direct_medicine ? 'Direct Medicine' : isRepeat ? 'Repeat Medicine' : 'Dispensary'}
-            </p>
-          </div>
-          <div className="w-72 border-l border-gray-300 bg-white p-6 text-xs font-bold">
-            <p className="mb-4 text-right text-3xl font-black uppercase tracking-widest text-gray-950">Invoice</p>
-            <div className="grid grid-cols-[90px_1fr] gap-y-2">
-              <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Bill No</span>
-              <span className="text-right font-black">{billNumber}</span>
-              <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Date</span>
-              <span className="text-right font-black">{billDate ? new Date(billDate).toLocaleDateString('en-GB') : '-'}</span>
-              <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Status</span>
-              <span className="text-right font-black">{paymentStatus}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className={`grid border-y border-gray-300 text-xs ${showDelivery ? 'grid-cols-2' : 'grid-cols-1'}`}>
-          <div className={showDelivery ? 'border-r border-gray-300 p-5' : 'p-5'}>
-            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Bill To</p>
-            <p className="mt-2 text-base font-black uppercase">{record?.patient?.full_name || '-'}</p>
-            <p className="mt-1 font-bold text-gray-600">{record?.patient?.mobile_no || '-'}</p>
-          </div>
-          {showDelivery && (
-            <div className="p-5">
-              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500">Delivery</p>
-              <p className="mt-2 text-base font-black">{isCourier ? 'Courier' : 'Hand Delivery'}</p>
-              {isCourier && (
-                <div className="mt-1 font-bold text-gray-600 leading-relaxed">
-                  <p>{deliveryDetails.courier_address || '-'}</p>
-                  {deliveryDetails.tracking_no && <p>Tracking: {deliveryDetails.tracking_no}</p>}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="p-5">
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr className="bg-[#eaf5f5] text-gray-900">
-                <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">#</th>
-                <th className="border border-gray-300 px-3 py-2 text-left text-[10px] font-black uppercase tracking-widest">Medicine / Item</th>
-                <th className="border border-gray-300 px-3 py-2 text-right text-[10px] font-black uppercase tracking-widest">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {medicines.map((medicine: any, index: number) => {
-                const dosePreview = getDosePreview(medicine, durationDays, {
-                  quickFormulaInput,
-                  style: 'full',
-                });
-                const addedAtDispensary = String(medicine.added_by_role || '').toUpperCase() === 'MEDICAL';
-                return (
-                  <tr key={medicine.consultation_medication_id || index}>
-                    <td className="w-12 border border-gray-300 px-3 py-2 font-bold text-gray-500">{index + 1}</td>
-                    <td className="border border-gray-300 px-3 py-2">
-                      <p className="font-black">
-                        {formatNumericMedicineWithFormula(medicine.medicine_value, quickFormulaInput)}
-                      </p>
-                      {dosePreview && (
-                        <p className="mt-0.5 font-bold text-gray-600">{dosePreview}</p>
-                      )}
-                      {medicine.remark && (
-                        <p className="mt-0.5 font-bold text-gray-500">{medicine.remark}</p>
-                      )}
-                      {addedAtDispensary && (
-                        <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">Added at dispensary</p>
-                      )}
-                    </td>
-                    <td className="border border-gray-300 px-3 py-2 text-right font-black align-top">
-                      {formatInvoiceMoney(Number(getMedicationPricingAmount(pricing, medicine) || 0))}
-                    </td>
-                  </tr>
-                );
-              })}
-              {tests.map((test: any, index: number) => (
-                <tr key={test.consultation_test_id || index}>
-                  <td className="w-12 border border-gray-300 px-3 py-2 font-bold text-gray-500">{medicines.length + index + 1}</td>
-                  <td className="border border-gray-300 px-3 py-2">
-                    <p className="font-black">{test.test_name}</p>
-                    <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">Test / Lab</p>
-                  </td>
-                  <td className="border border-gray-300 px-3 py-2 text-right font-black align-top">
-                    {formatInvoiceMoney(Number(test.amount || 0))}
-                  </td>
-                </tr>
-              ))}
-              {courierCharge > 0 && (
-                <tr>
-                  <td className="w-12 border border-gray-300 px-3 py-2 font-bold text-gray-500">{medicines.length + tests.length + 1}</td>
-                  <td className="border border-gray-300 px-3 py-2 font-black">Courier Charge</td>
-                  <td className="border border-gray-300 px-3 py-2 text-right font-black">{formatInvoiceMoney(courierCharge)}</td>
-                </tr>
-              )}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={2} className="border border-gray-300 bg-gray-100 px-3 py-3 text-right font-black uppercase tracking-widest">Total</td>
-                <td className="border border-gray-300 bg-gray-100 px-3 py-3 text-right text-lg font-black">
-                  {formatInvoiceMoney(totalAmount)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-
-          <div className="mt-6 ml-auto w-[320px] text-xs">
-            <div className="flex items-start justify-between gap-4 py-1">
-              <span className="font-bold text-gray-600">Paid</span>
-              <span className="text-right font-black">
-                {formatInvoiceMoney(paidAmount)}
-                {paidAmount > 0 && (
-                  <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                    {paidModeLabel}
-                  </span>
-                )}
-              </span>
-            </div>
-            {showPaymentLines && (
-              <div className="mt-1 border-t border-gray-200 pt-1">
-                {paymentLines.map((payment: any, index: number) => {
-                  const isLater = String(payment?.allocation_kind || '').toUpperCase() === 'PREVIOUS';
-                  return (
-                    <div key={payment.payment_id || index} className="flex items-start justify-between gap-4 py-0.5 text-gray-600">
-                      <span className="min-w-0 font-bold">
-                        {isLater ? 'Paid later' : 'Paid at billing'}
-                        <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                          {formatHistoryDateTime(payment.collected_at || payment.created_at)}
-                          {payment.payment_mode ? ` · ${payment.payment_mode}` : ''}
-                        </span>
-                      </span>
-                      <span className="shrink-0 font-black text-gray-800">
-                        {formatInvoiceMoney(Number(payment.amount || 0))}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {previousPendingPaidTotal > 0 && (
-              <div className="mt-1 border-t border-gray-200 pt-1">
-                <div className="flex items-center justify-between py-0.5">
-                  <span className="font-bold text-gray-600">Old dues paid with this bill</span>
-                  <span className="font-black">{formatInvoiceMoney(previousPendingPaidTotal)}</span>
-                </div>
-                {previousPendingPaidWithThisBill.map((payment: any, index: number) => (
-                  <div key={payment.payment_id || index} className="flex items-center justify-between py-0.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                    <span>{payment.bill_number ? `Bill ${payment.bill_number}` : 'Previous bill'}</span>
-                    <span>{formatInvoiceMoney(Number(payment.amount || 0))}</span>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between py-0.5">
-                  <span className="font-bold text-gray-600">Old dues remaining</span>
-                  <span className={`font-black ${previousPendingRemaining > 0 ? 'text-orange-700' : 'text-gray-900'}`}>
-                    {formatInvoiceMoney(previousPendingRemaining)}
-                  </span>
-                </div>
-              </div>
-            )}
-            <div className="mt-1 flex items-center justify-between border-t border-[#0b946f] pt-2">
-              <span className="font-black">Balance due</span>
-              <span className={`font-black ${pendingAmount > 0 ? 'text-orange-700' : 'text-gray-900'}`}>
-                {formatInvoiceMoney(pendingAmount)}
-              </span>
-            </div>
-            {otherPendingAmount > 0 && previousPendingPaidTotal <= 0 && (
-              <div className="flex items-center justify-between py-1">
-                <span className="font-bold text-gray-600">Other bills pending</span>
-                <span className="font-black text-orange-700">{formatInvoiceMoney(otherPendingAmount)}</span>
-              </div>
-            )}
-          </div>
-
-          {invoiceRemarks.length > 0 && (
-            <div className="mt-5 text-xs">
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Notes</p>
-              {invoiceRemarks.map((remark: string, index: number) => (
-                <p key={index} className="mt-1 font-bold text-gray-700">{remark}</p>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-10 flex justify-between border-t border-gray-300 pt-5 text-xs font-bold">
-            <span>Dispensary copy</span>
-            <span className="text-center">
-              <span className="block h-8"></span>
-              Authorized Signatory
-            </span>
-          </div>
-        </div>
-
-      </div>
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden !important;
-          }
-          .repeat-invoice-print-only,
-          .repeat-invoice-print-only * {
-            visibility: visible !important;
-          }
-          .repeat-invoice-print-only {
-            display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            padding: 10mm !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          @page {
-            size: A4;
-            margin: 8mm;
-          }
-        }
-      `}</style>
-    </div>
-  );
+  const bill = record.medication_bill || {};
+  const pricing = record.prescription?.pricing || {};
+  const fallbackItems = [
+    ...(record.prescription?.medications || []).filter((m: any) => String(m.dispense_status || '').toUpperCase() !== 'VOID').map((m: any) => ({
+      item_name: m.medicine_value, amount: Number(getMedicationPricingAmount(pricing, m) || 0),
+    })),
+    ...(record.prescription?.tests || []).filter((t: any) => String(t.dispense_status || '').toUpperCase() !== 'VOID').map((t: any) => ({
+      item_name: t.test_name, item_type: 'TEST', amount: t.amount,
+    })),
+    ...(Number(record.prescription?.courier_charge) > 0 ? [{item_name:'Courier charge',amount:record.prescription.courier_charge}] : []),
+  ];
+  return <ClinicBillPrint bills={[{
+    ...record.appointment, ...bill,
+    bill_type: 'MEDICATION',
+    appointment_id: record.is_repeat_medicine ? null : record.appointment?.appointment_id,
+    consultation_id: record.is_direct_medicine ? null : record.consultation_id,
+    total_amount: bill.total_amount ?? pricing.total_amount,
+    created_at: bill.created_at || record.created_at,
+    delivery_mode: bill.delivery_mode || record.prescription?.delivery_mode,
+    delivery_details_json: bill.delivery_details_json || record.prescription?.delivery_details,
+    items: bill.items?.length ? bill.items : fallbackItems,
+  }]} patient={{...record.appointment, ...record.patient}} />;
 };
 
 export default function DispensaryHistory() {

@@ -5573,14 +5573,23 @@ export default function ConsultationPage() {
                 Boolean(om.name.trim()) &&
                 otherMedications[idx - 1].name.trim().toLowerCase() ===
                   om.name.trim().toLowerCase();
-              const defaultRemarkOptions =
-                om.name?.toLowerCase().includes("syrup") ||
-                  om.name?.toLowerCase().includes("syr")
-                  ? ["2 spoon", "3 spoon"].map(toHindiRemarkOption)
-                  : [
+              const medicineForm = [
+                om.name,
+                om.selectedVariant?.category,
+                om.selectedVariant?.product_type,
+                om.selectedVariant?.packing,
+                om.selectedVariant?.label,
+              ].filter(Boolean).join(" ");
+              const defaultRemarkOptions = (
+                /syrup|\bsyr\b/i.test(medicineForm)
+                  ? ["2 चम्मच सुबह - दोपहर - शाम", "3 चम्मच सुबह - दोपहर - शाम"]
+                  : /\b(?:tablet|tablets|tab|tabs)\b|गोली/i.test(medicineForm)
+                    ? ["1 गोली सुबह - शाम"]
+                    : [
                       "20 drop for 3 times in a day",
                       "30 drop for 2 times in a day",
-                    ].map(toHindiRemarkOption);
+                    ]
+              ).map(toHindiRemarkOption);
               const savedRemarkSuggestions = om.selectedVariant
                 ? om.selectedVariant.remark_suggestions || []
                 : selectedMedicine?.remark_suggestions || [];
