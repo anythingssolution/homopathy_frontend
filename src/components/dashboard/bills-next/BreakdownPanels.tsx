@@ -39,9 +39,9 @@ const Mini = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const ConsultantTable = ({ rows }: { rows: any[] }) => {
+const ConsultantTable = ({ rows, counts, slot }: { rows: any[]; counts?: any[]; slot?: 'morning' | 'evening' }) => {
   const { t } = useTranslation();
-  const list = mergeConsultants(rows);
+  const list = mergeConsultants(rows, counts, slot);
   const pagination = useListPagination(list);
   if (list.length === 0) {
     return <p className="py-10 text-center text-sm font-semibold text-slate-400">{t('bills_next.no_consultants')}</p>;
@@ -119,7 +119,7 @@ export function ConsultantsPanel({ consultant }: { consultant: any }) {
         <h3 className="text-sm font-black text-slate-800">{t('bills_next.tab_consultants')}</h3>
         <p className="text-[11px] font-semibold text-slate-400">{t('bills_next.consultants_sub')}</p>
       </div>
-      <ConsultantTable rows={[...bundle.morning, ...bundle.evening]} />
+      <ConsultantTable rows={[...bundle.morning, ...bundle.evening]} counts={consultant?.consultation_counts} />
     </div>
   );
 }
@@ -136,7 +136,7 @@ export function SessionPanel({
   const { t } = useTranslation();
   const doctors = sessionBundle(consultant)[slot];
   const meds = sessionBundle(medicine)[slot];
-  const merged = mergeConsultants(doctors);
+  const merged = mergeConsultants(doctors, consultant?.consultation_counts, slot);
   const gross = merged.reduce((sum, row) => sum + Number(row.total_gross_revenue || 0), 0);
   const paid = merged.reduce((sum, row) => sum + Number(row.total_paid_revenue || 0), 0);
   const pending = merged.reduce((sum, row) => sum + Number(row.total_pending_revenue || 0), 0);
@@ -155,7 +155,7 @@ export function SessionPanel({
           <div className="px-5 py-4 border-b border-gray-50">
             <h3 className="text-sm font-black text-slate-800">{t('bills_next.tab_consultants')}</h3>
           </div>
-          <ConsultantTable rows={doctors} />
+          <ConsultantTable rows={doctors} counts={consultant?.consultation_counts} slot={slot} />
         </div>
         <div className="rounded-2xl border border-gray-100 bg-white p-5">
           <h3 className="text-sm font-black text-slate-800 mb-3">{t('bills_next.top_meds')}</h3>

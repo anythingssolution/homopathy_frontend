@@ -238,7 +238,7 @@ export const sessionBundle = (value: any): { morning: any[]; evening: any[] } =>
 
 const addNum = (row: any, key: string) => Number(row?.[key] || 0);
 
-export const mergeConsultants = (rows: any[]) => {
+export const mergeConsultants = (rows: any[], counts?: any[], slot?: 'morning' | 'evening') => {
   const map = new Map<string, any>();
   rows.forEach((row) => {
     const key = String(row.doctor_id || row.doctor_name || 'unknown');
@@ -264,7 +264,11 @@ export const mergeConsultants = (rows: any[]) => {
     current.total_pending_revenue += addNum(row, 'total_pending_revenue');
     map.set(key, current);
   });
-  return Array.from(map.values()).sort((a, b) => b.total_gross_revenue - a.total_gross_revenue);
+  const uniqueCounts = new Map((counts || []).map((row) => [String(row.doctor_id ?? 'unassigned'), row]));
+  return Array.from(map.values()).map((row) => {
+    const count = uniqueCounts.get(String(row.doctor_id ?? 'unassigned'));
+    return count ? { ...row, total_consultations: Number(count[slot ? `${slot}_consultations` : 'total_consultations'] || 0) } : row;
+  }).sort((a, b) => b.total_gross_revenue - a.total_gross_revenue);
 };
 
 export const mergeMedicines = (rows: any[]) => {
@@ -285,7 +289,9 @@ export const consultantTotals = (value: any) => {
   const rows = [...bundle.morning, ...bundle.evening];
   const sum = (key: string) => rows.reduce((total, row) => total + Number(row?.[key] || 0), 0);
   return {
-    consults: sum('total_consultations'),
+    consults: Array.isArray(value?.consultation_counts)
+      ? value.consultation_counts.reduce((total: number, row: any) => total + Number(row.total_consultations || 0), 0)
+      : sum('total_consultations'),
     consultation: sum('consultation_revenue'),
     medicine: sum('medication_revenue'),
     tests: sum('test_lab_revenue'),
@@ -298,27 +304,37 @@ export const consultantTotals = (value: any) => {
   };
 };
 
-async function fetchAllPages(token: string, path: string, query: Record<string, string>) {
-  const rows: any[] = [];
-  let page = 1;
-  let totalPages = 1;
-  do {
+async function fetchAllPages(token: string, path: string, query: Record<string, string>, signal?: AbortSignal) {
+  const fetchPage = async (page: number) => {
     const params = new URLSearchParams({ ...query, billing_scope: 'branch', limit: '1000', page: String(page) });
-    const response = await fetch(`${path}?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetch(`${path}?${params}`, { headers: { Authorization: `Bearer ${token}` }, signal });
     const result = await response.json();
+    signal?.throwIfAborted();
     if (!response.ok || !result.success) throw new Error(result.message || 'Failed to fetch billing data');
-    rows.push(...(Array.isArray(result.data) ? result.data : []));
-    totalPages = Number(result.meta?.total_pages || 1);
-    page += 1;
-  } while (page <= totalPages);
-  return rows;
+    return result;
+  };
+  const first = await fetchPage(1);
+  const totalPages = Math.max(1, Number(first.meta?.total_pages || 1));
+  const pages: any[][] = new Array(totalPages);
+  pages[0] = Array.isArray(first.data) ? first.data : [];
+  let nextPage = 2;
+  // Bound parallel reads to avoid flooding the database while preserving server page order.
+  await Promise.all(Array.from({ length: Math.min(2, totalPages - 1) }, async () => {
+    while (nextPage <= totalPages) {
+      signal?.throwIfAborted();
+      const page = nextPage++;
+      const result = await fetchPage(page);
+      pages[page - 1] = Array.isArray(result.data) ? result.data : [];
+    }
+  }));
+  return pages.flat();
 }
 
-export const fetchBillRows = (token: string, query: Record<string, string>) =>
-  fetchAllPages(token, '/api/v1/bills', query);
+export const fetchBillRows = (token: string, query: Record<string, string>, signal?: AbortSignal) =>
+  fetchAllPages(token, '/api/v1/bills', query, signal);
 
-export const fetchBillPayments = (token: string, query: Record<string, string>) =>
-  fetchAllPages(token, '/api/v1/bills/payments', query);
+export const fetchBillPayments = (token: string, query: Record<string, string>, signal?: AbortSignal) =>
+  fetchAllPages(token, '/api/v1/bills/payments', query, signal);
 
 export const billCategory = (bill: any) => {
   if (bill.bill_type === 'CONSULTATION') return bill.payment_settlement_type === 'FOLLOW_UP' ? 'follow_up' : 'consultation';

@@ -1,6 +1,6 @@
 import VisitListPrint from './VisitListPrint';
 import useListPagination from './useListPagination';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 // import { Link } from 'react-router-dom';
 import { AlertCircle, Banknote, CreditCard, Phone, Printer, RefreshCcw, Search, Wallet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -73,25 +73,36 @@ export default function BillsNext() {
   const range = useMemo(() => rangeForLocalFilter(dateFilter, customRange), [dateFilter, customRange]);
   const today = useMemo(() => rangeForLocalFilter('today', { from: '', to: '' }), []);
 
+  const activeLoad = useRef<AbortController | null>(null);
+  const scheduledLoad = useRef<number | undefined>(undefined);
   const load = useCallback(async () => {
     if (!token) return;
+    window.clearTimeout(scheduledLoad.current);
+    activeLoad.current?.abort();
+    const controller = new AbortController();
+    activeLoad.current = controller;
+    const branchId = branchScope?.selected_branch_id;
+    const branchQuery: Record<string, string> = branchId ? { branch_id: String(branchId) } : {};
     setLoading(true);
     setError('');
     try {
       const needToday = range.from !== today.from || range.to !== today.to;
       const [inRange, outstanding, billing, todayRows, receipts] = await Promise.all([
-        fetchBillRows(token, { from_date: range.from, to_date: range.to }),
-        fetchBillRows(token, { outstanding: 'true' }),
-        fetchReportModule(token, 'billing', range.from, range.to, { force: true, branchBilling: true }),
-        needToday ? fetchBillRows(token, { from_date: today.from, to_date: today.to }) : Promise.resolve(null),
-        fetchBillPayments(token, { from_date: range.from, to_date: range.to }),
+        fetchBillRows(token, { ...branchQuery, from_date: range.from, to_date: range.to }, controller.signal),
+        fetchBillRows(token, { ...branchQuery, outstanding: 'true' }, controller.signal),
+        fetchReportModule(token, 'billing', range.from, range.to, { force: true, branchBilling: true, branchId: branchId || undefined, reportKeys: ['revenue_by_consultant', 'revenue_by_medicine'], signal: controller.signal }),
+        needToday ? fetchBillRows(token, { ...branchQuery, from_date: today.from, to_date: today.to }, controller.signal) : Promise.resolve(null),
+        fetchBillPayments(token, { ...branchQuery, from_date: range.from, to_date: range.to }, controller.signal),
       ]);
+      if (controller.signal.aborted) return;
       setRangeBills(inRange);
       setDueBills(outstanding);
       setReports(billing);
       setTodayBills(todayRows || inRange);
       setReceivedPayments(receipts);
     } catch (err) {
+      if (controller.signal.aborted) return;
+      controller.abort();
       setError(err instanceof Error ? err.message : t('bills_next.fetch_failed'));
       setRangeBills([]);
       setDueBills([]);
@@ -99,13 +110,20 @@ export default function BillsNext() {
       setReceivedPayments([]);
       setReports(null);
     } finally {
-      setLoading(false);
+      if (activeLoad.current === controller) setLoading(false);
     }
   }, [token, range.from, range.to, today.from, today.to, t, branchScope?.selected_branch_id]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    // Collapse rapid date/branch changes into the final selection.
+    if (token) setLoading(true);
+    scheduledLoad.current = window.setTimeout(() => { void load(); }, 150);
+    return () => {
+      window.clearTimeout(scheduledLoad.current);
+      activeLoad.current?.abort();
+      activeLoad.current = null;
+    };
+  }, [load, token]);
 
   const visits = useMemo(() => groupVisits(rangeBills), [rangeBills]);
   const todayVisits = useMemo(() => groupVisits(todayBills), [todayBills]);

@@ -153,10 +153,11 @@ export async function fetchReportModule(
   module: string,
   from: string,
   to: string,
-  options?: { force?: boolean; branchBilling?: boolean },
+  options?: { force?: boolean; branchBilling?: boolean; reportKeys?: string[]; branchId?: number; signal?: AbortSignal },
 ) {
-  const key = reportCacheKey(token, module, from, to) + (options?.branchBilling ? ':branch-billing' : '');
-  if (!options?.force) {
+  const reportKeys = options?.reportKeys ? [...new Set(options.reportKeys)].sort().join(',') : '';
+  const key = reportCacheKey(token, module, from, to) + (options?.branchBilling ? ':branch-billing' : '') + `:${options?.branchId || ''}:${reportKeys}`;
+  if (!options?.force && !options?.signal) {
     const cached = reportCache.get(key);
     if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
       return cached.data;
@@ -168,20 +169,24 @@ export async function fetchReportModule(
   const request = (async () => {
     const params = new URLSearchParams({ from, to });
     if (options?.branchBilling) params.set('billing_scope', 'branch');
+    if (reportKeys) params.set('report_keys', reportKeys);
+    if (options?.branchId) params.set('branch_id', String(options.branchId));
     const res = await fetch(`/api/v1/reports/${module}?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: options?.signal,
     });
     const payload = await res.json();
     if (!res.ok || !payload.success) {
       throw new Error(payload.message || 'Failed to fetch report');
     }
+    options?.signal?.throwIfAborted();
     reportCache.set(key, { at: Date.now(), data: payload.data });
     return payload.data;
   })().finally(() => {
-    reportInflight.delete(key);
+    if (reportInflight.get(key) === request) reportInflight.delete(key);
   });
 
-  reportInflight.set(key, request);
+  if (!options?.signal) reportInflight.set(key, request);
   return request;
 }
 
