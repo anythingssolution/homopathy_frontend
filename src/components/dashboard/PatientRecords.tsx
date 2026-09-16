@@ -9,6 +9,9 @@ import {
   RefreshCcw,
   Search,
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
   User,
   Users,
   X,
@@ -24,6 +27,8 @@ import { useTranslation } from "react-i18next";
 
 const PAGE_SIZE = 20;
 const HISTORY_PAGE_SIZE = 12;
+const REGISTRY_SORT_FIELDS = ['patient_id', 'full_name', 'mobile_no', 'visits', 'latest_visit'] as const;
+type RegistrySortField = typeof REGISTRY_SORT_FIELDS[number];
 
 const HISTORY_TYPES = [
   { value: "", label: "All visits" },
@@ -178,6 +183,8 @@ export default function PatientRecords() {
   const savedRecordsView = readViewState<{
     patientSearch: string;
     patientPage: number;
+    sortBy?: RegistrySortField;
+    sortOrder?: 'asc' | 'desc';
   }>("patient-records");
   const routedSearch = String(
     searchParams.get("search") || (location.state as { patientSearch?: string } | null)?.patientSearch || "",
@@ -187,11 +194,21 @@ export default function PatientRecords() {
   const [patients, setPatients] = useState<PatientRegistryRow[]>([]);
   const [patientSearch, setPatientSearch] = useState(incomingSearch);
   const [patientPage, setPatientPage] = useState(() => (
-    searchParams.get("search") || (location.state as { patientSearch?: string } | null)?.patientSearch
+    !savedRecordsView?.sortBy || searchParams.get("search") || (location.state as { patientSearch?: string } | null)?.patientSearch
       ? 1
       : Number(savedRecordsView?.patientPage || 1)
   ));
-  usePersistViewState("patient-records", { patientSearch, patientPage });
+  const [sortBy, setSortBy] = useState<RegistrySortField>(() =>
+    savedRecordsView?.sortBy && REGISTRY_SORT_FIELDS.includes(savedRecordsView.sortBy) ? savedRecordsView.sortBy : 'patient_id',
+  );
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(savedRecordsView?.sortOrder === 'desc' ? 'desc' : 'asc');
+  usePersistViewState("patient-records", { patientSearch, patientPage, sortBy, sortOrder });
+  const registryRequest = useRef<AbortController | null>(null);
+  const changeRegistrySort = (field: RegistrySortField) => {
+    setSortOrder(sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc');
+    setSortBy(field);
+    setPatientPage(1);
+  };
   const [patientTotalPages, setPatientTotalPages] = useState(1);
   const [patientTotal, setPatientTotal] = useState(0);
   const [isRegistryLoading, setIsRegistryLoading] = useState(false);
@@ -225,6 +242,9 @@ export default function PatientRecords() {
 
   const fetchPatients = useCallback(async (pageNum = patientPage) => {
     if (!token) return;
+    registryRequest.current?.abort();
+    const controller = new AbortController();
+    registryRequest.current = controller;
     setIsRegistryLoading(true);
     setError("");
 
@@ -233,25 +253,29 @@ export default function PatientRecords() {
       if (patientSearch.trim()) params.set("patient_search", patientSearch.trim());
       params.set("page", String(pageNum));
       params.set("page_size", String(PAGE_SIZE));
+      params.set("sort_by", sortBy);
+      params.set("sort_order", sortOrder);
 
       const response = await fetch(`/api/v1/patient-records/patients?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
       const result = await response.json();
       if (!response.ok || !result.success) {
         throw new Error(result.message || "Unable to load patients");
       }
 
+      if (controller.signal.aborted) return;
       setPatients(result.data?.items || []);
       setPatientTotal(result.data?.meta?.total || 0);
       setPatientTotalPages(result.data?.meta?.total_pages || 1);
       setPatientPage(result.data?.meta?.page || pageNum);
     } catch (fetchError: any) {
-      setError(fetchError.message || "Unable to load patients");
+      if (!controller.signal.aborted) setError(fetchError.message || "Unable to load patients");
     } finally {
-      setIsRegistryLoading(false);
+      if (!controller.signal.aborted) setIsRegistryLoading(false);
     }
-  }, [token, patientSearch, patientPage]);
+  }, [token, patientSearch, patientPage, sortBy, sortOrder]);
 
   const fetchPatientDetail = async (patient: PatientRegistryRow) => {
     if (!token) return;
@@ -310,16 +334,12 @@ export default function PatientRecords() {
   }, [token, selectedPatient, selectedSubject, fromDate, toDate, historyType, historyPage]);
 
   useEffect(() => {
-    fetchPatients(patientPage);
+    const timer = setTimeout(() => { void fetchPatients(patientPage); }, 250);
+    return () => {
+      clearTimeout(timer);
+      registryRequest.current?.abort();
+    };
   }, [fetchPatients, patientPage]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPatientPage(1);
-      fetchPatients(1);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [patientSearch]);
 
   useEffect(() => {
     const nextSearch = String(searchParams.get("search") || "").trim();
@@ -327,7 +347,7 @@ export default function PatientRecords() {
     if (!queryKey.replace("|", "") || queryKey === lastIncomingQuery.current) return;
     lastIncomingQuery.current = queryKey;
     openedFromQuery.current = false;
-    if (nextSearch) setPatientSearch(nextSearch);
+    if (nextSearch) { setPatientSearch(nextSearch); setPatientPage(1); }
   }, [searchParams]);
 
   useEffect(() => {
@@ -527,7 +547,7 @@ export default function PatientRecords() {
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E]" size={22} />
           <input
             value={patientSearch}
-            onChange={(event) => setPatientSearch(event.target.value)}
+            onChange={(event) => { setPatientSearch(event.target.value); setPatientPage(1); }}
             placeholder={t('patient_records.search_placeholder', 'Search primary patient, mobile, patient ID, family member, AUID...')}
             className="w-full border-2 border-gray-50 bg-white py-4 pl-14 pr-6 text-sm font-bold text-gray-600 outline-none transition-all placeholder:text-gray-300 focus:border-[#549E9E]/20 rounded-xl"
           />
@@ -561,51 +581,78 @@ export default function PatientRecords() {
         <div className="hidden overflow-x-auto sm:block">
           <table className="w-full whitespace-nowrap text-left">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/70">
-                <th className="px-5 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.table.patient', 'Patient')}</th>
-                <th className="px-5 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.table.identity', 'Identity')}</th>
-                <th className="px-5 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.table.summary', 'Summary')}</th>
-                <th className="px-5 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.table.latest_visit', 'Latest visit')}</th>
-                <th className="px-5 py-5 text-center text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.table.action', 'Action')}</th>
+              <tr className="border-b border-teal-100 bg-teal-50/60">
+                <th scope="col" aria-sort={sortBy === 'patient_id' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-teal-900">
+                  <button type="button" onClick={() => changeRegistrySort('patient_id')} title="Sort by Patient ID" className="inline-flex items-center gap-1.5 rounded px-1 py-1 -mx-1 uppercase tracking-widest hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    {t('patient_records.table.patient_id', 'Patient ID')}
+                    {sortBy === 'patient_id' ? (sortOrder === 'asc' ? <ArrowUp size={13} aria-hidden="true" /> : <ArrowDown size={13} aria-hidden="true" />) : <ArrowUpDown size={13} className="text-slate-500" aria-hidden="true" />}
+                  </button>
+                </th>
+                <th scope="col" aria-sort={sortBy === 'full_name' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-teal-900">
+                  <button type="button" onClick={() => changeRegistrySort('full_name')} title="Sort by patient name" className="inline-flex items-center gap-1.5 rounded px-1 py-1 -mx-1 uppercase tracking-widest hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    {t('patient_records.table.patient', 'Patient')}
+                    {sortBy === 'full_name' ? (sortOrder === 'asc' ? <ArrowUp size={13} aria-hidden="true" /> : <ArrowDown size={13} aria-hidden="true" />) : <ArrowUpDown size={13} className="text-slate-500" aria-hidden="true" />}
+                  </button>
+                </th>
+                <th scope="col" aria-sort={sortBy === 'mobile_no' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-teal-900">
+                  <button type="button" onClick={() => changeRegistrySort('mobile_no')} title="Sort by mobile number" className="inline-flex items-center gap-1.5 rounded px-1 py-1 -mx-1 uppercase tracking-widest hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    {t('patient_records.table.identity', 'Identity')}
+                    {sortBy === 'mobile_no' ? (sortOrder === 'asc' ? <ArrowUp size={13} aria-hidden="true" /> : <ArrowDown size={13} aria-hidden="true" />) : <ArrowUpDown size={13} className="text-slate-500" aria-hidden="true" />}
+                  </button>
+                </th>
+                <th scope="col" aria-sort={sortBy === 'visits' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-teal-900">
+                  <button type="button" onClick={() => changeRegistrySort('visits')} title="Sort by visit count" className="inline-flex items-center gap-1.5 rounded px-1 py-1 -mx-1 uppercase tracking-widest hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    {t('patient_records.table.summary', 'Summary')}
+                    {sortBy === 'visits' ? (sortOrder === 'asc' ? <ArrowUp size={13} aria-hidden="true" /> : <ArrowDown size={13} aria-hidden="true" />) : <ArrowUpDown size={13} className="text-slate-500" aria-hidden="true" />}
+                  </button>
+                </th>
+                <th scope="col" aria-sort={sortBy === 'latest_visit' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-teal-900">
+                  <button type="button" onClick={() => changeRegistrySort('latest_visit')} title="Sort by latest visit date" className="inline-flex items-center gap-1.5 rounded px-1 py-1 -mx-1 uppercase tracking-widest hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    {t('patient_records.table.latest_visit', 'Latest visit')}
+                    {sortBy === 'latest_visit' ? (sortOrder === 'asc' ? <ArrowUp size={13} aria-hidden="true" /> : <ArrowDown size={13} aria-hidden="true" />) : <ArrowUpDown size={13} className="text-slate-500" aria-hidden="true" />}
+                  </button>
+                </th>
+                <th className="px-5 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-teal-900">{t('patient_records.table.action', 'Action')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-slate-100">
               {patients.length > 0 ? patients.map((patient) => (
-                <tr key={patient.patient_id} className="transition-colors hover:bg-[#549E9E]/[0.02]">
+                <tr key={patient.patient_id} className="group transition-colors even:bg-slate-50/40 hover:bg-teal-50/70 focus-within:bg-teal-50/70">
+                  <td className="border-l-2 border-transparent px-5 py-4 group-hover:border-teal-600 group-focus-within:border-teal-600">
+                    {patient.patient_uuid && <p className="text-sm font-extrabold tracking-wide text-teal-800">{patient.patient_uuid}</p>}
+                    {patient.clinic_patient_no && <p className="mt-1 text-xs font-bold text-amber-800">Clinic ID: {patient.clinic_patient_no}</p>}
+                  </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#549E9E]/10 text-[#549E9E]">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
                         <User size={18} />
                       </div>
                       <div>
-                        <p className="text-sm font-black text-[#2d8789]">{patient.full_name}</p>
-                        <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                          {[patient.patient_uuid, patient.clinic_patient_no].filter(Boolean).join(" • ")}
-                        </p>
+                        <p className="text-sm font-bold text-slate-900">{patient.full_name}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-4 text-xs font-bold text-gray-600">
+                  <td className="px-5 py-4 text-sm font-semibold tabular-nums text-slate-800">
                     <p>{patient.mobile_no || "No mobile"}</p>
-                    <p className="text-[10px] uppercase tracking-widest text-gray-400">{[patient.age ? `${patient.age}Y` : null, patient.gender].filter(Boolean).join(" • ") || "No demographics"}</p>
+                    <p className="mt-1 text-xs font-medium text-slate-600">{[patient.age ? `${patient.age}Y` : null, patient.gender].filter(Boolean).join(" • ") || "No demographics"}</p>
                   </td>
                   <td className="px-5 py-4">
-                    <div className="flex flex-wrap gap-1.5 text-[10px] font-black uppercase tracking-widest">
+                    <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold">
                       <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-gray-700">{patient.summary?.completed_appointments_count || 0} {t('patient_records.badges.visits', 'visits')}</span>
                       <span className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-emerald-700">{patient.summary?.prescriptions_count || 0} {t('patient_records.badges.rx', 'Rx')}</span>
                       <span className="inline-flex items-center rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-sky-700">{patient.summary?.family_members_count || 0} {t('patient_records.badges.family', 'family')}</span>
                     </div>
                   </td>
-                  <td className="px-5 py-4 text-xs font-black text-gray-700">{formatDate(patient.latest_visit_date)}</td>
+                  <td className="px-5 py-4 text-xs font-semibold tabular-nums text-slate-700">{formatDate(patient.latest_visit_date)}</td>
                   <td className="px-5 py-4 text-center">
-                    <button onClick={() => fetchPatientDetail(patient)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#549E9E] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm transition-all hover:bg-[#438787] hover:shadow-md">
+                    <button onClick={() => fetchPatientDetail(patient)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-[11px] font-semibold text-white shadow-sm transition-all hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
                       <FileText size={14} /> {t('patient_records.table.open_record', 'Open Record')}
                     </button>
                   </td>
                 </tr>
               )) : !isRegistryLoading && (
                 <tr>
-                  <td colSpan={5} className="px-5 py-20 text-center">
+                  <td colSpan={6} className="px-5 py-20 text-center">
                     <Users size={34} className="mx-auto mb-3 text-gray-200" />
                     <p className="text-xs font-black uppercase tracking-widest text-gray-400">No patients found</p>
                   </td>
@@ -616,14 +663,19 @@ export default function PatientRecords() {
         </div>
         <div className="sm:hidden divide-y divide-gray-100">
           {patients.map((patient) => (
-            <button key={patient.patient_id} onClick={() => fetchPatientDetail(patient)} className="block w-full p-4 text-left">
-              <p className="text-sm font-black text-[#2d8789]">{patient.full_name}</p>
-              <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] font-black uppercase tracking-widest">
+            <button key={patient.patient_id} onClick={() => fetchPatientDetail(patient)} className="block w-full p-4 text-left transition-colors even:bg-slate-50/40 hover:bg-teal-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600">
+              <div className="mb-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold">
+                {patient.patient_uuid && <span className="text-teal-800">{patient.patient_uuid}</span>}
+                {patient.clinic_patient_no && <span className="text-amber-800">Clinic ID: {patient.clinic_patient_no}</span>}
+              </div>
+              <p className="text-sm font-bold text-slate-900">{patient.full_name}</p>
+              <p className="mt-1 text-xs font-medium text-slate-700">{[patient.mobile_no, patient.age ? `${patient.age}Y` : null, patient.gender].filter(Boolean).join(" · ")}</p>
+              <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-semibold">
                 <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-gray-700">{patient.summary?.completed_appointments_count || 0} {t('patient_records.badges.visits', 'visits')}</span>
                 <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-emerald-700">{patient.summary?.prescriptions_count || 0} {t('patient_records.badges.rx', 'Rx')}</span>
                 <span className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-sky-700">{patient.summary?.family_members_count || 0} {t('patient_records.badges.family', 'family')}</span>
               </div>
-              <span className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#549E9E] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white">
+              <span className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#549E9E] px-4 py-2 text-[11px] font-semibold text-white">
                 <FileText size={14} /> {t('patient_records.table.open_record', 'Open Record')}
               </span>
             </button>

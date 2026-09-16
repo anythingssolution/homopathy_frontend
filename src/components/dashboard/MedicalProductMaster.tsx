@@ -349,7 +349,7 @@ export default function MedicalProductMaster() {
   }, [showForm, deletingProductRow]);
 
   const updateForm = (key: keyof FormState, value: string) => {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => ({ ...current, [key]: key === 'product_name' ? value.toUpperCase() : value }));
   };
 
   const resetForm = () => {
@@ -381,9 +381,10 @@ export default function MedicalProductMaster() {
   const saveProduct = async () => {
     setIsSaving(true);
     try {
-      const trimmedProductName = form.product_name.trim();
+      const trimmedProductName = form.product_name.trim().toUpperCase();
       const productPayload = {
         ...form,
+        product_name: trimmedProductName,
         medicine_value: trimmedProductName,
       };
       const response = await fetch(`/api/v1/medical/master-medical-products${isEditing ? `/${form.id}` : ''}`, {
