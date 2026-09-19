@@ -182,7 +182,7 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
                                         {t('bills_next.invoice.test', 'Test / Investigation')}
                                       </span>
                                     )}
-                                    <p className={item.item_type === 'TEST' ? 'font-bold text-amber-950' : undefined}>{item.item_name}</p>
+                                    <p className={item.item_type === 'TEST' ? 'font-bold text-amber-950' : undefined}>{item.item_type === 'TEST' ? item.item_name : String(item.item_name || '').toUpperCase()}</p>
                                   </td>
                                   <td className="px-3 py-3 text-right text-slate-600">{item.quantity ?? '—'}</td>
                                   <td className="px-3 py-3 text-right text-slate-600 whitespace-nowrap">{moneyExact(item.unit_price)}</td>

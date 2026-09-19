@@ -487,7 +487,7 @@ export const MedicalAnalytics: React.FC<MedicalAnalyticsProps> = ({ token }) => 
                       {allMedicines.slice(0, 5).map((med: any, i: number) => {
                         const pct = totalMedsDispensed > 0 ? Math.round((Number(med.total_items) / totalMedsDispensed) * 100) : 0;
                         const isNumericName = /^\d+$/.test(med.item_name);
-                        const displayName = isNumericName ? t('reports.medical.formula', { id: med.item_name }) : med.item_name;
+                        const displayName = isNumericName ? t('reports.medical.formula', { id: med.item_name }) : String(med.item_name || '').toUpperCase();
                         
                         return (
                           <div key={i} className="space-y-1">
@@ -729,7 +729,7 @@ export const MedicalAnalytics: React.FC<MedicalAnalyticsProps> = ({ token }) => 
                               const rank = (medicinesPage - 1) * ITEMS_PER_PAGE + i + 1;
                               const pct = totalMedsDispensed > 0 ? Math.round((Number(med.total_items) / totalMedsDispensed) * 100) : 0;
                               const isNumericName = /^\d+$/.test(med.item_name);
-                              const displayName = isNumericName ? t('reports.medical.formula', { id: med.item_name }) : med.item_name;
+                              const displayName = isNumericName ? t('reports.medical.formula', { id: med.item_name }) : String(med.item_name || '').toUpperCase();
                               return (
                                 <div key={i} className="flex justify-between items-center gap-4 text-xs font-bold text-gray-700">
                                   <span className="truncate w-3/4 flex items-center gap-2">

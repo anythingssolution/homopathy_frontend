@@ -855,7 +855,7 @@ export default function MyAppointments() {
                         {selectedPrescription.prescription.medications?.filter((m: any) => m.medicine_type === 'NUMERIC').map((med: any, idx: number) => (
                           <div key={idx} className="border border-gray-200 p-4 md:p-6 bg-white shadow-sm">
                             <div className="bg-gray-50/80 border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between mb-4">
-                              <span className="text-sm font-bold text-gray-700">{t('consultation_modal.remedy_no', 'Remedy No.')} {formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input)}</span>
+                              <span className="text-sm font-bold text-gray-700">{t('consultation_modal.remedy_no', 'Remedy No.')} {formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input).toUpperCase()}</span>
                               <ChevronDown size={16} className="text-gray-300" />
                             </div>
                             <MedicationDispensingStatus medication={med} />
@@ -889,7 +889,7 @@ export default function MyAppointments() {
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{formatPrescriptionMedicineText(med.medicine_value)}</p>
+                                <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{formatPrescriptionMedicineText(med.medicine_value).toUpperCase()}</p>
                                 {med.remark && (
                                   <p className="text-[11px] font-bold text-gray-400 mt-1 uppercase tracking-widest">{med.remark}</p>
                                 )}

@@ -370,7 +370,7 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                         </span>
                                       )}
                                       <div className="flex flex-wrap items-baseline justify-end gap-x-2">
-                                        <span className="text-[10px] font-bold text-gray-800">{formatPrescriptionMedicineText(m.medicine_value)}</span>
+                                        <span className="text-[10px] font-bold text-gray-800">{formatPrescriptionMedicineText(m.medicine_value).toUpperCase()}</span>
                                         {displayRemark ? (
                                           <span className="text-[9px] text-gray-600 font-medium">
                                             {displayRemark}

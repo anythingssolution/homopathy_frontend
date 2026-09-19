@@ -348,7 +348,7 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
                             <span className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-[10px] font-black">
                               #{idx + 1}
                             </span>
-                            {med.medicine_name}
+                            {String(med.medicine_name || '').toUpperCase()}
                           </td>
                           <td className="py-3 px-4 text-center font-bold text-gray-600">{med.total_bills}</td>
                           <td className="py-3 px-4 text-center font-black text-[#549E9E]">{med.total_quantity_sold}</td>

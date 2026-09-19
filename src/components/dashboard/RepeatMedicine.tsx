@@ -353,7 +353,7 @@ export default function RepeatMedicine() {
   };
 
   const getVariantOptions = (medicineName: string) => {
-    const medicine = textMedicines.find((item) => item.medicine_value === medicineName);
+    const medicine = textMedicines.find((item) => String(item.medicine_value || '').toUpperCase() === String(medicineName || '').toUpperCase());
     if (!medicine) return [];
 
     return medicine.medical_products?.length
@@ -704,7 +704,7 @@ export default function RepeatMedicine() {
                       className="w-4 h-4 accent-[#549E9E]"
                     />
                     <div className="min-w-0">
-                      <p className="text-sm font-black text-gray-800 truncate">{med.medicine_value}</p>
+                      <p className="text-sm font-black text-gray-800 truncate">{String(med.medicine_value || '').toUpperCase()}</p>
                       {med.remark && <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{med.remark}</p>}
                     </div>
                     <input

@@ -257,7 +257,7 @@ export default function DispensaryPage() {
               <ul className="space-y-2">
                 {demand.map((item: any, idx: number) => (
                   <li key={idx} className="flex justify-between text-sm font-bold text-slate-600">
-                    <span>{item.medicine_name || item.item_name || item.test_name || '—'}</span>
+                    <span>{item.test_name || String(item.medicine_name || item.item_name || '—').toUpperCase()}</span>
                     <span className="text-[#2d8789]">{num(item.total_items)}</span>
                   </li>
                 ))}

@@ -2135,7 +2135,7 @@ export default function ConsultationPage() {
     if (!variant) return null;
 
     const medicine = textMedicines.find(
-      (item) => item.medicine_value === medicineName,
+      (item) => String(item.medicine_value || '').toUpperCase() === String(medicineName || '').toUpperCase(),
     );
     const normalizedLabel = String(variant.label || "")
       .trim()
@@ -2179,7 +2179,7 @@ export default function ConsultationPage() {
     if (isDrops30MlSelection(fromVariant)) return fromVariant;
 
     const medicine = textMedicines.find(
-      (item) => item.medicine_value === medicineName,
+      (item) => String(item.medicine_value || '').toUpperCase() === String(medicineName || '').toUpperCase(),
     );
     if (!medicine) return fromVariant;
 
@@ -2245,7 +2245,7 @@ export default function ConsultationPage() {
   ): OtherMedEntry => {
     const trimmedName = medicineName.trim();
     const medicine = textMedicines.find(
-      (item) => item.medicine_value === trimmedName,
+      (item) => String(item.medicine_value || '').toUpperCase() === String(trimmedName || '').toUpperCase(),
     );
     const isManualEntry =
       Boolean(trimmedName) &&
@@ -5543,7 +5543,7 @@ export default function ConsultationPage() {
           <div className="space-y-2">
             {otherMedications.map((om, idx) => {
               const selectedMedicine = textMedicines.find(
-                (m) => m.medicine_value === om.name,
+                (m) => String(m.medicine_value || '').toUpperCase() === String(om.name || '').toUpperCase(),
               );
               const availableOtherMedicineOptions =
                 getAvailableOtherMedicineOptions(idx);

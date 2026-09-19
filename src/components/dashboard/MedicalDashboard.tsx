@@ -622,7 +622,7 @@ export default function MedicalDashboard() {
 
     if (field === 'name') {
       current.name = val;
-      const medicine = textMedicines.find((m) => m.medicine_value === val);
+      const medicine = textMedicines.find((m) => String(m.medicine_value || '').toUpperCase() === String(val || '').toUpperCase());
       const computedVariants =
         medicine && medicine.medical_products?.length
           ? medicine.medical_products
@@ -1296,7 +1296,7 @@ export default function MedicalDashboard() {
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-black text-gray-800 transition-colors group-hover/med:text-[#549E9E]">{formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input)}</p>
+                                  <p className="text-sm font-black text-gray-800 transition-colors group-hover/med:text-[#549E9E]">{formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input).toUpperCase()}</p>
                                   <p className="mt-1 text-[11px] font-bold leading-snug text-[#2f6f6f]">
                                     {dosePreview || t('dispense.no_dose_details', 'No dose details')}
                                   </p>
@@ -1499,7 +1499,7 @@ export default function MedicalDashboard() {
                       </div>
 
                           {additionalMeds.map((med, idx) => {
-                            const selectedMedicine = textMedicines.find((m) => m.medicine_value === med.name);
+                            const selectedMedicine = textMedicines.find((m) => String(m.medicine_value || '').toUpperCase() === String(med.name || '').toUpperCase());
                             const variantOptions =
                               selectedMedicine && selectedMedicine.medical_products?.length
                                 ? selectedMedicine.medical_products

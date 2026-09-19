@@ -698,7 +698,7 @@ export default function MedicalProductMaster() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/70 border-b border-gray-100">
-                  {['Product', 'Medicine', 'Source', 'Variant', 'Price', 'Status', 'Action'].map((head) => (
+                  {['Product', 'Source', 'Variant', 'Price', 'Status', 'Action'].map((head) => (
                     <th key={head} className="px-6 py-4.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{head}</th>
                   ))}
                 </tr>
@@ -706,8 +706,7 @@ export default function MedicalProductMaster() {
               <tbody className="divide-y divide-gray-50">
                 {rows.map((row) => (
                   <tr key={row.id} className="hover:bg-gray-50/40 transition-colors duration-150">
-                    <td className="px-6 py-4 text-xs font-black text-gray-800">{row.product_name}</td>
-                    <td className="px-6 py-4 text-xs font-bold text-gray-500">{row.medicine_value}</td>
+                    <td className="px-6 py-4 text-xs font-black text-gray-800">{String(row.product_name || '').toUpperCase()}</td>
                     <td className="px-6 py-4">
                       <span className="inline-flex px-2.5 py-1 rounded-md text-[9px] font-black text-[#549E9E] bg-[#549E9E]/5 uppercase tracking-widest border border-teal-100/30">
                         {row.source_type.replace('_', ' ')}
@@ -735,7 +734,7 @@ export default function MedicalProductMaster() {
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-16 text-center">
+                    <td colSpan={6} className="px-6 py-16 text-center">
                       <div className="max-w-xs mx-auto flex flex-col items-center gap-3">
                         <div className="w-12 h-12 bg-gray-50 text-gray-300 rounded-2xl flex items-center justify-center">
                           <Boxes size={24} />

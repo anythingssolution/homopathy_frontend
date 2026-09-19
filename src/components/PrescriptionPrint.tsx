@@ -397,7 +397,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                                 )}
                                 <div className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-right">
                                   <span className="text-xs font-bold text-gray-800">
-                                    {formatPrescriptionMedicineText(m.medicine_value)}
+                                    {formatPrescriptionMedicineText(m.medicine_value).toUpperCase()}
                                   </span>
                                   {displayRemark ? (
                                     <span className="text-[10px] text-gray-600 font-medium">

@@ -798,7 +798,7 @@ export default function BillsNext() {
                 {medicinesPagination.rows.map((med) => (
                   <div key={med.name} className="flex items-center justify-between gap-3 rounded-xl border border-gray-50 px-3 py-2.5">
                     <div className="min-w-0">
-                      <p className="text-sm font-black text-slate-800 truncate">{med.name}</p>
+                      <p className="text-sm font-black text-slate-800 truncate">{String(med.name || '').toUpperCase()}</p>
                       <p className="text-[10px] font-bold text-slate-400">
                         {t('bills_next.qty_bills', { qty: med.qty, bills: med.bills })}
                       </p>

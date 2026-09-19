@@ -940,7 +940,7 @@ export default function DispensaryHistory() {
                               <div key={idx} className="bg-white p-3 border border-gray-100 flex items-center justify-between gap-3">
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="text-sm font-black text-gray-800">{formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input)}</p>
+                                    <p className="text-sm font-black text-gray-800">{formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input).toUpperCase()}</p>
                                     {roleLabel && (
                                       <span className="px-2 py-0.5 rounded-md bg-[#549E9E]/10 text-[#549E9E] text-[9px] font-black uppercase tracking-widest">
                                         {roleLabel}

@@ -25,7 +25,7 @@ export function buildInvoiceModel(bills: any[]) {
       return {id:b.bill_id, number:b.bill_number, date:b.created_at, total:Number(b.total_amount || 0),
         category:b.bill_type === 'CONSULTATION' ? 'Consultation' : b.appointment_id ? 'Medicines / Tests' : (!b.consultation_id || /Medical Only/i.test(b.remark || '')) ? 'Direct Medicine' : 'Repeat Medicine',
         delivery: b.delivery_mode === 'COURIER' ? ['Courier',delivery.courier_address,delivery.tracking_no && `Tracking: ${delivery.tracking_no}`].filter(Boolean).join(' · ') : '',
-        items: (b.items?.length ? b.items : [{item_name:b.bill_type === 'CONSULTATION' ? 'Consultation fee' : 'Item details unavailable',amount:b.total_amount}]).map((item:any) => ({serial:++serial,name:item.item_name,quantity:item.quantity,rate:item.unit_price,amount:Number(item.amount || 0),kind:item.item_type === 'TEST' ? 'Test / Investigation' : ''})),
+        items: (b.items?.length ? b.items : [{item_name:b.bill_type === 'CONSULTATION' ? 'Consultation fee' : 'Item details unavailable',amount:b.total_amount}]).map((item:any) => ({serial:++serial,name:item.item_type === 'TEST' || b.bill_type === 'CONSULTATION' ? item.item_name : String(item.item_name || '').toUpperCase(),quantity:item.quantity,rate:item.unit_price,amount:Number(item.amount || 0),kind:item.item_type === 'TEST' ? 'Test / Investigation' : ''})),
       };
     })};
 }

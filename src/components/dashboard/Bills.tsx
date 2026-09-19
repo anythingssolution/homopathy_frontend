@@ -401,7 +401,7 @@ const MedicineSessionPanel = ({ slotKey, list }: { slotKey: string; list: any[] 
           {list.map((med: any, idx: number) => (
             <tr key={`${slotKey}-${idx}`} className="border-b border-gray-50 last:border-0">
               <td className="px-2 py-2.5 align-top">
-                <p className="break-words text-[12px] font-black leading-tight text-gray-800">{med.medicine_name}</p>
+                <p className="break-words text-[12px] font-black leading-tight text-gray-800">{String(med.medicine_name || '').toUpperCase()}</p>
               </td>
               <td className="px-1 py-2.5 text-center align-top">
                 <PaymentModeBadge mode={med.payment_mode} />
@@ -1421,7 +1421,7 @@ export default function Bills() {
                                 {entry.items?.length ? entry.items.map((item: any) => (
                                   <div key={item.bill_item_id} className="bg-white border border-gray-100 px-3 py-2 grid grid-cols-[1fr_90px_100px] gap-3 items-center">
                                     <div>
-                                      <p className="text-xs font-black text-gray-800">{item.item_name}</p>
+                                      <p className="text-xs font-black text-gray-800">{item.item_type === 'TEST' ? item.item_name : String(item.item_name || '').toUpperCase()}</p>
                                       <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1">
                                         Qty {item.quantity || 1} • Rate {formatCurrency(item.unit_price)}
                                       </p>
@@ -1631,7 +1631,7 @@ export default function Bills() {
                                 {bill.items.map((item: any) => (
                                   <div key={item.bill_item_id} className="bg-white border border-gray-100 p-4 grid grid-cols-1 md:grid-cols-[1.6fr_110px_80px_110px] gap-3 items-center">
                                     <div className="space-y-2">
-                                      <div className="text-sm font-black text-gray-800">{item.item_name}</div>
+                                      <div className="text-sm font-black text-gray-800">{item.item_type === 'TEST' ? item.item_name : String(item.item_name || '').toUpperCase()}</div>
                                       <BillItemTypeBadge type={item.item_type} />
                                     </div>
                                     <div className="text-sm font-bold text-gray-600">Qty {item.quantity || 1}</div>
