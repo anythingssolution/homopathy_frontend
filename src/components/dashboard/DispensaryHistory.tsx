@@ -41,6 +41,7 @@ import MedicationDispensingStatus from '../MedicationDispensingStatus';
 import PrescriptionPrint from '../PrescriptionPrint';
 import PaymentSplitDisplay from '../PaymentSplitDisplay';
 import PaymentReceipt from '../PaymentReceipt';
+import CourierSlipPrint, { type CourierSlipData } from '../print/CourierSlipPrint';
 import { receiptFromPayments, isSameLocalDay, formatReceiptDateTime, type PaymentReceiptData } from '../../utils/paymentReceipt';
 
 const getValidPrescriptionConsultationId = (record: any) => {
@@ -167,6 +168,74 @@ const isPrintableRemark = (value: any) => {
 
 const formatInvoiceMoney = (value: number) => `₹ ${Number(value || 0).toFixed(2)}`;
 
+const getBillDiscounts = (record: any) => {
+  const billDiscounts = record?.medication_bill?.discounts;
+  if (Array.isArray(billDiscounts)) return billDiscounts;
+  const pricingDiscounts = record?.prescription?.pricing?.discounts;
+  return Array.isArray(pricingDiscounts) ? pricingDiscounts : [];
+};
+
+const getDiscountLabel = (discount: any) => {
+  const category = String(discount?.category || discount?.discount_category || 'Discount').replaceAll('_', ' ');
+  const reasonCode = String(discount?.reason_code || '').toUpperCase();
+  const reason = reasonCode === 'DOCTOR_APPROVED'
+    ? 'Doctor approved'
+    : String(discount?.reason_note || 'Other');
+  return `${category} · ${reason}`;
+};
+
+const getDeliveryDetails = (record: any) => {
+  const bill = record?.medication_bill || {};
+  let details = bill.delivery_details_json || record?.prescription?.delivery_details || {};
+  try {
+    if (typeof details === 'string') details = JSON.parse(details);
+  } catch {
+    details = {};
+  }
+  const mode = String(bill.delivery_mode || record?.prescription?.delivery_mode || 'HAND_DELIVERY').toUpperCase();
+  const courierItem = Array.isArray(bill.items)
+    ? bill.items.find((item: any) => String(item?.item_type || '').toUpperCase() === 'DELIVERY'
+      || String(item?.item_name || '').toLowerCase() === 'courier charge')
+    : null;
+  return {
+    mode,
+    details: details || {},
+    courierCharge: Number(courierItem?.amount ?? record?.prescription?.courier_charge ?? 0) || 0,
+  };
+};
+
+const toCourierSlipData = (record: any): CourierSlipData => {
+  const bill = record?.medication_bill || {};
+  const delivery = getDeliveryDetails(record);
+  const billItems = Array.isArray(bill.items)
+    ? bill.items.filter((item: any) => !['DELIVERY', 'TEST'].includes(String(item?.item_type || '').toUpperCase())
+      && String(item?.item_name || '').toLowerCase() !== 'courier charge')
+    : [];
+  const prescriptionItems = (record?.prescription?.medications || [])
+    .filter((item: any) => String(item?.dispense_status || '').toUpperCase() !== 'VOID');
+  const medicineNames = billItems.length
+    ? billItems.map((item: any) => item.item_name).filter(Boolean)
+    : prescriptionItems.map((item: any) => item.medicine_value).filter(Boolean);
+
+  return {
+    billNumber: bill.bill_number || record?.bill_number,
+    bookedAt: bill.created_at || record?.created_at || record?.appointment?.appointment_date,
+    branchId: bill.fk_branch_id || bill.branch_id || record?.appointment?.fk_branch_id || record?.appointment?.branch_id,
+    branchName: bill.branch_name || record?.appointment?.branch_name,
+    branchAddress: bill.branch_address || record?.appointment?.branch_address,
+    branchContactNo: bill.branch_contact_no || record?.appointment?.branch_contact_no,
+    patientName: record?.patient?.full_name || record?.appointment?.patient_full_name,
+    patientMobileNo: record?.patient?.mobile_no || record?.appointment?.mobile_no,
+    patientId: record?.patient?.uuid || record?.appointment?.patient_uuid || record?.appointment?.auid,
+    courierAddress: delivery.details?.courier_address,
+    courierPartner: delivery.details?.courier_partner,
+    trackingNo: delivery.details?.tracking_no,
+    medicineCount: medicineNames.length,
+    medicineNames: medicineNames.join(', '),
+    deliveryRemark: delivery.details?.delivery_remark,
+  };
+};
+
 const RepeatMedicineInvoice = ({ record }: { record: any }) => {
   const bill = record.medication_bill || {};
   const pricing = record.prescription?.pricing || {};
@@ -208,6 +277,7 @@ export default function DispensaryHistory() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
   const [collectionReceipt, setCollectionReceipt] = useState<PaymentReceiptData | null>(null);
+  const [courierSlipRecord, setCourierSlipRecord] = useState<any | null>(null);
   const [previewPrescription, setPreviewPrescription] = useState<any | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
@@ -255,6 +325,8 @@ export default function DispensaryHistory() {
         setPrescriptions(result.data || []);
         setTotalPages(result.meta?.total_pages || 1);
         setTotalRecords(result.meta?.total || 0);
+        const resolvedPage = Number(result.meta?.page || pageNum);
+        if (resolvedPage !== pageNum) setPage(resolvedPage);
       } else {
         setError(result.message || 'Failed to fetch prescriptions');
       }
@@ -287,8 +359,7 @@ export default function DispensaryHistory() {
 
   const handleViewDetails = (p: any) => {
     setSelectedPrescription(p);
-    const pricingAmount = p.prescription?.pricing?.total_amount;
-    setAmount(pricingAmount ? pricingAmount.toString() : '0');
+    setAmount(getBillAmountValue(p, 'total_amount').toFixed(2));
     setRemark(p.prescription?.pricing?.remark || 'No dispensing notes provided.');
   };
 
@@ -356,12 +427,16 @@ export default function DispensaryHistory() {
   const HistoryRowActions = ({ record }: { record: any }) => {
     const previous = isPreviousAmountReceivedRow(record, filterDate);
     const consultationId = getValidPrescriptionConsultationId(record);
+    const isCourier = getDeliveryDetails(record).mode === 'COURIER';
     return <div className="flex flex-wrap items-center justify-center gap-2">
       {previous && <button onClick={() => openPaymentReceipt(record, true)} className="inline-flex items-center gap-2 rounded-xl bg-[#549E9E] px-4 py-2 text-[10px] font-black text-white">
         <Printer size={14} /> {t('dispensary_history.payment_receipt', 'Payment Receipt')}
       </button>}
       {consultationId && <button onClick={() => openPrescriptionPreview(consultationId)} disabled={isPreviewLoading} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[10px] font-bold disabled:opacity-50 ${previous ? 'border border-gray-200 text-gray-600 bg-white' : 'bg-amber-500 text-white'}`}>
         <FileText size={14} /> {previous ? t('dispensary_history.original_prescription', 'Original Prescription') : t('dispensary_history.table.view_prescription', 'View Prescription')}
+      </button>}
+      {isCourier && <button onClick={() => setCourierSlipRecord(record)} className="inline-flex items-center gap-2 rounded-xl border border-[#549E9E]/20 bg-white px-3 py-2 text-[10px] font-bold text-[#2d8789] hover:bg-[#549E9E]/5">
+        <Printer size={14} /> {t('reports_next.courier_register.print_slip', 'Print courier slip')}
       </button>}
       <button onClick={() => handleViewDetails(record)} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[10px] font-bold ${previous ? 'border border-gray-200 text-gray-600 bg-white' : 'bg-[#549E9E] text-white'}`}>
         <FileText size={14} /> {previous ? t('dispensary_history.original_bill', 'Original Bill') : t('dispensary_history.table.view', 'View')}
@@ -555,11 +630,22 @@ export default function DispensaryHistory() {
   const selectedPreviousPendingPaidTotal = selectedPrescription ? getBreakdownAmount(selectedPrescription, 'previous_pending_paid', selectedLaterPendingReceipts.reduce((sum: number, payment: any) => (
     sum + Number(payment.amount || 0)
   ), 0)) : 0;
+  const selectedDiscounts = selectedPrescription ? getBillDiscounts(selectedPrescription) : [];
+  const selectedDiscountAmount = selectedPrescription
+    ? Number(selectedPrescription.medication_bill?.discount_amount ?? selectedDiscounts.reduce((sum: number, discount: any) => sum + Number(discount?.amount || 0), 0)) || 0
+    : 0;
+  const selectedGrossAmount = selectedPrescription
+    ? Number(selectedPrescription.medication_bill?.gross_amount ?? (getBillAmountValue(selectedPrescription, 'total_amount') + selectedDiscountAmount)) || 0
+    : 0;
+  const selectedDelivery = selectedPrescription ? getDeliveryDetails(selectedPrescription) : null;
 
   return (
     <div className="space-y-8 pb-12">
       {collectionReceipt && (
         <PaymentReceipt data={collectionReceipt} onClose={() => setCollectionReceipt(null)} />
+      )}
+      {courierSlipRecord && (
+        <CourierSlipPrint data={toCourierSlipData(courierSlipRecord)} onClose={() => setCourierSlipRecord(null)} />
       )}
       {/* Filters Card */}
       <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
@@ -891,6 +977,15 @@ export default function DispensaryHistory() {
                       <Printer size={14} />
                       Print Invoice
                     </button>
+                    {getDeliveryDetails(selectedPrescription).mode === 'COURIER' && (
+                      <button
+                        onClick={() => setCourierSlipRecord(selectedPrescription)}
+                        className="inline-flex items-center gap-2 rounded-xl border border-[#549E9E]/20 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-widest text-[#2d8789] hover:bg-[#549E9E]/10"
+                      >
+                        <Printer size={14} />
+                        {t('reports_next.courier_register.print_slip', 'Print courier slip')}
+                      </button>
+                    )}
                     <button
                       onClick={() => openPaymentReceipt(selectedPrescription)}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-white text-[#549E9E] border border-[#549E9E]/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#549E9E]/10 transition-colors"
@@ -1059,6 +1154,28 @@ export default function DispensaryHistory() {
                       </div>
 
                       <div>
+                        {selectedDiscountAmount > 0 && (
+                          <div className="mb-2 rounded-lg border border-amber-100 bg-amber-50/70 px-3 py-2 space-y-1">
+                            <div className="flex items-center justify-between text-[11px] font-bold">
+                              <span className="text-gray-600">Gross Bill Amount</span>
+                              <span className="font-black text-gray-800">{formatInvoiceMoney(selectedGrossAmount)}</span>
+                            </div>
+                            {selectedDiscounts.map((discount: any, index: number) => (
+                              <div key={discount.discount_id || `${discount.category || discount.discount_category}-${index}`} className="flex items-start justify-between gap-3 border-t border-amber-100 pt-1 text-[10px] font-bold">
+                                <span className="text-amber-800 uppercase tracking-wide">{getDiscountLabel(discount)}</span>
+                                <span className="shrink-0 font-black text-amber-700">-{formatInvoiceMoney(Number(discount.amount || 0))}</span>
+                              </div>
+                            ))}
+                            <div className="flex items-center justify-between border-t border-amber-200 pt-1 text-[11px] font-black">
+                              <span className="text-amber-800">Total Discount</span>
+                              <span className="text-amber-700">-{formatInvoiceMoney(selectedDiscountAmount)}</span>
+                            </div>
+                            <div className="flex items-center justify-between border-t border-amber-200 pt-1 text-[11px] font-black">
+                              <span className="text-gray-700">Final Payable</span>
+                              <span className="text-[#549E9E]">{formatInvoiceMoney(getBillAmountValue(selectedPrescription, 'total_amount'))}</span>
+                            </div>
+                          </div>
+                        )}
                         {selectedPendingAmount > 0 && (
                           <div className="mt-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
                             <div className="flex items-center justify-between gap-3">
@@ -1196,25 +1313,25 @@ export default function DispensaryHistory() {
                         </div>
                       )}
 
-                      {selectedPrescription.is_repeat_medicine && (
+                      {selectedDelivery && (
                         <div className="bg-white border border-gray-100 p-3 space-y-1.5">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Delivery</span>
                             <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest">
-                              {selectedPrescription.prescription?.delivery_mode === 'COURIER' ? 'Courier' : 'Hand Delivery'}
+                              {selectedDelivery.mode === 'COURIER' ? 'Courier' : 'Hand Delivery'}
                             </span>
                           </div>
-                          {selectedPrescription.prescription?.delivery_mode === 'COURIER' && (
+                          {selectedDelivery.mode === 'COURIER' && (
                             <div className="text-xs font-bold text-gray-600 leading-relaxed space-y-1">
-                              <p>{selectedPrescription.prescription?.delivery_details?.courier_address || 'No address'}</p>
-                              {Number(selectedPrescription.prescription?.courier_charge || 0) > 0 && (
-                                <p>Courier Charge: ₹ {Number(selectedPrescription.prescription.courier_charge || 0).toFixed(2)}</p>
+                              <p>{selectedDelivery.details?.courier_address || 'No address'}</p>
+                              {selectedDelivery.courierCharge > 0 && (
+                                <p>Courier Charge: {formatInvoiceMoney(selectedDelivery.courierCharge)}</p>
                               )}
-                              {selectedPrescription.prescription?.delivery_details?.tracking_no && (
-                                <p>Tracking: {selectedPrescription.prescription.delivery_details.tracking_no}</p>
+                              {selectedDelivery.details?.tracking_no && (
+                                <p>Tracking: {selectedDelivery.details.tracking_no}</p>
                               )}
-                              {selectedPrescription.prescription?.delivery_details?.delivery_remark && (
-                                <p>{selectedPrescription.prescription.delivery_details.delivery_remark}</p>
+                              {selectedDelivery.details?.delivery_remark && (
+                                <p>{selectedDelivery.details.delivery_remark}</p>
                               )}
                             </div>
                           )}

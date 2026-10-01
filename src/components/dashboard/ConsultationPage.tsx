@@ -28,7 +28,9 @@ import {
   Copy,
 } from "lucide-react";
 import PatientDetailsEditModal from "./PatientDetailsEditModal";
+import AppointmentTokenBadge from "../AppointmentTokenBadge";
 import AllVisitsPrint from "../AllVisitsPrint";
+import { loadPrescriptionTimeline } from "../../utils/prescriptionTimeline";
 import { goBackOr, type RouteFrom } from "../../utils/viewState";
 import { useNotifications } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
@@ -104,9 +106,11 @@ type TextMedicine = {
 };
 
 type VariantInfo = {
+  productId?: number;
   label: string;
   price: string | number;
   type: string;
+  sourceType?: string;
   remark_suggestions?: any[];
   category?: string;
   packing?: string;
@@ -118,9 +122,11 @@ const toTextMedicineVariant = (
   label: string,
   type: string,
 ): VariantInfo => ({
+  productId: Number(product.id) || undefined,
   label,
   price: product.mrp_rate || product.price_max || product.price_min || "0",
   type,
+  sourceType: product.source_type || type,
   remark_suggestions: product.remark_suggestions || [],
   category: product.category || "",
   packing:
@@ -1619,8 +1625,6 @@ export default function ConsultationPage() {
     };
   }, [appointmentId]);
 
-  if (!currentApp) return null;
-
   const [focusTrigger, setFocusTrigger] = useState<{
     type: "med" | "other" | "other-variant" | "test";
     index: number;
@@ -2078,8 +2082,37 @@ export default function ConsultationPage() {
   const resolveTextMedicineVariants = (medicine: (typeof textMedicines)[number] | undefined) => {
     if (!medicine) return [];
 
+    const sourcePriority: Record<string, number> = {
+      REGULAR_PRODUCT: 1,
+      RADIENT_PHARMA: 2,
+      MEDICAL_PRODUCT_PRICE: 3,
+      DOCTOR_MANUAL: 4,
+    };
+    const dedupeVariants = (variants: VariantInfo[]) => {
+      const byLabel = new Map<string, VariantInfo>();
+
+      variants.forEach((variant) => {
+        const normalizedLabel = String(variant.label || "").trim().toLowerCase();
+        if (!normalizedLabel || normalizedLabel === "n/a") return;
+
+        const existing = byLabel.get(normalizedLabel);
+        if (!existing) {
+          byLabel.set(normalizedLabel, variant);
+          return;
+        }
+
+        const existingPriority = sourcePriority[String(existing.sourceType || "")] ?? 99;
+        const candidatePriority = sourcePriority[String(variant.sourceType || "")] ?? 99;
+        if (candidatePriority < existingPriority) {
+          byLabel.set(normalizedLabel, variant);
+        }
+      });
+
+      return Array.from(byLabel.values());
+    };
+
     if (medicine.medical_products?.length) {
-      return medicine.medical_products
+      return dedupeVariants(medicine.medical_products
         .map((p: any) => {
           if (p.source_type === "REGULAR_PRODUCT") {
             return toTextMedicineVariant(p, p.packing || "N/A", "product");
@@ -2104,10 +2137,10 @@ export default function ConsultationPage() {
             "medical_product_price",
           );
         })
-        .filter((v: VariantInfo) => v.label);
+        .filter((v: VariantInfo) => v.label));
     }
 
-    return [
+    return dedupeVariants([
       ...(medicine.products || []).map((p: any) =>
         toTextMedicineVariant(p, p.packing || "N/A", "product"),
       ),
@@ -2125,7 +2158,7 @@ export default function ConsultationPage() {
           "handwritten",
         ),
       ),
-    ].filter((v) => v.label);
+    ].filter((v) => v.label));
   };
 
   const resolveOtherMedVariant = (
@@ -2247,9 +2280,7 @@ export default function ConsultationPage() {
     const medicine = textMedicines.find(
       (item) => String(item.medicine_value || '').toUpperCase() === String(trimmedName || '').toUpperCase(),
     );
-    const isManualEntry =
-      Boolean(trimmedName) &&
-      (!medicine || Boolean(Number(medicine.is_doctor_manual)));
+    const isManualEntry = Boolean(trimmedName) && !medicine;
 
     if (isManualEntry && !medicine) {
       return {
@@ -2506,7 +2537,7 @@ export default function ConsultationPage() {
       setIsLoadingSuggestions(true);
       try {
         const queryParams = new URLSearchParams({
-          appointment_id: String(currentApp.appointment_id),
+          appointment_id: String(currentApp?.appointment_id || appointmentId || ""),
           ...(trimmedSymptoms && { symptoms: trimmedSymptoms }),
           ...(trimmedDiagnosis && { diagnosis: trimmedDiagnosis }),
         }).toString();
@@ -2904,6 +2935,9 @@ export default function ConsultationPage() {
     age: number;
     gender: string;
     mobile_no: string;
+    area_name: string;
+    pincode: string;
+    city: string;
   }) => {
     const patientId = currentApp?.fk_patient_id || currentApp?.patient_id;
     if (!patientId) return;
@@ -2912,7 +2946,7 @@ export default function ConsultationPage() {
       currentApp?.booked_for_type === "FAMILY_MEMBER" &&
       currentApp?.fk_patient_family_member_id
     ) {
-      payload.family_member_id = currentApp.fk_patient_family_member_id;
+      payload.family_member_id = currentApp?.fk_patient_family_member_id;
     }
     const response = await fetch(`/api/v1/doctors/patients/${patientId}`, {
       method: "PATCH",
@@ -2932,6 +2966,9 @@ export default function ConsultationPage() {
               patient_age: updatedData.age,
               patient_gender: updatedData.gender,
               patient_mobile_no: updatedData.mobile_no,
+              patient_area_name: updatedData.area_name,
+              patient_pincode: updatedData.pincode,
+              patient_city: updatedData.city,
             }
           : prev,
       );
@@ -2948,76 +2985,30 @@ export default function ConsultationPage() {
 
     setIsAllVisitsLoading(true);
     try {
-      const params = new URLSearchParams();
-      params.set("page", "1");
-      params.set("page_size", "50");
-      if (
-        currentApp?.booked_for_type === "FAMILY_MEMBER" &&
-        currentApp?.fk_patient_family_member_id
-      ) {
-        params.set("family_member_id", String(currentApp.fk_patient_family_member_id));
-      } else {
-        params.set("subject_scope", "SELF");
-      }
-
-      const response = await fetch(
-        `/api/v1/patient-records/patients/${patientId}/visits?${params.toString()}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || t("consultation_modal.all_visits_failed", "Unable to load visits"));
-      }
-
-      const items = Array.isArray(result.data?.items) ? result.data.items : [];
-      const visitsWithConsultation = items.filter((item: any) => Boolean(item.consultation_id));
-      if (visitsWithConsultation.length === 0) {
+      const fetchedVisits = await loadPrescriptionTimeline({
+        token,
+        patientId,
+        familyMemberId:
+          currentApp?.booked_for_type === "FAMILY_MEMBER"
+            ? currentApp?.fk_patient_family_member_id
+            : null,
+        subjectScope: "SELF",
+      });
+      if (fetchedVisits.length === 0) {
         addToast(
-          t("consultation_modal.all_visits_empty", "No previous visits with a prescription for this patient."),
+          t("consultation_modal.all_visits_empty", "No previous prescription or medicine collection records for this patient."),
           "info",
         );
         return;
       }
 
-      const roleCode = String(user?.role_code || "").toUpperCase();
-      const role = String(user?.role || "").toLowerCase();
-      const isReceptionist = roleCode === "REC" || role === "rec" || role === "receptionist";
-      const endpointPrefix = isReceptionist
-        ? "/api/v1/receptionist/prescriptions/"
-        : "/api/v1/medical/prescriptions/";
-
-      const fetchedVisits = await Promise.all(
-        visitsWithConsultation.map(async (vItem: any) => {
-          try {
-            const res = await fetch(`${endpointPrefix}${vItem.consultation_id}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const resData = await res.json();
-            if (res.ok && resData.success) {
-              return {
-                ...vItem,
-                consultation: resData.data,
-                appointment: resData.data,
-              };
-            }
-          } catch {
-            // same fallback as Patient Records
-          }
-          return {
-            ...vItem,
-            consultation: {},
-            appointment: {},
-          };
-        }),
-      );
-
       setSelectedAllVisits({
         patient: {
-          full_name: currentApp.patient_full_name,
-          patient_uuid: currentApp.patient_uuid,
-          mobile_no: currentApp.patient_mobile_no,
-          age: currentApp.patient_age,
-          gender: currentApp.patient_gender,
+          full_name: currentApp?.patient_full_name,
+          patient_uuid: currentApp?.patient_uuid,
+          mobile_no: currentApp?.patient_mobile_no,
+          age: currentApp?.patient_age,
+          gender: currentApp?.patient_gender,
         },
         visits: fetchedVisits,
       });
@@ -3165,6 +3156,15 @@ export default function ConsultationPage() {
     }
   };
 
+  if (!currentApp) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-live="polite">
+        <RefreshCcw className="animate-spin text-[#549E9E]" size={28} />
+        <span className="sr-only">{t("common.loading", "Loading consultation")}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pt-6 pb-12 consultation-form-override">
       {currentApp && (
@@ -3176,57 +3176,108 @@ export default function ConsultationPage() {
             age: currentApp.patient_age || "",
             gender: currentApp.patient_gender || "",
             mobile_no: currentApp.patient_mobile_no || "",
+            area_name: currentApp.patient_area_name || "",
+            pincode: currentApp.patient_pincode || "",
+            city: currentApp.patient_city || "",
           }}
           onClose={() => setIsPatientEditOpen(false)}
           onSave={handleUpdatePatientDetails}
         />
       )}
-      <div className="bg-[#549E9E] p-6 text-white flex justify-between items-center shadow-sm">
-        <div>
-          <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
-            {currentApp.patient_full_name}{" "}
-            {t("consultation_modal.consult_form", "Consult Form")}
-            {!isReadOnly && (
-              <button
-                onClick={() => setIsPatientEditOpen(true)}
-                className="p-1.5 hover:bg-white/20 rounded-lg transition-all cursor-pointer"
-                title={t("patient_edit.title", "Edit Patient Details")}
-              >
-                <Pencil size={16} />
-              </button>
+      <div className="flex items-start justify-between gap-5 bg-[#549E9E] p-6 text-white shadow-sm">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
+          <div className="shrink-0 self-center">
+            <AppointmentTokenBadge
+              hideEmpty
+              variant="consultation-header"
+              tokenDisplay={currentApp.display_token_display}
+              tokenNumber={currentApp.token_number}
+              position={
+                [
+                  currentApp.queue_position,
+                  currentApp.history_queue_position,
+                  currentApp.session_queue_position,
+                  currentApp.active_queue_position,
+                  currentApp.live_queue_position,
+                  currentApp.current_queue_position,
+                  currentApp.ready_queue_position,
+                  app?.queue_position,
+                  app?.session_queue_position,
+                  app?.active_queue_position,
+                  app?.live_queue_position,
+                  app?.current_queue_position,
+                  app?.ready_queue_position,
+                ].find((value) => {
+                  const parsed = Number(value);
+                  return Number.isInteger(parsed) && parsed > 0;
+                }) ?? null
+              }
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="flex items-center gap-2 text-xl font-black uppercase tracking-widest">
+              {currentApp.patient_full_name}{" "}
+              {t("consultation_modal.consult_form", "Consult Form")}
+              {!isReadOnly && (
+                <button
+                  onClick={() => setIsPatientEditOpen(true)}
+                  className="cursor-pointer rounded-lg p-1.5 transition-all hover:bg-white/20"
+                  title={t("patient_edit.title", "Edit Patient Details")}
+                >
+                  <Pencil size={16} />
+                </button>
+              )}
+            </h3>
+            <div className="mt-3 grid max-w-4xl grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {currentApp.treatment_name && (
+              <span className="inline-flex min-w-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-xs font-black uppercase tracking-wider text-[#285f61] shadow-sm">
+                {currentApp.treatment_name}
+              </span>
             )}
-          </h3>
-          <div className="flex flex-wrap items-center gap-2.5 mt-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-white text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
-              {t("consultation_modal.token", "Token")} #
-              {currentApp.display_token_display || currentApp.token_number} •{" "}
-              {currentApp.treatment_name}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/25 border border-amber-300/30 text-amber-100 text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
-              <User size={13} className="text-amber-200" />
+            {occupation?.trim() && (
+              <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-xs font-black tracking-wide text-[#174f51] shadow-sm">
+                <span className="shrink-0 text-[10px] uppercase tracking-wider text-[#557879]">
+                  {t("consultation_modal.occupation", "Occupation")}:
+                </span>
+                <span className="truncate">{occupation.trim()}</span>
+              </span>
+            )}
+            {currentApp.patient_city?.trim() && (
+              <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-xs font-black tracking-wide text-[#174f51] shadow-sm">
+                <span className="shrink-0 text-[10px] uppercase tracking-wider text-[#557879]">
+                  {t("previous_patients.city", "City")}:
+                </span>
+                <span className="truncate">{currentApp.patient_city.trim()}</span>
+              </span>
+            )}
+            <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-100 px-3 py-2 text-xs font-black uppercase tracking-wider text-amber-900 shadow-sm">
+              <User size={14} className="text-amber-700" />
               {t("consultation_modal.age_gender", "AGE / GENDER")}:{" "}
               {currentApp.patient_age || "—"} /{" "}
               {currentApp.patient_gender || "—"}
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-400/25 border border-emerald-300/30 text-emerald-100 text-[11px] font-black tracking-wider backdrop-blur-xs shadow-xs">
-              <Phone size={13} className="text-emerald-200" />
+            <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2 text-xs font-black tracking-wider text-emerald-900 shadow-sm">
+              <Phone size={14} className="text-emerald-700" />
               {t("consultation_modal.mobile", "MOBILE")}:{" "}
               {currentApp.patient_mobile_no}
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-400/25 border border-sky-300/30 text-sky-100 text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
-              <MapPin size={13} className="text-sky-200" />
-              {t("consultation_modal.branch", "BRANCH")}:{" "}
-              {currentApp.branch_name}
+            <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-100 px-3 py-2 text-xs font-black uppercase tracking-wider text-sky-900 shadow-sm">
+              <MapPin size={14} className="text-sky-700" />
+              <span className="truncate">
+                {t("consultation_modal.branch", "BRANCH")}:{" "}
+                {currentApp.branch_name}
+              </span>
             </span>
             {currentApp.booked_for_type === "FAMILY_MEMBER" && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-400/30 border border-purple-300/30 text-purple-100 text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
+              <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-100 px-3 py-2 text-xs font-black uppercase tracking-wider text-purple-900 shadow-sm lg:col-span-3">
                 {currentApp.family_member_relationship} (Account:{" "}
                 {currentApp.primary_patient_full_name})
               </span>
             )}
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-4">
           {isCompletedConsultation && isReadOnly && canEditBeforeDispense && (
             <button
               type="button"
@@ -5644,7 +5695,6 @@ export default function ConsultationPage() {
                       <SearchableDropdown
                         id={`other-trigger-${idx}`}
                         disabled={isReadOnly}
-                        allowCustom={true}
                         options={availableOtherMedicineOptions}
                         value={om.name}
                         onChange={(val) => {
@@ -5658,7 +5708,7 @@ export default function ConsultationPage() {
                         }}
                         placeholder={t(
                           "consultation_modal.search_medicine",
-                          "Search or type medicine...",
+                          "Search medicine...",
                         )}
                       />
                     )}
@@ -5681,7 +5731,6 @@ export default function ConsultationPage() {
                     <SearchableDropdown
                       id={`other-variant-trigger-${idx}`}
                       disabled={isReadOnly}
-                      allowCustom={true}
                       options={variantOptions.map((v) => ({
                         label: v.label,
                         value: v.label,
@@ -5737,8 +5786,8 @@ export default function ConsultationPage() {
                         setOtherMedications(updated);
                       }}
                       placeholder={t(
-                        "consultation_modal.select_or_type_variant",
-                        "Select or type variant...",
+                        "consultation_modal.select_variant",
+                        "Select variant...",
                       )}
                     />
                   </div>

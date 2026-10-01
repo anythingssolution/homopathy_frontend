@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -17,19 +18,18 @@ import {
   Trash2,
   AlertTriangle,
   FileText,
-  Activity,
-  Pill,
+  Files,
+  Eye,
   X,
-  User,
-  Phone,
+  Printer,
   Copy,
   Check,
   Ticket
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../Pagination';
-import { getDosePreview, getMedicationRoleLabel, formatPrescriptionMedicineText, formatNumericMedicineWithFormula } from '../../utils/prescriptionFormat';
-import MedicationDispensingStatus from '../MedicationDispensingStatus';
+import PrescriptionPrint from '../PrescriptionPrint';
+import AllVisitsPrint from '../AllVisitsPrint';
 
 interface Appointment {
   appointment_id: number;
@@ -57,12 +57,18 @@ interface Appointment {
   family_member_gender?: string | null;
   family_member_description?: string | null;
   patient_full_name?: string;
+  primary_patient_full_name?: string;
+  primary_patient_age?: number;
+  primary_patient_gender?: string;
+  patient_uuid?: string;
+  patient_mobile_no?: string;
   patient_age?: number;
   patient_gender?: string;
   scheduled_start_time?: string;
   live_estimated_start_at?: string | null;
   live_delay_minutes?: number;
   template_start_time?: string;
+  actual_completed_at?: string | null;
 }
 
 const extractTime = (dateTimeStr: string) => {
@@ -201,9 +207,9 @@ const CustomSelect = ({
   );
 };
 
-export default function MyAppointments() {
+export default function MyAppointments({ prescriptionsOnly = false }: { prescriptionsOnly?: boolean }) {
   const { t } = useTranslation();
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -214,6 +220,9 @@ export default function MyAppointments() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [appointmentToCancel, setAppointmentToCancel] = useState<number | null>(null);
   const [selectedPrescription, setSelectedPrescription] = useState<any | null>(null);
+  const [allPrescriptionPreview, setAllPrescriptionPreview] = useState<{ patient: any; visits: any[] } | null>(null);
+  const [allPrescriptionLoadingFor, setAllPrescriptionLoadingFor] = useState<number | null>(null);
+  const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [filterOptions, setFilterOptions] = useState<{
@@ -225,13 +234,13 @@ export default function MyAppointments() {
 
   // Prevent background scrolling when modal is open
   useEffect(() => {
-    if (appointmentToCancel || selectedPrescription) {
+    if (appointmentToCancel || selectedPrescription || allPrescriptionPreview) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
     }
     return () => { document.body.style.overflow = 'unset'; };
-  }, [appointmentToCancel, selectedPrescription]);
+  }, [appointmentToCancel, selectedPrescription, allPrescriptionPreview]);
 
   const fetchAppointments = async () => {
     setIsLoading(true);
@@ -245,6 +254,7 @@ export default function MyAppointments() {
       if (filterBranch !== 'all') params.set('branch_name', filterBranch);
       if (filterTreatment !== 'all') params.set('treatment_name', filterTreatment);
       if (filterDate !== 'all') params.set('appointment_date', filterDate);
+      if (prescriptionsOnly) params.set('prescriptions_only', 'true');
 
       const response = await fetch(`/api/v1/appointments/my?${params.toString()}`, {
         headers: {
@@ -276,7 +286,7 @@ export default function MyAppointments() {
       void fetchAppointments();
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [token, currentPage, searchQuery, filterBranch, filterTreatment, filterDate]);
+  }, [token, currentPage, searchQuery, filterBranch, filterTreatment, filterDate, prescriptionsOnly]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -310,6 +320,67 @@ export default function MyAppointments() {
     } catch (err) {
       alert('Network error. Please try again.');
       setIsLoading(false);
+    }
+  };
+
+  const openAllPrescriptions = async () => {
+    if (!token) return;
+    setAllPrescriptionLoadingFor(0);
+
+    try {
+      const loadPage = async (page: number) => {
+        const params = new URLSearchParams({
+          page: String(page),
+          page_size: '100',
+          prescriptions_only: 'true',
+        });
+        const response = await fetch(`/api/v1/appointments/my?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Unable to load all prescriptions');
+        }
+        return result;
+      };
+
+      const firstPage = await loadPage(1);
+      const totalPages = Math.max(1, Number(firstPage.meta?.total_pages || 1));
+      const remainingPages = totalPages > 1
+        ? await Promise.all(Array.from({ length: totalPages - 1 }, (_, index) => loadPage(index + 2)))
+        : [];
+      const allAppointments = [firstPage, ...remainingPages].flatMap((result) => result.data || []);
+      const subjectAppointments = allAppointments.filter((appointment: Appointment) => appointment.prescription);
+
+      if (subjectAppointments.length === 0) {
+        throw new Error('No prescriptions found for this patient.');
+      }
+
+      const accountAppointment = subjectAppointments.find((appointment: Appointment) => appointment.booked_for_type !== 'FAMILY_MEMBER')
+        || subjectAppointments[0];
+
+      setAllPrescriptionPreview({
+        patient: {
+          patient_uuid: accountAppointment.patient_uuid,
+          full_name: accountAppointment.primary_patient_full_name || accountAppointment.patient_full_name,
+          age: accountAppointment.primary_patient_age || accountAppointment.patient_age,
+          gender: accountAppointment.primary_patient_gender || accountAppointment.patient_gender,
+          mobile_no: accountAppointment.patient_mobile_no,
+        },
+        visits: subjectAppointments.map((appointment: Appointment) => ({
+          ...appointment,
+          consultation_id: appointment.prescription?.consultation_id,
+          event_at: appointment.actual_completed_at || appointment.prescription?.created_at || appointment.appointment_date,
+          event_date: appointment.appointment_date,
+          consultation: appointment.prescription,
+          appointment,
+          details: { ...appointment, ...appointment.prescription },
+        })),
+      });
+    } catch (previewError: any) {
+      window.alert(previewError.message || 'Unable to load all prescriptions');
+    } finally {
+      setAllPrescriptionLoadingFor(null);
     }
   };
 
@@ -349,6 +420,29 @@ export default function MyAppointments() {
 
   return (
     <div className="space-y-8">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-widest text-gray-800">
+            {prescriptionsOnly ? 'My Prescriptions' : 'My Appointments'}
+          </h1>
+          <p className="mt-1 text-sm font-medium text-gray-400">
+            {prescriptionsOnly
+              ? 'Doctor ki saved prescriptions ko view ya print karein.'
+              : 'Appointments manage karein aur apni prescriptions dekhein.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void openAllPrescriptions()}
+          disabled={allPrescriptionLoadingFor !== null}
+          className="inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-[#397f80] bg-[#549E9E] px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-lg shadow-[#549E9E]/20 transition-all hover:-translate-y-0.5 hover:bg-[#397f80] hover:shadow-xl disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+        >
+          {allPrescriptionLoadingFor !== null
+            ? <RefreshCcw size={17} className="animate-spin" />
+            : <Files size={17} />}
+          View / Print All Prescriptions
+        </button>
+      </div>
       {/* Search & Filter Header */}
       <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -420,10 +514,10 @@ export default function MyAppointments() {
               <Stethoscope className="text-gray-200" size={48} />
             </div>
             <h3 className="text-2xl font-black text-gray-800 uppercase tracking-widest mb-4">
-              {t('my_appointments.no_data')}
+              {prescriptionsOnly ? 'No prescriptions found' : t('my_appointments.no_data')}
             </h3>
             <p className="text-sm font-medium text-gray-400 uppercase tracking-widest">
-              {t('my_appointments.no_data_sub')}
+              {prescriptionsOnly ? 'Completed consultation ke baad prescription yahan dikhegi.' : t('my_appointments.no_data_sub')}
             </p>
           </motion.div>
         ) : (
@@ -520,12 +614,14 @@ export default function MyAppointments() {
                       </button>
                     )}
                     {app.status.toLowerCase() === 'completed' && app.prescription && (
-                      <button
-                        onClick={() => setSelectedPrescription(app)}
-                        className="flex-1 cursor-pointer py-2.5 text-[10px] font-black text-white bg-[#549E9E] rounded-xl uppercase tracking-widest hover:bg-[#438787] transition-colors flex items-center justify-center gap-2"
-                      >
-                        <FileText size={14} /> Prescription
-                      </button>
+                      <>
+                        <button
+                          onClick={() => setSelectedPrescription(app)}
+                          className="flex min-h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-[#549E9E] bg-[#549E9E] px-3 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#438787] hover:shadow-md"
+                        >
+                          <Eye size={14} /> View
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -533,18 +629,20 @@ export default function MyAppointments() {
             </div>
 
             {/* === DESKTOP TABLE VIEW === */}
-            <div className="hidden sm:block overflow-x-auto lg:overflow-x-visible">
-              <table className="w-full text-left border-collapse min-w-[1000px]">
+            <div className="hidden sm:block w-full overflow-x-auto overscroll-x-contain">
+              <table className={`w-full text-left border-collapse ${prescriptionsOnly ? 'min-w-[860px]' : 'min-w-[900px]'}`}>
                 <thead>
                   <tr className="bg-gray-50/50 text-nowrap">
-                    <th className="px-6 py-6 text-left text-xs font-black text-gray-800 uppercase tracking-widest">{t('my_appointments.table.sno')}</th>
-                    <th className="px-6 py-6 text-left text-xs font-black text-gray-800 uppercase tracking-widest">{t('my_appointments.table.token')}</th>
-                    <th className="px-6 py-6 text-left text-xs font-black text-gray-800 uppercase tracking-widest text-nowrap">{t('my_appointments.table.unique_id')}</th>
-                    <th className="px-6 py-6 text-left text-xs font-black text-gray-800 uppercase tracking-widest">{t('my_appointments.table.treatment')}</th>
-                    <th className="px-6 py-6 text-left text-xs font-black text-gray-800 uppercase tracking-widest">{t('my_appointments.table.date_time')}</th>
-                    <th className="px-6 py-6 text-left text-xs font-black text-gray-800 uppercase tracking-widest">{t('my_appointments.table.location')}</th>
-                    <th className="px-6 py-6 text-left text-xs font-black text-gray-800 uppercase tracking-widest">{t('my_appointments.table.status')}</th>
-                    <th className="px-6 py-6 text-right text-xs font-black text-gray-800 uppercase tracking-widest">{t('my_appointments.table.action')}</th>
+                    <th className={`${prescriptionsOnly ? 'w-12 px-3 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest`}>{t('my_appointments.table.sno')}</th>
+                    <th className={`${prescriptionsOnly ? 'w-16 px-2 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest`}>{t('my_appointments.table.token')}</th>
+                    <th className={`${prescriptionsOnly ? 'w-[155px] px-3 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest text-nowrap`}>{t('my_appointments.table.unique_id')}</th>
+                    <th className={`${prescriptionsOnly ? 'w-[180px] px-3 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest`}>{t('my_appointments.table.treatment')}</th>
+                    <th className={`${prescriptionsOnly ? 'w-[170px] px-3 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest`}>{t('my_appointments.table.date_time')}</th>
+                    <th className={`${prescriptionsOnly ? 'w-[130px] px-3 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest`}>{t('my_appointments.table.location')}</th>
+                    {!prescriptionsOnly && (
+                      <th className="w-[130px] px-3 py-6 text-left text-xs font-black text-gray-800 uppercase tracking-widest">{t('my_appointments.table.status')}</th>
+                    )}
+                    <th className={`${prescriptionsOnly ? 'w-[110px] px-3 py-4' : 'w-[110px] px-3 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest`}>{t('my_appointments.table.action')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -557,12 +655,12 @@ export default function MyAppointments() {
                       className="hover:bg-primary-teal/[0.02] transition-colors group"
                     >
                       {/* S.No. */}
-                      <td className="px-6 py-5">
+                      <td className={prescriptionsOnly ? 'px-3 py-4' : 'px-6 py-5'}>
                         <span className="text-xs font-black text-gray-300">{(idx + 1).toString().padStart(2, '0')}</span>
                       </td>
 
                       {/* Token */}
-                      <td className="px-6 py-5">
+                      <td className={prescriptionsOnly ? 'px-2 py-4' : 'px-6 py-5'}>
                         <div className="w-12 h-12 flex items-center justify-center text-gray-800 font-black text-base relative group/token">
                           <Ticket size={40} className="absolute text-red-500/20 -rotate-12 transition-transform group-hover/token:rotate-0" fill="currentColor" />
                           <span className="relative z-10">{app.display_token_display || app.token_number}</span>
@@ -570,7 +668,7 @@ export default function MyAppointments() {
                       </td>
 
                       {/* AUID */}
-                      <td className="px-6 py-5">
+                      <td className={prescriptionsOnly ? 'px-3 py-4' : 'px-6 py-5'}>
                         <div className="flex items-center gap-2 group/auid">
                           <span className="text-[10px] font-black text-gray-500 tracking-wider bg-gray-100 px-3 py-1.5 rounded-lg whitespace-nowrap">
                             {app.auid}
@@ -586,7 +684,7 @@ export default function MyAppointments() {
                       </td>
 
                       {/* Treatment */}
-                      <td className="px-6 py-5">
+                      <td className={prescriptionsOnly ? 'px-3 py-4' : 'px-6 py-5'}>
                         <div className="max-w-[180px]">
                           <p className="text-sm font-black text-[#2d8789] uppercase tracking-wide truncate">{app.treatment_name}</p>
                           {app.booked_for_type === 'FAMILY_MEMBER' ? (
@@ -605,7 +703,7 @@ export default function MyAppointments() {
                       </td>
 
                       {/* Date & Time */}
-                      <td className="px-6 py-5 whitespace-nowrap">
+                      <td className={`${prescriptionsOnly ? 'px-3 py-4' : 'px-6 py-5'} whitespace-nowrap`}>
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2 text-gray-800 font-black text-xs">
                             <Calendar size={13} className="text-primary-teal" />
@@ -629,32 +727,34 @@ export default function MyAppointments() {
                       </td>
 
                       {/* Location */}
-                      <td className="px-6 py-5">
+                      <td className={prescriptionsOnly ? 'px-3 py-4' : 'px-6 py-5'}>
                         <div className="flex items-center gap-2 text-gray-600 font-black text-[10px] uppercase tracking-widest whitespace-nowrap">
                           <MapPin size={13} className="text-[#E6C682]" />
                           {app.branch_name.replace(' Branch', '')}
                         </div>
                       </td>
 
-                      {/* Status */}
-                      <td className="px-6 py-5">
-                        <div className="flex flex-col gap-1.5">
-                          <StatusBadge status={app.status} />
-                          {app.queue_bucket && (
-                            <span className={`inline-flex items-center w-fit px-2 py-0.5 rounded-md border text-[8px] font-black uppercase tracking-widest ${app.queue_bucket === 'IN_PROGRESS' ? 'bg-primary-teal/10 text-primary-teal border-primary-teal/20' :
-                                app.queue_bucket === 'READY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                  app.queue_bucket === 'CALLED' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                    'bg-gray-50 text-gray-500 border-gray-100'
-                              }`}>
-                              Queue: {app.queue_bucket.replace(/_/g, ' ')}
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                      {/* Status is redundant in the prescription-only list because every row is completed. */}
+                      {!prescriptionsOnly && (
+                        <td className="w-[130px] px-3 py-5">
+                          <div className="flex flex-col gap-1.5">
+                            <StatusBadge status={app.status} />
+                            {app.queue_bucket && (
+                              <span className={`inline-flex items-center w-fit px-2 py-0.5 rounded-md border text-[8px] font-black uppercase tracking-widest ${app.queue_bucket === 'IN_PROGRESS' ? 'bg-primary-teal/10 text-primary-teal border-primary-teal/20' :
+                                  app.queue_bucket === 'READY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                    app.queue_bucket === 'CALLED' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                      'bg-gray-50 text-gray-500 border-gray-100'
+                                }`}>
+                                Queue: {app.queue_bucket.replace(/_/g, ' ')}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      )}
 
                       {/* Action */}
-                      <td className="px-6 py-5 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className={`${prescriptionsOnly ? 'w-[110px] px-3 py-4' : 'w-[110px] px-3 py-5'} text-left`}>
+                        <div className="flex items-center justify-start gap-1.5">
                           {app.status.toLowerCase() !== 'cancelled' && app.status.toLowerCase() !== 'completed' && (
                             <button
                               onClick={() => setAppointmentToCancel(app.appointment_id)}
@@ -665,12 +765,14 @@ export default function MyAppointments() {
                             </button>
                           )}
                           {app.status.toLowerCase() === 'completed' && app.prescription && (
-                            <button
-                              onClick={() => setSelectedPrescription(app)}
-                              className="cursor-pointer text-[10px] font-black text-[#549E9E] bg-[#549E9E]/10 px-3 py-1.5 rounded-lg uppercase tracking-widest hover:bg-[#549E9E] hover:text-white transition-colors"
-                            >
-                              Prescription
-                            </button>
+                            <>
+                              <button
+                                onClick={() => setSelectedPrescription(app)}
+                                className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl border-2 border-[#549E9E] bg-[#549E9E] px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#438787] hover:shadow-md"
+                              >
+                                <Eye size={14} /> View
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -730,183 +832,165 @@ export default function MyAppointments() {
         )}
       </AnimatePresence>
 
-      {/* Prescription Modal */}
-      <AnimatePresence>
-        {selectedPrescription && selectedPrescription.prescription && (
+      {/* Prescription preview uses the same centralized layout as doctor, reception and medical. */}
+      {selectedPrescription?.prescription && createPortal(
+        <AnimatePresence>
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[999] flex items-center justify-center p-4 lg:p-8 bg-gray-900/40 backdrop-blur-sm"
+            className="no-print fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/55 p-3 backdrop-blur-sm md:p-6"
             onClick={() => setSelectedPrescription(null)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white shadow-2xl w-full max-w-6xl h-[90vh] overflow-hidden flex flex-col relative"
+              initial={{ opacity: 0, scale: 0.97, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 12 }}
+              onClick={(event) => event.stopPropagation()}
+              className="flex h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
             >
-              {/* Header */}
-              <div className="bg-[#549E9E] px-8 py-6 flex justify-between items-start text-white shrink-0">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-white px-4 py-3 md:px-6">
                 <div>
-                  <h2 className="text-2xl font-black tracking-widest uppercase mb-1">
-                    {selectedPrescription.booked_for_type === 'FAMILY_MEMBER' 
-                      ? selectedPrescription.family_member_full_name 
-                      : (user?.name || 'Patient')}{' '}
-                    {t('consultation_modal.consult_form', 'Consult Form')}
-                  </h2>
-                  <div className="flex flex-wrap items-center gap-2.5 mt-2.5">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-white text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
-                      {t('consultation_modal.token', 'TOKEN')} #{selectedPrescription.display_token_display || selectedPrescription.token_number} • {selectedPrescription.treatment_name}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/25 border border-amber-300/30 text-amber-100 text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
-                      <User size={13} className="text-amber-200" />
-                      {t('consultation_modal.age_gender', 'AGE / GENDER')}:{' '}
-                      {selectedPrescription.booked_for_type === 'FAMILY_MEMBER'
-                        ? `${selectedPrescription.family_member_age ? `${selectedPrescription.family_member_age} Yrs` : 'N/A'} ${selectedPrescription.family_member_gender ? `/ ${selectedPrescription.family_member_gender}` : ''}`
-                        : `${user?.age ? `${user.age} Yrs` : 'N/A'} ${user?.gender ? `/ ${user.gender}` : ''}`}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-400/25 border border-emerald-300/30 text-emerald-100 text-[11px] font-black tracking-wider backdrop-blur-xs shadow-xs">
-                      <Phone size={13} className="text-emerald-200" />
-                      {t('consultation_modal.mobile', 'MOBILE')}: {user?.phone || 'N/A'}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-400/25 border border-sky-300/30 text-sky-100 text-[11px] font-black uppercase tracking-wider backdrop-blur-xs shadow-xs">
-                      <MapPin size={13} className="text-sky-200" />
-                      {t('consultation_modal.branch', 'BRANCH')}: {selectedPrescription.branch_name}
-                    </span>
-                  </div>
+                  <h2 className="text-lg font-black uppercase tracking-widest text-gray-800">Prescription</h2>
+                  <p className="text-xs font-bold text-gray-400">
+                    {selectedPrescription.patient_full_name || 'Patient'} · {selectedPrescription.auid || ''}
+                  </p>
                 </div>
-                <button onClick={() => setSelectedPrescription(null)} className="cursor-pointer bg-white/20 hover:bg-white text-white hover:text-[#549E9E] p-2 rounded-full transition-colors flex-shrink-0">
-                  <X size={20} />
-                </button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <div className="flex rounded-xl bg-gray-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setPrescriptionLang('en')}
+                      className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-extrabold transition-all ${prescriptionLang === 'en' ? 'bg-[#549E9E] text-white shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+                    >
+                      English
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPrescriptionLang('hi')}
+                      className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-extrabold transition-all ${prescriptionLang === 'hi' ? 'bg-[#549E9E] text-white shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+                    >
+                      हिंदी
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="flex cursor-pointer items-center gap-2 rounded-xl bg-[#549E9E] px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-colors hover:bg-[#458b8b]"
+                  >
+                    <Printer size={16} /> Print
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Close prescription"
+                    onClick={() => setSelectedPrescription(null)}
+                    className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
 
-              {/* Body */}
-              <div
-                className="p-8 overflow-y-auto min-h-0 overscroll-behavior-contain space-y-8 bg-white flex-1 relative z-10"
-                data-lenis-prevent
-              >
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* Left Column: Findings & Advice */}
-                  <div className="space-y-6">
-                    <div>
-                      <div className="flex items-center gap-2 text-[#549E9E] mb-3">
-                        <FileText size={16} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">{t('consultation_modal.chief_complaint', 'CHIEF COMPLAINT')}</span>
-                      </div>
-                      <div className="bg-gray-50/50 border border-gray-100 p-5 min-h-[80px]">
-                        <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{selectedPrescription.prescription.symptoms || selectedPrescription.symptoms}</p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-2 text-[#549E9E] mb-3">
-                        <FileText size={16} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">{t('consultation_modal.clinical_findings', 'CLINICAL FINDINGS')}</span>
-                      </div>
-                      <div className="bg-gray-50/50 border border-gray-100 p-5 min-h-[100px]">
-                        <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{selectedPrescription.prescription.treatment_advice || 'No specific findings recorded.'}</p>
-                      </div>
-                    </div>
-
-                    {selectedPrescription.prescription.diagnosis && (
-                      <div>
-                        <div className="flex items-center gap-2 text-[#549E9E] mb-3">
-                          <FileText size={16} />
-                          <span className="text-[10px] font-black uppercase tracking-widest">{t('consultation_modal.diagnosis', 'DIAGNOSIS')}</span>
-                        </div>
-                        <div className="bg-gray-50/50 border border-gray-100 p-5 min-h-[80px]">
-                          <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{selectedPrescription.prescription.diagnosis}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right Column: Medications */}
-                  <div className="space-y-8">
-                    {/* Treatment Duration */}
-                    <div>
-                      <span className="text-[10px] font-black text-[#549E9E] uppercase tracking-widest mb-3 block">{t('consultation_modal.treatment_duration', 'TREATMENT DURATION')}</span>
-                      <div className="flex gap-2">
-                        {[7, 15, 30].map(days => (
-                          <div
-                            key={days}
-                            className={`flex-1 py-3 rounded-xl text-center text-[10px] font-black uppercase tracking-widest border-2 transition-colors ${selectedPrescription.prescription.medication_duration_days === days
-                                ? 'bg-[#549E9E]/40 border-[#549E9E]/40 text-white shadow-sm'
-                                : 'bg-white border-gray-100 text-gray-300'
-                              }`}
-                          >
-                            {days} {t('consultation_modal.days', 'DAYS')}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Prescriptions (Numeric) */}
-                    <div>
-                      <div className="flex items-center gap-2 text-[#549E9E] mb-3">
-                        <Pill size={16} /> {/* Fallback icon, link icon in screenshot */}
-                        <span className="text-[10px] font-black uppercase tracking-widest">{t('consultation_modal.prescription', 'PRESCRIPTION')}</span>
-                      </div>
-
-                      <div className="space-y-4">
-                        {selectedPrescription.prescription.medications?.filter((m: any) => m.medicine_type === 'NUMERIC').map((med: any, idx: number) => (
-                          <div key={idx} className="border border-gray-200 p-4 md:p-6 bg-white shadow-sm">
-                            <div className="bg-gray-50/80 border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between mb-4">
-                              <span className="text-sm font-bold text-gray-700">{t('consultation_modal.remedy_no', 'Remedy No.')} {formatNumericMedicineWithFormula(med.medicine_value, selectedPrescription.prescription?.quick_formula_input).toUpperCase()}</span>
-                              <ChevronDown size={16} className="text-gray-300" />
-                            </div>
-                            <MedicationDispensingStatus medication={med} />
-
-                            <div className="rounded-xl border border-[#549E9E]/10 bg-[#549E9E]/[0.03] px-4 py-3">
-                              <span className="text-[11px] font-black text-[#549E9E] uppercase tracking-widest">
-                                {getDosePreview(med, selectedPrescription.prescription.medication_duration_days) || 'No dose details'}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Custom / Syrups (Text) */}
-                    {selectedPrescription.prescription.medications?.some((m: any) => m.medicine_type === 'TEXT') && (
-                      <div>
-                        <div className="flex items-center gap-2 text-[#549E9E] mb-3">
-                          <FileText size={16} />
-                          <span className="text-[10px] font-black uppercase tracking-widest">{t('consultation_modal.other_medications', 'OTHER MEDICATIONS (CUSTOM / SYRUPS)')}</span>
-                        </div>
-                        <div className="bg-gray-50/50 border border-gray-100 p-5 min-h-[100px]">
-                          {selectedPrescription.prescription.medications?.filter((m: any) => m.medicine_type === 'TEXT').map((med: any, idx: number) => {
-                            const roleLabel = getMedicationRoleLabel(med);
-                            return (
-                              <div key={idx} className="mb-3 last:mb-0">
-                                <div className="flex items-center gap-2 flex-wrap mb-1">
-                                  {roleLabel && (
-                                    <span className="px-2 py-1 rounded-md bg-[#549E9E]/10 text-[#549E9E] text-[9px] font-black uppercase tracking-widest">
-                                      {roleLabel}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-sm font-medium text-gray-700 whitespace-pre-wrap">{formatPrescriptionMedicineText(med.medicine_value).toUpperCase()}</p>
-                                {med.remark && (
-                                  <p className="text-[11px] font-bold text-gray-400 mt-1 uppercase tracking-widest">{med.remark}</p>
-                                )}
-                                <MedicationDispensingStatus medication={med} compact />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+              <div className="flex flex-1 items-start justify-center overflow-auto bg-gray-200/60 p-3 md:p-8" data-lenis-prevent>
+                <div className="mx-auto flex min-h-[297mm] w-[210mm] shrink-0 flex-col border border-gray-100 bg-white p-0 shadow-xl md:p-8">
+                  <PrescriptionPrint
+                    consultation={selectedPrescription.prescription}
+                    appointment={selectedPrescription}
+                    lang={prescriptionLang}
+                  />
                 </div>
               </div>
             </motion.div>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body,
+      )}
+
+      {selectedPrescription?.prescription && createPortal(
+        <div className="print-only">
+          <PrescriptionPrint
+            consultation={selectedPrescription.prescription}
+            appointment={selectedPrescription}
+            lang={prescriptionLang}
+          />
+        </div>,
+        document.body,
+      )}
+
+      {allPrescriptionPreview && createPortal(
+        <div
+          className="no-print fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/55 p-3 backdrop-blur-sm md:p-6"
+          onClick={() => setAllPrescriptionPreview(null)}
+        >
+          <div
+            className="flex h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-white px-4 py-3 md:px-6">
+              <div>
+                <h2 className="text-lg font-black uppercase tracking-widest text-gray-800">All Prescriptions</h2>
+                <p className="text-xs font-bold text-gray-400">
+                  {allPrescriptionPreview.patient.full_name || 'Patient'} · {allPrescriptionPreview.visits.length} records
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="flex rounded-xl bg-gray-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setPrescriptionLang('en')}
+                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-extrabold transition-all ${prescriptionLang === 'en' ? 'bg-[#549E9E] text-white shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+                  >
+                    English
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrescriptionLang('hi')}
+                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-extrabold transition-all ${prescriptionLang === 'hi' ? 'bg-[#549E9E] text-white shadow-sm' : 'text-gray-600 hover:bg-white'}`}
+                  >
+                    हिंदी
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex cursor-pointer items-center gap-2 rounded-xl bg-[#549E9E] px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white transition-colors hover:bg-[#458b8b]"
+                >
+                  <Printer size={16} /> Print All
+                </button>
+                <button
+                  type="button"
+                  aria-label="Close all prescriptions"
+                  onClick={() => setAllPrescriptionPreview(null)}
+                  className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-1 items-start justify-center overflow-auto bg-gray-200/60 p-3 md:p-8" data-lenis-prevent>
+              <div className="mx-auto flex min-h-[297mm] w-[210mm] shrink-0 flex-col border border-gray-100 bg-white p-0 shadow-xl md:p-8">
+                <AllVisitsPrint
+                  patient={allPrescriptionPreview.patient}
+                  visits={allPrescriptionPreview.visits}
+                  lang={prescriptionLang}
+                />
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {allPrescriptionPreview && createPortal(
+        <div className="print-only">
+          <AllVisitsPrint
+            patient={allPrescriptionPreview.patient}
+            visits={allPrescriptionPreview.visits}
+            lang={prescriptionLang}
+          />
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

@@ -2,7 +2,10 @@ import React from 'react';
 import { Activity, Mail, Phone, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
 import { getMedicationRoleLabel, formatPrescriptionMedicineText, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedNumericFormulaDisplay, getPrintedTestFinding } from '../utils/prescriptionFormat';
 import { formatPrintDurationLabel, getFollowUpDueDate, getMedicationPeriodDates } from '../utils/medicationDuration';
+import { sortPrescriptionTimeline } from '../utils/prescriptionTimeline';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
+import DispensingDeliveryInfo from './DispensingDeliveryInfo';
+import PrescriptionPatientInfo from './PrescriptionPatientInfo';
 
 interface VisitData {
   consultation_id?: number;
@@ -34,6 +37,7 @@ interface AllVisitsPrintProps {
 
 export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisitsPrintProps) {
   const isHi = lang === 'hi';
+  const orderedVisits = sortPrescriptionTimeline(visits);
 
   return (
     <div className="bg-white px-2 pt-2 pb-4 max-w-4xl mx-auto font-sans text-gray-800 printable-content leading-tight text-sm flex flex-col flex-1 min-h-full w-full">
@@ -75,82 +79,122 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                     {/* Text Content Block */}
                     <div className="flex flex-col items-end pr-1">
                       <h1 className="text-[28px] font-black text-[#1a2b4c] tracking-wide leading-none">
-                        {isHi ? "डॉ. उत्कर्ष त्रिवेदी" : "Dr. Utkarsh Trivedi"}
+                        डॉ. उत्कर्ष त्रिवेदी
                       </h1>
 
                       <div className="flex flex-col items-end mt-2">
                         <p className="text-[12.5px] font-bold text-gray-800 leading-tight">
-                          {isHi ? "होम्योपैथिक चिकित्सक" : "Homeopathic Physician"}
+                          होम्योपैथिक चिकित्सक
                         </p>
-                        <p className="text-[12.5px] font-bold text-gray-800 leading-tight mt-0.5">B.H.M.S.</p>
+                        <p className="text-[12.5px] font-bold text-gray-800 leading-tight mt-0.5">बी.एच.एम.एस.</p>
+                        <p className="text-[10.5px] font-black text-[#1a2b4c] leading-tight mt-1">मो. 8462030001</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Patient Info Header */}
-              <div className="w-full mb-3 px-1 mt-1 font-bold text-gray-800 text-[10px]">
-                <div className="flex justify-between items-start w-full">
-                  {/* Left Side (Name, Patient ID, Mobile/Treatment) */}
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-black text-[#1a2b4c] uppercase tracking-wide">
-                      {patient?.full_name || patient?.patient_full_name}
-                    </span>
-                    <span className="text-[#1a2b4c] font-mono font-bold">
-                      {patient?.patient_uuid}
-                    </span>
-                    {patient?.mobile_no && (
-                      <span className="text-[#1a2b4c]">
-                        Ph: {patient.mobile_no}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Right Side (Date, Age, Sex, Visits Count) */}
-                  <div className="flex flex-col gap-0.5 items-end">
-                    <span className="text-[#1a2b4c]">
-                      {isHi ? "दिनांक :" : "Date :"} {new Date().toLocaleDateString('en-GB', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric'
-                      })}
-                    </span>
-                    {patient?.age && (
-                      <span className="text-[#1a2b4c]">
-                        {patient.age} {isHi ? 'वर्ष' : 'Y'}
-                      </span>
-                    )}
-                    {patient?.gender && (
-                      <span className="text-[#1a2b4c] capitalize">
-                        {patient.gender}
-                      </span>
-                    )}
-                    <span className="font-black text-[#549E9E]">
-                      {visits.length} {isHi ? "विज़िट" : "Visits"}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <PrescriptionPatientInfo
+                patientId={patient?.patient_uuid}
+                name={patient?.full_name || patient?.patient_full_name}
+                age={patient?.age}
+                gender={patient?.gender}
+                date={new Date().toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                })}
+                contactNumber={patient?.mobile_no}
+                isHi={isHi}
+              />
 
 
               {/* Loop over Visits */}
               <div className="space-y-5">
-                {visits.map((visitItem, visitIndex) => {
+                {orderedVisits.map((visitItem, visitIndex) => {
                   const details = visitItem.details || {};
                   const consultation = visitItem.consultation || {};
                   const appointment = visitItem.appointment || {};
                   const allMeds = consultation?.medications || details?.medications || [];
+                  const isMedicinePurchase = ['DIRECT_MEDICINE', 'REPEAT_MEDICINE'].includes(String(visitItem.record_type || ''));
+                  if (isMedicinePurchase) {
+                    const purchaseDate = visitItem.event_at || visitItem.event_date || details.event_at;
+                    const purchaseDateTime = purchaseDate
+                      ? new Date(purchaseDate).toLocaleString('en-GB', {
+                          day: '2-digit', month: '2-digit', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })
+                      : 'N/A';
+                    const isDirect = visitItem.record_type === 'DIRECT_MEDICINE';
+                    return (
+                      <div key={`${visitItem.record_type}-${visitItem.source_id || visitIndex}`} className="border border-violet-200 rounded-lg p-3 bg-violet-50/30 shadow-xs page-break-inside-avoid">
+                        <div className="flex items-start justify-between gap-3 border-b border-violet-200 pb-2 mb-2 bg-violet-100/60 -mx-3 -mt-3 p-2.5 rounded-t-lg">
+                          <div className="flex flex-wrap items-center gap-1.5 text-[9px] leading-tight min-w-0">
+                            <span className="font-black text-[#1a2b4c] text-xs">#{orderedVisits.length - visitIndex}</span>
+                            <span className="font-bold text-[#1a2b4c]">{purchaseDateTime}</span>
+                            {details.bill_number && (
+                              <span className="font-mono text-violet-700 bg-white px-1.5 py-0.5 rounded-xs border border-violet-200">{details.bill_number}</span>
+                            )}
+                            <span className="font-black uppercase tracking-wider text-violet-700">
+                              {isDirect ? (isHi ? 'सीधी दवा' : 'Direct Medicine') : (isHi ? 'रिपीट दवा' : 'Repeat Medicine')}
+                            </span>
+                          </div>
+                          <DispensingDeliveryInfo sources={[visitItem, details]} lang={lang} compact />
+                        </div>
+
+                        <div className="flex justify-end">
+                          <div className="w-full max-w-[52%] text-right">
+                            <h4 className="text-[9px] font-black text-violet-700 uppercase tracking-wider mb-1 border-b border-violet-200 pb-0.5 text-right">
+                              {isHi ? 'ली गई दवाइयाँ' : 'Medicines Collected'}
+                            </h4>
+                            <div className="space-y-1">
+                              {allMeds.length > 0 ? allMeds.map((medicine: any, index: number) => (
+                                <div key={medicine.consultation_medication_id || index} className="flex items-start justify-end gap-3 text-[10px] font-bold text-gray-800 text-right">
+                                  <div className="order-2">
+                                    <span>{formatPrescriptionMedicineText(medicine.medicine_value).toUpperCase()}</span>
+                                  </div>
+                                  {Number(medicine.quantity || 0) > 1 && (
+                                    <span className="order-1 whitespace-nowrap text-violet-700">
+                                      {isHi ? 'मात्रा' : 'Qty'}: {medicine.quantity}
+                                    </span>
+                                  )}
+                                </div>
+                              )) : (
+                                <div className="text-[10px] text-gray-500">{isHi ? 'कोई दवा दर्ज नहीं।' : 'No medicine item recorded.'}</div>
+                              )}
+                            </div>
+                            <p className="mt-2 text-[8px] font-bold text-gray-500 text-right">
+                              {isHi ? 'यह दवा लेने का रिकॉर्ड है; इससे नया चिकित्सकीय परामर्श नहीं बना।' : 'Medicine collection record; no new clinical consultation was created.'}
+                            </p>
+                            {(details.branch_name || (!isDirect && details.doctor_full_name)) && (
+                              <div className="mt-2 flex flex-wrap justify-end gap-x-4 gap-y-1 text-[8px] font-bold text-gray-500 text-right">
+                                {details.branch_name && <span>{details.branch_name}</span>}
+                                {!isDirect && details.doctor_full_name && (
+                                  <span>{isHi ? 'मूल डॉक्टर' : 'Source doctor'}: {details.doctor_full_name}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
                   const tests = consultation?.tests || details?.tests || [];
                   const numericMeds = allMeds.filter((m: any) => m.medicine_type?.toUpperCase() === 'NUMERIC');
                   const textMeds = allMeds.filter((m: any) => m.medicine_type?.toUpperCase() === 'TEXT');
-                  const visitDate = visitItem.event_date || details.appointment_date || appointment.appointment_date || consultation.created_at;
-                  const formattedVisitDate = visitDate ? new Date(visitDate).toLocaleDateString('en-GB', {
+                  const visitDate = visitItem.event_at || visitItem.event_date || details.appointment_date || appointment.appointment_date || consultation.created_at;
+                  const hasRecordedTime = /\d{2}:\d{2}/.test(String(visitDate || ''));
+                  const formattedVisitDate = visitDate ? new Date(visitDate).toLocaleString('en-GB', {
                     day: '2-digit',
                     month: '2-digit',
-                    year: 'numeric'
+                    year: 'numeric',
+                    ...(hasRecordedTime ? { hour: '2-digit', minute: '2-digit' } : {}),
                   }) : 'N/A';
                   const auid = visitItem.auid || details.auid;
+                  const visitPatientName = appointment.patient_full_name || details.patient_full_name || visitItem.patient_full_name;
+                  const showVisitPatientName = visitPatientName
+                    && patient?.full_name
+                    && String(visitPatientName).trim().toLowerCase() !== String(patient.full_name).trim().toLowerCase();
                   const hasVitalValue = (value: unknown) => {
                     const text = String(value ?? '').trim();
                     return Boolean(text) && text !== '-' && text !== '—' && text.toLowerCase() !== 'n/a';
@@ -215,7 +259,7 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                       <div className="flex items-start justify-between gap-3 border-b border-gray-200 pb-2 mb-2 bg-[#1a2b4c]/5 -mx-3 -mt-3 p-2.5 rounded-t-lg">
                         <div className="flex flex-wrap items-center gap-1.5 text-[9px] leading-tight min-w-0">
                           <span className="font-black text-[#1a2b4c] text-xs">
-                            #{visits.length - visitIndex}
+                            #{orderedVisits.length - visitIndex}
                           </span>
                           <span className="font-bold text-[#1a2b4c]">
                             {formattedVisitDate}
@@ -228,6 +272,11 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                           <span className="font-black uppercase tracking-wider text-[#549E9E]">
                             {visitItem.treatment_name || details.treatment_name || appointment.treatment_name || "Consultation"}
                           </span>
+                          {showVisitPatientName && (
+                            <span className="rounded-xs border border-purple-200 bg-purple-50 px-1.5 py-0.5 font-black uppercase tracking-wider text-purple-700">
+                              {isHi ? 'मरीज' : 'For'}: {visitPatientName}
+                            </span>
+                          )}
                           {durationLabel && (
                             <span className="px-1.5 py-0.5 rounded-xs border border-[#549E9E]/25 bg-white text-[#549E9E] font-black uppercase tracking-wider whitespace-nowrap">
                               {isHi ? 'अवधि' : 'DURATION'} {durationLabel}
@@ -238,11 +287,6 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                               {medicationPeriod.fromDate} – {medicationPeriod.toDate}
                             </span>
                           )}
-                          {followUpDueDate && !consultation.follow_up_chain_closed && (
-                            <span className="px-1.5 py-0.5 rounded-xs border border-red-100 bg-white text-red-500 font-black uppercase tracking-wider whitespace-nowrap">
-                              {isHi ? 'अगला फॉलो-अप' : 'NEXT FOLLOW-UP'} {followUpDueDate}
-                            </span>
-                          )}
                         </div>
                         <div className="shrink-0 text-right pt-0.5">
                           <span className="text-[9px] font-black uppercase tracking-wider whitespace-nowrap">
@@ -251,6 +295,12 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                           </span>
                         </div>
                       </div>
+
+                      {allMeds.length > 0 && (
+                        <div className="mb-2">
+                          <DispensingDeliveryInfo sources={[visitItem, consultation, details]} lang={lang} compact />
+                        </div>
+                      )}
 
                       {/* Two Column Layout for Visit Details & Remedies */}
                       <div className="flex items-stretch w-full gap-6">
@@ -419,6 +469,14 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                 </div>
                               </div>
                             )}
+
+                            {followUpDueDate && !consultation.follow_up_chain_closed && (
+                              <div className="flex w-full justify-end pt-1">
+                                <span className="px-1.5 py-0.5 rounded-xs border border-red-100 bg-red-50/40 text-red-500 text-[8.5px] font-black uppercase tracking-wider whitespace-nowrap">
+                                  {isHi ? 'अगला फॉलो-अप' : 'NEXT FOLLOW-UP'} {followUpDueDate}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -462,7 +520,7 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                 <div className="border-t border-b border-gray-300 py-1.5 mb-2 flex items-center justify-center relative bg-gray-50/30">
                   <img src="/logo.png.png" alt="Logo" className="h-8 absolute left-2 object-contain mix-blend-multiply" onError={(e) => (e.currentTarget.style.display = 'none')} />
                   <h2 className="text-[22px] font-black text-[#1a2b4c] tracking-wide text-center w-full">
-                    {isHi ? "डॉ. त्रिवेदी होम्योपैथिक क्लिनिक" : "Dr. Trivedi Homeopathic Clinic"}
+                    डॉ. त्रिवेदी होम्योपैथिक क्लिनिक
                   </h2>
                 </div>
 

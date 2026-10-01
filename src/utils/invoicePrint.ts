@@ -12,17 +12,19 @@ export function buildInvoiceModel(bills: any[]) {
   const payments = unique(successful(bills.flatMap(b => b.payments || [])));
   const recovered = unique(successful(bills.flatMap(b => b.previous_pending_settlements || []))).filter(p => !ids.has(Number(p.bill_id)));
   const total = bills.reduce((sum,b) => sum + Number(b.total_amount || 0),0);
+  const gross = bills.reduce((sum,b) => sum + Number(b.gross_amount ?? b.total_amount ?? 0),0);
+  const discount = bills.reduce((sum,b) => sum + Number(b.discount_amount || 0),0);
   const paid = bills.reduce((sum,b) => sum + Number(b.paid_amount || 0),0);
   const pending = bills.reduce((sum,b) => sum + Number(b.pending_amount || 0),0);
   const modes = new Map<string,number>();
   payments.forEach(p => modes.set(p.payment_mode, (modes.get(p.payment_mode) || 0) + Number(p.amount || 0)));
   const modeSum = [...modes.values()].reduce((a,b)=>a+b,0);
-  return {total,paid,pending,recovered,
+  return {gross,discount,total,paid,pending,recovered,
     modes: Math.abs(modeSum-paid) < 0.01 ? [...modes].filter(([,v])=>v>0).map(([k,v])=>`${k} ${invoiceMoney(v)}`).join(' · ') : '',
     sections: bills.map(b => {
       let delivery: any = {};
       try { delivery = typeof b.delivery_details_json === 'string' ? JSON.parse(b.delivery_details_json) : b.delivery_details_json || {}; } catch {}
-      return {id:b.bill_id, number:b.bill_number, date:b.created_at, total:Number(b.total_amount || 0),
+      return {id:b.bill_id, number:b.bill_number, date:b.created_at, gross:Number(b.gross_amount ?? b.total_amount ?? 0), discount:Number(b.discount_amount || 0), total:Number(b.total_amount || 0), discounts:b.discounts || [],
         category:b.bill_type === 'CONSULTATION' ? 'Consultation' : b.appointment_id ? 'Medicines / Tests' : (!b.consultation_id || /Medical Only/i.test(b.remark || '')) ? 'Direct Medicine' : 'Repeat Medicine',
         delivery: b.delivery_mode === 'COURIER' ? ['Courier',delivery.courier_address,delivery.tracking_no && `Tracking: ${delivery.tracking_no}`].filter(Boolean).join(' · ') : '',
         items: (b.items?.length ? b.items : [{item_name:b.bill_type === 'CONSULTATION' ? 'Consultation fee' : 'Item details unavailable',amount:b.total_amount}]).map((item:any) => ({serial:++serial,name:item.item_type === 'TEST' || b.bill_type === 'CONSULTATION' ? item.item_name : String(item.item_name || '').toUpperCase(),quantity:item.quantity,rate:item.unit_price,amount:Number(item.amount || 0),kind:item.item_type === 'TEST' ? 'Test / Investigation' : ''})),

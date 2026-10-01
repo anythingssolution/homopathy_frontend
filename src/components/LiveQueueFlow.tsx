@@ -293,12 +293,16 @@ export default function LiveQueueFlow() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [callOverlayToken, setCallOverlayToken] =
+    useState<TokenItem | null>(null);
   const lastRealtimeSnapshotKeyRef = useRef("");
   const callTuneRef = useRef<CallTuneSetting>({ mode: "CHIME", custom_text: null });
   const [callTune, setCallTune] = useState<CallTuneSetting>({ mode: "CHIME", custom_text: null });
 
   // First load skips sound. Later current-token changes play the branch call tune (default = existing chime).
   const prevRunningTokenIdRef = useRef<number | null | undefined>(undefined);
+  const lastAnnouncedTokenKeyRef = useRef("");
+  const callOverlayTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     callTuneRef.current = callTune;
@@ -340,10 +344,34 @@ export default function LiveQueueFlow() {
       } else {
         playCallChime();
       }
+
+      if (currentRunningToken) {
+        const announcementKey = `${currentId}:${currentRunningToken.actual_called_at || ""}`;
+        if (lastAnnouncedTokenKeyRef.current !== announcementKey) {
+          lastAnnouncedTokenKeyRef.current = announcementKey;
+          setCallOverlayToken(currentRunningToken);
+          if (callOverlayTimerRef.current !== null) {
+            window.clearTimeout(callOverlayTimerRef.current);
+          }
+          callOverlayTimerRef.current = window.setTimeout(() => {
+            setCallOverlayToken(null);
+            callOverlayTimerRef.current = null;
+          }, 3000);
+        }
+      }
     }
 
     prevRunningTokenIdRef.current = currentId;
   }, [currentRunningToken]);
+
+  useEffect(
+    () => () => {
+      if (callOverlayTimerRef.current !== null) {
+        window.clearTimeout(callOverlayTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const applyQueueSnapshot = (data: LiveQueueSnapshot = {}) => {
     const activeQueueById = new Map(
@@ -725,6 +753,14 @@ export default function LiveQueueFlow() {
         .next-line-pulse {
           animation: next-line-pulse 1.2s ease-in-out infinite;
         }
+        @keyframes call-overlay-progress {
+          from { transform: scaleX(1); }
+          to { transform: scaleX(0); }
+        }
+        .call-overlay-progress {
+          animation: call-overlay-progress 3s linear forwards;
+          transform-origin: left center;
+        }
         @media (min-width: 1024px) and (max-height: 900px) {
           .live-queue-flow-screen .flow-page {
             gap: .5rem;
@@ -826,6 +862,16 @@ export default function LiveQueueFlow() {
           }
         }
       `}</style>
+
+      <AnimatePresence initial={false}>
+        {callOverlayToken && (
+          <CalledTokenOverlay
+            key={`${callOverlayToken.appointment_id}:${callOverlayToken.actual_called_at || "called"}`}
+            token={callOverlayToken}
+            branchName={snapshot.branch_name}
+          />
+        )}
+      </AnimatePresence>
 
       <div className="flow-page mx-auto flex min-h-screen w-full max-w-[1780px] flex-col gap-5 px-3 py-4 sm:px-6 lg:px-10">
         {error && (
@@ -946,6 +992,77 @@ export default function LiveQueueFlow() {
         </div>
       </div>
     </div>
+  );
+}
+
+function CalledTokenOverlay({
+  token,
+  branchName,
+}: {
+  token: TokenItem;
+  branchName?: string;
+}) {
+  const tokenDisplay = getTokenDisplay(token);
+
+  return (
+    <motion.div
+      role="alert"
+      aria-live="assertive"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.22, ease: "easeOut" }}
+      className="pointer-events-none fixed inset-0 z-[100] flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#2AA7A1_0%,#0F766E_46%,#064E4B_100%)] px-5 py-8 text-white"
+    >
+      <div className="absolute -left-[12vw] -top-[22vw] h-[48vw] w-[48vw] rounded-full border-[6vw] border-white/5" />
+      <div className="absolute -bottom-[26vw] -right-[12vw] h-[58vw] w-[58vw] rounded-full border-[8vw] border-cyan-200/10" />
+      <div className="absolute left-0 top-0 h-2 w-full bg-white/20">
+        <div className="call-overlay-progress h-full w-full bg-yellow-300" />
+      </div>
+
+      <motion.div
+        initial={{ y: 28, scale: 0.94 }}
+        animate={{ y: 0, scale: 1 }}
+        exit={{ y: -18, scale: 0.98 }}
+        transition={{ type: "spring", stiffness: 220, damping: 24 }}
+        className="relative flex w-full max-w-6xl flex-col items-center text-center"
+      >
+        {branchName && (
+          <p className="mb-5 rounded-full border border-white/20 bg-white/10 px-5 py-2 text-xs font-black uppercase tracking-[0.24em] text-cyan-50 sm:text-sm">
+            {branchName}
+          </p>
+        )}
+
+        <div className="inline-flex items-center gap-3 rounded-full border border-yellow-200/50 bg-yellow-300/15 px-5 py-2 text-sm font-black uppercase tracking-[0.28em] text-yellow-100 sm:text-lg">
+          <Activity size={22} />
+          अब आपकी बारी है
+        </div>
+
+        <p className="mt-5 text-sm font-black uppercase tracking-[0.32em] text-cyan-100 sm:text-xl">
+          Token Number
+        </p>
+        <div className="mt-3 min-w-[min(82vw,720px)] rounded-[42px] border-4 border-white bg-yellow-300 px-8 py-6 text-slate-950 shadow-[0_30px_100px_rgba(2,44,42,0.55)] sm:px-14 sm:py-8">
+          <p className="whitespace-nowrap text-[clamp(5rem,18vw,13rem)] font-black leading-[0.82] tracking-tight tabular-nums">
+            {tokenDisplay}
+          </p>
+        </div>
+
+        <h2 className="mt-7 max-w-5xl text-[clamp(2rem,5vw,4.5rem)] font-black leading-none tracking-tight">
+          {getPatientDisplayName(token)}
+        </h2>
+        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-6 py-4 shadow-xl backdrop-blur-md sm:px-10">
+          <ArrowUp className="shrink-0 text-yellow-300" size={34} />
+          <div className="text-left">
+            <p className="text-[clamp(1.25rem,3vw,2.5rem)] font-black leading-tight">
+              कृपया डॉक्टर के केबिन में आएं
+            </p>
+            <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-cyan-100 sm:text-base">
+              Please proceed to the doctor&apos;s cabin
+            </p>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

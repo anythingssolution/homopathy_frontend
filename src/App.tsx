@@ -27,7 +27,6 @@ import DashboardLayout from './components/dashboard/DashboardLayout';
 import PatientDashboard from './components/dashboard/PatientDashboard';
 import Profile from './components/dashboard/Profile';
 import MyAppointments from './components/dashboard/MyAppointments';
-import { Prescriptions, ClinicHistory as PatientClinicHistory } from './components/dashboard/Placeholders';
 import Bills from './components/dashboard/Bills';
 import BillsNext from './components/dashboard/bills-next/BillsNext';
 import ConsultationPage from './components/dashboard/ConsultationPage';
@@ -37,6 +36,8 @@ import TodayPage from './components/dashboard/reports-next/pages/Today';
 import AppointmentsPage from './components/dashboard/reports-next/pages/Appointments';
 import FollowUpsPage from './components/dashboard/reports-next/pages/FollowUps';
 import FirstConsultationsPage from './components/dashboard/reports-next/pages/FirstConsultations';
+import TestRegisterPage from './components/dashboard/reports-next/pages/TestRegister';
+import CourierRegisterPage from './components/dashboard/reports-next/pages/CourierRegister';
 import DispensaryPage from './components/dashboard/reports-next/pages/Dispensary';
 import CollectionsPage from './components/dashboard/reports-next/pages/Collections';
 import PatientsPage from './components/dashboard/reports-next/pages/Patients';
@@ -55,6 +56,8 @@ import BackendLogsModule from './components/BackendLogsModule';
 import DoctorLeaveCalendar from './components/dashboard/DoctorLeaveCalendar';
 import ManageCMS from './components/dashboard/ManageCMS';
 import DoctorFormulaMasterPage from './components/dashboard/DoctorFormulaMasterPage';
+import DoctorRemarkMasterPage from './components/dashboard/DoctorRemarkMasterPage';
+import TestMaster from './components/dashboard/TestMaster';
 import ReceptionPatientManagement from './components/dashboard/ReceptionPatientManagement';
 import PreviousManualPatients from './components/dashboard/PreviousManualPatients';
 import StaffCreatePatients from './components/dashboard/StaffCreatePatients';
@@ -232,6 +235,8 @@ function AnimatedRoutes() {
               <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['patient', 'PAT']}><PatientDashboard /></ProtectedRoute>} />
               <Route path="/doctor-portal" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorPortal /></ProtectedRoute>} />
               <Route path="/doctor-formula-master" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorFormulaMasterPage /></ProtectedRoute>} />
+              <Route path="/doctor-remark-master" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorRemarkMasterPage /></ProtectedRoute>} />
+              <Route path="/doctor-test-master" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><TestMaster /></ProtectedRoute>} />
               <Route path="/doctor-portal/cms" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><ManageCMS /></ProtectedRoute>} />
               <Route path="/doctor-leave-calendar" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorLeaveCalendar /></ProtectedRoute>} />
               <Route path="/consult/:appointmentId" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><ConsultationPage /></ProtectedRoute>} />
@@ -241,6 +246,8 @@ function AnimatedRoutes() {
                 <Route path="appointments" element={<AppointmentsPage />} />
                 <Route path="follow-ups" element={<FollowUpsPage />} />
                 <Route path="first-consults" element={<FirstConsultationsPage />} />
+                <Route path="test-register" element={<TestRegisterPage />} />
+                <Route path="courier-register" element={<CourierRegisterPage />} />
                 <Route path="dispensary" element={<DispensaryPage />} />
                 <Route path="collections" element={<CollectionsPage />} />
                 <Route path="patients" element={<PatientsPage />} />
@@ -252,6 +259,7 @@ function AnimatedRoutes() {
               <Route path="/previous-patients" element={<ProtectedRoute allowedRoles={['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist']}><PreviousManualPatients /></ProtectedRoute>} />
               <Route path="/staff-patients" element={<ProtectedRoute allowedRoles={['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical', 'MEDS', 'meds']}><StaffCreatePatients /></ProtectedRoute>} />
               <Route path="/my-appointments" element={<ProtectedRoute allowedRoles={['patient', 'PAT']}><MyAppointments /></ProtectedRoute>} />
+              <Route path="/prescriptions" element={<ProtectedRoute allowedRoles={['patient', 'PAT']}><MyAppointments prescriptionsOnly /></ProtectedRoute>} />
               <Route path="/clinic-history" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorClinicHistory /></ProtectedRoute>} />
               <Route path="/patient-records" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical']}><PatientRecords /></ProtectedRoute>} />
               <Route path="/dispensary-history" element={<ProtectedRoute allowedRoles={['MED', 'med', 'medical', 'DOC', 'doc', 'doctor']}><DispensaryHistory /></ProtectedRoute>} />

@@ -23,21 +23,15 @@ import CustomDatePicker from "../CustomDatePicker";
 import Pagination from "../Pagination";
 import PrescriptionPrint from "../PrescriptionPrint";
 import AllVisitsPrint from "../AllVisitsPrint";
+import { loadPrescriptionTimeline } from "../../utils/prescriptionTimeline";
 import { useTranslation } from "react-i18next";
+import DispensingDeliveryInfo from "../DispensingDeliveryInfo";
+import { resolveDispensingDelivery } from "../../utils/dispensingDelivery";
 
 const PAGE_SIZE = 20;
 const HISTORY_PAGE_SIZE = 12;
 const REGISTRY_SORT_FIELDS = ['patient_id', 'full_name', 'mobile_no', 'visits', 'latest_visit'] as const;
 type RegistrySortField = typeof REGISTRY_SORT_FIELDS[number];
-
-const HISTORY_TYPES = [
-  { value: "", label: "All visits" },
-  { value: "APPOINTMENT", label: "All completed visits" },
-  { value: "CONSULTATION", label: "Consultation visits" },
-  { value: "PRESCRIPTION", label: "Printable prescription visits" },
-  { value: "BILL", label: "Visits with bills" },
-  { value: "DOCUMENT", label: "Visits with documents" },
-];
 
 type PatientRegistryRow = {
   patient_id: number;
@@ -50,11 +44,16 @@ type PatientRegistryRow = {
   ward_no?: string | null;
   vidhan_sabha?: string | null;
   latest_visit_date?: string | null;
+  latest_activity_date?: string | null;
   summary?: {
     completed_appointments_count?: number;
     consultations_count?: number;
     prescriptions_count?: number;
     bills_count?: number;
+    medicine_pickups_count?: number;
+    direct_medicine_count?: number;
+    repeat_medicine_count?: number;
+    total_records_count?: number;
     family_members_count?: number;
   };
 };
@@ -132,6 +131,14 @@ const getTypeBadgeClass = (type: string) => {
 };
 
 const getVisitStatusBadge = (item: TimelineItem, t: any) => {
+  if (item.timeline_type === "MEDICINE_PURCHASE") {
+    return {
+      label: item.details?.is_direct_medicine
+        ? t('patient_records.modal.status.direct_medicine', 'Direct medicine')
+        : t('patient_records.modal.status.repeat_medicine', 'Repeat medicine'),
+      className: "bg-violet-50 text-violet-700 border-violet-200",
+    };
+  }
   if (!item.consultation_id) {
     return { label: t('patient_records.modal.status.no_consultation', 'No consultation'), className: "bg-red-50 text-red-600 border-red-100" };
   }
@@ -151,6 +158,14 @@ const getReference = (item: TimelineItem) => {
 };
 
 const getSecondaryDetail = (item: TimelineItem) => {
+  if (item.timeline_type === "MEDICINE_PURCHASE") {
+    const delivery = resolveDispensingDelivery(item);
+    return [
+      item.details?.medicine_count ? `${item.details.medicine_count} medicines` : null,
+      item.details?.total_amount ? `₹ ${Number(item.details.total_amount).toFixed(2)}` : null,
+      delivery.status === 'DISPENSED' ? (delivery.mode === 'COURIER' ? 'Courier' : 'Hand delivery') : 'Delivery not recorded',
+    ].filter(Boolean).join(" • ") || "Medicine pickup";
+  }
   if (item.timeline_type === "DOCUMENT") {
     return [item.document_type, item.details?.original_filename, formatFileSize(item.details?.file_size)].filter(Boolean).join(" • ");
   }
@@ -164,18 +179,31 @@ const getSecondaryDetail = (item: TimelineItem) => {
     ].filter(Boolean).join(" • ") || "Saved prescription";
   }
   if (item.timeline_type === "VISIT") {
+    const delivery = Number(item.details?.medicine_count || 0) > 0 ? resolveDispensingDelivery(item) : null;
     return [
       item.details?.treatment_name,
-      item.doctor_full_name ? `Dr. ${item.doctor_full_name}` : null,
+      formatDoctorName(item.doctor_full_name),
       item.details?.has_prescription ? "Printable prescription" : null,
       item.details?.bills_count ? `${item.details.bills_count} bill${Number(item.details.bills_count) > 1 ? "s" : ""}` : null,
+      delivery ? (delivery.status === 'DISPENSED' ? (delivery.mode === 'COURIER' ? 'Courier' : 'Hand delivery') : 'Not dispensed') : null,
     ].filter(Boolean).join(" • ");
   }
   return [item.details?.treatment_name, item.details?.slot_name].filter(Boolean).join(" • ");
 };
 
+const formatDoctorName = (value?: string | null) => {
+  const name = String(value || '').trim();
+  if (!name) return '';
+  return `Dr. ${name.replace(/^dr\.?\s*/i, '').trim()}`;
+};
+
+const formatCountLabel = (value: unknown, singular: string, plural: string) => {
+  const count = Number(value || 0);
+  return `${count} ${count === 1 ? singular : plural}`;
+};
+
 export default function PatientRecords() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { token, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -217,12 +245,18 @@ export default function PatientRecords() {
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<{ scope: "ALL" | "SELF" | "FAMILY_MEMBER"; familyMemberId?: number; label: string }>({
     scope: "ALL",
-    label: "All linked visits",
+    label: "All linked records",
   });
   const [historyItems, setHistoryItems] = useState<TimelineItem[]>([]);
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTotalPages, setHistoryTotalPages] = useState(1);
   const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyBreakdown, setHistoryBreakdown] = useState({
+    clinical_visits: 0,
+    medicine_pickups: 0,
+    direct_medicine: 0,
+    repeat_medicine: 0,
+  });
   const [historyType, setHistoryType] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -233,7 +267,11 @@ export default function PatientRecords() {
   const [printAfterPreviewLoad, setPrintAfterPreviewLoad] = useState(false);
   const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
 
-  const [selectedAllVisits, setSelectedAllVisits] = useState<{ patient: any; visits: any[] } | null>(null);
+  const [selectedAllVisits, setSelectedAllVisits] = useState<{
+    patient: any;
+    visits: any[];
+    previewMode?: 'all' | 'medicine-purchase';
+  } | null>(null);
   const [isAllVisitsLoading, setIsAllVisitsLoading] = useState(false);
   const [allVisitsLang, setAllVisitsLang] = useState<'en' | 'hi'>('en');
   const [printAfterAllVisitsLoad, setPrintAfterAllVisitsLoad] = useState(false);
@@ -280,7 +318,7 @@ export default function PatientRecords() {
   const fetchPatientDetail = async (patient: PatientRegistryRow) => {
     if (!token) return;
     setError("");
-    setSelectedSubject({ scope: "ALL", label: "All linked visits" });
+    setSelectedSubject({ scope: "ALL", label: "All linked records" });
     setHistoryType("");
     setHistoryPage(1);
 
@@ -324,6 +362,12 @@ export default function PatientRecords() {
       setHistoryItems(result.data?.items || []);
       setExpandedVisitId(null);
       setHistoryTotal(result.data?.meta?.total || 0);
+      setHistoryBreakdown({
+        clinical_visits: Number(result.data?.meta?.breakdown?.clinical_visits || 0),
+        medicine_pickups: Number(result.data?.meta?.breakdown?.medicine_pickups || 0),
+        direct_medicine: Number(result.data?.meta?.breakdown?.direct_medicine || 0),
+        repeat_medicine: Number(result.data?.meta?.breakdown?.repeat_medicine || 0),
+      });
       setHistoryTotalPages(result.data?.meta?.total_pages || 1);
       setHistoryPage(result.data?.meta?.page || pageNum);
     } catch (historyError: any) {
@@ -409,6 +453,50 @@ export default function PatientRecords() {
     }
   };
 
+  const openMedicinePurchasePreview = async (item: TimelineItem, printAfterLoad = false) => {
+    if (!token || !selectedPatient?.patient?.patient_id) return;
+    setIsAllVisitsLoading(true);
+    setPrintAfterAllVisitsLoad(printAfterLoad);
+    setError("");
+
+    try {
+      const printableItems = await loadPrescriptionTimeline({
+        token,
+        patientId: selectedPatient.patient.patient_id,
+        familyMemberId: selectedSubject.familyMemberId,
+        subjectScope: selectedSubject.scope === "SELF" ? "SELF" : "ALL",
+        fromDate,
+        toDate,
+      });
+      const printableItem = printableItems.find((candidate) => (
+        candidate.timeline_type === 'MEDICINE_PURCHASE'
+        && Number(candidate.source_id) === Number(item.source_id)
+      ));
+
+      if (!printableItem) {
+        throw new Error(t('patient_records.modal.medicine_preview_missing', 'Medicine collection record could not be loaded.'));
+      }
+
+      setSelectedAllVisits({
+        patient: selectedPatient.patient,
+        visits: [printableItem],
+        previewMode: 'medicine-purchase',
+      });
+    } catch (previewError: any) {
+      setPrintAfterAllVisitsLoad(false);
+      setError(previewError.message || t('patient_records.modal.medicine_preview_failed', 'Unable to load medicine collection record.'));
+    } finally {
+      setIsAllVisitsLoading(false);
+    }
+  };
+
+  const openRecordPreview = (item: TimelineItem, printAfterLoad = false) => {
+    if (item.timeline_type === 'MEDICINE_PURCHASE') {
+      return openMedicinePurchasePreview(item, printAfterLoad);
+    }
+    return openPrescriptionPreview(item, printAfterLoad);
+  };
+
   const openAllVisitsPreview = async (printAfterLoad = false) => {
     if (!token || !selectedPatient?.patient?.patient_id) return;
     setIsAllVisitsLoading(true);
@@ -416,63 +504,23 @@ export default function PatientRecords() {
     setError("");
 
     try {
-      const params = new URLSearchParams();
-      if (fromDate) params.set("from_date", fromDate);
-      if (toDate) params.set("to_date", toDate);
-      if (historyType) params.set("timeline_type", historyType);
-      if (selectedSubject.scope === "SELF") params.set("subject_scope", "SELF");
-      if (selectedSubject.familyMemberId) params.set("family_member_id", String(selectedSubject.familyMemberId));
-      params.set("page", "1");
-      params.set("page_size", "50");
-
-      const response = await fetch(`/api/v1/patient-records/patients/${selectedPatient.patient.patient_id}/visits?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const fetchedVisits = await loadPrescriptionTimeline({
+        token,
+        patientId: selectedPatient.patient.patient_id,
+        familyMemberId: selectedSubject.familyMemberId,
+        subjectScope: selectedSubject.scope === "SELF" ? "SELF" : "ALL",
+        fromDate,
+        toDate,
       });
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || "Unable to load visits");
+
+      if (fetchedVisits.length === 0) {
+        throw new Error("No prescription or medicine collection records found.");
       }
-
-      const items: TimelineItem[] = result.data?.items || [];
-      const visitsWithConsultation = items.filter((item: TimelineItem) => Boolean(item.consultation_id));
-
-      if (visitsWithConsultation.length === 0) {
-        throw new Error("No consultation prescriptions found for these visits.");
-      }
-
-      const roleCode = String(user?.role_code || "").toUpperCase();
-      const role = String(user?.role || "").toLowerCase();
-      const isReceptionist = roleCode === "REC" || role === "rec" || role === "receptionist";
-      const endpointPrefix = isReceptionist ? '/api/v1/receptionist/prescriptions/' : '/api/v1/medical/prescriptions/';
-
-      const fetchedVisits = await Promise.all(
-        visitsWithConsultation.map(async (vItem) => {
-          try {
-            const res = await fetch(`${endpointPrefix}${vItem.consultation_id}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const resData = await res.json();
-            if (res.ok && resData.success) {
-              return {
-                ...vItem,
-                consultation: resData.data,
-                appointment: resData.data,
-              };
-            }
-          } catch (e) {
-            // fallback
-          }
-          return {
-            ...vItem,
-            consultation: {},
-            appointment: {},
-          };
-        })
-      );
 
       setSelectedAllVisits({
         patient: selectedPatient.patient,
         visits: fetchedVisits,
+        previewMode: 'all',
       });
     } catch (err: any) {
       setPrintAfterAllVisitsLoad(false);
@@ -503,8 +551,9 @@ export default function PatientRecords() {
   const registrySummary = useMemo(() => patients.reduce((acc, patient) => ({
     patients: acc.patients + 1,
     prescriptions: acc.prescriptions + Number(patient.summary?.prescriptions_count || 0),
+    medicinePickups: acc.medicinePickups + Number(patient.summary?.medicine_pickups_count || 0),
     family: acc.family + Number(patient.summary?.family_members_count || 0),
-  }), { patients: 0, prescriptions: 0, family: 0 }), [patients]);
+  }), { patients: 0, prescriptions: 0, medicinePickups: 0, family: 0 }), [patients]);
 
   return (
     <div className="no-print space-y-8 pb-12">
@@ -522,10 +571,10 @@ export default function PatientRecords() {
           <h1 className="text-3xl font-black tracking-tight text-gray-900">{t('patient_records.title', 'Patient Registry')}</h1>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 flex-1 max-w-3xl">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 flex-1 max-w-4xl">
           <div className="bg-slate-50 border border-slate-200/80 p-3.5 sm:p-4 rounded-xl shadow-sm text-center">
             <div className="text-xl sm:text-3xl font-black text-slate-800 mb-0.5">{patientTotal}</div>
-            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('patient_records.stats.total_patients', 'Total patients')}</div>
+            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('patient_records.stats.patients_found', 'Patients found')}</div>
           </div>
           <div className="bg-[#549E9E]/10 border border-[#549E9E]/25 p-3.5 sm:p-4 rounded-xl shadow-sm text-center">
             <div className="text-xl sm:text-3xl font-black text-[#2d8789] mb-0.5">{registrySummary.patients}</div>
@@ -533,11 +582,15 @@ export default function PatientRecords() {
           </div>
           <div className="bg-amber-50/80 border border-amber-200/80 p-3.5 sm:p-4 rounded-xl shadow-sm text-center">
             <div className="text-xl sm:text-3xl font-black text-amber-800 mb-0.5">{registrySummary.prescriptions}</div>
-            <div className="text-[9px] font-black text-amber-600 uppercase tracking-widest">{t('patient_records.stats.prescriptions', 'Prescriptions')}</div>
+            <div className="text-[9px] font-black text-amber-600 uppercase tracking-widest">{t('patient_records.stats.doctor_rx_page', 'Doctor Rx (page)')}</div>
+          </div>
+          <div className="bg-violet-50/80 border border-violet-200/80 p-3.5 sm:p-4 rounded-xl shadow-sm text-center">
+            <div className="text-xl sm:text-3xl font-black text-violet-800 mb-0.5">{registrySummary.medicinePickups}</div>
+            <div className="text-[9px] font-black text-violet-600 uppercase tracking-widest">{t('patient_records.stats.medicine_pickups_page', 'Medicine pickups (page)')}</div>
           </div>
           <div className="bg-sky-50/80 border border-sky-200/80 p-3.5 sm:p-4 rounded-xl shadow-sm text-center">
             <div className="text-xl sm:text-3xl font-black text-sky-800 mb-0.5">{registrySummary.family}</div>
-            <div className="text-[9px] font-black text-sky-600 uppercase tracking-widest">{t('patient_records.stats.family_members', 'Family members')}</div>
+            <div className="text-[9px] font-black text-sky-600 uppercase tracking-widest">{t('patient_records.stats.family_members_page', 'Family members (page)')}</div>
           </div>
         </div>
       </div>
@@ -607,8 +660,8 @@ export default function PatientRecords() {
                   </button>
                 </th>
                 <th scope="col" aria-sort={sortBy === 'latest_visit' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-teal-900">
-                  <button type="button" onClick={() => changeRegistrySort('latest_visit')} title="Sort by latest visit date" className="inline-flex items-center gap-1.5 rounded px-1 py-1 -mx-1 uppercase tracking-widest hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
-                    {t('patient_records.table.latest_visit', 'Latest visit')}
+                  <button type="button" onClick={() => changeRegistrySort('latest_visit')} title="Sort by latest clinical or medicine activity" className="inline-flex items-center gap-1.5 rounded px-1 py-1 -mx-1 uppercase tracking-widest hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    {t('patient_records.table.latest_activity', 'Latest activity')}
                     {sortBy === 'latest_visit' ? (sortOrder === 'asc' ? <ArrowUp size={13} aria-hidden="true" /> : <ArrowDown size={13} aria-hidden="true" />) : <ArrowUpDown size={13} className="text-slate-500" aria-hidden="true" />}
                   </button>
                 </th>
@@ -638,12 +691,13 @@ export default function PatientRecords() {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold">
-                      <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-gray-700">{patient.summary?.completed_appointments_count || 0} {t('patient_records.badges.visits', 'visits')}</span>
-                      <span className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-emerald-700">{patient.summary?.prescriptions_count || 0} {t('patient_records.badges.rx', 'Rx')}</span>
+                      <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-gray-700">{formatCountLabel(patient.summary?.completed_appointments_count, t('patient_records.badges.clinical_visit', 'clinical visit'), t('patient_records.badges.clinical_visits', 'clinical visits'))}</span>
+                      <span title={t('patient_records.badges.doctor_rx_help', 'Consultations with a saved medicine or test')} className="inline-flex items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-emerald-700">{patient.summary?.prescriptions_count || 0} {t('patient_records.badges.doctor_rx', 'Doctor Rx')}</span>
+                      <span className="inline-flex items-center rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-violet-700">{formatCountLabel(patient.summary?.medicine_pickups_count, t('patient_records.badges.medicine_pickup', 'medicine pickup'), t('patient_records.badges.medicine_pickups', 'medicine pickups'))}</span>
                       <span className="inline-flex items-center rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-sky-700">{patient.summary?.family_members_count || 0} {t('patient_records.badges.family', 'family')}</span>
                     </div>
                   </td>
-                  <td className="px-5 py-4 text-xs font-semibold tabular-nums text-slate-700">{formatDate(patient.latest_visit_date)}</td>
+                  <td className="px-5 py-4 text-xs font-semibold tabular-nums text-slate-700">{formatDate(patient.latest_activity_date || patient.latest_visit_date)}</td>
                   <td className="px-5 py-4 text-center">
                     <button onClick={() => fetchPatientDetail(patient)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-[11px] font-semibold text-white shadow-sm transition-all hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
                       <FileText size={14} /> {t('patient_records.table.open_record', 'Open Record')}
@@ -671,8 +725,9 @@ export default function PatientRecords() {
               <p className="text-sm font-bold text-slate-900">{patient.full_name}</p>
               <p className="mt-1 text-xs font-medium text-slate-700">{[patient.mobile_no, patient.age ? `${patient.age}Y` : null, patient.gender].filter(Boolean).join(" · ")}</p>
               <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-semibold">
-                <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-gray-700">{patient.summary?.completed_appointments_count || 0} {t('patient_records.badges.visits', 'visits')}</span>
-                <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-emerald-700">{patient.summary?.prescriptions_count || 0} {t('patient_records.badges.rx', 'Rx')}</span>
+                <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-gray-700">{formatCountLabel(patient.summary?.completed_appointments_count, t('patient_records.badges.clinical_visit', 'clinical visit'), t('patient_records.badges.clinical_visits', 'clinical visits'))}</span>
+                <span title={t('patient_records.badges.doctor_rx_help', 'Consultations with a saved medicine or test')} className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-emerald-700">{patient.summary?.prescriptions_count || 0} {t('patient_records.badges.doctor_rx', 'Doctor Rx')}</span>
+                <span className="rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-violet-700">{formatCountLabel(patient.summary?.medicine_pickups_count, t('patient_records.badges.medicine_pickup', 'medicine pickup'), t('patient_records.badges.medicine_pickups', 'medicine pickups'))}</span>
                 <span className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-sky-700">{patient.summary?.family_members_count || 0} {t('patient_records.badges.family', 'family')}</span>
               </div>
               <span className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#549E9E] px-4 py-2 text-[11px] font-semibold text-white">
@@ -692,7 +747,7 @@ export default function PatientRecords() {
                 <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]">{t('patient_records.modal.primary_patient', 'Primary patient')}</p>
                 <h2 className="text-2xl font-black text-gray-900">{selectedPatient.patient.full_name}</h2>
                 <p className="mt-1 text-xs font-bold text-gray-500">
-                  {selectedPatient.patient.patient_uuid} • {selectedPatient.patient.mobile_no || "No mobile"} • {selectedSubject.scope === "ALL" ? t('patient_records.modal.all_linked_visits', 'All linked visits') : selectedSubject.scope === "SELF" ? t('patient_records.modal.self', 'Self') : selectedSubject.label}
+                  {selectedPatient.patient.patient_uuid} • {selectedPatient.patient.mobile_no || "No mobile"} • {selectedSubject.scope === "ALL" ? t('patient_records.modal.all_linked_visits', 'All linked records') : selectedSubject.scope === "SELF" ? t('patient_records.modal.self', 'Self') : selectedSubject.label}
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -712,7 +767,7 @@ export default function PatientRecords() {
                 >
                   <Printer size={16} /> Print All
                 </button>
-                <button onClick={() => setSelectedPatient(null)} className="rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-red-50 hover:text-red-500">
+                <button aria-label={t('patient_records.modal.close', 'Close patient record')} onClick={() => setSelectedPatient(null)} className="rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-red-50 hover:text-red-500">
                   <X size={20} />
                 </button>
               </div>
@@ -723,7 +778,7 @@ export default function PatientRecords() {
                 <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.record_scope', 'Record scope')}</p>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => setSelectedSubject({ scope: "ALL", label: t('patient_records.modal.all_linked_visits', 'All linked visits') })}
+                    onClick={() => setSelectedSubject({ scope: "ALL", label: t('patient_records.modal.all_linked_visits', 'All linked records') })}
                     className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${selectedSubject.scope === "ALL" ? "border-[#549E9E] bg-[#549E9E] text-white shadow-sm" : "border-gray-200 bg-white text-gray-600 hover:border-[#549E9E]/40 hover:text-[#549E9E]"}`}
                   >
                     {t('patient_records.modal.primary_plus_family', 'Primary + family')}
@@ -732,7 +787,7 @@ export default function PatientRecords() {
                     onClick={() => setSelectedSubject({ scope: "SELF", label: t('patient_records.modal.self', 'Self') })}
                     className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${selectedSubject.scope === "SELF" ? "border-[#549E9E] bg-[#549E9E] text-white shadow-sm" : "border-gray-200 bg-white text-gray-600 hover:border-[#549E9E]/40 hover:text-[#549E9E]"}`}
                   >
-                    {t('patient_records.modal.self', 'Self')} • {selectedPatient.self?.summary?.completed_appointments_count || 0} {t('patient_records.badges.visits', 'visits')} • {selectedPatient.self?.summary?.prescriptions_count || 0} {t('patient_records.badges.rx', 'Rx')}
+                    {t('patient_records.modal.self', 'Self')} • {formatCountLabel(selectedPatient.self?.summary?.completed_appointments_count, t('patient_records.badges.clinical_visit', 'clinical visit'), t('patient_records.badges.clinical_visits', 'clinical visits'))} • {selectedPatient.self?.summary?.prescriptions_count || 0} {t('patient_records.badges.doctor_rx', 'Doctor Rx')} • {formatCountLabel(selectedPatient.self?.summary?.medicine_pickups_count, t('patient_records.badges.medicine_pickup', 'medicine pickup'), t('patient_records.badges.medicine_pickups', 'medicine pickups'))}
                   </button>
                   {selectedPatient.family_members.map((member: FamilyMember) => (
                     <button
@@ -740,7 +795,7 @@ export default function PatientRecords() {
                       onClick={() => setSelectedSubject({ scope: "FAMILY_MEMBER", familyMemberId: member.family_member_id, label: `${member.full_name} (${member.relationship})` })}
                       className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${selectedSubject.familyMemberId === member.family_member_id ? "border-[#549E9E] bg-[#549E9E] text-white shadow-sm" : "border-purple-100 bg-purple-50 text-purple-700 hover:border-purple-200"}`}
                     >
-                      {member.full_name} • {member.relationship} • {member.summary?.completed_appointments_count || 0} {t('patient_records.badges.visits', 'visits')} • {member.summary?.prescriptions_count || 0} {t('patient_records.badges.rx', 'Rx')}
+                      {member.full_name} • {member.relationship} • {formatCountLabel(member.summary?.completed_appointments_count, t('patient_records.badges.clinical_visit', 'clinical visit'), t('patient_records.badges.clinical_visits', 'clinical visits'))} • {member.summary?.prescriptions_count || 0} {t('patient_records.badges.doctor_rx', 'Doctor Rx')} • {formatCountLabel(member.summary?.medicine_pickups_count, t('patient_records.badges.medicine_pickup', 'medicine pickup'), t('patient_records.badges.medicine_pickups', 'medicine pickups'))}
                     </button>
                   ))}
                 </div>
@@ -750,10 +805,11 @@ export default function PatientRecords() {
                 <div className="space-y-1.5 w-full">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('patient_records.modal.visit_type_label', 'Visit Type')}</label>
                   <select value={historyType} onChange={(event) => setHistoryType(event.target.value)} className="w-full border border-gray-200 bg-white px-4 py-3 text-xs font-bold text-gray-600 outline-none transition-all hover:border-[#549E9E]/50 focus:border-[#549E9E] rounded-xl h-[42px]">
-                    <option value="">{t('patient_records.modal.history_types.all_visits', 'All visits')}</option>
+                    <option value="">{t('patient_records.modal.history_types.all_records', 'All records')}</option>
                     <option value="APPOINTMENT">{t('patient_records.modal.history_types.all_completed', 'All completed visits')}</option>
                     <option value="CONSULTATION">{t('patient_records.modal.history_types.consultations', 'Consultation visits')}</option>
                     <option value="PRESCRIPTION">{t('patient_records.modal.history_types.prescriptions', 'Printable prescription visits')}</option>
+                    <option value="MEDICINE_PURCHASE">{t('patient_records.modal.history_types.medicine_pickups', 'Direct / repeat medicine')}</option>
                     <option value="BILL">{t('patient_records.modal.history_types.bills', 'Visits with bills')}</option>
                     <option value="DOCUMENT">{t('patient_records.modal.history_types.documents', 'Visits with documents')}</option>
                   </select>
@@ -775,7 +831,7 @@ export default function PatientRecords() {
                 )}
                 <div className="divide-y divide-gray-100">
                   {historyItems.length > 0 ? historyItems.map((item) => {
-                    const visitId = item.appointment_id || item.source_id;
+                    const visitId = `${item.timeline_type}-${item.source_id}`;
                     const isExpanded = expandedVisitId === visitId;
                     const statusBadge = getVisitStatusBadge(item, t);
                     return (
@@ -783,6 +839,15 @@ export default function PatientRecords() {
                         <div
                           className="grid cursor-pointer gap-3 px-4 py-3 transition-colors hover:bg-[#549E9E]/[0.02] lg:grid-cols-[132px_minmax(190px,1fr)_minmax(170px,0.9fr)_minmax(250px,1.15fr)_220px]"
                           onClick={() => setExpandedVisitId(isExpanded ? null : visitId)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setExpandedVisitId(isExpanded ? null : visitId);
+                            }
+                          }}
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={isExpanded}
                         >
                           <div className="min-w-0">
                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.table.date', 'Date')}</p>
@@ -796,7 +861,9 @@ export default function PatientRecords() {
                           </div>
                           <div className="min-w-0">
                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.table.doctor_status', 'Doctor / Status')}</p>
-                            <p className="mt-1 text-xs font-black text-gray-700">{item.doctor_full_name ? `Dr. ${item.doctor_full_name}` : "Doctor not recorded"}</p>
+                            <p className="mt-1 text-xs font-black text-gray-700">{item.timeline_type === 'MEDICINE_PURCHASE'
+                              ? (!item.details?.is_direct_medicine && item.doctor_full_name ? `${t('patient_records.modal.source_doctor', 'Source doctor')}: ${formatDoctorName(item.doctor_full_name)}` : t('patient_records.modal.medical_counter', 'Medical counter'))
+                              : (formatDoctorName(item.doctor_full_name) || t('patient_records.modal.doctor_not_recorded', 'Doctor not recorded'))}</p>
                             <span className={`mt-1 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${statusBadge.className}`}>{statusBadge.label}</span>
                           </div>
                           <div className="min-w-0">
@@ -805,13 +872,13 @@ export default function PatientRecords() {
                             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{item.subject?.relationship_label || t('patient_records.modal.self', 'Self')}</p>
                             <p className="mt-1 whitespace-normal text-xs font-bold text-gray-500">{getSecondaryDetail(item) || statusBadge.label}</p>
                           </div>
-                          <div className="flex items-center justify-start gap-2 lg:justify-end" onClick={(event) => event.stopPropagation()}>
-                            {item.details?.has_prescription && item.consultation_id ? (
+                          <div className="flex items-center justify-start gap-2 lg:justify-end" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                            {(item.timeline_type === 'MEDICINE_PURCHASE' || (item.details?.has_prescription && item.consultation_id)) ? (
                               <>
-                                <button disabled={isPrescriptionLoading} onClick={() => openPrescriptionPreview(item)} className="inline-flex items-center gap-2 rounded-lg bg-[#549E9E] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-[#438787] disabled:bg-gray-300">
+                                <button disabled={isPrescriptionLoading || isAllVisitsLoading} onClick={() => openRecordPreview(item)} className="inline-flex items-center gap-2 rounded-lg bg-[#549E9E] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-[#438787] disabled:bg-gray-300">
                                   <FileText size={14} /> {t('patient_records.modal.action.view', 'View')}
                                 </button>
-                                <button disabled={isPrescriptionLoading} onClick={() => openPrescriptionPreview(item, true)} className="inline-flex items-center gap-2 rounded-lg border border-[#549E9E]/30 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-[#549E9E] hover:bg-[#549E9E]/10 disabled:border-gray-200 disabled:text-gray-300">
+                                <button disabled={isPrescriptionLoading || isAllVisitsLoading} onClick={() => openRecordPreview(item, true)} className="inline-flex items-center gap-2 rounded-lg border border-[#549E9E]/30 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-[#549E9E] hover:bg-[#549E9E]/10 disabled:border-gray-200 disabled:text-gray-300">
                                   <Printer size={14} /> {t('patient_records.modal.action.print', 'Print')}
                                 </button>
                               </>
@@ -827,6 +894,27 @@ export default function PatientRecords() {
                         </div>
                         {isExpanded && (
                           <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-3">
+                            {item.timeline_type === 'MEDICINE_PURCHASE' ? (
+                              <div className="grid gap-3 text-xs font-bold text-gray-600 md:grid-cols-3">
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.details.medicines_collected', 'Medicines collected')}</p>
+                                  <p className="mt-1 text-gray-800">{item.details?.medicine_summary || t('patient_records.modal.details.no_medicine_names', 'Medicine names not recorded')}</p>
+                                  <p>{item.details?.medicine_count || 0} {t('patient_records.modal.details.items', 'items')}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.details.bill', 'Bill')}</p>
+                                  <p className="mt-1 text-gray-800">{item.details?.bill_number || `Bill #${item.bill_id}`}</p>
+                                  <p>{item.details?.total_amount ? `₹ ${Number(item.details.total_amount).toFixed(2)} total` : t('patient_records.modal.details.amount_not_recorded', 'Amount not recorded')}</p>
+                                  {item.details?.payment_status && <p>{item.details.payment_status}</p>}
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.details.collection', 'Collection')}</p>
+                                  <p className="mt-1">{formatDateTime(item.event_date)}</p>
+                                  <div className="mt-2"><DispensingDeliveryInfo sources={[item]} lang={i18n.language?.startsWith('hi') ? 'hi' : 'en'} compact /></div>
+                                  <p>{item.branch_name || item.details?.branch_name || t('patient_records.modal.details.branch_not_recorded', 'Branch not recorded')}</p>
+                                </div>
+                              </div>
+                            ) : (
                             <div className="grid gap-3 text-xs font-bold text-gray-600 md:grid-cols-4">
                               <div>
                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.details.consultation', 'Consultation')}</p>
@@ -848,8 +936,10 @@ export default function PatientRecords() {
                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.details.documents', 'Documents')}</p>
                                 <p className="mt-1">{item.details?.documents_count ? `${item.details.documents_count} linked document${Number(item.details.documents_count) > 1 ? "s" : ""}` : "No linked documents"}</p>
                                 {item.details?.document_types && <p>{item.details.document_types}</p>}
+                                {Number(item.details?.medicine_count || 0) > 0 && <div className="mt-2"><DispensingDeliveryInfo sources={[item]} lang={i18n.language?.startsWith('hi') ? 'hi' : 'en'} compact /></div>}
                               </div>
                             </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -861,8 +951,11 @@ export default function PatientRecords() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{historyTotal} {t('patient_records.modal.completed_visits_count', 'completed visits')}</p>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 px-5 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                    {historyTotal} {t('patient_records.modal.total_records_count', 'total records')}
+                    {historyType === '' && ` • ${formatCountLabel(historyBreakdown.clinical_visits, t('patient_records.badges.clinical_visit', 'clinical visit'), t('patient_records.badges.clinical_visits', 'clinical visits'))} • ${formatCountLabel(historyBreakdown.medicine_pickups, t('patient_records.badges.medicine_pickup', 'medicine pickup'), t('patient_records.badges.medicine_pickups', 'medicine pickups'))}`}
+                  </p>
                 </div>
                 <Pagination currentPage={historyPage} totalPages={historyTotalPages} onPageChange={setHistoryPage} />
               </div>
@@ -940,8 +1033,16 @@ export default function PatientRecords() {
           <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl">
             <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
               <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">All Visits & Prescriptions Preview</h3>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Complete visit history for {selectedAllVisits.patient.full_name}</p>
+                <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">
+                  {selectedAllVisits.previewMode === 'medicine-purchase'
+                    ? t('patient_records.modal.medicine_preview_title', 'Medicine Collection Preview')
+                    : t('patient_records.modal.all_visits_preview_title', 'All Visits & Prescriptions Preview')}
+                </h3>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                  {selectedAllVisits.previewMode === 'medicine-purchase'
+                    ? t('patient_records.modal.medicine_preview_subtitle', 'Direct or repeat medicine record for {{name}}', { name: selectedAllVisits.patient.full_name })
+                    : t('patient_records.modal.all_visits_preview_subtitle', 'Complete visit history for {{name}}', { name: selectedAllVisits.patient.full_name })}
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 {/* Language Toggle */}
@@ -971,7 +1072,7 @@ export default function PatientRecords() {
                 </div>
 
                 <button onClick={() => window.print()} className="flex items-center gap-2 rounded-xl bg-[#549E9E] px-6 py-2.5 text-xs font-black uppercase tracking-widest text-white hover:bg-[#458b8b]">
-                  <Download size={16} /> Print All
+                  <Download size={16} /> {selectedAllVisits.previewMode === 'medicine-purchase' ? t('patient_records.modal.action.print', 'Print') : t('patient_records.modal.print_all', 'Print All')}
                 </button>
                 <button onClick={() => {
                   setSelectedAllVisits(null);

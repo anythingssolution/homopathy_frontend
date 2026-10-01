@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, User, CheckCircle2, MapPin, ChevronDown, Phone, X, Smartphone, Download, Zap, Users, Lock, Mail, Stethoscope, Eye, EyeOff, Key, MessageSquare, Link2 } from 'lucide-react';
+import { Clock, User, CheckCircle2, MapPin, ChevronDown, Phone, X, Smartphone, Download, Zap, Users, Lock, Mail, Stethoscope, Eye, EyeOff, Key, MessageSquare, Link2, Activity, ClipboardList } from 'lucide-react';
 import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -286,6 +286,20 @@ export default function Booking() {
       reason?: string | null;
     };
   };
+  type OptionalHealthDetails = {
+    oxygen_saturation: string;
+    blood_pressure: string;
+    patient_height: string;
+    patient_weight: string;
+    occupation: string;
+    history_present_illness: string;
+    history_past_illness: string;
+    family_history: string;
+    allergies_history: string;
+    gynecological_history: string;
+    personal_social_history: string;
+    mental_mind_status: string;
+  };
 
   const [phone, setPhone] = useState('');
   const [isLoginView, setIsLoginView] = useState(true);
@@ -378,6 +392,22 @@ export default function Booking() {
   const [timeSlot, setTimeSlot] = useState<number | ''>('');
   const [symptoms, setSymptoms] = useState('');
   const [isAppointmentSuccess, setIsAppointmentSuccess] = useState(false);
+  const [isHealthDetailsOpen, setIsHealthDetailsOpen] = useState(false);
+  const [healthDetailsTab, setHealthDetailsTab] = useState<'VITALS' | 'HISTORY'>('VITALS');
+  const [healthDetails, setHealthDetails] = useState<OptionalHealthDetails>({
+    oxygen_saturation: '',
+    blood_pressure: '',
+    patient_height: '',
+    patient_weight: '',
+    occupation: '',
+    history_present_illness: '',
+    history_past_illness: '',
+    family_history: '',
+    allergies_history: '',
+    gynecological_history: '',
+    personal_social_history: '',
+    mental_mind_status: '',
+  });
   const [patientIdSearch, setPatientIdSearch] = useState('');
   const [patientLookupError, setPatientLookupError] = useState('');
   const [patientFullName, setPatientFullName] = useState('');
@@ -461,6 +491,32 @@ export default function Booking() {
     [formData?.treatments, treatmentType]
   );
   const selectedTreatmentVisitType = selectedTreatment?.visit_type_code || null;
+  const isPatientSelfBooking = Boolean(
+    user
+    && !isReceptionist
+    && (user.role_code?.toUpperCase() === 'PAT' || user.role?.toLowerCase() === 'patient')
+  );
+  const completedVitalsCount = [
+    healthDetails.oxygen_saturation,
+    healthDetails.blood_pressure,
+    healthDetails.patient_height,
+    healthDetails.patient_weight,
+  ].filter((value) => value.trim()).length;
+  const completedHistoryCount = [
+    healthDetails.occupation,
+    healthDetails.history_present_illness,
+    healthDetails.history_past_illness,
+    healthDetails.family_history,
+    healthDetails.allergies_history,
+    healthDetails.gynecological_history,
+    healthDetails.personal_social_history,
+    healthDetails.mental_mind_status,
+  ].filter((value) => value.trim()).length;
+  const hasOptionalHealthDetails = completedVitalsCount + completedHistoryCount > 0;
+
+  const updateHealthDetail = (field: keyof OptionalHealthDetails, value: string) => {
+    setHealthDetails((current) => ({ ...current, [field]: value }));
+  };
   const shouldUseTokenPlate = Boolean(
     appointmentLocation
     && treatmentType
@@ -1489,6 +1545,14 @@ export default function Booking() {
           symptoms: symptoms.trim() || null
         };
 
+        if (isPatientSelfBooking && hasOptionalHealthDetails) {
+          payload.health_details = Object.fromEntries(
+            Object.entries(healthDetails)
+              .map(([key, value]) => [key, value.trim()])
+              .filter(([, value]) => Boolean(value))
+          );
+        }
+
         let apiUrl = '/api/v1/appointments';
 
         if (isReceptionist) {
@@ -1531,6 +1595,20 @@ export default function Booking() {
           setIsAppointmentSuccess(true);
           setBookedForType('SELF');
           setSelectedFamilyMemberId('');
+          setHealthDetails({
+            oxygen_saturation: '',
+            blood_pressure: '',
+            patient_height: '',
+            patient_weight: '',
+            occupation: '',
+            history_present_illness: '',
+            history_past_illness: '',
+            family_history: '',
+            allergies_history: '',
+            gynecological_history: '',
+            personal_social_history: '',
+            mental_mind_status: '',
+          });
           const isCrossRoleRec = window.location.pathname.startsWith('/cross-role/receptionist');
           setTimeout(() => {
             setIsAppointmentSuccess(false);
@@ -2336,6 +2414,42 @@ export default function Booking() {
                     className="w-full bg-gray-50 border-none rounded-[30px] py-4 px-6 outline-none text-gray-700 font-medium min-h-[120px] focus:ring-2 focus:ring-primary-teal/20 transition-all"
                   />
                 </div>
+
+                {isPatientSelfBooking && (
+                  <div className="rounded-[30px] border-2 border-primary-teal/20 bg-gradient-to-br from-primary-teal/5 to-sky-50/70 p-5 sm:p-6 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-white text-primary-teal shadow-sm flex items-center justify-center shrink-0">
+                          <Activity size={23} />
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                            <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Optional Health Details</h3>
+                            <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest">Optional</span>
+                          </div>
+                          <p className="text-sm text-gray-500 font-medium leading-relaxed">
+                            Consultation se pehle doctor ko taiyar hone mein madad karein. Aap ise skip bhi kar sakte hain.
+                          </p>
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${completedVitalsCount ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-gray-400'}`}>
+                              Vitals {completedVitalsCount}/4
+                            </span>
+                            <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${completedHistoryCount ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-gray-400'}`}>
+                              History {completedHistoryCount}/8
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsHealthDetailsOpen(true)}
+                        className="w-full sm:w-auto px-6 py-3.5 rounded-full bg-primary-teal text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary-teal/20 hover:bg-[#468686] transition-all whitespace-nowrap"
+                      >
+                        {hasOptionalHealthDetails ? 'Edit Details' : 'Add Health Details'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {errors.appointment && (
                   <div className="p-4 bg-red-50 border border-red-100 rounded-[20px] text-center">
@@ -3143,6 +3257,146 @@ export default function Booking() {
           </div>
         </div>
       )}
+
+      <AnimatePresence>
+        {isPatientSelfBooking && isHealthDetailsOpen && (
+          <div className="fixed inset-0 z-[210] flex items-center justify-center p-3 sm:p-5">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsHealthDetailsOpen(false)}
+              className="absolute inset-0 bg-gray-900/55 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              className="relative w-full max-w-3xl max-h-[92vh] bg-white rounded-[32px] sm:rounded-[40px] shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="bg-gradient-to-r from-primary-teal to-[#438787] p-5 sm:p-7 text-white">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
+                      <ClipboardList size={24} />
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-lg sm:text-xl font-black uppercase tracking-wider">Health Details</h2>
+                        <span className="px-2.5 py-1 rounded-full bg-white/15 text-[9px] font-black uppercase tracking-widest">Optional</span>
+                      </div>
+                      <p className="text-xs sm:text-sm text-white/80 font-medium mt-1">Jo jankari available ho, sirf wahi bharein.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsHealthDetailsOpen(false)}
+                    className="p-2 rounded-full hover:bg-white/15 transition-colors"
+                    aria-label="Close health details"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 sm:p-6 border-b border-gray-100 bg-white">
+                <div className="grid grid-cols-2 gap-2 p-1.5 bg-gray-100 rounded-full">
+                  {([
+                    ['VITALS', `Vitals ${completedVitalsCount}/4`],
+                    ['HISTORY', `Health History ${completedHistoryCount}/8`],
+                  ] as const).map(([tab, label]) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setHealthDetailsTab(tab)}
+                      className={`py-3 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all ${healthDetailsTab === tab ? 'bg-white text-primary-teal shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-5 sm:p-7 overflow-y-auto flex-1" style={{ overscrollBehavior: 'contain' }}>
+                {healthDetailsTab === 'VITALS' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-primary-teal uppercase tracking-widest pl-3">O2 / SPO2</label>
+                      <div className="relative">
+                        <input type="number" min="0" max="100" inputMode="numeric" value={healthDetails.oxygen_saturation} onChange={(e) => updateHealthDetail('oxygen_saturation', e.target.value)} placeholder="98" className="w-full bg-gray-50 rounded-[24px] py-4 pl-5 pr-12 outline-none text-gray-700 font-medium focus:ring-2 focus:ring-primary-teal/20" />
+                        <span className="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">%</span>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-primary-teal uppercase tracking-widest pl-3">Blood Pressure</label>
+                      <input type="text" maxLength={20} value={healthDetails.blood_pressure} onChange={(e) => updateHealthDetail('blood_pressure', e.target.value)} placeholder="120/80" className="w-full bg-gray-50 rounded-[24px] py-4 px-5 outline-none text-gray-700 font-medium focus:ring-2 focus:ring-primary-teal/20" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-primary-teal uppercase tracking-widest pl-3">Height</label>
+                      <input type="text" maxLength={20} value={healthDetails.patient_height} onChange={(e) => updateHealthDetail('patient_height', e.target.value)} placeholder="170 cm or 5'8&quot;" className="w-full bg-gray-50 rounded-[24px] py-4 px-5 outline-none text-gray-700 font-medium focus:ring-2 focus:ring-primary-teal/20" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-primary-teal uppercase tracking-widest pl-3">Weight</label>
+                      <input type="text" maxLength={20} value={healthDetails.patient_weight} onChange={(e) => updateHealthDetail('patient_weight', e.target.value)} placeholder="65 kg" className="w-full bg-gray-50 rounded-[24px] py-4 px-5 outline-none text-gray-700 font-medium focus:ring-2 focus:ring-primary-teal/20" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    {([
+                      ['occupation', 'Occupation', 'e.g. Teacher, Business'],
+                      ['history_present_illness', 'Current Problem Since When', 'Problem kab se hai aur zaroori details'],
+                      ['history_past_illness', 'Previous Major Illness', 'Purani bimari, operation ya treatment'],
+                      ['allergies_history', 'Known Allergies', 'Medicine ya food allergy'],
+                      ['family_history', 'Family Medical History', 'Family mein chal rahi major diseases'],
+                      ['personal_social_history', 'Lifestyle / Habits', 'Sleep, tobacco, alcohol ya doosri habits'],
+                      ['mental_mind_status', 'Mental / Emotional Concern', 'Stress, anxiety, mood ya sleep concern'],
+                      ['gynecological_history', "Women's Health History", 'Agar applicable ho tabhi bharein'],
+                    ] as const).map(([field, label, placeholder]) => (
+                      <div key={field} className="space-y-2">
+                        <label className="text-[10px] font-black text-primary-teal uppercase tracking-widest pl-3">{label}</label>
+                        {field === 'occupation' ? (
+                          <input type="text" maxLength={255} value={healthDetails[field]} onChange={(e) => updateHealthDetail(field, e.target.value)} placeholder={placeholder} className="w-full bg-gray-50 rounded-[22px] py-3.5 px-5 outline-none text-gray-700 font-medium focus:ring-2 focus:ring-primary-teal/20" />
+                        ) : (
+                          <textarea rows={2} maxLength={5000} value={healthDetails[field]} onChange={(e) => updateHealthDetail(field, e.target.value)} placeholder={placeholder} className="w-full bg-gray-50 rounded-[22px] py-3.5 px-5 outline-none text-gray-700 font-medium focus:ring-2 focus:ring-primary-teal/20 resize-none" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-5 sm:p-6 bg-gray-50 border-t border-gray-100 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHealthDetails({
+                      oxygen_saturation: '',
+                      blood_pressure: '',
+                      patient_height: '',
+                      patient_weight: '',
+                      occupation: '',
+                      history_present_illness: '',
+                      history_past_illness: '',
+                      family_history: '',
+                      allergies_history: '',
+                      gynecological_history: '',
+                      personal_social_history: '',
+                      mental_mind_status: '',
+                    });
+                    setIsHealthDetailsOpen(false);
+                  }}
+                  className="px-6 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-200 transition-colors"
+                >
+                  {hasOptionalHealthDetails ? 'Clear & Skip' : 'Skip for now'}
+                </button>
+                <button type="button" onClick={() => setIsHealthDetailsOpen(false)} className="px-7 py-3.5 rounded-full bg-primary-teal text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary-teal/20 hover:bg-[#468686] transition-colors">
+                  Save & Continue Booking
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Success Modal */}
       <AnimatePresence>

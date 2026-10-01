@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { consultantTotals, fetchBillPayments, fetchBillRows, mergeConsultants } from './lib';
+import { consultantTotals, fetchBillPayments, fetchBillRows, mergeConsultants, sessionPaymentTotals } from './lib';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -105,5 +105,18 @@ test('consultant and session counts use unique consultations without changing fi
   assert.equal(mergeConsultants(evening, consultation_counts, 'evening')[0].total_consultations, 1);
   assert.deepEqual(consultantTotals({ morning, evening, consultation_counts }), {
     ...consultantTotals({ morning, evening }), consults: 3,
+  });
+});
+
+test('session payment totals split actual cash and online receipts without assigning direct sales to a slot', () => {
+  assert.deepEqual(sessionPaymentTotals([
+    { slot_name: 'Morning Session', start_time: '09:00:00', payment_mode: 'CASH', amount: 500 },
+    { slot_name: 'Morning Session', start_time: '09:00:00', payment_mode: 'ONLINE', amount: 250.25 },
+    { slot_name: 'Evening Session', start_time: '17:00:00', payment_mode: 'CASH', amount: 300 },
+    { slot_name: null, start_time: null, payment_mode: 'ONLINE', amount: 125 },
+  ]), {
+    morning: { cash: 500, online: 250.25, total: 750.25 },
+    evening: { cash: 300, online: 0, total: 300 },
+    no_slot: { cash: 0, online: 125, total: 125 },
   });
 });

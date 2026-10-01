@@ -19,6 +19,73 @@ import { formatTimeTo12Hour } from '../utils/dateUtils';
 import WeeklyScheduleRules from './dashboard/WeeklyScheduleRules';
 import CallTuneSettings from './dashboard/CallTuneSettings';
 
+function DoctorMastersMenu({ compact = false }: { compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, []);
+
+  const items = [
+    { label: t('doctor_portal.formula_master', 'Formula Master'), icon: WandSparkles, path: '/doctor-formula-master' },
+    { label: t('doctor_portal.product_master', 'Product Master'), icon: Pill, path: '/medical-product-master' },
+    { label: t('doctor_portal.test_master', 'Test Master'), icon: FlaskConical, path: '/doctor-test-master' },
+    { label: t('doctor_portal.remark_master', 'Remark Master'), icon: MessageSquare, path: '/doctor-remark-master' },
+  ];
+
+  return (
+    <div ref={menuRef} className={`relative ${compact ? 'flex-1' : ''}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={compact
+          ? 'w-full flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl border border-emerald-100 active:scale-95 transition-transform'
+          : 'cursor-pointer bg-emerald-50 text-emerald-700 px-6 py-4 text-xs font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 border-2 border-emerald-50 rounded-xl'}
+      >
+        <Settings size={compact ? 15 : 16} />
+        <span>{t('doctor_portal.masters', 'Masters')}</span>
+        <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="menu"
+            initial={{ opacity: 0, y: 6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.98 }}
+            className={`absolute z-[120] mt-2 min-w-[230px] overflow-hidden rounded-2xl border border-gray-200 bg-white p-1.5 shadow-2xl ${compact ? 'left-0' : 'right-0'}`}
+          >
+            {items.map((item) => {
+              const ItemIcon = item.icon;
+              return (
+                <button
+                  key={item.path}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setOpen(false); navigate(item.path); }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-xs font-black text-gray-600 transition-colors hover:bg-[#549E9E]/10 hover:text-[#549E9E]"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50"><ItemIcon size={15} /></span>
+                  {item.label}
+                </button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 type DoctorAppointment = {
   appointment_id: number;
   auid: string;
@@ -57,6 +124,7 @@ type DoctorAppointment = {
   display_token_display?: string;
   current_token_number?: number;
   current_token_display?: string;
+  queue_position?: number | null;
   queue_bucket?: string;
   live_queue_position?: number;
   runtime_priority_rank?: number;
@@ -93,14 +161,18 @@ const isTerminalDoctorQueueItem = (appointment: DoctorAppointment) =>
   appointment.status === 'Completed' ||
   ['COMPLETED', 'CANCELLED', 'NO_SHOW', 'SKIPPED'].includes(appointment.queue_status || '');
 
-const getDoctorSessionQueuePosition = (appointment: DoctorAppointment) =>
-  isTerminalDoctorQueueItem(appointment)
-    ? null
-    : appointment.session_queue_position ??
-      appointment.live_queue_position ??
-      appointment.current_queue_position ??
-      appointment.ready_queue_position ??
-      null;
+const getDoctorSessionQueuePosition = (appointment: DoctorAppointment) => {
+  if (appointment.status.toLowerCase() === 'completed') {
+    return appointment.queue_position ?? null;
+  }
+  if (isTerminalDoctorQueueItem(appointment)) return null;
+
+  return appointment.session_queue_position ??
+    appointment.live_queue_position ??
+    appointment.current_queue_position ??
+    appointment.ready_queue_position ??
+    null;
+};
 
 const getDoctorActiveQueuePosition = (appointment: DoctorAppointment) =>
   appointment.active_queue_position ??
@@ -876,9 +948,7 @@ export default function DoctorPortal() {
     const isStarting = startingConsultationId === app.appointment_id;
     const primaryLabel = isStarting
       ? t('doctor_portal.actions.starting', 'Wait')
-      : isCompleted
-        ? t('doctor_portal.actions.view', 'View')
-        : t('doctor_portal.actions.consult', 'Consult');
+      : t('doctor_portal.actions.consult', 'Consult');
 
     return (
       <div className="inline-flex flex-nowrap items-stretch justify-center gap-1">
@@ -893,20 +963,18 @@ export default function DoctorPortal() {
             <span>{t('doctor_portal.actions.edit', 'Edit')}</span>
           </button>
         )}
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); openConsultation(app); }}
-          disabled={isStarting}
-          className={`${stackedActionClass} text-white ${isStarting ? 'opacity-60 cursor-wait' : 'cursor-pointer'} ${
-            isCompleted
-              ? 'bg-blue-500 hover:bg-blue-600 shadow-sm shadow-blue-500/20'
-              : 'bg-[#549E9E] hover:bg-[#438787] shadow-sm shadow-[#549E9E]/20'
-          }`}
-          title={primaryLabel}
-        >
-          <Stethoscope size={12} />
-          <span>{primaryLabel}</span>
-        </button>
+        {!isCompleted && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); openConsultation(app); }}
+            disabled={isStarting}
+            className={`${stackedActionClass} text-white ${isStarting ? 'opacity-60 cursor-wait' : 'cursor-pointer'} bg-[#549E9E] hover:bg-[#438787] shadow-sm shadow-[#549E9E]/20`}
+            title={primaryLabel}
+          >
+            <Stethoscope size={12} />
+            <span>{primaryLabel}</span>
+          </button>
+        )}
         {isCompleted && (
           <button
             type="button"
@@ -1172,11 +1240,7 @@ export default function DoctorPortal() {
           </div>
           {/* Mobile Action Buttons — icon-only compact row */}
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/doctor-formula-master')}
-              className="flex-1 flex items-center justify-center gap-2 bg-emerald-50 text-emerald-700 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl border border-emerald-100 active:scale-95 transition-transform">
-              <WandSparkles size={15} />
-              <span>{t('doctor_portal.formula_master', 'Formula Master')}</span>
-            </button>
+            <DoctorMastersMenu compact />
             <button onClick={() => navigate('/doctor-portal/cms')}
               className="flex-1 flex items-center justify-center gap-2 bg-purple-50 text-purple-600 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl border border-purple-100 active:scale-95 transition-transform">
               <Layout size={15} />
@@ -1269,11 +1333,7 @@ export default function DoctorPortal() {
             
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-start xl:justify-end mt-4 xl:mt-0">
-              <button onClick={() => navigate('/doctor-formula-master')}
-                className="cursor-pointer bg-emerald-50 text-emerald-700 px-6 py-4 text-xs font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2 border-2 border-emerald-50 rounded-xl">
-                <WandSparkles size={16} />
-                {t('doctor_portal.formula_master', 'Formula Master')}
-              </button>
+              <DoctorMastersMenu />
               <button onClick={() => navigate('/doctor-portal/cms')}
                 className="cursor-pointer bg-purple-50 text-purple-600 px-6 py-4 text-xs font-black uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all flex items-center gap-2 border-2 border-purple-50 rounded-xl">
                 <Layout size={16} />

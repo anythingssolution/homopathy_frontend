@@ -814,9 +814,9 @@ export default function BillsNext() {
       ) : tab === 'consultants' ? (
         <ConsultantsPanel key={listScope} consultant={reports?.revenue_by_consultant} />
       ) : tab === 'morning' ? (
-        <SessionPanel key={listScope} slot="morning" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} />
+        <SessionPanel key={listScope} slot="morning" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} payments={receivedPayments} />
       ) : tab === 'evening' ? (
-        <SessionPanel key={listScope} slot="evening" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} />
+        <SessionPanel key={listScope} slot="evening" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} payments={receivedPayments} />
       ) : null}
 
       <VisitDrawer

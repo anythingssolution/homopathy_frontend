@@ -10,6 +10,9 @@ interface PatientDetailsEditModalProps {
     age: string | number;
     gender: string;
     mobile_no: string;
+    area_name: string;
+    pincode: string;
+    city: string;
   };
   onClose: () => void;
   onSave: (data: {
@@ -17,6 +20,9 @@ interface PatientDetailsEditModalProps {
     age: number;
     gender: string;
     mobile_no: string;
+    area_name: string;
+    pincode: string;
+    city: string;
   }) => Promise<void>;
 }
 
@@ -31,6 +37,9 @@ export default function PatientDetailsEditModal({
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [mobileNo, setMobileNo] = useState("");
+  const [areaName, setAreaName] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [city, setCity] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
@@ -40,6 +49,9 @@ export default function PatientDetailsEditModal({
       setAge(String(patientData.age || ""));
       setGender(patientData.gender || "");
       setMobileNo(patientData.mobile_no || "");
+      setAreaName(patientData.area_name || "");
+      setPincode(patientData.pincode || "");
+      setCity(patientData.city || "");
       setErrors({});
       setIsSaving(false);
     }
@@ -62,6 +74,17 @@ export default function PatientDetailsEditModal({
     if (!/^[0-9]{10,15}$/.test(trimmedMobile)) {
       newErrors.mobile_no = "Mobile must be 10 to 15 digits";
     }
+    const trimmedArea = areaName.trim();
+    if (trimmedArea.length > 150) {
+      newErrors.area_name = "Area / Mohalla / Colony must be at most 150 characters";
+    }
+    if (pincode.trim() && !/^\d{6}$/.test(pincode.trim())) {
+      newErrors.pincode = "Pincode must contain exactly 6 digits";
+    }
+    const trimmedCity = city.trim();
+    if (!trimmedCity || trimmedCity.length > 100) {
+      newErrors.city = "City is required";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -76,6 +99,9 @@ export default function PatientDetailsEditModal({
         age: Number(age),
         gender: gender.toLowerCase(),
         mobile_no: mobileNo.trim(),
+        area_name: areaName.trim(),
+        pincode: pincode.trim(),
+        city: city.trim(),
       });
     } finally {
       setIsSaving(false);
@@ -90,7 +116,7 @@ export default function PatientDetailsEditModal({
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto">
         <div className="bg-[#549E9E] px-6 py-4 flex items-center justify-between">
           <h3 className="text-white font-black text-sm uppercase tracking-widest">
             {t("patient_edit.title", "Edit Patient Details")}
@@ -118,6 +144,52 @@ export default function PatientDetailsEditModal({
             {errors.full_name && (
               <p className="text-red-500 text-xs mt-1">{errors.full_name}</p>
             )}
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
+              Area / Mohalla / Colony
+            </label>
+            <input
+              type="text"
+              value={areaName}
+              maxLength={150}
+              onChange={(e) => setAreaName(e.target.value)}
+              className={`w-full px-4 py-2.5 border rounded-lg text-sm font-bold text-gray-800 transition-all focus:outline-none focus:ring-4 focus:ring-[#549E9E]/10 focus:border-[#549E9E] ${errors.area_name ? "border-red-400" : "border-gray-200"}`}
+              disabled={isSaving}
+            />
+            {errors.area_name && <p className="text-red-500 text-xs mt-1">{errors.area_name}</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
+                Pincode
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={pincode}
+                onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className={`w-full px-4 py-2.5 border rounded-lg text-sm font-bold text-gray-800 transition-all focus:outline-none focus:ring-4 focus:ring-[#549E9E]/10 focus:border-[#549E9E] ${errors.pincode ? "border-red-400" : "border-gray-200"}`}
+                disabled={isSaving}
+              />
+              {errors.pincode && <p className="text-red-500 text-xs mt-1">{errors.pincode}</p>}
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
+                City
+              </label>
+              <input
+                type="text"
+                value={city}
+                maxLength={100}
+                onChange={(e) => setCity(e.target.value)}
+                className={`w-full px-4 py-2.5 border rounded-lg text-sm font-bold text-gray-800 transition-all focus:outline-none focus:ring-4 focus:ring-[#549E9E]/10 focus:border-[#549E9E] ${errors.city ? "border-red-400" : "border-gray-200"}`}
+                disabled={isSaving}
+              />
+              {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city}</p>}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

@@ -117,12 +117,27 @@ export const BillingAnalytics: React.FC<BillingAnalyticsProps> = ({ token }) => 
          </div>
       ) : (
          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
               <SummaryMetricCard title={t('reports.billing.total_bills')} value={rev.total_bills || 0} icon={Banknote} theme="teal" />
-              <SummaryMetricCard title={t('reports.billing.total_amount')} value={`₹${rev.total_amount || 0}`} icon={IndianRupee} theme="blue" />
+              <SummaryMetricCard title="Gross billed" value={`₹${rev.gross_amount || rev.total_amount || 0}`} icon={IndianRupee} theme="blue" />
+              <SummaryMetricCard title="Discount" value={`₹${rev.discount_amount || 0}`} icon={IndianRupee} theme="amber" />
+              <SummaryMetricCard title="Net billed" value={`₹${rev.total_amount || 0}`} icon={IndianRupee} theme="teal" />
               <SummaryMetricCard title={t('reports.billing.paid_amount')} value={`₹${rev.paid_amount || 0}`} icon={CreditCard} theme="green" />
               <SummaryMetricCard title={t('reports.pending')} value={`₹${rev.pending_amount || 0}`} icon={Clock} theme="amber" />
             </div>
+
+            {Array.isArray(data?.discount_summary) && data.discount_summary.length > 0 && (
+              <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm">
+                <h4 className="text-sm font-black text-gray-700 uppercase tracking-widest">Discount by category and reason</h4>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">Active discounts in the selected date and branch</p>
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead><tr className="border-b border-gray-100 bg-gray-50/50"><th className="px-4 py-3">Category</th><th className="px-4 py-3">Reason</th><th className="px-4 py-3 text-right">Bills</th><th className="px-4 py-3 text-right">Discount</th></tr></thead>
+                    <tbody className="divide-y divide-gray-50">{data.discount_summary.map((row:any) => <tr key={`${row.discount_category}-${row.reason_code}`}><td className="px-4 py-3 font-black">{String(row.discount_category).replaceAll('_',' ')}</td><td className="px-4 py-3">{String(row.reason_code).replaceAll('_',' ')}</td><td className="px-4 py-3 text-right">{row.discount_count}</td><td className="px-4 py-3 text-right font-black text-amber-700">₹ {Number(row.discount_amount || 0).toFixed(2)}</td></tr>)}</tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {Array.isArray(data?.pending_amount) && data.pending_amount.length > 0 && (
               <div className="bg-white p-6 border border-gray-200 rounded-xl shadow-sm">

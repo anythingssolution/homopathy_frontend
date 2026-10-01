@@ -2,7 +2,7 @@ import Pagination from '../../Pagination';
 import useListPagination from './useListPagination';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { money, mergeConsultants, mergeMedicines, sessionBundle } from './lib';
+import { money, mergeConsultants, mergeMedicines, sessionBundle, sessionPaymentTotals } from './lib';
 
 type MixBarProps = {
   label: string;
@@ -128,10 +128,12 @@ export function SessionPanel({
   slot,
   consultant,
   medicine,
+  payments,
 }: {
   slot: 'morning' | 'evening';
   consultant: any;
   medicine: any;
+  payments: any[];
 }) {
   const { t } = useTranslation();
   const doctors = sessionBundle(consultant)[slot];
@@ -141,15 +143,31 @@ export function SessionPanel({
   const paid = merged.reduce((sum, row) => sum + Number(row.total_paid_revenue || 0), 0);
   const pending = merged.reduce((sum, row) => sum + Number(row.total_pending_revenue || 0), 0);
   const consults = merged.reduce((sum, row) => sum + Number(row.total_consultations || 0), 0);
+  const paymentTotals = sessionPaymentTotals(payments);
+  const sessionPayments = paymentTotals[slot];
+  const noSlotPayments = paymentTotals.no_slot;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <Mini label={t('bills_next.col_gross')} value={money(gross)} />
         <Mini label={t('bills_next.collected')} value={money(paid)} />
+        <Mini label={t('bills_next.cash')} value={money(sessionPayments.cash)} />
+        <Mini label={t('bills_next.online')} value={money(sessionPayments.online)} />
         <Mini label={t('bills_next.pending')} value={money(pending)} />
         <Mini label={t('bills_next.col_consults')} value={String(consults)} />
       </div>
+      {noSlotPayments.total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-100 bg-amber-50/70 px-4 py-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">{t('bills_next.no_slot_collections')}</p>
+            <p className="mt-0.5 text-[11px] font-semibold text-amber-700/80">{t('bills_next.no_slot_collections_sub')}</p>
+          </div>
+          <p className="text-xs font-black text-amber-800">
+            {t('bills_next.cash')} {money(noSlotPayments.cash)} · {t('bills_next.online')} {money(noSlotPayments.online)}
+          </p>
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-50">

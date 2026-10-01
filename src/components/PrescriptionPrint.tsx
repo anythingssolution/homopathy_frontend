@@ -3,6 +3,8 @@ import { Mail, Phone, MapPin, Pill, Activity, Facebook, Instagram, Twitter, Yout
 import { getMedicationRoleLabel, formatPrescriptionMedicineText, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedNumericFormulaDisplay, getPrintedTestFinding } from '../utils/prescriptionFormat';
 import { formatPrintDurationLabel, getFollowUpDueDate, getMedicationPeriodDates } from '../utils/medicationDuration';
 import MedicationDispensingStatus from './MedicationDispensingStatus';
+import DispensingDeliveryInfo from './DispensingDeliveryInfo';
+import PrescriptionPatientInfo from './PrescriptionPatientInfo';
 
 interface PrescriptionPrintProps {
   consultation: any;
@@ -155,73 +157,39 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                     {/* The Text Content Block */}
                     <div className="flex flex-col items-end pr-1">
                       <h1 className="text-[28px] font-black text-[#1a2b4c] tracking-wide leading-none">
-                        {isHi ? "डॉ. उत्कर्ष त्रिवेदी" : "Dr. Utkarsh Trivedi"}
+                        डॉ. उत्कर्ष त्रिवेदी
                       </h1>
 
                       <div className="flex flex-col items-end mt-2">
                         <p className="text-[12.5px] font-bold text-gray-800 leading-tight">
-                          {isHi ? "होम्योपैथिक चिकित्सक" : "Homeopathic Physician"}
+                          होम्योपैथिक चिकित्सक
                         </p>
-                        <p className="text-[12.5px] font-bold text-gray-800 leading-tight mt-0.5">B.H.M.S.</p>
+                        <p className="text-[12.5px] font-bold text-gray-800 leading-tight mt-0.5">बी.एच.एम.एस.</p>
+                        <p className="text-[10.5px] font-black text-[#1a2b4c] leading-tight mt-1">मो. 8462030001</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Patient & Consultation Info (2-Side Layout: 3 Data on Each Side, No Underlines, Remedy Name Font Size) */}
-              <div className="w-full mb-4 px-1 mt-1 font-bold text-gray-800 text-[10px]">
-                <div className="grid grid-cols-2 gap-x-6 gap-y-1 w-full">
-                  {/* Left Side (3 Data: Simple Name, Patient ID, Treatment) */}
-                  <div className="flex flex-col gap-1">
-                    {/* 1. Simple Name (no 'Name:' label) */}
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] font-black text-[#1a2b4c] uppercase tracking-wide">
-                        {appointment.patient_full_name}
-                      </span>
-                    </div>
-
-                    {/* 2. Patient ID */}
-                    <div className="flex items-center gap-1.5 text-[10px]">
-                      <span className="text-[#1a2b4c] font-mono font-bold">{appointment.patient_uuid}</span>
-                    </div>
-
-                    {/* 3. Treatment */}
-                    <div className="flex items-center gap-1.5 text-[10px]">
-                      <span className="text-[#1a2b4c] uppercase tracking-wider">{appointment.treatment_name}</span>
-                    </div>
-                  </div>
-
-                  {/* Right Side (3 Data: Date, Age, Sex) */}
-                  <div className="flex flex-col gap-1 items-end">
-                    {/* 1. Date */}
-                    <div className="flex items-center gap-1.5 text-[10px]">
-                      <span className="text-gray-600 shrink-0">{isHi ? "दिनांक :" : "Date :"}</span>
-                      <span className="text-[#1a2b4c]">
-                        {new Date(appointment.appointment_date || Date.now()).toLocaleDateString('en-GB', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric'
-                        })}
-                      </span>
-                    </div>
-
-                    {/* 2. Age */}
-                    <div className="flex items-center gap-1.5 text-[10px]">
-                      <span className="text-[#1a2b4c]">
-                        {appointment.patient_age || 'N/A'} {isHi ? 'वर्ष' : 'Y'}
-                      </span>
-                    </div>
-
-                    {/* 3. Sex */}
-                    <div className="flex items-center gap-1.5 text-[10px]">
-                      <span className="text-[#1a2b4c] capitalize">
-                        {appointment.patient_gender || 'N/A'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <PrescriptionPatientInfo
+                patientId={appointment.patient_uuid || appointment.patient?.patient_uuid}
+                name={appointment.patient_full_name || appointment.patient?.full_name}
+                age={appointment.patient_age || appointment.patient?.age}
+                gender={appointment.patient_gender || appointment.patient?.gender}
+                date={new Date(appointment.appointment_date || Date.now()).toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                })}
+                contactNumber={
+                  appointment.patient_mobile_no
+                  || appointment.mobile_no
+                  || appointment.patient?.mobile_no
+                  || consultation.patient?.mobile_no
+                }
+                isHi={isHi}
+              />
 
               {/* Clinical Details & Prescriptions Card (Matches AllVisitsPrint UI) */}
               <div className="border border-gray-200 rounded-lg p-3 bg-white shadow-xs mt-2 page-break-inside-avoid">
@@ -250,11 +218,6 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                         {medicationPeriod.fromDate} – {medicationPeriod.toDate}
                       </span>
                     )}
-                    {followUpDueDate && !consultation.follow_up_chain_closed && (
-                      <span className="px-1.5 py-0.5 rounded-xs border border-red-100 bg-white text-red-500 font-black uppercase tracking-wider whitespace-nowrap">
-                        {isHi ? 'अगला फॉलो-अप' : 'NEXT FOLLOW-UP'} {followUpDueDate}
-                      </span>
-                    )}
                   </div>
                   <div className="shrink-0 text-right pt-0.5">
                     <span className="text-[9px] font-black uppercase tracking-wider whitespace-nowrap">
@@ -263,6 +226,12 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                     </span>
                   </div>
                 </div>
+
+                {allMeds.length > 0 && (
+                  <div className="mb-2">
+                    <DispensingDeliveryInfo sources={[consultation, appointment]} lang={lang} compact />
+                  </div>
+                )}
 
                 {/* Two Column Layout for Visit Details & Remedies */}
                 <div className="flex items-stretch w-full gap-6">
@@ -452,6 +421,14 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                           </div>
                         </div>
                       )}
+
+                      {followUpDueDate && !consultation.follow_up_chain_closed && (
+                        <div className="flex w-full justify-end pt-1">
+                          <span className="px-1.5 py-0.5 rounded-xs border border-red-100 bg-red-50/40 text-red-500 text-[9px] font-black uppercase tracking-wider whitespace-nowrap">
+                            {isHi ? 'अगला फॉलो-अप' : 'NEXT FOLLOW-UP'} {followUpDueDate}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -506,7 +483,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                 <div className="border-t border-b border-gray-300 py-1.5 mb-2 flex items-center justify-center relative bg-gray-50/30">
                   <img src="/logo.png.png" alt="Logo" className="h-8 absolute left-2 object-contain mix-blend-multiply" onError={(e) => (e.currentTarget.style.display = 'none')} />
                   <h2 className="text-[22px] font-black text-[#1a2b4c] tracking-wide text-center w-full">
-                    {isHi ? "डॉ. त्रिवेदी होम्योपैथिक क्लिनिक" : "Dr. Trivedi Homeopathic Clinic"}
+                    डॉ. त्रिवेदी होम्योपैथिक क्लिनिक
                   </h2>
                 </div>
 

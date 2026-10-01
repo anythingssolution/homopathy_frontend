@@ -68,6 +68,8 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
   const recovered = Number(visit?.paid_towards_previous_pending || 0);
   const appointment = detail?.appointment || visit;
   const bills = detail?.bills || visit?.bills || [];
+  const thisGross = bills.reduce((sum: number, bill: any) => sum + Number(bill.gross_amount ?? bill.total_amount ?? 0), 0);
+  const thisDiscount = bills.reduce((sum: number, bill: any) => sum + Number(bill.discount_amount || 0), 0);
   const payments = Array.isArray(detail?.payments) ? detail.payments : [];
   const visitDate = appointment?.appointment_date || visit?.appointment_date;
   const displayDate = visitDate ? new Date(String(visitDate).includes('T') ? String(visitDate) : String(visitDate).slice(0, 10) + 'T00:00:00').toLocaleDateString(i18n.language.startsWith('hi') ? 'hi-IN' : 'en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -197,6 +199,18 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
                             </tbody>
                           </table>
                         </div>
+                        {Number(bill.discount_amount || 0) > 0 && (
+                          <div className="border-t border-amber-100 bg-amber-50/60 px-4 py-2 text-xs">
+                            <div className="flex justify-between gap-4"><span>Gross amount</span><strong>{moneyExact(bill.gross_amount)}</strong></div>
+                            {(bill.discounts || []).map((discount: any) => (
+                              <div key={discount.discount_id || discount.category} className="mt-1 flex justify-between gap-4 text-amber-800">
+                                <span>{String(discount.category || '').toUpperCase()} discount · {String(discount.reason_code || '').replaceAll('_', ' ')}</span>
+                                <strong>-{moneyExact(discount.amount)}</strong>
+                              </div>
+                            ))}
+                            <div className="mt-1 flex justify-between gap-4 font-bold"><span>Net bill</span><strong>{moneyExact(bill.total_amount)}</strong></div>
+                          </div>
+                        )}
                         {bills.length > 1 && <div className="flex justify-end gap-6 border-t border-slate-100 px-4 py-2 text-xs"><span className="text-slate-500">{t('bills_next.invoice.subtotal', 'Bill subtotal')}</span><strong>{moneyExact(bill.total_amount)}</strong></div>}
                         {(bill.remark || (bill.delivery_mode && !bill.appointment_id)) && <div className="px-4 pb-3">
                           {bill.remark && <p className="mt-2 text-xs text-slate-500">{bill.remark}</p>}
@@ -213,6 +227,7 @@ export default function VisitDrawer({ visit, detail, loading, patientDues, onClo
                       {otherDueTotal > 0 && <p className="mt-3 text-amber-700">{t('bills_next.drawer.also_older', { amount: moneyExact(otherDueTotal), count: otherDues.length })}</p>}
                     </div>
                     <dl className="w-full sm:w-64 space-y-3 text-sm">
+                      {thisDiscount > 0 && <><div className="flex justify-between gap-4"><dt className="text-slate-500">Gross billed</dt><dd className="font-semibold">{moneyExact(thisGross)}</dd></div><div className="flex justify-between gap-4 text-amber-700"><dt>Total discount</dt><dd className="font-semibold">-{moneyExact(thisDiscount)}</dd></div></>}
                       <div className="flex justify-between gap-4"><dt className="font-semibold">{t('bills_next.invoice.total', 'Total billed')}</dt><dd className="font-bold">{moneyExact(thisTotal)}</dd></div>
                       <div className="flex justify-between gap-4"><dt className="text-slate-500">{t('bills_next.collected')}</dt><dd className="font-semibold text-emerald-700">{moneyExact(thisPaid)}</dd></div>
                       <div className="flex justify-between gap-4 border-t border-slate-200 pt-3"><dt className="font-bold">{t('bills_next.pending')}</dt><dd className={`font-bold ${thisPending > 0 ? 'text-amber-700' : 'text-slate-700'}`}>{moneyExact(thisPending)}</dd></div>

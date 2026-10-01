@@ -9,6 +9,8 @@ import {
   Pill,
   UserPlus,
   Sun,
+  TestTube2,
+  Truck,
   Users,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -118,6 +120,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
             )}
           </NavLink>
           <NavLink
+            to="/reports-next/test-register?window=1_month"
+            className={() => itemClass(pathActive('/reports-next/test-register'))}
+          >
+            {() => {
+              const isActive = pathActive('/reports-next/test-register');
+              return (
+                <>
+                  <TestTube2 size={18} className={isActive ? 'text-white' : 'text-gray-400'} />
+                  <span className="text-xs font-bold uppercase tracking-widest leading-tight flex-1">
+                    {t('reports_next.nav.test_register')}
+                  </span>
+                </>
+              );
+            }}
+          </NavLink>
+          <NavLink
             to="/reports-next/dispensary?window=3_months"
             className={() => itemClass(pathActive('/reports-next/dispensary'))}
           >
@@ -131,6 +149,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
                 </span>
                 <Badge count={badges.dispensary} active={isActive} />
               </>
+              );
+            }}
+          </NavLink>
+          <NavLink
+            to="/reports-next/courier-register?window=1_month"
+            className={() => itemClass(pathActive('/reports-next/courier-register'))}
+          >
+            {() => {
+              const isActive = pathActive('/reports-next/courier-register');
+              return (
+                <>
+                  <Truck size={18} className={isActive ? 'text-white' : 'text-gray-400'} />
+                  <span className="text-xs font-bold uppercase tracking-widest leading-tight flex-1">
+                    {t('reports_next.nav.courier_register')}
+                  </span>
+                </>
               );
             }}
           </NavLink>

@@ -37,6 +37,9 @@ type Patient = {
   age: number;
   gender: 'male' | 'female' | 'other';
   mobile_no: string;
+  area_name?: string | null;
+  pincode?: string | null;
+  city?: string | null;
   total_appointments: number;
   last_appointment_date: string | null;
   updated_at: string;
@@ -183,6 +186,9 @@ export default function ReceptionPatientManagement() {
     age: '',
     relationship: '',
     clinic_patient_no: '',
+    area_name: '',
+    pincode: '',
+    city: '',
   });
   const [isSaving, setIsSaving] = useState(false);
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
@@ -259,6 +265,9 @@ export default function ReceptionPatientManagement() {
       age: String(patient.age || ''),
       relationship: '',
       clinic_patient_no: patient.clinic_patient_no || '',
+      area_name: patient.area_name || '',
+      pincode: patient.pincode || '',
+      city: patient.city || '',
     });
     setError('');
   };
@@ -272,6 +281,9 @@ export default function ReceptionPatientManagement() {
       age: String(member.age || ''),
       relationship: member.relationship || '',
       clinic_patient_no: '',
+      area_name: '',
+      pincode: '',
+      city: '',
     });
     setError('');
   };
@@ -285,7 +297,7 @@ export default function ReceptionPatientManagement() {
 
     try {
       const isFamily = editTarget.type === 'FAMILY_MEMBER';
-      const payload: Record<string, string | number> = {
+      const payload: Record<string, string | number | null> = {
         full_name: editForm.full_name.trim(),
         gender: editForm.gender,
       };
@@ -303,8 +315,17 @@ export default function ReceptionPatientManagement() {
         payload.age = parsedAge;
         payload.relationship = editForm.relationship.trim();
       } else {
+        if (editForm.pincode.trim() && !/^\d{6}$/.test(editForm.pincode.trim())) {
+          throw new Error('Pincode must contain exactly 6 digits');
+        }
+        if (!editForm.city.trim()) {
+          throw new Error('City is required');
+        }
         payload.mobile_no = editForm.mobile_no;
         payload.clinic_patient_no = editForm.clinic_patient_no.replace(/\s+/g, '').toUpperCase();
+        payload.area_name = editForm.area_name.trim() || null;
+        payload.pincode = editForm.pincode.trim() || null;
+        payload.city = editForm.city.trim();
       }
 
       const response = await fetch(
@@ -735,6 +756,59 @@ export default function ReceptionPatientManagement() {
                   <span className="mt-2 block text-xs font-semibold text-slate-400">
                     Clinic register number. Leave blank to remove.
                   </span>
+                </label>
+              )}
+
+              {!isEditingFamily && (
+                <label className="block sm:col-span-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Area / Mohalla / Colony
+                  </span>
+                  <input
+                    maxLength={150}
+                    value={editForm.area_name}
+                    onChange={(event) =>
+                      setEditForm((current) => ({ ...current, area_name: event.target.value }))
+                    }
+                    className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                  />
+                </label>
+              )}
+
+              {!isEditingFamily && (
+                <label className="block">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Pincode
+                  </span>
+                  <input
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    value={editForm.pincode}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        pincode: event.target.value.replace(/\D/g, '').slice(0, 6),
+                      }))
+                    }
+                    className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                  />
+                </label>
+              )}
+
+              {!isEditingFamily && (
+                <label className="block">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    City
+                  </span>
+                  <input
+                    required
+                    maxLength={100}
+                    value={editForm.city}
+                    onChange={(event) =>
+                      setEditForm((current) => ({ ...current, city: event.target.value }))
+                    }
+                    className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
+                  />
                 </label>
               )}
 

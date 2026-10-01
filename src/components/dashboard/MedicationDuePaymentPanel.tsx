@@ -170,7 +170,7 @@ export default function MedicationDuePaymentPanel({
               </p>
             </div>
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-orange-500">
-              {previousBills.length} visit{previousBills.length === 1 ? '' : 's'}
+              {previousBills.length} bill{previousBills.length === 1 ? '' : 's'}
               <ChevronDown size={14} className={duesOpen ? 'rotate-180' : ''} />
             </div>
           </button>
@@ -181,7 +181,11 @@ export default function MedicationDuePaymentPanel({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-black text-gray-800">
-                        {bill.is_repeat_medicine ? 'Repeat Medicine' : (bill.treatment_name || 'Consultation')}
+                        {bill.is_direct_medicine
+                          ? 'Direct Medicine'
+                          : bill.is_repeat_medicine
+                            ? 'Repeat Medicine'
+                            : (bill.treatment_name || 'Consultation')}
                       </p>
                       <p className="mt-0.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
                         <Calendar size={11} />

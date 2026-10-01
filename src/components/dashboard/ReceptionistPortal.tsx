@@ -40,6 +40,13 @@ import { useCoalescedCallback } from "../../hooks/useCoalescedCallback";
 import { dedupedFetch } from "../../utils/dedupedFetch";
 import TokenLayoutManager from "./TokenLayoutManager";
 import PrescriptionPrint from "../PrescriptionPrint";
+import BillingDiscountEditor, {
+  discountTotal,
+  makeDiscountDrafts,
+  toDiscountPayload,
+  validateDiscountDrafts,
+  type DiscountDraft,
+} from "./BillingDiscountEditor";
 
 const FilterDropdown = ({
   label,
@@ -191,6 +198,10 @@ export default function ReceptionistPortal() {
     transaction_reference: "",
     remark: "",
   });
+  const [consultationGross, setConsultationGross] = useState(0);
+  const [consultationDiscounts, setConsultationDiscounts] = useState<DiscountDraft[]>(
+    () => makeDiscountDrafts(["CONSULTATION"]),
+  );
   const [isApproving, setIsApproving] = useState(false);
   const [checkInPromptAppointmentId, setCheckInPromptAppointmentId] = useState<
     number | null
@@ -658,11 +669,14 @@ export default function ReceptionistPortal() {
     setApprovingId(Number(appointment.appointment_id));
     const resolvedAmount =
       amount !== undefined ? Number(amount) : Number(appointment?.consultation_fee);
+    const gross = Number.isFinite(resolvedAmount) && resolvedAmount > 0 ? resolvedAmount : 0;
+    setConsultationGross(gross);
+    setConsultationDiscounts(makeDiscountDrafts(["CONSULTATION"]));
     setPaymentData({
       payment_mode: "CASH",
       amount:
         Number.isFinite(resolvedAmount) && resolvedAmount > 0
-          ? String(resolvedAmount)
+          ? String(gross)
           : "",
       transaction_reference: "",
       remark: "",
@@ -777,19 +791,31 @@ export default function ReceptionistPortal() {
     Number.isFinite(paymentAmountValue) &&
     paymentAmountValue >= 0;
   const hasRemark = Boolean(paymentData.remark.trim());
+  const consultationDiscountTotal = discountTotal(consultationDiscounts);
+  const consultationNetPayable = Math.max(0, consultationGross - consultationDiscountTotal);
   const canConfirmPayment =
     (hasAmount || hasRemark) &&
-    (paymentData.payment_mode !== "ONLINE" ||
+    Math.abs(paymentAmountValue - consultationNetPayable) < 0.005 &&
+    (paymentAmountValue <= 0 || paymentData.payment_mode !== "ONLINE" ||
       Boolean(paymentData.transaction_reference.trim()));
 
   const confirmPayment = async () => {
     if (!approvingId) return;
+    const discountError = validateDiscountDrafts(consultationDiscounts, { CONSULTATION: consultationGross });
+    if (discountError) {
+      addToast(discountError, "warning");
+      return;
+    }
     if (!hasAmount && !hasRemark) {
       addToast("Please enter amount or remark", "warning");
       return;
     }
+    if (Math.abs(paymentAmountValue - consultationNetPayable) >= 0.005) {
+      addToast(`Please collect the full payable amount of ₹${consultationNetPayable.toFixed(2)}`, "warning");
+      return;
+    }
     if (
-      paymentData.payment_mode === "ONLINE" &&
+      paymentAmountValue > 0 && paymentData.payment_mode === "ONLINE" &&
       !paymentData.transaction_reference.trim()
     ) {
       addToast("Transaction reference is required for ONLINE payment", "warning");
@@ -809,6 +835,7 @@ export default function ReceptionistPortal() {
           body: JSON.stringify({
             ...paymentData,
             amount: Number(paymentData.amount),
+            discounts: toDiscountPayload(consultationDiscounts),
           }),
         },
       );
@@ -1353,6 +1380,40 @@ export default function ReceptionistPortal() {
     }
   };
 
+  const isPresentWithPendingDues = (appointment: any) =>
+    Boolean(appointment?.checked_in_at) &&
+    ["READY", "CALLED", "IN_PROGRESS"].includes(appointment?.queue_bucket) &&
+    Number(appointment?.account_pending_amount || 0) > 0 &&
+    Number(appointment?.pending_bills_count || 0) > 0;
+
+  const renderPendingDuesBadge = (appointment: any) => {
+    if (!isPresentWithPendingDues(appointment)) return null;
+
+    const amount = Number(appointment.account_pending_amount || 0).toLocaleString("en-IN", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+    const billCount = Number(appointment.pending_bills_count || 0);
+    const accountLabel = appointment.booked_for_type === "FAMILY_MEMBER"
+      ? "Account pending"
+      : "Pending";
+
+    return (
+      <span
+        title={`${accountLabel}: ₹${amount} across ${billCount} pending ${billCount === 1 ? "bill" : "bills"}`}
+        className="inline-flex w-fit items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-red-700 shadow-sm"
+      >
+        <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-50 motion-reduce:animate-none" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+        </span>
+        <span>{accountLabel}: ₹{amount}</span>
+        <span className="text-red-400">•</span>
+        <span>{billCount} {billCount === 1 ? "bill" : "bills"}</span>
+      </span>
+    );
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
       <div className="bg-[#549E9E] p-6 text-white shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative">
@@ -1576,6 +1637,7 @@ export default function ReceptionistPortal() {
                           </div>
                           <div className="flex items-center gap-2 flex-wrap mb-2">
                             <span className="text-[10px] font-bold text-gray-500">{app.patient_mobile_no}</span>
+                            {renderPendingDuesBadge(app)}
                           </div>
                           <div className="flex items-center gap-2 flex-wrap mb-2">
                             {app.queue_bucket ? (
@@ -1771,6 +1833,7 @@ export default function ReceptionistPortal() {
                                     </span>
                                   )}
                               </span>
+                              {renderPendingDuesBadge(app)}
                             </div>
                           </td>
                           <td className="px-5 py-4">
@@ -2648,7 +2711,7 @@ export default function ReceptionistPortal() {
                       initial={{ scale: 0.9, opacity: 0, y: 20 }}
                       animate={{ scale: 1, opacity: 1, y: 0 }}
                       exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                      className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl overflow-hidden p-8"
+                      className="relative w-full max-w-md max-h-[92vh] overflow-y-auto bg-white rounded-[40px] shadow-2xl p-8"
                     >
                       <div className="text-center mb-8">
                         <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
@@ -3080,6 +3143,25 @@ export default function ReceptionistPortal() {
                       </div>
 
                       <div className="space-y-4">
+                        <BillingDiscountEditor
+                          discounts={consultationDiscounts}
+                          grossByCategory={{ CONSULTATION: consultationGross }}
+                          onChange={(next) => {
+                            setConsultationDiscounts(next);
+                            setPaymentData((current) => ({
+                              ...current,
+                              amount: Math.max(0, consultationGross - discountTotal(next)).toFixed(2),
+                            }));
+                          }}
+                          compact
+                        />
+
+                        <div className="grid grid-cols-3 gap-2 bg-gray-50 p-3 text-center">
+                          <div><p className="text-[9px] font-black uppercase text-gray-400">Gross</p><p className="text-xs font-black">₹{consultationGross.toFixed(2)}</p></div>
+                          <div><p className="text-[9px] font-black uppercase text-amber-600">Discount</p><p className="text-xs font-black text-amber-700">₹{discountTotal(consultationDiscounts).toFixed(2)}</p></div>
+                          <div><p className="text-[9px] font-black uppercase text-[#549E9E]">Payable</p><p className="text-xs font-black text-[#549E9E]">₹{Math.max(0, consultationGross - discountTotal(consultationDiscounts)).toFixed(2)}</p></div>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-3">
                           <button
                             onClick={() =>

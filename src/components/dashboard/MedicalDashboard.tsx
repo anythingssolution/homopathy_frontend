@@ -36,6 +36,14 @@ import MedicationDuePaymentPanel from './MedicationDuePaymentPanel';
 import { buildMedicationPaymentPayload, formatMoney } from '../../utils/medicationDues';
 import type { AllocationOrder, DueBill } from '../../utils/medicationDues';
 import PrescriptionPrint from '../PrescriptionPrint';
+import { fetchLastCourierDelivery } from '../../utils/courierDelivery';
+import BillingDiscountEditor, {
+  discountTotal,
+  makeDiscountDrafts,
+  toDiscountPayload,
+  validateDiscountDrafts,
+  type DiscountDraft,
+} from './BillingDiscountEditor';
 
 const StatusBadge = ({ status }: { status: string }) => {
   const s = status.toLowerCase();
@@ -295,6 +303,12 @@ export default function MedicalDashboard() {
   const [cashAmount, setCashAmount] = useState('');
   const [onlineAmount, setOnlineAmount] = useState('');
   const [allocationOrder, setAllocationOrder] = useState<AllocationOrder>('CURRENT_ONLY');
+  const [isCourierDelivery, setIsCourierDelivery] = useState(false);
+  const [courierAddress, setCourierAddress] = useState('');
+  const [courierCharge, setCourierCharge] = useState('');
+  const [trackingNo, setTrackingNo] = useState('');
+  const [deliveryRemark, setDeliveryRemark] = useState('');
+  const [courierAddressAutoFilled, setCourierAddressAutoFilled] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDate, setFilterDate] = useState<string>(() => {
@@ -401,6 +415,9 @@ export default function MedicalDashboard() {
   };
 
   const [additionalMeds, setAdditionalMeds] = useState<AdditionalMed[]>([]);
+  const [billingDiscounts, setBillingDiscounts] = useState<DiscountDraft[]>(
+    () => makeDiscountDrafts(['MEDICINE', 'TEST', 'COURIER']),
+  );
   const getBaseMedicationTotal = (
     amounts: Record<number, string> = medAmounts,
     states: typeof medItemStates = medItemStates
@@ -423,9 +440,15 @@ export default function MedicalDashboard() {
     todayTotal: number,
     order: AllocationOrder = allocationOrder,
     prescription: any = selectedPrescription,
+    discounts: DiscountDraft[] = billingDiscounts,
+    courierGrossOverride?: number,
   ) => {
-    const today = Number(todayTotal) || 0;
-    setAmount(String(today));
+    const courierGross = courierGrossOverride === undefined
+      ? (isCourierDelivery ? Number(courierCharge || 0) || 0 : 0)
+      : courierGrossOverride;
+    const grossToday = (Number(todayTotal) || 0) + courierGross;
+    const today = Math.max(0, Number((grossToday - discountTotal(discounts)).toFixed(2)));
+    setAmount(String(grossToday));
 
     if (prescription?.workflow_status === 'PROCESSED_BY_MEDICAL') return;
 
@@ -445,6 +468,20 @@ export default function MedicalDashboard() {
     const previousPending = Number(prescription?.account_dues?.total_pending || 0);
     const includePrevious = order !== 'CURRENT_ONLY' && previousPending > 0;
     setCollectedAmount((includePrevious ? actualToday + previousPending : actualToday).toFixed(2));
+  };
+
+  const autofillLastCourierAddress = async () => {
+    const patientId = selectedPrescription?.patient?.patient_id;
+    if (!token || !patientId || courierAddress.trim()) return;
+    try {
+      const saved = await fetchLastCourierDelivery(token, patientId);
+      if (saved?.courier_address) {
+        setCourierAddress(saved.courier_address);
+        setCourierAddressAutoFilled(true);
+      }
+    } catch (error) {
+      console.error('Failed to load saved courier address:', error);
+    }
   };
 
   const openPrescriptionPreview = async (consultationId?: number | string | null) => {
@@ -475,6 +512,27 @@ export default function MedicalDashboard() {
     const pricing = p.prescription?.pricing || null;
     const baseMedications = (p.prescription?.medications || []).filter((m: any) => m.added_by_role !== 'MEDICAL');
     const medicalAddedMedications = (p.prescription?.medications || []).filter((m: any) => m.added_by_role === 'MEDICAL');
+    const savedDiscounts = makeDiscountDrafts(
+      ['MEDICINE', 'TEST', 'COURIER'],
+      p.medication_bill?.discounts || p.prescription?.pricing?.discounts || [],
+    );
+    setBillingDiscounts(savedDiscounts);
+    const savedDeliveryMode = String(pricing?.delivery_mode || p.medication_bill?.delivery_mode || 'HAND_DELIVERY').toUpperCase();
+    let savedDeliveryDetails = pricing?.delivery_details || p.medication_bill?.delivery_details_json || {};
+    try {
+      savedDeliveryDetails = typeof savedDeliveryDetails === 'string' ? JSON.parse(savedDeliveryDetails) : savedDeliveryDetails;
+    } catch {
+      savedDeliveryDetails = {};
+    }
+    const savedCourierCharge = Number(pricing?.courier_charge
+      ?? (p.medication_bill?.items || []).find((item: any) => String(item.item_name || '').toLowerCase() === 'courier charge')?.amount
+      ?? 0);
+    setIsCourierDelivery(savedDeliveryMode === 'COURIER');
+    setCourierAddress(savedDeliveryDetails?.courier_address || '');
+    setCourierCharge(savedDeliveryMode === 'COURIER' && savedCourierCharge > 0 ? String(savedCourierCharge) : '');
+    setTrackingNo(savedDeliveryDetails?.tracking_no || '');
+    setDeliveryRemark(savedDeliveryDetails?.delivery_remark || '');
+    setCourierAddressAutoFilled(false);
     if (pricing) {
       const initialAmounts: Record<number, string> = {};
       const initialStates: typeof medItemStates = {};
@@ -556,7 +614,7 @@ export default function MedicalDashboard() {
         }
       }
       
-      let initialActualToday = initialTotal - paidAlready;
+      let initialActualToday = initialTotal - discountTotal(savedDiscounts) - paidAlready;
       if (initialActualToday < 0) initialActualToday = 0;
 
       setCollectedAmount(p.workflow_status === 'PROCESSED_BY_MEDICAL'
@@ -589,7 +647,7 @@ export default function MedicalDashboard() {
         0
       );
       setAmount((unpricedTestsTotal || 0).toString());
-      setCollectedAmount((unpricedTestsTotal || 0).toFixed(2));
+      setCollectedAmount(Math.max(0, unpricedTestsTotal - discountTotal(savedDiscounts)).toFixed(2));
       setRemark('');
     }
     setPaymentMode('CASH');
@@ -788,7 +846,20 @@ export default function MedicalDashboard() {
       return;
     }
 
-    const todayTotal = parseFloat(amount) || 0;
+    const medicineGross = getBaseMedicationTotal()
+      + additionalMeds.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+    const testGross = getSelectedTestsTotal();
+    const courierGross = isCourierDelivery ? Number(courierCharge || 0) || 0 : 0;
+    const discountError = validateDiscountDrafts(billingDiscounts, { MEDICINE: medicineGross, TEST: testGross, COURIER: courierGross });
+    if (discountError) {
+      addToast(discountError, 'error');
+      return;
+    }
+    if (isCourierDelivery && !courierAddress.trim()) {
+      addToast('Courier address mandatory hai', 'error');
+      return;
+    }
+    const todayTotal = Math.max(0, Number(((parseFloat(amount) || 0) - discountTotal(billingDiscounts)).toFixed(2)));
     const previousPending = Number(selectedPrescription?.account_dues?.total_pending || 0);
     const received = splitPayment
       ? (Number(cashAmount || 0) || 0) + (Number(onlineAmount || 0) || 0)
@@ -848,6 +919,14 @@ export default function MedicalDashboard() {
           version: testItemStates[i]?.version || Number(test.version || 1),
         })),
         additional_medications: normalizedAdditionalMeds,
+        discounts: toDiscountPayload(billingDiscounts),
+        delivery: {
+          delivery_mode: isCourierDelivery ? 'COURIER' : 'HAND_DELIVERY',
+          courier_address: isCourierDelivery ? courierAddress.trim() : null,
+          courier_charge: isCourierDelivery ? courierGross : 0,
+          tracking_no: isCourierDelivery ? (trackingNo.trim() || null) : null,
+          delivery_remark: isCourierDelivery ? (deliveryRemark.trim() || null) : null,
+        },
         payment: processAfterSave ? buildMedicationPaymentPayload({
           splitPayment,
           cashAmount,
@@ -887,6 +966,14 @@ export default function MedicalDashboard() {
       setIsSubmitting(false);
     }
   };
+
+  const currentMedicineGross = getBaseMedicationTotal()
+    + additionalMeds.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+  const currentTestGross = getSelectedTestsTotal();
+  const currentCourierGross = isCourierDelivery ? Number(courierCharge || 0) || 0 : 0;
+  const currentGross = Number(amount || 0) || 0;
+  const currentDiscount = discountTotal(billingDiscounts);
+  const currentNet = Math.max(0, Number((currentGross - currentDiscount).toFixed(2)));
 
   return (
     <div className="space-y-8 pb-12">
@@ -1610,7 +1697,8 @@ export default function MedicalDashboard() {
                         </div>
                         <div>
                           <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]/70">{t('dispense.total_bill_amount', 'Total Bill Amount')}</p>
-                          <p className="text-xl font-black text-[#549E9E]">₹ {amount}</p>
+                          <p className="text-xl font-black text-[#549E9E]">₹ {currentNet.toFixed(2)}</p>
+                          {currentDiscount > 0 && <p className="text-[9px] font-bold text-amber-700">Gross ₹{currentGross.toFixed(2)} · Discount ₹{currentDiscount.toFixed(2)}</p>}
                         </div>
                       </div>
                       <div className="text-right">
@@ -1622,6 +1710,52 @@ export default function MedicalDashboard() {
                         </span>
                       </div>
                     </div>
+
+                    <div className="space-y-2 border border-gray-100 bg-white p-2.5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Delivery Mode</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className={`flex cursor-pointer items-center gap-2 border px-2.5 py-2 ${!isCourierDelivery ? 'border-[#549E9E]/20 bg-[#549E9E]/10 text-[#549E9E]' : 'border-gray-100 text-gray-500'}`}>
+                          <input type="radio" name="medical-delivery-mode" checked={!isCourierDelivery} onChange={() => {
+                            setIsCourierDelivery(false);
+                            applyTodayBillTotal(currentMedicineGross + currentTestGross, allocationOrder, selectedPrescription, billingDiscounts, 0);
+                          }} className="accent-[#549E9E]" />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Hand Delivery</span>
+                        </label>
+                        <label className={`flex cursor-pointer items-center gap-2 border px-2.5 py-2 ${isCourierDelivery ? 'border-[#549E9E]/20 bg-[#549E9E]/10 text-[#549E9E]' : 'border-gray-100 text-gray-500'}`}>
+                          <input type="radio" name="medical-delivery-mode" checked={isCourierDelivery} onChange={() => {
+                            setIsCourierDelivery(true);
+                            applyTodayBillTotal(currentMedicineGross + currentTestGross, allocationOrder, selectedPrescription, billingDiscounts, Number(courierCharge || 0) || 0);
+                            void autofillLastCourierAddress();
+                          }} className="accent-[#549E9E]" />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Courier</span>
+                        </label>
+                      </div>
+                      {isCourierDelivery && <div className="space-y-2">
+                        <textarea value={courierAddress} onChange={(event) => {
+                          setCourierAddress(event.target.value);
+                          setCourierAddressAutoFilled(false);
+                        }} placeholder="Courier address" className="min-h-[56px] w-full border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-bold outline-none focus:border-[#549E9E]" />
+                        {courierAddressAutoFilled && <p className="text-[9px] font-bold uppercase tracking-widest text-[#549E9E]">Last used courier address auto-filled · You can edit it</p>}
+                        <div className="grid grid-cols-2 gap-2">
+                          <input type="number" min="0" step="0.01" value={courierCharge} onChange={(event) => {
+                            setCourierCharge(event.target.value);
+                            applyTodayBillTotal(currentMedicineGross + currentTestGross, allocationOrder, selectedPrescription, billingDiscounts, Number(event.target.value || 0) || 0);
+                          }} placeholder="Courier charge" className="border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-bold outline-none focus:border-[#549E9E]" />
+                          <input value={trackingNo} onChange={(event) => setTrackingNo(event.target.value)} placeholder="Tracking no" className="border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-bold outline-none focus:border-[#549E9E]" />
+                        </div>
+                        <input value={deliveryRemark} onChange={(event) => setDeliveryRemark(event.target.value)} placeholder="Delivery remark" className="w-full border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-bold outline-none focus:border-[#549E9E]" />
+                      </div>}
+                    </div>
+
+                    <BillingDiscountEditor
+                      discounts={billingDiscounts}
+                      grossByCategory={{ MEDICINE: currentMedicineGross, TEST: currentTestGross, COURIER: currentCourierGross }}
+                      onChange={(next) => {
+                        setBillingDiscounts(next);
+                        applyTodayBillTotal(currentMedicineGross + currentTestGross, allocationOrder, selectedPrescription, next, currentCourierGross);
+                      }}
+                      compact
+                    />
 
                     <div className="space-y-1">
                       <label className="pl-1 text-[10px] font-black uppercase tracking-widest text-gray-500">{t('dispense.dispensing_remark', 'Dispensing Remark / Notes')}</label>
@@ -1642,11 +1776,11 @@ export default function MedicalDashboard() {
                             value={collectedAmount} onChange={e => setCollectedAmount(e.target.value)}
                             className="w-full border border-gray-200 p-2 text-sm font-bold" />
                           <p className="text-xs text-gray-500">Correct the total already received for this bill. Save Changes updates the existing payment.</p>
-                          <p className="text-sm font-bold">Pending after correction: {formatMoney(Math.max(0, Number(amount || 0) - Number(collectedAmount || 0)))}</p>
+                          <p className="text-sm font-bold">Pending after correction: {formatMoney(Math.max(0, currentNet - Number(collectedAmount || 0)))}</p>
                         </div>
                       ) : (
                       <MedicationDuePaymentPanel
-                        todayAmount={parseFloat(amount) || 0}
+                        todayAmount={currentNet}
                         previousBills={(selectedPrescription.account_dues?.bills || []) as DueBill[]}
                         collectedAmount={collectedAmount}
                         onCollectedAmountChange={setCollectedAmount}

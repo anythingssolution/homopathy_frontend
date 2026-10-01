@@ -47,6 +47,7 @@ import {
 import { useTranslation } from "react-i18next";
 import MedicationDispensingStatus from "../MedicationDispensingStatus";
 import PaymentSplitDisplay from "../PaymentSplitDisplay";
+import { loadPrescriptionTimeline } from "../../utils/prescriptionTimeline";
 
 const HistoryPositionBadge = ({ appointment }: { appointment: any }) =>
   appointment.history_queue_position != null ? (
@@ -103,10 +104,22 @@ const RepeatMedicineHistoryRow = ({ bill, actions }: { bill: any; actions: React
 };
 
 
-function HistoryPrescriptions({ data, lang }: { data: any; lang: 'en' | 'hi' }) {
+function HistoryPrescriptions({ data, lang, timelineVisits }: { data: any; lang: 'en' | 'hi'; timelineVisits?: any[] | null }) {
   const selectedConsultation = data;
   const consultation = data.consultation;
   const followUpChain = Array.isArray(data.follow_up_chain) ? data.follow_up_chain : [];
+  const fallbackVisits = (followUpChain.length ? followUpChain : [{
+    ...selectedConsultation.appointment,
+    consultation,
+  }]).filter((visit: any) => visit.consultation).sort((a: any, b: any) => {
+    const dateA = new Date(a.appointment_date || 0).getTime() || 0;
+    const dateB = new Date(b.appointment_date || 0).getTime() || 0;
+    return dateB - dateA || Number(b.appointment_id || 0) - Number(a.appointment_id || 0);
+  }).map((visit: any) => ({
+    ...visit,
+    event_date: visit.appointment_date,
+    appointment: visit,
+  }));
   return (
                           <AllVisitsPrint
                             patient={{
@@ -116,18 +129,7 @@ function HistoryPrescriptions({ data, lang }: { data: any; lang: 'en' | 'hi' }) 
                               age: selectedConsultation.appointment.patient_age,
                               gender: selectedConsultation.appointment.patient_gender,
                             }}
-                            visits={(followUpChain.length ? followUpChain : [{
-                              ...selectedConsultation.appointment,
-                              consultation,
-                            }]).filter((visit: any) => visit.consultation).sort((a: any, b: any) => {
-                              const dateA = new Date(a.appointment_date || 0).getTime() || 0;
-                              const dateB = new Date(b.appointment_date || 0).getTime() || 0;
-                              return dateB - dateA || Number(b.appointment_id || 0) - Number(a.appointment_id || 0);
-                            }).map((visit: any) => ({
-                              ...visit,
-                              event_date: visit.appointment_date,
-                              appointment: visit,
-                            }))}
+                            visits={timelineVisits?.length ? timelineVisits : fallbackVisits}
                             lang={lang}
                           />
   );
@@ -234,6 +236,7 @@ export default function DoctorClinicHistory() {
     fromDate: string;
     toDate: string;
     filterStatus: string;
+    filterSession: string;
     currentPage: number;
   }>("clinic-history");
   const [search, setSearch] = useState(() => location.state?.patientSearch || savedHistoryView?.search || "");
@@ -250,10 +253,14 @@ export default function DoctorClinicHistory() {
   const [filterStatus, setFilterStatus] = useState(() => {
     return location.state?.filterStatus || savedHistoryView?.filterStatus || "all";
   });
+  const [filterSession, setFilterSession] = useState(() => {
+    return location.state?.filterSession || savedHistoryView?.filterSession || "all";
+  });
 
   const [selectedConsultation, setSelectedConsultation] = useState<any | null>(
     null,
   );
+  const [selectedHistoryTimeline, setSelectedHistoryTimeline] = useState<any[] | null>(null);
   const [showPrescriptionPreview, setShowPrescriptionPreview] = useState<
     any | null
   >(null);
@@ -264,11 +271,11 @@ export default function DoctorClinicHistory() {
     setExpandedHistoryChainAppointmentId,
   ] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(() => (
-    location.state?.fromDate || location.state?.toDate || location.state?.filterStatus || location.state?.patientSearch
+    location.state?.fromDate || location.state?.toDate || location.state?.filterStatus || location.state?.filterSession || location.state?.patientSearch
       ? 1
       : Number(savedHistoryView?.currentPage || 1)
   ));
-  usePersistViewState("clinic-history", { search, fromDate, toDate, filterStatus, currentPage });
+  usePersistViewState("clinic-history", { search, fromDate, toDate, filterStatus, filterSession, currentPage });
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 8;
 
@@ -397,6 +404,7 @@ export default function DoctorClinicHistory() {
       if (fromDate && fromDate !== 'all') params.set('from_date', fromDate);
       if (toDate && toDate !== 'all') params.set('to_date', toDate);
       if (filterStatus && filterStatus !== 'all') params.set('status', filterStatus);
+      if (filterSession && filterSession !== 'all') params.set('session_type', filterSession);
       if (search.trim()) params.set('patient_search', search.trim());
       if (selectedBranchId) params.set('branch_id', String(selectedBranchId));
       const rows: any[] = [];
@@ -410,7 +418,7 @@ export default function DoctorClinicHistory() {
         pages = Number(result.meta?.total_pages || 1);
       }
       if (!rows.length) { addToast(t('clinic_history.no_print_records', 'No records to print'), 'warning'); return; }
-      setPrintData({ rows, filters: [fromDate, toDate, t(`clinic_history.filters.${String(filterStatus).toLowerCase()}`, filterStatus), search.trim()].filter(Boolean).join(' · ') });
+      setPrintData({ rows, filters: [fromDate, toDate, t(`clinic_history.filters.${String(filterStatus).toLowerCase()}`, filterStatus), t(`clinic_history.filters.${filterSession}`, filterSession), search.trim()].filter(Boolean).join(' · ') });
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Unable to load print list', 'error');
     } finally { setIsPreparingPrint(false); }
@@ -424,6 +432,8 @@ export default function DoctorClinicHistory() {
       if (toDate && toDate !== "all") params.append("to_date", toDate);
       if (filterStatus && filterStatus !== "all")
         params.append("status", filterStatus);
+      if (filterSession && filterSession !== "all")
+        params.append("session_type", filterSession);
       if (search.trim()) params.append("patient_search", search.trim());
       if (selectedBranchId) params.append("branch_id", String(selectedBranchId));
       params.append("page", String(currentPage));
@@ -447,7 +457,7 @@ export default function DoctorClinicHistory() {
     } finally {
       setIsLoading(false);
     }
-  }, [fromDate, toDate, filterStatus, search, selectedBranchId, token, addToast, currentPage, pageSize]);
+  }, [fromDate, toDate, filterStatus, filterSession, search, selectedBranchId, token, addToast, currentPage, pageSize]);
 
   useEffect(() => {
     const delay = search.trim() ? 500 : 0;
@@ -457,7 +467,7 @@ export default function DoctorClinicHistory() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [fromDate, toDate, filterStatus, search]);
+  }, [fromDate, toDate, filterStatus, filterSession, search]);
 
   useEffect(() => {
     if (!showPrescriptionPreview || !autoPrintPrescription) return;
@@ -486,6 +496,7 @@ export default function DoctorClinicHistory() {
   useEffect(() => {
     if (!selectedConsultation?.appointment?.appointment_id) {
       setExpandedHistoryChainAppointmentId(null);
+      setSelectedHistoryTimeline(null);
       return;
     }
 
@@ -493,6 +504,27 @@ export default function DoctorClinicHistory() {
       Number(selectedConsultation.appointment.appointment_id),
     );
   }, [selectedConsultation]);
+
+  useEffect(() => {
+    const patientId = selectedConsultation?.appointment?.fk_patient_id;
+    if (!selectedConsultation || !patientId || !token) return;
+    let cancelled = false;
+    setSelectedHistoryTimeline(null);
+    void loadPrescriptionTimeline({
+      token,
+      patientId,
+      familyMemberId:
+        selectedConsultation.appointment.booked_for_type === 'FAMILY_MEMBER'
+          ? selectedConsultation.appointment.fk_patient_family_member_id
+          : null,
+      subjectScope: 'SELF',
+    }).then((items) => {
+      if (!cancelled) setSelectedHistoryTimeline(items);
+    }).catch(() => {
+      if (!cancelled) setSelectedHistoryTimeline(null);
+    });
+    return () => { cancelled = true; };
+  }, [selectedConsultation, token]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
@@ -541,7 +573,7 @@ export default function DoctorClinicHistory() {
 
       <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
         {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end bg-gray-50/50 p-4 border border-gray-100">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 items-end bg-gray-50/50 p-4 border border-gray-100">
           <CustomDatePicker
             label={t("clinic_history.filters.from_date", "From Date")}
             value={fromDate}
@@ -569,7 +601,19 @@ export default function DoctorClinicHistory() {
             ]}
           />
 
-          <div className="space-y-1.5">
+          <FilterDropdown
+            label={t("clinic_history.filters.session", "Session")}
+            icon={Clock}
+            value={filterSession}
+            onChange={setFilterSession}
+            options={[
+              { id: "all", label: t("clinic_history.filters.all", "All Sessions") },
+              { id: "morning", label: t("clinic_history.filters.morning", "Morning") },
+              { id: "evening", label: t("clinic_history.filters.evening", "Evening") },
+            ]}
+          />
+
+          <div className="space-y-1.5 xl:col-span-2">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               {t("clinic_history.filters.search_label", "Search")}
             </label>
@@ -1169,7 +1213,7 @@ export default function DoctorClinicHistory() {
 
                       <div className="overflow-x-auto rounded-xl bg-slate-100 p-2 md:p-5">
                         <div className="min-w-[640px] bg-white p-3 shadow-sm">
-                          <HistoryPrescriptions data={selectedConsultation} lang={prescriptionLang} />
+                          <HistoryPrescriptions data={selectedConsultation} lang={prescriptionLang} timelineVisits={selectedHistoryTimeline} />
                         </div>
                       </div>
 
@@ -1287,7 +1331,7 @@ export default function DoctorClinicHistory() {
           {showPrescriptionPreview ? (
             <PrescriptionPrint consultation={showPrescriptionPreview.consultation} appointment={showPrescriptionPreview.appointment} lang={prescriptionLang} />
           ) : (
-            <HistoryPrescriptions data={selectedConsultation} lang={prescriptionLang} />
+            <HistoryPrescriptions data={selectedConsultation} lang={prescriptionLang} timelineVisits={selectedHistoryTimeline} />
           )}
         </div>,
         document.body

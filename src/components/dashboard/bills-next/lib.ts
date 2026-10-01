@@ -107,8 +107,12 @@ export const groupVisits = (bills: any[]): VisitRow[] => {
     const groupKey = appointmentId ? `apt-${appointmentId}` : `bill-${bill.bill_id}`;
     const billType = String(bill.bill_type || '').toUpperCase();
     const amount = Number(bill.total_amount || 0);
-    const tests = Number(bill.test_amount ?? (bill.items || []).filter((item: any) => item.item_type === 'TEST').reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0));
-    const courier = Number(bill.courier_amount ?? (bill.items || []).filter((item: any) => String(item.item_name).toLowerCase() === 'courier charge').reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0));
+    const grossAmount = Number(bill.gross_amount ?? bill.total_amount ?? 0);
+    const testsGross = Number(bill.test_amount ?? (bill.items || []).filter((item: any) => item.item_type === 'TEST').reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0));
+    const courierGross = Number(bill.courier_amount ?? (bill.items || []).filter((item: any) => String(item.item_name).toLowerCase() === 'courier charge').reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0));
+    const tests = Math.max(0, testsGross - Number(bill.test_discount_amount || 0));
+    const courier = Math.max(0, courierGross - Number(bill.courier_discount_amount || 0));
+    const medicine = Math.max(0, grossAmount - testsGross - courierGross - Number(bill.medicine_discount_amount || 0));
 
     if (!grouped.has(groupKey)) {
       grouped.set(groupKey, {
@@ -166,7 +170,7 @@ export const groupVisits = (bills: any[]): VisitRow[] => {
     else {
       entry.test_total += tests;
       entry.courier_total += courier;
-      entry.medicine_total += amount - tests - courier;
+      entry.medicine_total += medicine;
     }
   });
 
@@ -234,6 +238,53 @@ export const sessionBundle = (value: any): { morning: any[]; evening: any[] } =>
     morning: Array.isArray(value?.morning) ? value.morning : [],
     evening: Array.isArray(value?.evening) ? value.evening : [],
   };
+};
+
+type SessionPaymentTotal = { cash: number; online: number; total: number };
+type SessionPaymentTotals = {
+  morning: SessionPaymentTotal;
+  evening: SessionPaymentTotal;
+  no_slot: SessionPaymentTotal;
+};
+
+const emptySessionPaymentTotal = (): SessionPaymentTotal => ({ cash: 0, online: 0, total: 0 });
+
+export const sessionPaymentTotals = (payments: any[] = []): SessionPaymentTotals => {
+  const totals: SessionPaymentTotals = {
+    morning: emptySessionPaymentTotal(),
+    evening: emptySessionPaymentTotal(),
+    no_slot: emptySessionPaymentTotal(),
+  };
+
+  payments.forEach((payment) => {
+    const slotName = String(payment?.slot_name || '').trim().toLowerCase();
+    const startHourMatch = String(payment?.start_time || '').match(/^(\d{1,2}):/);
+    const startHour = startHourMatch ? Number(startHourMatch[1]) : null;
+    const session = slotName.includes('morning')
+      ? 'morning'
+      : slotName.includes('evening') || slotName.includes('afternoon') || slotName.includes('night')
+        ? 'evening'
+        : startHour === null
+          ? 'no_slot'
+          : startHour < 12
+            ? 'morning'
+            : 'evening';
+    const mode = String(payment?.payment_mode || '').trim().toUpperCase();
+    const amount = Number(payment?.amount || 0);
+
+    if (!Number.isFinite(amount) || amount <= 0 || !['CASH', 'ONLINE'].includes(mode)) return;
+    if (mode === 'CASH') totals[session].cash += amount;
+    if (mode === 'ONLINE') totals[session].online += amount;
+    totals[session].total += amount;
+  });
+
+  (Object.keys(totals) as Array<keyof SessionPaymentTotals>).forEach((key) => {
+    totals[key].cash = Number(totals[key].cash.toFixed(2));
+    totals[key].online = Number(totals[key].online.toFixed(2));
+    totals[key].total = Number(totals[key].total.toFixed(2));
+  });
+
+  return totals;
 };
 
 const addNum = (row: any, key: string) => Number(row?.[key] || 0);

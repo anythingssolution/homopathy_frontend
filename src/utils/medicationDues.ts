@@ -13,6 +13,7 @@ export type DueBill = {
   doctor_name?: string | null;
   branch_name?: string | null;
   is_repeat_medicine?: boolean;
+  is_direct_medicine?: boolean;
   payment_status?: string;
 };
 

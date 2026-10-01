@@ -11,6 +11,14 @@ import { useLenisNestedScroll } from '../../hooks/useLenisNestedScroll';
 import { buildMedicationPaymentPayload, formatMoney } from '../../utils/medicationDues';
 import { receiptFromAllocation, type PaymentReceiptData } from '../../utils/paymentReceipt';
 import type { AllocationOrder, AccountDues, DueBill } from '../../utils/medicationDues';
+import BillingDiscountEditor, {
+  discountTotal,
+  makeDiscountDrafts,
+  toDiscountPayload,
+  validateDiscountDrafts,
+  type DiscountDraft,
+} from './BillingDiscountEditor';
+import { fetchLastCourierDelivery } from '../../utils/courierDelivery';
 
 const money = (value: number | string | null | undefined) => Number(value || 0).toFixed(2);
 
@@ -186,6 +194,10 @@ export default function RepeatMedicine() {
   const [courierCharge, setCourierCharge] = useState('');
   const [trackingNo, setTrackingNo] = useState('');
   const [deliveryRemark, setDeliveryRemark] = useState('');
+  const [courierAddressAutoFilled, setCourierAddressAutoFilled] = useState(false);
+  const [billingDiscounts, setBillingDiscounts] = useState<DiscountDraft[]>(
+    () => makeDiscountDrafts(['MEDICINE', 'COURIER']),
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [collectionReceipt, setCollectionReceipt] = useState<PaymentReceiptData | null>(null);
@@ -205,13 +217,18 @@ export default function RepeatMedicine() {
     return Number((prescribedTotal + additionalTotal + deliveryTotal).toFixed(2));
   }, [additionalMedicines, courierCharge, hasMedicineSelection, isCourierDelivery, medicineAmounts, selectedMedicineIds]);
 
+  const courierGross = hasMedicineSelection && isCourierDelivery ? Number(courierCharge || 0) || 0 : 0;
+  const medicineGross = Math.max(0, Number((totalAmount - courierGross).toFixed(2)));
+  const currentDiscount = discountTotal(billingDiscounts);
+  const netTotalAmount = Math.max(0, Number((totalAmount - currentDiscount).toFixed(2)));
+
   const previousPending = Number(
     lastPrescription?.account_dues?.total_pending || selectedPatient?.account_dues?.total_pending || 0,
   );
   const previousOnlyMode = !hasMedicineSelection && previousPending > 0;
   const effectiveAllocationOrder = previousOnlyMode ? 'PREVIOUS_FIRST' : allocationOrder;
   const includePrevious = effectiveAllocationOrder !== 'CURRENT_ONLY' && previousPending > 0;
-  const collectTarget = Number((includePrevious ? totalAmount + previousPending : totalAmount).toFixed(2));
+  const collectTarget = Number((includePrevious ? netTotalAmount + previousPending : netTotalAmount).toFixed(2));
   const receivedNow = splitPayment
     ? Number(((Number(cashAmount || 0) || 0) + (Number(onlineAmount || 0) || 0)).toFixed(2))
     : Number((collectedAmount === '' ? collectTarget : Number(collectedAmount || 0)).toFixed(2));
@@ -297,10 +314,17 @@ export default function RepeatMedicine() {
     if (!token) return;
     setSelectedPatient(patient);
     setLastPrescription(null);
+    setBillingDiscounts(makeDiscountDrafts(['MEDICINE', 'COURIER']));
     setNoPreviousPrescriptionMessage('');
     setSelectedMedicineIds({});
     setMedicineAmounts({});
     setAdditionalMedicines([]);
+    setIsCourierDelivery(false);
+    setCourierAddress('');
+    setCourierCharge('');
+    setTrackingNo('');
+    setDeliveryRemark('');
+    setCourierAddressAutoFilled(false);
     setIsLoading(true);
     try {
       const response = await fetch(`/api/v1/medical/repeat-medicine/patients/${patient.patient_id}/last-prescription`, {
@@ -341,6 +365,19 @@ export default function RepeatMedicine() {
       addToast(error.message || 'Last prescription not found', 'error');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const autofillLastCourierAddress = async () => {
+    if (!token || !selectedPatient?.patient_id || courierAddress.trim()) return;
+    try {
+      const saved = await fetchLastCourierDelivery(token, selectedPatient.patient_id);
+      if (saved?.courier_address) {
+        setCourierAddress(saved.courier_address);
+        setCourierAddressAutoFilled(true);
+      }
+    } catch (error) {
+      console.error('Failed to load saved courier address:', error);
     }
   };
 
@@ -456,15 +493,20 @@ export default function RepeatMedicine() {
     }
 
     const received = receivedNow;
+    const discountError = validateDiscountDrafts(billingDiscounts, { MEDICINE: medicineGross, COURIER: courierGross });
+    if (discountError) {
+      addToast(discountError, 'warning');
+      return;
+    }
     if (Number.isNaN(received) || received < 0) {
       addToast('Please enter a valid amount received. Use 0 if the patient is borrowing the full bill.', 'warning');
       return;
     }
-    if (!includePrevious && received > totalAmount + 0.001) {
+    if (!includePrevious && received > netTotalAmount + 0.001) {
       addToast('Tick previous pending to collect more than today\'s medicine bill', 'warning');
       return;
     }
-    if (received > totalAmount + previousPending + 0.001) {
+    if (received > netTotalAmount + previousPending + 0.001) {
       addToast('Amount received cannot be greater than total due including previous pending', 'warning');
       return;
     }
@@ -537,6 +579,7 @@ export default function RepeatMedicine() {
           source_consultation_id: lastPrescription?.prescription.consultation_id || null,
           medicines,
           additional_medications: additional,
+          discounts: toDiscountPayload(billingDiscounts),
           remark: remark.trim() || null,
           delivery: {
             delivery_mode: isCourierDelivery ? 'COURIER' : 'HAND_DELIVERY',
@@ -571,6 +614,7 @@ export default function RepeatMedicine() {
       setLastPrescription(null);
       setSelectedPatient(null);
       setNoPreviousPrescriptionMessage('');
+      setBillingDiscounts(makeDiscountDrafts(['MEDICINE', 'COURIER']));
       setPatients([]);
       setSearch('');
       setAdditionalMedicines([]);
@@ -813,7 +857,8 @@ export default function RepeatMedicine() {
               </div>
               <div className="text-right">
                 <p className="text-[9px] font-black uppercase tracking-widest text-[#549E9E]/70">Today's Bill</p>
-                <p className="text-lg font-black text-[#549E9E]">₹ {money(totalAmount)}</p>
+                <p className="text-lg font-black text-[#549E9E]">₹ {money(netTotalAmount)}</p>
+                {currentDiscount > 0 && <p className="text-[9px] font-bold text-amber-700">Gross ₹{money(totalAmount)} · Discount ₹{money(currentDiscount)}</p>}
               </div>
             </div>
 
@@ -823,7 +868,7 @@ export default function RepeatMedicine() {
               data-lenis-prevent
             >
             <MedicationDuePaymentPanel
-              todayAmount={totalAmount}
+              todayAmount={netTotalAmount}
               previousBills={(activeAccountDues?.bills || []) as DueBill[]}
               collectedAmount={collectedAmount === '' ? money(collectTarget) : collectedAmount}
               onCollectedAmountChange={setCollectedAmount}
@@ -843,6 +888,13 @@ export default function RepeatMedicine() {
               compact
             />
 
+            <BillingDiscountEditor
+              discounts={billingDiscounts}
+              grossByCategory={{ MEDICINE: medicineGross, COURIER: courierGross }}
+              onChange={setBillingDiscounts}
+              compact
+            />
+
             {totalAmount > 0 && (
             <div className="border border-gray-100 bg-gray-50/60 p-2.5 space-y-2">
               <div className="grid grid-cols-2 gap-2">
@@ -859,7 +911,10 @@ export default function RepeatMedicine() {
                   <input
                     type="checkbox"
                     checked={isCourierDelivery}
-                    onChange={() => setIsCourierDelivery(true)}
+                    onChange={() => {
+                      setIsCourierDelivery(true);
+                      void autofillLastCourierAddress();
+                    }}
                     className="w-4 h-4 accent-[#549E9E]"
                   />
                   <span className="text-[10px] font-black uppercase tracking-widest">Courier Delivery</span>
@@ -870,10 +925,14 @@ export default function RepeatMedicine() {
                 <div className="space-y-2">
                   <textarea
                     value={courierAddress}
-                    onChange={(e) => setCourierAddress(e.target.value)}
+                    onChange={(e) => {
+                      setCourierAddress(e.target.value);
+                      setCourierAddressAutoFilled(false);
+                    }}
                     placeholder="Courier address"
                     className="w-full bg-white border border-gray-100 px-3 py-2 text-xs font-bold outline-none min-h-[64px]"
                   />
+                  {courierAddressAutoFilled && <p className="text-[9px] font-bold uppercase tracking-widest text-[#549E9E]">Last used courier address auto-filled · You can edit it</p>}
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="number"

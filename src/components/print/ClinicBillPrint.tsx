@@ -81,10 +81,16 @@ export default function ClinicBillPrint({ bills, patient, visitDate, tokenLabel,
       <h3>{section.number} · {section.category} {section.date && `· ${label('Bill date', 'बिल दिनांक')}: ${invoiceDate(section.date)}`}</h3>
       <table><thead><tr><th style={{width:'6%'}}>#</th><th>{label('Description', 'विवरण')}</th><th className="num" style={{width:'10%'}}>{label('Qty', 'मात्रा')}</th><th className="num" style={{width:'16%'}}>{label('Rate', 'दर')}</th><th className="num" style={{width:'18%'}}>{label('Amount', 'राशि')}</th></tr></thead>
         <tbody>{section.items.map(item => <tr key={item.serial}><td>{item.serial}</td><td>{item.name}{item.kind && <div className="clinic-bill-muted">{item.kind}</div>}</td><td className="num">{item.quantity ?? ''}</td><td className="num">{item.rate == null ? '' : invoiceMoney(item.rate)}</td><td className="num">{invoiceMoney(item.amount)}</td></tr>)}</tbody></table>
+      {section.discount > 0 && <div style={{margin:'6px 0 0 auto',width:320}}>
+        <p style={{display:'flex',justifyContent:'space-between',margin:'3px 0'}}><span>{label('Gross', 'सकल')}</span><b>{invoiceMoney(section.gross)}</b></p>
+        {section.discounts.map((discount:any) => <p key={discount.discount_id || discount.category} style={{display:'flex',justifyContent:'space-between',margin:'3px 0',color:'#a16207'}}><span>{String(discount.category || '').replaceAll('_',' ')} · {String(discount.reason_code || '').replaceAll('_',' ')}</span><b>-{invoiceMoney(discount.amount)}</b></p>)}
+        <p style={{display:'flex',justifyContent:'space-between',margin:'3px 0'}}><span>{label('Net', 'शुद्ध')}</span><b>{invoiceMoney(section.total)}</b></p>
+      </div>}
       {model.sections.length > 1 && <p style={{textAlign:'right',marginTop:4}}>{label('Subtotal', 'उप-योग')}: <b>{invoiceMoney(section.total)}</b></p>}
       {section.delivery && <p className="clinic-bill-muted">{section.delivery}</p>}
     </section>)}
     <div className="clinic-bill-totals">
+      {model.discount > 0 && <><p><span>{label('Gross billed', 'सकल बिल')}</span><b>{invoiceMoney(model.gross)}</b></p><p style={{color:'#a16207'}}><span>{label('Total discount', 'कुल छूट')}</span><b>-{invoiceMoney(model.discount)}</b></p></>}
       <p><span>{label('Total billed', 'कुल बिल')}</span><b>{invoiceMoney(model.total)}</b></p>
       <p><span>{label('Received against these bills', 'इन बिलों पर प्राप्त')}</span><b>{invoiceMoney(model.paid)}</b></p>
       {model.modes && <div className="clinic-bill-muted" style={{textAlign:'right'}}>{model.modes}</div>}
