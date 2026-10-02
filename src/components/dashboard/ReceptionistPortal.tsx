@@ -677,7 +677,7 @@ export default function ReceptionistPortal() {
       amount:
         Number.isFinite(resolvedAmount) && resolvedAmount > 0
           ? String(gross)
-          : "",
+          : "0",
       transaction_reference: "",
       remark: "",
     });
@@ -790,11 +790,10 @@ export default function ReceptionistPortal() {
     String(paymentData.amount || "").trim() !== "" &&
     Number.isFinite(paymentAmountValue) &&
     paymentAmountValue >= 0;
-  const hasRemark = Boolean(paymentData.remark.trim());
   const consultationDiscountTotal = discountTotal(consultationDiscounts);
   const consultationNetPayable = Math.max(0, consultationGross - consultationDiscountTotal);
   const canConfirmPayment =
-    (hasAmount || hasRemark) &&
+    hasAmount &&
     Math.abs(paymentAmountValue - consultationNetPayable) < 0.005 &&
     (paymentAmountValue <= 0 || paymentData.payment_mode !== "ONLINE" ||
       Boolean(paymentData.transaction_reference.trim()));
@@ -806,8 +805,8 @@ export default function ReceptionistPortal() {
       addToast(discountError, "warning");
       return;
     }
-    if (!hasAmount && !hasRemark) {
-      addToast("Please enter amount or remark", "warning");
+    if (!hasAmount) {
+      addToast("Please enter the consultation amount (0 for no charge)", "warning");
       return;
     }
     if (Math.abs(paymentAmountValue - consultationNetPayable) >= 0.005) {
@@ -835,6 +834,7 @@ export default function ReceptionistPortal() {
           body: JSON.stringify({
             ...paymentData,
             amount: Number(paymentData.amount),
+            consultation_fee: consultationGross,
             discounts: toDiscountPayload(consultationDiscounts),
           }),
         },
@@ -3197,10 +3197,17 @@ export default function ReceptionistPortal() {
                                   ? `${whole}.${rest.join("").slice(0, 2)}`
                                   : whole;
                               setPaymentData({ ...paymentData, amount: sanitized });
+                              const enteredAmount = Number(sanitized);
+                              if (Number.isFinite(enteredAmount)) {
+                                setConsultationGross(Number((enteredAmount + consultationDiscountTotal).toFixed(2)));
+                              }
                             }}
                             placeholder="e.g. 500"
                             className="w-full bg-gray-50 border-none rounded-[24px] py-4 px-6 outline-none text-gray-700 font-medium focus:ring-2 focus:ring-[#549E9E]/20 transition-all"
                           />
+                          <p className="text-xs text-gray-500 pl-4">
+                            Receptionist can set the consultation amount. Enter 0 for no charge.
+                          </p>
                         </div>
 
                         <AnimatePresence>

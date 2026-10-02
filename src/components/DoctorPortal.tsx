@@ -118,6 +118,7 @@ type DoctorAppointment = {
   patient_mobile_no: string;
   patient_description: string | null;
   consultation_payment_status: string | null;
+  consultation_collected_amount?: number | string | null;
   queue_status?: string;
   // New backend fields (Phase 1)
   display_token_number?: number;
@@ -1621,12 +1622,11 @@ export default function DoctorPortal() {
                           In: {new Date(app.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
-                      {app.consultation_payment_status && (
-                        <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border ${app.consultation_payment_status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-orange-50 text-orange-600 border-orange-100'
-                          }`}>
-                          {app.consultation_payment_status}
-                        </span>
-                      )}
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md border bg-emerald-50 text-emerald-600 border-emerald-100" title="Collected consultation fee">
+                        {app.consultation_collected_amount != null
+                          ? `₹${Number(app.consultation_collected_amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                          : '—'}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between mt-2.5">
                       <div className="flex items-center gap-3 text-[10px] font-bold text-gray-400">
@@ -1803,10 +1803,9 @@ export default function DoctorPortal() {
                       </td>
                       <td className="px-4 py-4"><StatusBadge status={app.status} /></td>
                       <td className="px-4 py-4">
-                        {app.consultation_payment_status ? (
-                          <span className={`inline-block text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${app.consultation_payment_status === 'PAID' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-orange-50 text-orange-600 border-orange-100'
-                            }`}>
-                            {app.consultation_payment_status}
+                        {app.consultation_collected_amount != null ? (
+                          <span className="inline-block text-xs font-black px-2 py-0.5 rounded-md border bg-emerald-50 text-emerald-600 border-emerald-100" title="Collected consultation fee">
+                            ₹{Number(app.consultation_collected_amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                           </span>
                         ) : (
                           <span className="text-[10px] text-gray-300 font-bold">—</span>
