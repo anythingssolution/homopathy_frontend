@@ -71,6 +71,11 @@ import {
   getDurationMonths,
   normalizeDurationKey,
 } from "../../utils/medicationDuration";
+import {
+  calculateOtherMedicineAmount,
+  deriveManualUnitPrice,
+  resolveOtherMedicineUnitPrice,
+} from "../../utils/otherMedicinePricing";
 
 type MedicationEntry = {
   name: string;
@@ -96,6 +101,7 @@ type TextMedicine = {
   normalized_value: string;
   is_active: number;
   is_doctor_manual?: number | boolean;
+  default_manual_price?: string | number | null;
   created_at: string;
   updated_at: string;
   remark_suggestions?: any[];
@@ -124,7 +130,7 @@ const toTextMedicineVariant = (
 ): VariantInfo => ({
   productId: Number(product.id) || undefined,
   label,
-  price: product.mrp_rate || product.price_max || product.price_min || "0",
+  price: resolveOtherMedicineUnitPrice(product),
   type,
   sourceType: product.source_type || type,
   remark_suggestions: product.remark_suggestions || [],
@@ -190,6 +196,8 @@ type OtherMedEntry = {
   amount: string;
   quantity?: number | string;
   isManualEntry?: boolean;
+  manualUnitPrice?: number | null;
+  shouldPersistManualMaster?: boolean;
 };
 
 const buildOtherMedFromSavedValue = (
@@ -197,19 +205,23 @@ const buildOtherMedFromSavedValue = (
   extras: Partial<OtherMedEntry> = {},
 ): OtherMedEntry => {
   const parsed = parseConsultationMedicineText(medicineValue);
+  const quantity = parsed.quantity || extras.quantity || 1;
+  const manualUnitPrice = deriveManualUnitPrice(extras.amount || "", quantity);
   return {
     name: parsed.name,
     selectedVariant: parsed.variant
       ? {
           label: parsed.variant,
-          price: extras.amount || "0",
+          price: manualUnitPrice || 0,
           type: "manual",
         }
       : extras.selectedVariant || null,
     remark: extras.remark || "",
     amount: extras.amount || "",
-    quantity: parsed.quantity || extras.quantity || 1,
+    quantity,
     isManualEntry: Boolean(extras.isManualEntry),
+    manualUnitPrice,
+    shouldPersistManualMaster: Boolean(extras.shouldPersistManualMaster),
   };
 };
 
@@ -2087,6 +2099,7 @@ export default function ConsultationPage() {
       RADIENT_PHARMA: 2,
       MEDICAL_PRODUCT_PRICE: 3,
       DOCTOR_MANUAL: 4,
+      DOCTOR_MANUAL_HISTORY: 5,
     };
     const dedupeVariants = (variants: VariantInfo[]) => {
       const byLabel = new Map<string, VariantInfo>();
@@ -2125,6 +2138,13 @@ export default function ConsultationPage() {
             );
           }
           if (p.source_type === "DOCTOR_MANUAL") {
+            return toTextMedicineVariant(
+              p,
+              p.packing || p.size_or_weight || p.product_name || "N/A",
+              "manual",
+            );
+          }
+          if (p.source_type === "DOCTOR_MANUAL_HISTORY") {
             return toTextMedicineVariant(
               p,
               p.packing || p.size_or_weight || p.product_name || "N/A",
@@ -2191,8 +2211,23 @@ export default function ConsultationPage() {
       entry.name,
       entry.selectedVariant,
     );
+    const resolvedMedicine = textMedicines.find(
+      (item) => String(item.medicine_value || '').toUpperCase() === String(entry.name || '').toUpperCase(),
+    );
+    const resolvedAmount = entry.amount === "" && entry.manualUnitPrice == null
+      ? calculateOtherMedicineAmount(
+          resolvedVariant?.price || resolvedMedicine?.default_manual_price,
+          entry.quantity || 1,
+        )
+      : null;
 
-    return withDropsDurationQuantity(entry, resolvedVariant);
+    return withDropsDurationQuantity(
+      {
+        ...entry,
+        amount: resolvedAmount ?? entry.amount,
+      },
+      resolvedVariant,
+    );
   };
 
   const getOtherMedProductFields = (
@@ -2261,13 +2296,14 @@ export default function ConsultationPage() {
     }
 
     const quantity = getDrops30MlQuantity(globalDuration);
-    const unitPrice = variant?.price ? Number(variant.price) : 0;
+    const unitPrice = entry.manualUnitPrice ?? (variant?.price ? Number(variant.price) : 0);
+    const calculatedAmount = calculateOtherMedicineAmount(unitPrice, quantity);
 
     return {
       ...entry,
       selectedVariant: variant,
       quantity,
-      amount: unitPrice ? (unitPrice * quantity).toFixed(2) : entry.amount,
+      amount: calculatedAmount ?? entry.amount,
     };
   };
 
@@ -2280,13 +2316,20 @@ export default function ConsultationPage() {
     const medicine = textMedicines.find(
       (item) => String(item.medicine_value || '').toUpperCase() === String(trimmedName || '').toUpperCase(),
     );
-    const isManualEntry = Boolean(trimmedName) && !medicine;
+    const isManualEntry = Boolean(trimmedName) && (
+      !medicine || Boolean(Number(medicine.is_doctor_manual))
+    );
 
     if (isManualEntry && !medicine) {
       return {
         ...current,
         name: trimmedName,
         isManualEntry: true,
+        selectedVariant: null,
+        remark: "",
+        amount: "",
+        manualUnitPrice: null,
+        shouldPersistManualMaster: true,
       };
     }
 
@@ -2306,7 +2349,8 @@ export default function ConsultationPage() {
     const unitPrice =
       defaultVariant && defaultVariant.price
         ? Number(defaultVariant.price)
-        : 0;
+        : Number(medicine?.default_manual_price || 0);
+    const calculatedAmount = calculateOtherMedicineAmount(unitPrice, qtyNum);
 
     return withDropsDurationQuantity(
       {
@@ -2314,7 +2358,9 @@ export default function ConsultationPage() {
         name: trimmedName,
         isManualEntry,
         remark: nextRemark,
-        amount: unitPrice ? (unitPrice * qtyNum).toFixed(2) : current.amount,
+        amount: calculatedAmount ?? "",
+        manualUnitPrice: null,
+        shouldPersistManualMaster: false,
       },
       defaultVariant,
     );
@@ -2334,18 +2380,13 @@ export default function ConsultationPage() {
     setOtherMedications((prev) => {
       let hasChanges = false;
       const next = prev.map((entry) => {
-        if (
-          !isDrops30MlSelection(
-            getOtherMedProductFields(entry.name, entry.selectedVariant),
-          )
-        ) {
-          return entry;
-        }
-
         const updated = rehydrateOtherMedEntry(entry);
         if (
           String(updated.quantity) !== String(entry.quantity) ||
-          updated.amount !== entry.amount
+          updated.amount !== entry.amount ||
+          updated.selectedVariant?.productId !== entry.selectedVariant?.productId ||
+          updated.selectedVariant?.price !== entry.selectedVariant?.price ||
+          updated.selectedVariant?.type !== entry.selectedVariant?.type
         ) {
           hasChanges = true;
           return updated;
@@ -2807,12 +2848,13 @@ export default function ConsultationPage() {
             master_medicine_value: om.name.trim(),
             variant_value: om.selectedVariant?.label || null,
             quantity: Math.max(1, parseInt(String(om.quantity || 1), 10) || 1),
-            variant_unit_price: om.selectedVariant?.price
-              ? Number(om.selectedVariant.price)
-              : null,
+            variant_unit_price: om.manualUnitPrice != null
+              ? om.manualUnitPrice
+              : (om.selectedVariant?.price ? Number(om.selectedVariant.price) : null),
             remark: om.remark.trim() || null,
             remark_hi: translateRemarkToHindi(om.remark).trim() || null,
             is_manual_entry: Boolean(om.isManualEntry),
+            persist_manual_master: Boolean(om.shouldPersistManualMaster),
             amount: om.amount === "" ? 0 : Number(om.amount),
           });
         }
@@ -5695,6 +5737,7 @@ export default function ConsultationPage() {
                       <SearchableDropdown
                         id={`other-trigger-${idx}`}
                         disabled={isReadOnly}
+                        allowCustom={true}
                         options={availableOtherMedicineOptions}
                         value={om.name}
                         onChange={(val) => {
@@ -5707,8 +5750,8 @@ export default function ConsultationPage() {
                           setOtherMedications(updated);
                         }}
                         placeholder={t(
-                          "consultation_modal.search_medicine",
-                          "Search medicine...",
+                          "consultation_modal.search_or_type_medicine",
+                          "Search or type medicine...",
                         )}
                       />
                     )}
@@ -5731,6 +5774,7 @@ export default function ConsultationPage() {
                     <SearchableDropdown
                       id={`other-variant-trigger-${idx}`}
                       disabled={isReadOnly}
+                      allowCustom={true}
                       options={variantOptions.map((v) => ({
                         label: v.label,
                         value: v.label,
@@ -5752,18 +5796,21 @@ export default function ConsultationPage() {
                           );
                           return;
                         }
-                        const variant = variantOptions.find(
+                        const matchedVariant = variantOptions.find(
                           (v) => v.label === trimmedVal,
-                        ) || (trimmedVal
+                        );
+                        const isCustomVariant = Boolean(trimmedVal) && !matchedVariant;
+                        const variant = matchedVariant || (trimmedVal
                           ? {
                               label: trimmedVal,
-                              price: om.selectedVariant?.price || "0",
+                              price: "0",
                               type: "manual",
                               remark_suggestions: [],
                             }
                           : null);
                         const qtyNum = Math.max(1, parseInt(String(om.quantity || 1)) || 1);
                         const unitPrice = variant && variant.price ? Number(variant.price) : 0;
+                        const calculatedAmount = calculateOtherMedicineAmount(unitPrice, qtyNum);
 
                         const nextRemark = getLatestRemarkSuggestion(
                           variant?.remark_suggestions?.length
@@ -5776,18 +5823,25 @@ export default function ConsultationPage() {
                           {
                             ...updated[idx],
                             remark: nextRemark || updated[idx].remark,
-                            amount:
-                              unitPrice
-                                ? (unitPrice * qtyNum).toFixed(2)
-                                : updated[idx].amount,
+                            amount: isCustomVariant
+                              ? ""
+                              : (calculatedAmount ?? updated[idx].amount),
+                            isManualEntry:
+                              Boolean(updated[idx].isManualEntry) || variant?.type === "manual",
+                            manualUnitPrice: null,
+                            shouldPersistManualMaster:
+                              isCustomVariant || (
+                                !matchedVariant &&
+                                Boolean(updated[idx].shouldPersistManualMaster)
+                              ),
                           },
                           variant,
                         );
                         setOtherMedications(updated);
                       }}
                       placeholder={t(
-                        "consultation_modal.select_variant",
-                        "Select variant...",
+                        "consultation_modal.select_or_type_variant",
+                        "Select or type variant...",
                       )}
                     />
                   </div>
@@ -5806,11 +5860,13 @@ export default function ConsultationPage() {
                         const val = e.target.value;
                         const qtyNum = Math.max(1, parseInt(val) || 1);
                         const updated = [...otherMedications];
-                        const unitPrice = om.selectedVariant?.price ? Number(om.selectedVariant.price) : 0;
+                        const unitPrice = om.manualUnitPrice
+                          ?? (om.selectedVariant?.price ? Number(om.selectedVariant.price) : 0);
+                        const calculatedAmount = calculateOtherMedicineAmount(unitPrice, qtyNum);
                         updated[idx] = {
                           ...updated[idx],
                           quantity: val,
-                          amount: unitPrice ? (unitPrice * qtyNum).toFixed(2) : updated[idx].amount,
+                          amount: calculatedAmount ?? updated[idx].amount,
                         };
                         setOtherMedications(updated);
                       }}
@@ -5853,13 +5909,30 @@ export default function ConsultationPage() {
                       min="0"
                       step="0.01"
                       disabled={isReadOnly}
-                      placeholder="0.00"
+                      placeholder={
+                        om.isManualEntry && !om.selectedVariant
+                          ? t("consultation_modal.enter_amount", "Enter amount")
+                          : "0.00"
+                      }
                       value={om.amount}
                       onChange={(e) => {
                         const updated = [...otherMedications];
+                        const savedDefaultPrice = textMedicines.find(
+                          (medicine) => String(medicine.medicine_value || '').toUpperCase() === String(updated[idx].name || '').toUpperCase(),
+                        )?.default_manual_price;
                         updated[idx] = {
                           ...updated[idx],
                           amount: e.target.value,
+                          manualUnitPrice: deriveManualUnitPrice(
+                            e.target.value,
+                            updated[idx].quantity || 1,
+                          ),
+                          shouldPersistManualMaster:
+                            Boolean(updated[idx].shouldPersistManualMaster) || (
+                              Boolean(updated[idx].isManualEntry) &&
+                              !updated[idx].selectedVariant &&
+                              !(Number(savedDefaultPrice) > 0)
+                            ),
                         };
                         setOtherMedications(updated);
                       }}
