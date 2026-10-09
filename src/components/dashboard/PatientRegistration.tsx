@@ -16,10 +16,10 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../Pagination';
 
-type PreviousPatient = {
-  previous_patient_id: number;
+type RegisteredPatient = {
+  patient_id: number;
   full_name: string;
-  patient_id: string | null;
+  patient_uuid: string;
   age: number;
   gender: string;
   mobile_no: string;
@@ -54,7 +54,7 @@ const ThemeSelect = ({
 }) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
-  const selectPlaceholder = placeholder || t('previous_patients.select');
+  const selectPlaceholder = placeholder || t('patient_registration.select');
   const containerRef = useRef<HTMLDivElement>(null);
   const selected = options.find((option) => option.id === value);
 
@@ -127,22 +127,22 @@ const formatDateTime = (value: string | null, locale: string) => {
 
 const genderLabel = (gender: string, translate: (key: string) => string) => {
   const key = String(gender || '').toLowerCase();
-  if (key === 'male') return translate('previous_patients.male');
-  if (key === 'female') return translate('previous_patients.female');
-  if (key === 'other') return translate('previous_patients.other');
+  if (key === 'male') return translate('patient_registration.male');
+  if (key === 'female') return translate('patient_registration.female');
+  if (key === 'other') return translate('patient_registration.other');
   return gender;
 };
 
 const roleLabel = (role: string, translate: (key: string) => string) => {
   const key = String(role || '').toLowerCase();
-  if (key === 'doc' || key === 'doctor') return translate('previous_patients.role_doctor');
-  if (key === 'rec' || key === 'receptionist') return translate('previous_patients.role_receptionist');
-  return role || translate('previous_patients.staff');
+  if (key === 'doc' || key === 'doctor') return translate('patient_registration.role_doctor');
+  if (key === 'rec' || key === 'receptionist') return translate('patient_registration.role_receptionist');
+  return role || translate('patient_registration.staff');
 };
 
 const emptyForm = {
   full_name: '',
-  patient_id: '',
+  patient_uuid: '',
   age: '',
   gender: 'other',
   mobile_no: '',
@@ -155,11 +155,11 @@ const emptyForm = {
   description: '',
 };
 
-export default function PreviousManualPatients() {
+export default function PatientRegistration() {
   const { token } = useAuth();
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-IN';
-  const [patients, setPatients] = useState<PreviousPatient[]>([]);
+  const [patients, setPatients] = useState<RegisteredPatient[]>([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -170,13 +170,13 @@ export default function PreviousManualPatients() {
   const [success, setSuccess] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [editingPatient, setEditingPatient] = useState<PreviousPatient | null>(null);
+  const [editingPatient, setEditingPatient] = useState<RegisteredPatient | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const genderOptions = [
-    { id: 'male', label: t('previous_patients.male', 'Male') },
-    { id: 'female', label: t('previous_patients.female', 'Female') },
-    { id: 'other', label: t('previous_patients.other', 'Other') },
+    { id: 'male', label: t('patient_registration.male', 'Male') },
+    { id: 'female', label: t('patient_registration.female', 'Female') },
+    { id: 'other', label: t('patient_registration.other', 'Other') },
   ];
 
   const fetchPatients = useCallback(async () => {
@@ -191,20 +191,20 @@ export default function PreviousManualPatients() {
       });
       if (search.trim()) params.set('search', search.trim());
 
-      const response = await fetch(`/api/v1/previous-patients?${params.toString()}`, {
+      const response = await fetch(`/api/v1/patient-registration?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.message || t('previous_patients.error_fetch'));
+        throw new Error(result.message || t('patient_registration.error_fetch'));
       }
 
       setPatients(result.data || []);
       setTotal(Number(result.meta?.total || 0));
       setTotalPages(Number(result.meta?.total_pages || 1));
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : t('previous_patients.error_fetch'));
+      setError(fetchError instanceof Error ? fetchError.message : t('patient_registration.error_fetch'));
       setPatients([]);
     } finally {
       setIsLoading(false);
@@ -228,10 +228,10 @@ export default function PreviousManualPatients() {
     setIsFormOpen(true);
   };
 
-  const openEditForm = (patient: PreviousPatient) => {
+  const openEditForm = (patient: RegisteredPatient) => {
     setForm({
       full_name: patient.full_name || '',
-      patient_id: patient.patient_id || '',
+      patient_uuid: patient.patient_uuid || '',
       age: patient.age ? String(patient.age) : '',
       gender: patient.gender || 'other',
       mobile_no: patient.mobile_no || '',
@@ -261,19 +261,19 @@ export default function PreviousManualPatients() {
 
     const age = Number(form.age);
     if (!form.full_name.trim()) {
-      setFormError(t('previous_patients.error_name'));
+      setFormError(t('patient_registration.error_name'));
       return;
     }
     if (!Number.isInteger(age) || age < 1 || age > 120) {
-      setFormError(t('previous_patients.error_age'));
+      setFormError(t('patient_registration.error_age'));
       return;
     }
     if (!/^[6-9]\d{9}$/.test(form.mobile_no)) {
-      setFormError(t('previous_patients.error_mobile'));
+      setFormError(t('patient_registration.error_mobile'));
       return;
     }
     if (form.pincode.trim() && !/^\d{6}$/.test(form.pincode.trim())) {
-      setFormError(t('previous_patients.error_pincode'));
+      setFormError(t('patient_registration.error_pincode'));
       return;
     }
 
@@ -282,7 +282,7 @@ export default function PreviousManualPatients() {
     setSuccess('');
 
     try {
-      const response = await fetch(editingPatient ? `/api/v1/previous-patients/${editingPatient.previous_patient_id}` : '/api/v1/previous-patients', {
+      const response = await fetch(editingPatient ? `/api/v1/patient-registration/${editingPatient.patient_id}` : '/api/v1/patient-registration', {
         method: editingPatient ? 'PUT' : 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -290,7 +290,7 @@ export default function PreviousManualPatients() {
         },
         body: JSON.stringify({
           full_name: form.full_name.trim(),
-          patient_id: form.patient_id.replace(/\s+/g, '').toUpperCase() || null,
+          patient_uuid: form.patient_uuid.replace(/\s+/g, '').toUpperCase() || null,
           age,
           gender: form.gender,
           mobile_no: form.mobile_no,
@@ -306,10 +306,10 @@ export default function PreviousManualPatients() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.message || t('previous_patients.error_save'));
+        throw new Error(result.message || t('patient_registration.error_save'));
       }
 
-      setSuccess(editingPatient ? t('previous_patients.success_update') : t('previous_patients.success_create'));
+      setSuccess(editingPatient ? t('patient_registration.success_update') : t('patient_registration.success_create'));
       setIsFormOpen(false);
       setForm(emptyForm);
       setEditingPatient(null);
@@ -317,7 +317,7 @@ export default function PreviousManualPatients() {
       await fetchPatients();
     } catch (saveError) {
       setFormError(
-        saveError instanceof Error ? saveError.message : t('previous_patients.error_save'),
+        saveError instanceof Error ? saveError.message : t('patient_registration.error_save'),
       );
     } finally {
       setIsSaving(false);
@@ -330,15 +330,15 @@ export default function PreviousManualPatients() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#549E9E]">
-              {t('previous_patients.eyebrow', 'Legacy Records')}
+              {t('patient_registration.eyebrow', 'Patient Registration')}
             </p>
             <h1 className="mt-2 text-3xl font-black text-slate-900">
-              {t('previous_patients.title', 'Previous Patients')}
+              {t('patient_registration.title', 'Patients')}
             </h1>
             <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">
               {t(
-                'previous_patients.subtitle',
-                'Enter patients handled manually before this software. Mobile numbers must be unique across the system.',
+                'patient_registration.subtitle',
+                'Manage patient registration details. Mobile numbers must be unique across the system.',
               )}
             </p>
           </div>
@@ -346,7 +346,7 @@ export default function PreviousManualPatients() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="rounded-2xl bg-[#e7f5f4] px-5 py-4 text-center">
               <p className="text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
-                {t('previous_patients.total', 'Records')}
+                {t('patient_registration.total', 'Records')}
               </p>
               <p className="mt-1 text-3xl font-black text-slate-900">{total}</p>
             </div>
@@ -356,7 +356,7 @@ export default function PreviousManualPatients() {
               className="flex h-12 items-center gap-2 rounded-2xl bg-[#549E9E] px-5 text-xs font-black uppercase tracking-wider text-white hover:bg-[#397f80]"
             >
               <Plus size={16} />
-              {t('previous_patients.add', 'Add Previous Patient')}
+              {t('patient_registration.add', 'Add Patient')}
             </button>
           </div>
         </div>
@@ -368,7 +368,7 @@ export default function PreviousManualPatients() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t(
-                'previous_patients.search_placeholder',
+                'patient_registration.search_placeholder',
                 'Search name, patient ID, mobile or email',
               )}
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-semibold outline-none focus:border-[#549E9E]"
@@ -380,7 +380,7 @@ export default function PreviousManualPatients() {
             className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 px-5 text-xs font-black uppercase tracking-wider text-slate-600 hover:border-[#549E9E] hover:text-[#2d8789]"
           >
             <RefreshCcw size={16} className={isLoading ? 'animate-spin' : ''} />
-            {t('previous_patients.refresh')}
+            {t('patient_registration.refresh')}
           </button>
         </div>
       </section>
@@ -401,13 +401,13 @@ export default function PreviousManualPatients() {
           <table className="min-w-full">
             <thead className="bg-slate-50">
               <tr className="text-left text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <th className="px-6 py-5">{t('previous_patients.col_patient')}</th>
-                <th className="px-6 py-5">{t('previous_patients.col_patient_id')}</th>
-                <th className="px-6 py-5">{t('previous_patients.col_mobile')}</th>
-                <th className="px-6 py-5">{t('previous_patients.col_gender_age')}</th>
-                <th className="px-6 py-5">{t('previous_patients.col_entered_by')}</th>
-                <th className="px-6 py-5">{t('previous_patients.col_entered_at')}</th>
-                <th className="px-6 py-5 text-center">{t('previous_patients.col_action')}</th>
+                <th className="px-6 py-5">{t('patient_registration.col_patient')}</th>
+                <th className="px-6 py-5">{t('patient_registration.col_patient_id')}</th>
+                <th className="px-6 py-5">{t('patient_registration.col_mobile')}</th>
+                <th className="px-6 py-5">{t('patient_registration.col_gender_age')}</th>
+                <th className="px-6 py-5">{t('patient_registration.col_entered_by')}</th>
+                <th className="px-6 py-5">{t('patient_registration.col_entered_at')}</th>
+                <th className="px-6 py-5 text-center">{t('patient_registration.col_action')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -420,12 +420,12 @@ export default function PreviousManualPatients() {
               ) : patients.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-16 text-center text-sm font-bold text-slate-400">
-                    {t('previous_patients.empty')}
+                    {t('patient_registration.empty')}
                   </td>
                 </tr>
               ) : (
                 patients.map((patient) => (
-                  <tr key={patient.previous_patient_id} className="transition hover:bg-[#f7fbfb]">
+                  <tr key={patient.patient_id} className="transition hover:bg-[#f7fbfb]">
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-3">
                         <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e7f5f4] text-[#2d8789]">
@@ -442,7 +442,7 @@ export default function PreviousManualPatients() {
                       </div>
                     </td>
                     <td className="px-6 py-5 text-sm font-bold text-slate-700">
-                      {patient.patient_id || '—'}
+                      {patient.patient_uuid || '—'}
                     </td>
                     <td className="px-6 py-5 text-sm font-bold text-slate-700">{patient.mobile_no}</td>
                     <td className="px-6 py-5 text-sm font-bold text-slate-700">
@@ -450,7 +450,7 @@ export default function PreviousManualPatients() {
                     </td>
                     <td className="px-6 py-5">
                       <p className="text-sm font-bold text-slate-800">
-                        {patient.entered_by_name || t('previous_patients.staff')}
+                        {patient.entered_by_name || t('patient_registration.staff')}
                       </p>
                       <p className="mt-1 text-[10px] font-black uppercase tracking-wider text-slate-400">
                         {roleLabel(patient.entered_by_role, t)}
@@ -464,7 +464,7 @@ export default function PreviousManualPatients() {
                         type="button"
                         onClick={() => openEditForm(patient)}
                         className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition hover:bg-blue-100"
-                        title={t('previous_patients.edit_tooltip')}
+                        title={t('patient_registration.edit_tooltip')}
                       >
                         <Edit2 size={16} />
                       </button>
@@ -488,15 +488,15 @@ export default function PreviousManualPatients() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#549E9E]">
-                    {t('previous_patients.form_eyebrow')}
+                    {t('patient_registration.form_eyebrow')}
                   </p>
                   <h2 className="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
-                    {editingPatient ? t('previous_patients.edit_title') : t('previous_patients.add')}
+                    {editingPatient ? t('patient_registration.edit_title') : t('patient_registration.add')}
                   </h2>
                   <p className="mt-1 text-xs font-medium text-slate-500 sm:text-sm">
                     {editingPatient
-                      ? t('previous_patients.form_edit_subtitle')
-                      : t('previous_patients.form_add_subtitle')}
+                      ? t('patient_registration.form_edit_subtitle')
+                      : t('patient_registration.form_add_subtitle')}
                   </p>
                 </div>
                 <button
@@ -519,7 +519,7 @@ export default function PreviousManualPatients() {
             <div className="grid gap-3 px-5 py-4 sm:grid-cols-6 sm:gap-4 sm:px-7 sm:py-5">
               <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.full_name')}
+                  {t('patient_registration.full_name')}
                 </span>
                 <input
                   required
@@ -534,32 +534,32 @@ export default function PreviousManualPatients() {
 
               <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.patient_id')}
+                  {t('patient_registration.patient_id')}
                 </span>
                 <input
                   maxLength={50}
-                  value={form.patient_id}
+                  value={form.patient_uuid}
                   onChange={(event) =>
                     setForm((current) => ({
                       ...current,
-                      patient_id: event.target.value.replace(/\s+/g, '').toUpperCase().slice(0, 50),
+                      patient_uuid: event.target.value.replace(/\s+/g, '').toUpperCase().slice(0, 36),
                     }))
                   }
                   className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold uppercase outline-none focus:border-[#549E9E]"
-                  placeholder={t('previous_patients.patient_id_placeholder')}
+                  placeholder={t('patient_registration.patient_id_placeholder')}
                 />
               </label>
 
               <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.mobile')}
+                  {t('patient_registration.mobile')}
                 </span>
                 <input
                   required
                   inputMode="numeric"
                   pattern="[6-9][0-9]{9}"
                   maxLength={10}
-                  title={t('previous_patients.mobile_title')}
+                  title={t('patient_registration.mobile_title')}
                   value={form.mobile_no}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -568,13 +568,13 @@ export default function PreviousManualPatients() {
                     }))
                   }
                   className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
-                  placeholder={t('previous_patients.mobile_placeholder')}
+                  placeholder={t('patient_registration.mobile_placeholder')}
                 />
               </label>
 
               <label className="block sm:col-span-1">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.age')}
+                  {t('patient_registration.age')}
                 </span>
                 <input
                   required
@@ -592,7 +592,7 @@ export default function PreviousManualPatients() {
 
               <label className="block sm:col-span-2">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.gender')}
+                  {t('patient_registration.gender')}
                 </span>
                 <div className="mt-1.5">
                   <ThemeSelect
@@ -605,7 +605,7 @@ export default function PreviousManualPatients() {
 
               <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.email')}
+                  {t('patient_registration.email')}
                 </span>
                 <input
                   type="email"
@@ -619,7 +619,7 @@ export default function PreviousManualPatients() {
 
               <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.area')}
+                  {t('patient_registration.area')}
                 </span>
                 <input
                   value={form.address}
@@ -632,7 +632,7 @@ export default function PreviousManualPatients() {
 
               <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.ward')}
+                  {t('patient_registration.ward')}
                 </span>
                 <input
                   value={form.ward_no}
@@ -645,7 +645,7 @@ export default function PreviousManualPatients() {
 
               <label className="block sm:col-span-2">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.vidhan_sabha')}
+                  {t('patient_registration.vidhan_sabha')}
                 </span>
                 <input
                   value={form.vidhan_sabha}
@@ -658,7 +658,7 @@ export default function PreviousManualPatients() {
 
               <label className="block sm:col-span-2">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.pincode')}
+                  {t('patient_registration.pincode')}
                 </span>
                 <input
                   inputMode="numeric"
@@ -677,7 +677,7 @@ export default function PreviousManualPatients() {
 
               <label className="block sm:col-span-2">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.city')}
+                  {t('patient_registration.city')}
                 </span>
                 <input
                   value={form.city}
@@ -690,7 +690,7 @@ export default function PreviousManualPatients() {
 
               <label className="block sm:col-span-6">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('previous_patients.notes')}
+                  {t('patient_registration.notes')}
                 </span>
                 <input
                   value={form.description}
@@ -698,7 +698,7 @@ export default function PreviousManualPatients() {
                     setForm((current) => ({ ...current, description: event.target.value }))
                   }
                   className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
-                  placeholder={t('previous_patients.notes_placeholder')}
+                  placeholder={t('patient_registration.notes_placeholder')}
                 />
               </label>
             </div>
@@ -706,7 +706,7 @@ export default function PreviousManualPatients() {
             <div className="flex shrink-0 flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
               <p className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                 <ClipboardList size={14} />
-                {editingPatient ? t('previous_patients.footer_edit') : t('previous_patients.footer_add')}
+                {editingPatient ? t('patient_registration.footer_edit') : t('patient_registration.footer_add')}
               </p>
               <div className="flex gap-3">
                 <button
@@ -714,7 +714,7 @@ export default function PreviousManualPatients() {
                   onClick={closeForm}
                   className="rounded-2xl border border-slate-200 px-5 py-3 text-xs font-black uppercase tracking-wider text-slate-600"
                 >
-                  {t('previous_patients.cancel')}
+                  {t('patient_registration.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -722,7 +722,7 @@ export default function PreviousManualPatients() {
                   className="flex min-w-36 items-center justify-center gap-2 rounded-2xl bg-[#549E9E] px-5 py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-60"
                 >
                   {isSaving && <Loader2 size={15} className="animate-spin" />}
-                  {editingPatient ? t('previous_patients.update') : t('previous_patients.save')}
+                  {editingPatient ? t('patient_registration.update') : t('patient_registration.save')}
                 </button>
               </div>
             </div>

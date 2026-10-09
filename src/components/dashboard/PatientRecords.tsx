@@ -36,7 +36,6 @@ type RegistrySortField = typeof REGISTRY_SORT_FIELDS[number];
 type PatientRegistryRow = {
   patient_id: number;
   patient_uuid?: string | null;
-  clinic_patient_no?: string | null;
   full_name?: string | null;
   age?: number | null;
   gender?: string | null;
@@ -636,8 +635,8 @@ export default function PatientRecords() {
             <thead>
               <tr className="border-b border-teal-100 bg-teal-50/60">
                 <th scope="col" aria-sort={sortBy === 'patient_id' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'} className="px-5 py-4 text-[10px] font-bold uppercase tracking-widest text-teal-900">
-                  <button type="button" onClick={() => changeRegistrySort('patient_id')} title="Sort by Patient ID" className="inline-flex items-center gap-1.5 rounded px-1 py-1 -mx-1 uppercase tracking-widest hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
-                    {t('patient_records.table.patient_id', 'Patient ID')}
+                  <button type="button" onClick={() => changeRegistrySort('patient_id')} title="Sort by registration number" className="inline-flex items-center gap-1.5 rounded px-1 py-1 -mx-1 uppercase tracking-widest hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    {t('patient_records.table.registration_number', 'Registration No.')}
                     {sortBy === 'patient_id' ? (sortOrder === 'asc' ? <ArrowUp size={13} aria-hidden="true" /> : <ArrowDown size={13} aria-hidden="true" />) : <ArrowUpDown size={13} className="text-slate-500" aria-hidden="true" />}
                   </button>
                 </th>
@@ -673,7 +672,6 @@ export default function PatientRecords() {
                 <tr key={patient.patient_id} className="group transition-colors even:bg-slate-50/40 hover:bg-teal-50/70 focus-within:bg-teal-50/70">
                   <td className="border-l-2 border-transparent px-5 py-4 group-hover:border-teal-600 group-focus-within:border-teal-600">
                     {patient.patient_uuid && <p className="text-sm font-extrabold tracking-wide text-teal-800">{patient.patient_uuid}</p>}
-                    {patient.clinic_patient_no && <p className="mt-1 text-xs font-bold text-amber-800">Clinic ID: {patient.clinic_patient_no}</p>}
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
@@ -720,7 +718,6 @@ export default function PatientRecords() {
             <button key={patient.patient_id} onClick={() => fetchPatientDetail(patient)} className="block w-full p-4 text-left transition-colors even:bg-slate-50/40 hover:bg-teal-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600">
               <div className="mb-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold">
                 {patient.patient_uuid && <span className="text-teal-800">{patient.patient_uuid}</span>}
-                {patient.clinic_patient_no && <span className="text-amber-800">Clinic ID: {patient.clinic_patient_no}</span>}
               </div>
               <p className="text-sm font-bold text-slate-900">{patient.full_name}</p>
               <p className="mt-1 text-xs font-medium text-slate-700">{[patient.mobile_no, patient.age ? `${patient.age}Y` : null, patient.gender].filter(Boolean).join(" · ")}</p>

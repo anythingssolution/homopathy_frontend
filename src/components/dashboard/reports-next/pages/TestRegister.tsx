@@ -32,9 +32,13 @@ const PAGE_SIZE = 40;
 type RegisterStatus = 'REPORT_PENDING' | 'REVIEWED' | 'REMOVED';
 
 type TestRegisterRow = {
-  consultation_test_id: number;
-  consultation_id: number;
-  appointment_id: number;
+  consultation_test_id: number | string;
+  test_source?: string;
+  bill_id?: number;
+  bill_number?: string;
+  recommended_at?: string;
+  consultation_id: number | null;
+  appointment_id: number | null;
   appointment_date: string;
   test_name: string;
   amount: number | string;
@@ -141,10 +145,10 @@ export default function TestRegisterPage() {
     const map = new Map<string, VisitGroup>();
     rows.forEach((row) => {
       const day = dateKey(row.appointment_date);
-      const key = `${day}:${row.appointment_id}`;
+      const key = `${day}:${row.test_source === 'BILL' ? `bill-${row.bill_id}` : row.appointment_id}`;
       const current = map.get(key);
       if (current) current.tests.push(row);
-      else map.set(key, { key, dateKey: day, sequence: 0, appointmentId: row.appointment_id, first: row, tests: [row] });
+      else map.set(key, { key, dateKey: day, sequence: 0, appointmentId: Number(row.appointment_id) || 0, first: row, tests: [row] });
     });
 
     const list = [...map.values()].sort((left, right) => {
@@ -153,6 +157,7 @@ export default function TestRegisterPage() {
       const leftToken = num(left.first.token_number) || Number.MAX_SAFE_INTEGER;
       const rightToken = num(right.first.token_number) || Number.MAX_SAFE_INTEGER;
       if (leftToken !== rightToken) return leftToken - rightToken;
+      if (left.first.test_source === 'BILL' && right.first.test_source === 'BILL') return String(right.first.recommended_at).localeCompare(String(left.first.recommended_at)) || num(right.first.bill_id) - num(left.first.bill_id);
       return left.appointmentId - right.appointmentId;
     });
 
@@ -243,7 +248,7 @@ export default function TestRegisterPage() {
             <span className="inline-flex min-w-[48px] justify-center rounded-lg bg-[#549E9E]/10 px-2 py-1 text-xs font-black text-[#2d8789]">
               {group.first.display_token_display || group.first.token_display || group.first.token_number || '—'}
             </span>
-            <p className="mt-1 text-[10px] font-bold text-slate-400">{group.first.slot_name || ''}</p>
+            <p className="mt-1 text-[10px] font-bold text-slate-400">{group.first.test_source === 'BILL' ? group.first.bill_number : group.first.slot_name || ''}</p>
           </td>
           <td className="px-4 py-3">
             <p className="text-sm font-black text-slate-800">{group.first.patient_full_name || '—'}</p>
@@ -296,16 +301,16 @@ export default function TestRegisterPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate(`/consult/${group.appointmentId}`, {
+                  onClick={() => group.first.test_source === 'BILL' ? openPatientRecord(group.first) : navigate(`/consult/${group.appointmentId}`, {
                     state: {
                       from: { pathname: location.pathname, search: location.search },
                     },
                   })}
-                  title={t('reports_next.test_register.open_consultation')}
+                  title={group.first.test_source === 'BILL' ? 'View tests in patient record' : t('reports_next.test_register.open_consultation')}
                   className="inline-flex cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 px-2 py-1.5 text-[9px] font-black uppercase tracking-wide text-slate-500 transition-colors hover:border-[#549E9E]/30 hover:bg-[#549E9E]/5 hover:text-[#2d8789]"
                 >
                   <Eye size={13} />
-                  {t('reports_next.test_register.consult_short')}
+                  {group.first.test_source === 'BILL' ? 'Tests' : t('reports_next.test_register.consult_short')}
                 </button>
               </div>
             </td>

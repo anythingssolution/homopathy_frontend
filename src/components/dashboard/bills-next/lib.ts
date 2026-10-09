@@ -1,7 +1,53 @@
 import { getLocalDateString } from '../../../utils/date';
 import { parseIsoDate, type CustomRange } from '../reports-next/lib';
 
-export type WorkTab = 'attention' | 'visits' | 'practice' | 'consultants' | 'morning' | 'evening';
+export type WorkTab = 'attention' | 'visits' | 'practice' | 'consultants' | 'morning' | 'evening' | 'daily';
+
+export const dailyBreakdown = (bills: any[], payments: any[]) => {
+  const days = new Map<string, any>();
+  const dateKey = (value: unknown) => {
+    const raw = String(value || '');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    if (!raw) return '';
+    // SQL dates are clinic-local; timestamps with a zone are converted to IST.
+    if (!/Z$|[+-]\d{2}:\d{2}$/.test(raw)) return raw.slice(0, 10);
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  };
+  const getDay = (date: string) => {
+    if (!days.has(date)) days.set(date, { date, consults: 0, consultation: 0, medicine: 0, tests: 0, courier: 0, gross: 0, discount: 0, billed: 0, paid: 0, pending: 0, received: 0, cash: 0, online: 0, recovered: 0 });
+    return days.get(date)!;
+  };
+  for (const visit of groupVisits(bills)) {
+    const date = dateKey(visit.appointment_date || visit.created_at);
+    if (!date) continue;
+    const day = getDay(date);
+    day.consults += visit.appointment_id ? 1 : 0;
+    day.consultation += visit.consult_total;
+    day.medicine += visit.medicine_total;
+    day.tests += visit.test_total;
+    day.courier += visit.courier_total;
+    day.billed += visit.grand_total;
+    day.paid += visit.grand_paid;
+    day.pending += visit.grand_pending;
+    for (const bill of visit.bills) {
+      day.gross += Number(bill.gross_amount ?? bill.total_amount ?? 0);
+      day.discount += Number(bill.discount_amount || 0);
+    }
+  }
+  for (const payment of payments) {
+    const date = dateKey(payment.collected_at);
+    if (!date) continue;
+    const day = getDay(date);
+    const amount = Number(payment.amount || 0);
+    day.received += amount;
+    if (payment.payment_mode === 'CASH') day.cash += amount;
+    if (payment.payment_mode === 'ONLINE') day.online += amount;
+    if (isOlderDuePayment(payment)) day.recovered += amount;
+  }
+  return [...days.values()].sort((a, b) => b.date.localeCompare(a.date));
+};
 export type AgeingFilter = 'all' | 'week' | 'month' | 'older';
 
 export type VisitRow = {

@@ -59,7 +59,7 @@ import DoctorFormulaMasterPage from './components/dashboard/DoctorFormulaMasterP
 import DoctorRemarkMasterPage from './components/dashboard/DoctorRemarkMasterPage';
 import TestMaster from './components/dashboard/TestMaster';
 import ReceptionPatientManagement from './components/dashboard/ReceptionPatientManagement';
-import PreviousManualPatients from './components/dashboard/PreviousManualPatients';
+import PatientRegistration from './components/dashboard/PatientRegistration';
 import StaffCreatePatients from './components/dashboard/StaffCreatePatients';
 
 function HomePage() {
@@ -256,7 +256,7 @@ function AnimatedRoutes() {
               </Route>
               <Route path="/book-appointment" element={<Booking />} />
               <Route path="/reception-patients" element={<ProtectedRoute allowedRoles={['REC', 'rec', 'receptionist']}><ReceptionPatientManagement /></ProtectedRoute>} />
-              <Route path="/previous-patients" element={<ProtectedRoute allowedRoles={['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist']}><PreviousManualPatients /></ProtectedRoute>} />
+              <Route path="/patient-registration" element={<ProtectedRoute allowedRoles={['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist']}><PatientRegistration /></ProtectedRoute>} />
               <Route path="/staff-patients" element={<ProtectedRoute allowedRoles={['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical', 'MEDS', 'meds']}><StaffCreatePatients /></ProtectedRoute>} />
               <Route path="/my-appointments" element={<ProtectedRoute allowedRoles={['patient', 'PAT']}><MyAppointments /></ProtectedRoute>} />
               <Route path="/prescriptions" element={<ProtectedRoute allowedRoles={['patient', 'PAT']}><MyAppointments prescriptionsOnly /></ProtectedRoute>} />

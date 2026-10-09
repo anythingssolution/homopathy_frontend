@@ -64,7 +64,6 @@ import {
   getDurationMultiplier,
   getDrops30MlQuantity,
   isDrops30MlSelection,
-  isThirtyDayDuration,
   MEDICATION_DURATION_DAY_OPTIONS,
   MEDICATION_DURATION_MONTH_OPTIONS,
   isMonthDuration,
@@ -1849,12 +1848,10 @@ export default function ConsultationPage() {
     setMedications(
       quickFormulaPreview.entries.map((entry) => {
         let targetDoses = { ...entry.doses };
-        if (isThirtyDayDuration(globalDuration)) {
-          if (thirtyDaysDoseFrequency === "3") {
-            targetDoses = { morning: 3, afternoon: 3, night: 3 };
-          } else if (thirtyDaysDoseFrequency === "2") {
-            targetDoses = { morning: 6, afternoon: 0, night: 6 };
-          }
+        if (thirtyDaysDoseFrequency === "3") {
+          targetDoses = { morning: 3, afternoon: 3, night: 3 };
+        } else if (thirtyDaysDoseFrequency === "2") {
+          targetDoses = { morning: 6, afternoon: 0, night: 6 };
         }
 
         return {
@@ -1955,12 +1952,10 @@ export default function ConsultationPage() {
         }
 
         let targetDoses = med.originalDoses || med.doses;
-        if (isThirtyDayDuration(globalDuration)) {
-          if (thirtyDaysDoseFrequency === "3") {
-            targetDoses = { morning: 3, afternoon: 3, night: 3 };
-          } else if (thirtyDaysDoseFrequency === "2") {
-            targetDoses = { morning: 6, afternoon: 0, night: 6 };
-          }
+        if (thirtyDaysDoseFrequency === "3") {
+          targetDoses = { morning: 3, afternoon: 3, night: 3 };
+        } else if (thirtyDaysDoseFrequency === "2") {
+          targetDoses = { morning: 6, afternoon: 0, night: 6 };
         }
 
         if (
@@ -2636,12 +2631,10 @@ export default function ConsultationPage() {
         setMedications(
           parsed.entries.map((entry) => {
             let targetDoses = { ...entry.doses };
-            if (isThirtyDayDuration(globalDuration)) {
-              if (thirtyDaysDoseFrequency === "3") {
-                targetDoses = { morning: 3, afternoon: 3, night: 3 };
-              } else if (thirtyDaysDoseFrequency === "2") {
-                targetDoses = { morning: 6, afternoon: 0, night: 6 };
-              }
+            if (thirtyDaysDoseFrequency === "3") {
+              targetDoses = { morning: 3, afternoon: 3, night: 3 };
+            } else if (thirtyDaysDoseFrequency === "2") {
+              targetDoses = { morning: 6, afternoon: 0, night: 6 };
             }
 
             return {
@@ -3271,6 +3264,11 @@ export default function ConsultationPage() {
               )}
             </h3>
             <div className="mt-3 grid max-w-4xl grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-xs font-black tracking-wide text-[#174f51] shadow-sm">
+              <span className="break-all font-mono text-sm font-black tracking-wide">
+                {currentApp.patient_uuid || "—"}
+              </span>
+            </span>
             {currentApp.treatment_name && (
               <span className="inline-flex min-w-0 items-center rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-xs font-black uppercase tracking-wider text-[#285f61] shadow-sm">
                 {currentApp.treatment_name}
@@ -3287,7 +3285,7 @@ export default function ConsultationPage() {
             {currentApp.patient_city?.trim() && (
               <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-xs font-black tracking-wide text-[#174f51] shadow-sm">
                 <span className="shrink-0 text-[10px] uppercase tracking-wider text-[#557879]">
-                  {t("previous_patients.city", "City")}:
+                  {t("patient_registration.city", "City")}:
                 </span>
                 <span className="truncate">{currentApp.patient_city.trim()}</span>
               </span>
@@ -5130,10 +5128,10 @@ export default function ConsultationPage() {
             )}
           </div>
 
-          {/* 30 Days Frequency Options (Sub-row if 30 days active) */}
-          {isThirtyDayDuration(globalDuration) && !isReadOnly && (
-            <div className="flex items-center gap-3 bg-gray-50/80 px-3 py-1.5 rounded-xl border border-[#549E9E]/20 text-[9px] font-black uppercase tracking-wider text-gray-600">
-              <span className="text-[#549E9E]">30-Day Frequency:</span>
+          {/* Numeric medicine frequency for every duration */}
+          {!isReadOnly && (
+            <div className="flex flex-wrap items-center gap-3 bg-gray-50/80 px-3 py-1.5 rounded-xl border border-[#549E9E]/20 text-[9px] font-black uppercase tracking-wider text-gray-600">
+              <span className="text-[#549E9E]">Frequency:</span>
               <label className="flex items-center gap-1.5 cursor-pointer hover:text-[#549E9E]">
                 <input
                   type="radio"

@@ -1,6 +1,35 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { consultantTotals, fetchBillPayments, fetchBillRows, mergeConsultants, sessionPaymentTotals } from './lib';
+import { consultantTotals, dailyBreakdown, fetchBillPayments, fetchBillRows, mergeConsultants, sessionPaymentTotals } from './lib';
+
+test('daily breakdown separates receipt day from bill day and includes direct medicine without a consultation count', () => {
+  const rows = dailyBreakdown([
+    { bill_id: 1, appointment_id: 10, appointment_date: '2026-10-01', bill_type: 'CONSULTATION', total_amount: 100, paid_amount: 100, pending_amount: 0 },
+    { bill_id: 2, appointment_id: 10, appointment_date: '2026-10-01', bill_type: 'MEDICATION', gross_amount: 600, total_amount: 540, discount_amount: 60, medicine_discount_amount: 40, test_discount_amount: 20, test_amount: 200, courier_amount: 50, paid_amount: 140, pending_amount: 400 },
+    { bill_id: 3, appointment_date: '2026-10-02', bill_type: 'MEDICATION', total_amount: 80, paid_amount: 80 },
+  ], [
+    { collected_at: '2026-10-02 10:00:00', amount: 80, payment_mode: 'CASH' },
+    { collected_at: '2026-10-02 11:00:00', amount: 400, payment_mode: 'ONLINE', is_previous_due: 1 },
+  ]);
+  assert.equal(rows[0].date, '2026-10-02');
+  assert.equal(rows[0].consults, 0);
+  assert.equal(rows[0].received, 480);
+  assert.equal(rows[0].cash, 80);
+  assert.equal(rows[0].online, 400);
+  assert.equal(rows[0].recovered, 400);
+  assert.equal(rows[1].consults, 1);
+  assert.equal(rows[1].billed, 640);
+  assert.equal(rows[1].consultation + rows[1].medicine + rows[1].tests + rows[1].courier, 640);
+  assert.equal(rows[1].gross - rows[1].discount, 640);
+  assert.equal(rows[1].received, 0);
+});
+
+test('daily breakdown includes payment-only days and converts UTC receipts to clinic date', () => {
+  const rows = dailyBreakdown([], [{ collected_at: '2026-10-01T20:00:00.000Z', amount: 12.5, payment_mode: 'CASH', is_previous_due: 1 }]);
+  assert.equal(rows[0].date, '2026-10-02');
+  assert.equal(rows[0].received, 12.5);
+  assert.equal(rows[0].billed, 0);
+});
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

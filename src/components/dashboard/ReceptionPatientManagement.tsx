@@ -32,7 +32,6 @@ type FamilyMember = {
 type Patient = {
   patient_id: number;
   patient_uuid: string;
-  clinic_patient_no?: string | null;
   full_name: string;
   age: number;
   gender: 'male' | 'female' | 'other';
@@ -167,7 +166,7 @@ const formatFieldName = (field: string) =>
     .join(' ');
 
 export default function ReceptionPatientManagement() {
-  const { token, branchScope } = useAuth();
+  const { token } = useAuth();
   const { t } = useTranslation();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState('');
@@ -185,7 +184,7 @@ export default function ReceptionPatientManagement() {
     gender: 'other',
     age: '',
     relationship: '',
-    clinic_patient_no: '',
+    patient_uuid: '',
     area_name: '',
     pincode: '',
     city: '',
@@ -197,7 +196,7 @@ export default function ReceptionPatientManagement() {
   const [expandedPatientIds, setExpandedPatientIds] = useState<Set<number>>(new Set());
 
   const fetchPatients = useCallback(async () => {
-    if (!token || !branchScope?.selected_branch_id) return;
+    if (!token) return;
 
     setIsLoading(true);
     setError('');
@@ -229,7 +228,7 @@ export default function ReceptionPatientManagement() {
     } finally {
       setIsLoading(false);
     }
-  }, [branchScope?.selected_branch_id, gender, hasFamilyOnly, page, search, token]);
+  }, [gender, hasFamilyOnly, page, search, token]);
 
   useEffect(() => {
     const timer = window.setTimeout(fetchPatients, 300);
@@ -238,11 +237,11 @@ export default function ReceptionPatientManagement() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, gender, hasFamilyOnly, branchScope?.selected_branch_id]);
+  }, [search, gender, hasFamilyOnly]);
 
   useEffect(() => {
     setExpandedPatientIds(new Set());
-  }, [page, search, gender, hasFamilyOnly, branchScope?.selected_branch_id]);
+  }, [page, search, gender, hasFamilyOnly]);
 
   const toggleFamilyMembers = (patientId: number) => {
     setExpandedPatientIds((current) => {
@@ -264,7 +263,7 @@ export default function ReceptionPatientManagement() {
       gender: patient.gender,
       age: String(patient.age || ''),
       relationship: '',
-      clinic_patient_no: patient.clinic_patient_no || '',
+      patient_uuid: patient.patient_uuid || '',
       area_name: patient.area_name || '',
       pincode: patient.pincode || '',
       city: patient.city || '',
@@ -280,7 +279,7 @@ export default function ReceptionPatientManagement() {
       gender: String(member.gender || 'other').toLowerCase(),
       age: String(member.age || ''),
       relationship: member.relationship || '',
-      clinic_patient_no: '',
+      patient_uuid: '',
       area_name: '',
       pincode: '',
       city: '',
@@ -297,22 +296,22 @@ export default function ReceptionPatientManagement() {
 
     try {
       const isFamily = editTarget.type === 'FAMILY_MEMBER';
+      const parsedAge = Number(editForm.age);
+      if (!Number.isInteger(parsedAge) || parsedAge < 1 || parsedAge > 120) {
+        throw new Error('Age must be between 1 and 120');
+      }
       const payload: Record<string, string | number | null> = {
         full_name: editForm.full_name.trim(),
         gender: editForm.gender,
+        age: parsedAge,
       };
 
       if (isFamily) {
-        const parsedAge = Number(editForm.age);
-        if (!Number.isInteger(parsedAge) || parsedAge < 1 || parsedAge > 120) {
-          throw new Error('Age must be between 1 and 120');
-        }
         if (!editForm.relationship.trim()) {
           throw new Error('Relationship is required for family members');
         }
 
         payload.family_member_id = editTarget.member.family_member_id;
-        payload.age = parsedAge;
         payload.relationship = editForm.relationship.trim();
       } else {
         if (editForm.pincode.trim() && !/^\d{6}$/.test(editForm.pincode.trim())) {
@@ -322,7 +321,7 @@ export default function ReceptionPatientManagement() {
           throw new Error('City is required');
         }
         payload.mobile_no = editForm.mobile_no;
-        payload.clinic_patient_no = editForm.clinic_patient_no.replace(/\s+/g, '').toUpperCase();
+        payload.patient_uuid = editForm.patient_uuid.replace(/\s+/g, '').toUpperCase();
         payload.area_name = editForm.area_name.trim() || null;
         payload.pincode = editForm.pincode.trim() || null;
         payload.city = editForm.city.trim();
@@ -551,7 +550,6 @@ export default function ReceptionPatientManagement() {
                               </div>
                               <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 {patient.patient_uuid}
-                                {patient.clinic_patient_no ? ` • ${patient.clinic_patient_no}` : ''}
                               </p>
                             </div>
                           </div>
@@ -739,22 +737,22 @@ export default function ReceptionPatientManagement() {
               {!isEditingFamily && (
                 <label className="block">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                    Patient ID
+                    Registration No.
                   </span>
                   <input
-                    maxLength={50}
+                    maxLength={36}
                     placeholder="e.g. DTH1210"
-                    value={editForm.clinic_patient_no}
+                    value={editForm.patient_uuid}
                     onChange={(event) =>
                       setEditForm((current) => ({
                         ...current,
-                        clinic_patient_no: event.target.value.replace(/\s+/g, '').toUpperCase(),
+                        patient_uuid: event.target.value.replace(/\s+/g, '').toUpperCase(),
                       }))
                     }
                     className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold uppercase outline-none focus:border-[#549E9E]"
                   />
                   <span className="mt-2 block text-xs font-semibold text-slate-400">
-                    Clinic register number. Leave blank to remove.
+                    Use the patient’s DTH registration number.
                   </span>
                 </label>
               )}
@@ -832,7 +830,6 @@ export default function ReceptionPatientManagement() {
                 </label>
               )}
 
-              {isEditingFamily && (
                 <label className="block">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                     Age
@@ -852,7 +849,6 @@ export default function ReceptionPatientManagement() {
                     className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
                   />
                 </label>
-              )}
 
               <label className="block">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">

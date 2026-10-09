@@ -11,6 +11,7 @@ import CustomDatePicker from './CustomDatePicker';
 import ReCAPTCHA from 'react-google-recaptcha';
 import { formatTimeTo12Hour } from '../utils/dateUtils';
 import ScheduleRuleNotice from './ScheduleRuleNotice';
+import ReceptionBookingAddress from './ReceptionBookingAddress';
 const RECAPTCHA_SITE_KEY = String(import.meta.env.VITE_RECAPTCHA_SITE_KEY || '');
 
 if (!RECAPTCHA_SITE_KEY) {
@@ -242,12 +243,15 @@ export default function Booking() {
   type ReceptionistPatientOption = {
     patient_id: number;
     patient_uuid: string;
-    clinic_patient_no?: string | number | null;
     full_name: string;
     age?: number;
     gender?: string;
     email?: string;
     mobile_no: string;
+    address?: string | null;
+    area_name?: string | null;
+    city?: string | null;
+    pincode?: string | null;
     description?: string;
     total_appointments?: number;
     last_appointment_date?: string | null;
@@ -910,11 +914,7 @@ export default function Booking() {
     const idSearch = patientIdSearch.trim();
     const searchValue = idSearch || (trimmedMobile.length >= 3 ? trimmedMobile : trimmedName);
 
-    if (
-      selectedPatient &&
-      trimmedName === selectedPatient.full_name &&
-      trimmedMobile === selectedPatient.mobile_no
-    ) {
+    if (selectedPatient) {
       setIsPatientLookupLoading(false);
       setPatientSearchResults([]);
       setShowPatientSuggestions(false);
@@ -1515,9 +1515,10 @@ export default function Booking() {
           return;
         }
 
-        if (!selectedPatient?.patient_id) {
+        if (!selectedPatient?.patient_id ||
+          patientAge !== String(selectedPatient.age ?? '') || patientGender !== (selectedPatient.gender || '').toLowerCase()) {
           if (!patientAge || !patientGender) {
-            setErrors({ appointment: 'Age and gender are required to create a new patient before booking.' });
+            setErrors({ appointment: 'Patient age and gender are required before booking.' });
             return;
           }
 
@@ -1559,6 +1560,12 @@ export default function Booking() {
           apiUrl = '/api/v1/receptionist/book-appointment';
           if (selectedPatient?.patient_id) {
             payload.fk_patient_id = selectedPatient.patient_id;
+            const corrections: Record<string, string | number> = {};
+            if (patientFullName.trim() !== selectedPatient.full_name) corrections.full_name = patientFullName.trim();
+            if (patientMobileNo.trim() !== selectedPatient.mobile_no) corrections.mobile_no = patientMobileNo.trim();
+            if (patientAge !== String(selectedPatient.age ?? '')) corrections.age = Number(patientAge);
+            if (patientGender !== (selectedPatient.gender || '').toLowerCase()) corrections.gender = patientGender.trim().toLowerCase();
+            if (Object.keys(corrections).length) payload.patient_updates = corrections;
           } else {
             payload.patient = {
               full_name: patientFullName.trim(),
@@ -1667,7 +1674,7 @@ export default function Booking() {
     setErrors({});
   };
   const getBookingPatientDisplayId = (patient: ReceptionistPatientOption) =>
-    String(patient.clinic_patient_no ?? '').trim() || patient.patient_uuid || '';
+    patient.patient_uuid || '';
 
   const selectBookingPatient = (patient: ReceptionistPatientOption) => {
     setSelectedPatient(patient);
@@ -1712,11 +1719,9 @@ export default function Booking() {
                                       onClick={() => selectBookingPatient(patient)}
                                       className="w-full text-left px-5 py-3 border-b last:border-b-0 border-slate-100 hover:bg-teal-50/60 focus-visible:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600 transition-colors cursor-pointer block"
                                     >
-                                      {(patient.patient_uuid || String(patient.clinic_patient_no ?? '').trim()) && (
+                                      {patient.patient_uuid && (
                                         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px] font-extrabold tracking-wide text-teal-800">
-                                          {String(patient.clinic_patient_no ?? '').trim()
-                                            ? <span className="text-amber-800">Clinic ID: {getBookingPatientDisplayId(patient)}</span>
-                                            : <span>{patient.patient_uuid}</span>}
+                                          <span>{patient.patient_uuid}</span>
                                         </div>
                                       )}
                                       <p className="mt-0.5 text-[15px] font-semibold text-slate-900 leading-snug break-words">{patient.full_name}</p>
@@ -1765,7 +1770,7 @@ export default function Booking() {
                   <div className="grid md:grid-cols-2 gap-6 mb-2 border-b border-gray-100 pb-4" ref={patientSuggestionsRef}>
                     <div className="md:col-span-2 space-y-2">
                       <div className="flex items-center justify-between gap-3">
-                        <label htmlFor="booking-patient-id" className="text-xs font-bold text-teal-800">Patient ID / Clinic ID</label>
+                        <label htmlFor="booking-patient-id" className="text-xs font-bold text-teal-800">Registration No.</label>
                       </div>
                       <div className="relative">
                         <input id="booking-patient-id" type="text" value={patientIdSearch}
@@ -1784,7 +1789,7 @@ export default function Booking() {
                             if (selectedPatient || isPatientLookupLoading || patientLookupError) return;
                             const typedId = patientIdSearch.trim().toLowerCase();
                             const matches = typedId ? patientSearchResults.filter(patient =>
-                              [patient.patient_uuid, patient.clinic_patient_no].some(value =>
+                              [patient.patient_uuid].some(value =>
                                 String(value ?? '').trim().toLowerCase() === typedId,
                               ),
                             ) : [];
@@ -1792,7 +1797,7 @@ export default function Booking() {
                             else setShowPatientSuggestions(true);
                           }}
                           onFocus={() => setShowPatientSuggestions(true)}
-                          placeholder="Search DTH ID or Clinic ID"
+                          placeholder="Search registration number"
                           className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100" />
                         {patientIdSearch.trim() && patientSuggestions}
                       </div>
@@ -1807,8 +1812,7 @@ export default function Booking() {
                           value={patientFullName}
                           onChange={(e) => {
                             setPatientFullName(e.target.value);
-                            setSelectedPatient(null);
-                            setShowPatientSuggestions(true);
+                            if (!selectedPatient) setShowPatientSuggestions(true);
                           }}
                           onFocus={() => setShowPatientSuggestions(true)}
                           required={isReceptionist}
@@ -1828,8 +1832,7 @@ export default function Booking() {
                           value={patientMobileNo}
                           onChange={(e) => {
                             setPatientMobileNo(e.target.value.replace(/\D/g, ''));
-                            setSelectedPatient(null);
-                            setShowPatientSuggestions(true);
+                            if (!selectedPatient) setShowPatientSuggestions(true);
                           }}
                           required={isReceptionist}
                           maxLength={10}
@@ -1844,15 +1847,13 @@ export default function Booking() {
                         <Users size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
                         <input
                           type="number"
-                          min="1"
+                          min={selectedPatient?.age === 0 && patientAge === '0' ? '0' : '1'}
                           max="120"
                           value={patientAge}
                           onChange={(e) => {
-                            if (selectedPatient) return;
                             setPatientAge(e.target.value.replace(/\D/g, '').slice(0, 3));
                           }}
-                          disabled={Boolean(selectedPatient)}
-                          required={isReceptionist && !selectedPatient}
+                          required={isReceptionist && bookedForType === 'SELF'}
                           placeholder={t('booking.enter_age', 'Enter age')}
                           className="w-full bg-gray-50 border-none rounded-full py-3 pl-12 pr-6 outline-none text-gray-700 font-bold focus:ring-2 focus:ring-primary-teal/20 transition-all disabled:opacity-70"
                         />
@@ -1867,11 +1868,9 @@ export default function Booking() {
                       ]}
                       value={patientGender}
                       onChange={(val) => {
-                        if (selectedPatient) return;
                         setPatientGender(val);
                       }}
                       icon={Users}
-                      disabled={Boolean(selectedPatient)}
                     />
                     <div className="md:col-span-2">
                       {selectedPatient && (
@@ -1879,14 +1878,15 @@ export default function Booking() {
                           <div>
                             <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">{t('booking.selected_patient', 'Selected Patient')}</p>
                             <div className="flex flex-wrap items-baseline gap-1.5">
-                              <p className="text-sm font-black text-gray-800 uppercase tracking-wide">{selectedPatient.full_name}</p>
+                              <p className="text-sm font-black text-gray-800 uppercase tracking-wide">{patientFullName}</p>
                               <p className="text-[11px] font-bold text-gray-500">
-                                • {selectedPatient.mobile_no}
+                                • {patientMobileNo}
                                 {getBookingPatientDisplayId(selectedPatient) ? ` • ${getBookingPatientDisplayId(selectedPatient)}` : ''}
-                                {selectedPatient.age ? ` • ${t('booking.age', 'Age')} ${selectedPatient.age}` : ''}
-                                {selectedPatient.gender ? ` • ${selectedPatient.gender}` : ''}
+                                {patientAge ? ` • ${t('booking.age', 'Age')} ${patientAge}` : ''}
+                                {patientGender ? ` • ${patientGender}` : ''}
                               </p>
                             </div>
+                            <p className="text-xs text-emerald-700 mt-1">{t('booking.patient_corrections_notice', 'Changes to these details will be saved for this patient when the appointment is booked.')}</p>
                           </div>
                           <button
                             type="button"
@@ -2376,6 +2376,10 @@ export default function Booking() {
                       </>
                     )}
                   </div>
+                )}
+
+                {isReceptionist && selectedPatient && (
+                  <ReceptionBookingAddress key={selectedPatient.patient_id} patient={selectedPatient} token={token} onSaved={(patient) => setSelectedPatient(current => current?.patient_id === patient.patient_id ? { ...current, ...patient } : current)} />
                 )}
 
                 {user && (user.role === 'patient' || user.role_code === 'PAT') && (

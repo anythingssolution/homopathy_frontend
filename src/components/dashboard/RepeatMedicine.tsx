@@ -25,7 +25,6 @@ const money = (value: number | string | null | undefined) => Number(value || 0).
 type Patient = {
   patient_id: number;
   uuid?: string;
-  clinic_patient_no?: string;
   full_name: string;
   mobile_no: string;
   age?: number;
@@ -39,6 +38,7 @@ type PrescriptionMedicine = {
   medicine_type?: string;
   remark?: string;
   last_amount?: number | string;
+  repeat_amount?: number | string;
 };
 
 type LastPrescription = {
@@ -176,10 +176,14 @@ export default function RepeatMedicine() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [lastPrescription, setLastPrescription] = useState<LastPrescription | null>(null);
+  const [prescriptionOptions, setPrescriptionOptions] = useState<LastPrescription['prescription'][]>([]);
   const [noPreviousPrescriptionMessage, setNoPreviousPrescriptionMessage] = useState('');
   const [selectedMedicineIds, setSelectedMedicineIds] = useState<Record<number, boolean>>({});
   const [medicineAmounts, setMedicineAmounts] = useState<Record<number, string>>({});
   const [additionalMedicines, setAdditionalMedicines] = useState<AdditionalMedicine[]>([]);
+  const [testMaster, setTestMaster] = useState<{ id: number; test_name: string; amount: number | string; test_type?: string }[]>([]);
+  const [selectedTestIds, setSelectedTestIds] = useState<number[]>([]);
+  const [testLoadError, setTestLoadError] = useState('');
   const [textMedicines, setTextMedicines] = useState<any[]>([]);
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'ONLINE'>('CASH');
   const [transactionReference, setTransactionReference] = useState('');
@@ -196,7 +200,7 @@ export default function RepeatMedicine() {
   const [deliveryRemark, setDeliveryRemark] = useState('');
   const [courierAddressAutoFilled, setCourierAddressAutoFilled] = useState(false);
   const [billingDiscounts, setBillingDiscounts] = useState<DiscountDraft[]>(
-    () => makeDiscountDrafts(['MEDICINE', 'COURIER']),
+    () => makeDiscountDrafts(['MEDICINE', 'TEST', 'COURIER']),
   );
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -207,32 +211,43 @@ export default function RepeatMedicine() {
   const hasMedicineSelection = Object.values(selectedMedicineIds).some(Boolean)
     || additionalMedicines.some((item) => Boolean(item.medicine_value.trim() || item.name.trim() || Number(item.amount || 0)));
 
+  const selectedTests = selectedTestIds.map(id => testMaster.find(test => Number(test.id) === id)).filter((test): test is NonNullable<typeof test> => Boolean(test));
+  const testGross = selectedTests.reduce((sum, test) => sum + Number(test.amount || 0), 0);
+  const hasBillSelection = hasMedicineSelection || selectedTests.length > 0;
+
   const totalAmount = useMemo(() => {
     const prescribedTotal = Object.entries(selectedMedicineIds).reduce((sum, [id, checked]) => {
       if (!checked) return sum;
       return sum + (Number(medicineAmounts[Number(id)] || 0) || 0);
     }, 0);
     const additionalTotal = additionalMedicines.reduce((sum, item) => sum + (Number(item.amount || 0) || 0), 0);
-    const deliveryTotal = hasMedicineSelection && isCourierDelivery ? (Number(courierCharge || 0) || 0) : 0;
-    return Number((prescribedTotal + additionalTotal + deliveryTotal).toFixed(2));
-  }, [additionalMedicines, courierCharge, hasMedicineSelection, isCourierDelivery, medicineAmounts, selectedMedicineIds]);
+    const deliveryTotal = hasBillSelection && isCourierDelivery ? (Number(courierCharge || 0) || 0) : 0;
+    return Number((prescribedTotal + additionalTotal + testGross + deliveryTotal).toFixed(2));
+  }, [additionalMedicines, courierCharge, hasBillSelection, isCourierDelivery, medicineAmounts, selectedMedicineIds, testGross]);
 
-  const courierGross = hasMedicineSelection && isCourierDelivery ? Number(courierCharge || 0) || 0 : 0;
-  const medicineGross = Math.max(0, Number((totalAmount - courierGross).toFixed(2)));
+  const courierGross = hasBillSelection && isCourierDelivery ? Number(courierCharge || 0) || 0 : 0;
+  const medicineGross = Math.max(0, Number((totalAmount - courierGross - testGross).toFixed(2)));
+  useEffect(() => {
+    if (selectedTestIds.length > 0) return;
+    setBillingDiscounts(prev => prev.some(row => row.category === 'TEST' && (row.amount || row.reason_code || row.reason_note))
+      ? prev.map(row => row.category === 'TEST' ? { ...row, amount: '', reason_code: '', reason_note: '' } : row)
+      : prev);
+  }, [selectedTestIds.length]);
+
   const currentDiscount = discountTotal(billingDiscounts);
   const netTotalAmount = Math.max(0, Number((totalAmount - currentDiscount).toFixed(2)));
 
   const previousPending = Number(
     lastPrescription?.account_dues?.total_pending || selectedPatient?.account_dues?.total_pending || 0,
   );
-  const previousOnlyMode = !hasMedicineSelection && previousPending > 0;
+  const previousOnlyMode = !hasBillSelection && previousPending > 0;
   const effectiveAllocationOrder = previousOnlyMode ? 'PREVIOUS_FIRST' : allocationOrder;
   const includePrevious = effectiveAllocationOrder !== 'CURRENT_ONLY' && previousPending > 0;
   const collectTarget = Number((includePrevious ? netTotalAmount + previousPending : netTotalAmount).toFixed(2));
   const receivedNow = splitPayment
     ? Number(((Number(cashAmount || 0) || 0) + (Number(onlineAmount || 0) || 0)).toFixed(2))
     : Number((collectedAmount === '' ? collectTarget : Number(collectedAmount || 0)).toFixed(2));
-  const payingPreviousOnly = !hasMedicineSelection && totalAmount <= 0 && includePrevious;
+  const payingPreviousOnly = !hasBillSelection && totalAmount <= 0 && includePrevious;
   const canSubmit = !isSaving && Number.isFinite(receivedNow) && receivedNow >= 0
     && receivedNow <= collectTarget + 0.001
     && (totalAmount > 0 || (payingPreviousOnly && receivedNow > 0));
@@ -253,6 +268,17 @@ export default function RepeatMedicine() {
       setCollectedAmount(money(collectTarget));
     }
   }, [collectTarget, collectedAmount, splitPayment]);
+
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    fetch('/api/v1/medical/repeat-medicine/tests', { headers: { Authorization: `Bearer ${token}` } })
+      .then(response => response.json()).then(result => {
+        if (!result.success || !Array.isArray(result.data)) throw new Error(result.message || 'Unable to load tests');
+        if (active) { setTestMaster(result.data); setTestLoadError(''); }
+      }).catch(error => { if (active) setTestLoadError(error.message || 'Unable to load tests'); });
+    return () => { active = false; };
+  }, [token]);
 
   useEffect(() => {
     const fetchTextMedicines = async () => {
@@ -314,7 +340,9 @@ export default function RepeatMedicine() {
     if (!token) return;
     setSelectedPatient(patient);
     setLastPrescription(null);
-    setBillingDiscounts(makeDiscountDrafts(['MEDICINE', 'COURIER']));
+    setPrescriptionOptions([]);
+    setSelectedTestIds([]);
+    setBillingDiscounts(makeDiscountDrafts(['MEDICINE', 'TEST', 'COURIER']));
     setNoPreviousPrescriptionMessage('');
     setSelectedMedicineIds({});
     setMedicineAmounts({});
@@ -327,19 +355,21 @@ export default function RepeatMedicine() {
     setCourierAddressAutoFilled(false);
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/v1/medical/repeat-medicine/patients/${patient.patient_id}/last-prescription`, {
+      const response = await fetch(`/api/v1/medical/repeat-medicine/patients/${patient.patient_id}/last-prescription?include_previous=1`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const result = await response.json();
       if (!result.success) throw new Error(result.message || 'Last prescription not found');
 
       const data = result.data as LastPrescription;
+      setPrescriptionOptions(result.data.prescriptions || [data.prescription]);
       const nextSelected: Record<number, boolean> = {};
       const nextAmounts: Record<number, string> = {};
       (data.prescription?.medications || []).forEach((med) => {
         nextSelected[med.consultation_medication_id] = true;
-        nextAmounts[med.consultation_medication_id] = med.last_amount && Number(med.last_amount) > 0
-          ? String(med.last_amount)
+        const amount = med.repeat_amount ?? med.last_amount;
+        nextAmounts[med.consultation_medication_id] = amount && Number(amount) > 0
+          ? String(amount)
           : '';
       });
       setLastPrescription(data);
@@ -366,6 +396,47 @@ export default function RepeatMedicine() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const switchPrescription = (prescription: LastPrescription['prescription']) => {
+    if (!lastPrescription || isSaving || prescription.consultation_id === lastPrescription.prescription.consultation_id) return;
+    const editedMedicines = lastPrescription.prescription.medications.some((med) => {
+      const amount = med.repeat_amount ?? med.last_amount;
+      const initial = amount && Number(amount) > 0 ? String(amount) : '';
+      return !selectedMedicineIds[med.consultation_medication_id] || medicineAmounts[med.consultation_medication_id] !== initial;
+    });
+    const hasEdits = selectedTestIds.length > 0 || editedMedicines || additionalMedicines.some((item) => Boolean(item.name.trim() || item.medicine_value.trim() || item.amount || item.reason))
+      || collectedAmount !== '' || cashAmount !== '' || onlineAmount !== '' || transactionReference.trim()
+      || splitPayment || paymentMode !== 'CASH' || toDiscountPayload(billingDiscounts).length > 0
+      || remark.trim() || isCourierDelivery || courierAddress.trim() || courierCharge || trackingNo.trim() || deliveryRemark.trim();
+    if (hasEdits && !window.confirm(t('repeat_medicine.switch_confirm', 'Switch prescription? Current medicine edits, discounts, payment and delivery details will be cleared.'))) return;
+    const selected: Record<number, boolean> = {};
+    const amounts: Record<number, string> = {};
+    prescription.medications.forEach((med) => {
+      selected[med.consultation_medication_id] = true;
+      const amount = med.repeat_amount ?? med.last_amount;
+      amounts[med.consultation_medication_id] = amount && Number(amount) > 0 ? String(amount) : '';
+    });
+    setLastPrescription({ ...lastPrescription, prescription });
+    setSelectedMedicineIds(selected);
+    setMedicineAmounts(amounts);
+    setAdditionalMedicines([]);
+    setSelectedTestIds([]);
+    setBillingDiscounts(makeDiscountDrafts(['MEDICINE', 'TEST', 'COURIER']));
+    setCollectedAmount('');
+    setAllocationOrder('CURRENT_ONLY');
+    setPaymentMode('CASH');
+    setTransactionReference('');
+    setSplitPayment(false);
+    setCashAmount('');
+    setOnlineAmount('');
+    setRemark('');
+    setIsCourierDelivery(false);
+    setCourierAddress('');
+    setCourierCharge('');
+    setTrackingNo('');
+    setDeliveryRemark('');
+    setCourierAddressAutoFilled(false);
   };
 
   const autofillLastCourierAddress = async () => {
@@ -472,8 +543,8 @@ export default function RepeatMedicine() {
       }))
       .filter((item) => item.medicine_value || item.amount || item.reason);
 
-    if (medicines.length === 0 && additional.length === 0 && !payingPreviousOnly) {
-      addToast('Select medicine or add medical medicine', 'warning');
+    if (medicines.length === 0 && additional.length === 0 && selectedTests.length === 0 && !payingPreviousOnly) {
+      addToast('Select a medicine or add a test', 'warning');
       return;
     }
 
@@ -493,7 +564,7 @@ export default function RepeatMedicine() {
     }
 
     const received = receivedNow;
-    const discountError = validateDiscountDrafts(billingDiscounts, { MEDICINE: medicineGross, COURIER: courierGross });
+    const discountError = validateDiscountDrafts(billingDiscounts, { MEDICINE: medicineGross, TEST: testGross, COURIER: courierGross });
     if (discountError) {
       addToast(discountError, 'warning');
       return;
@@ -579,6 +650,7 @@ export default function RepeatMedicine() {
           source_consultation_id: lastPrescription?.prescription.consultation_id || null,
           medicines,
           additional_medications: additional,
+          tests: selectedTests.map(test => ({ master_test_id: Number(test.id), amount: Number(test.amount) })),
           discounts: toDiscountPayload(billingDiscounts),
           remark: remark.trim() || null,
           delivery: {
@@ -614,7 +686,8 @@ export default function RepeatMedicine() {
       setLastPrescription(null);
       setSelectedPatient(null);
       setNoPreviousPrescriptionMessage('');
-      setBillingDiscounts(makeDiscountDrafts(['MEDICINE', 'COURIER']));
+      setSelectedTestIds([]);
+    setBillingDiscounts(makeDiscountDrafts(['MEDICINE', 'TEST', 'COURIER']));
       setPatients([]);
       setSearch('');
       setAdditionalMedicines([]);
@@ -700,7 +773,7 @@ export default function RepeatMedicine() {
               >
                 <div className="text-sm font-black text-gray-800">{patient.full_name}</div>
                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                  {patient.clinic_patient_no || patient.uuid} • {patient.mobile_no}
+                  {patient.uuid} • {patient.mobile_no}
                 </div>
                 {Number(patient.account_dues?.total_pending || 0) > 0 && (
                   <div className="mt-2 inline-flex px-2 py-0.5 rounded-md bg-orange-50 text-orange-600 border border-orange-100 text-[9px] font-black uppercase tracking-widest">
@@ -723,7 +796,7 @@ export default function RepeatMedicine() {
                 </h3>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
                   {lastPrescription
-                    ? `Last prescription: ${lastPrescription.prescription.appointment_date} • ${lastPrescription.prescription.doctor_name}`
+                    ? `${t('repeat_medicine.selected_prescription', 'Selected prescription')}: ${lastPrescription.prescription.appointment_date} • ${lastPrescription.prescription.doctor_name}`
                     : 'No previous doctor prescription found • Medical Added only'}
                 </p>
               </div>
@@ -731,6 +804,22 @@ export default function RepeatMedicine() {
                 {lastPrescription ? 'Doctor Prescription' : 'Medical Only'}
               </span>
             </div>
+
+            {lastPrescription && prescriptionOptions.length > 1 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label={t('repeat_medicine.choose_prescription', 'Choose prescription')}>
+                {prescriptionOptions.map((prescription, index) => {
+                  const active = prescription.consultation_id === lastPrescription.prescription.consultation_id;
+                  return (
+                    <button key={prescription.consultation_id} type="button" disabled={isSaving || isLoading}
+                      aria-pressed={active} onClick={() => switchPrescription(prescription)}
+                      className={`rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50 ${active ? 'border-[#549E9E] bg-[#549E9E]/10 text-[#2d8789]' : 'border-gray-200 text-gray-600 hover:border-[#549E9E]/50'}`}>
+                      <span className="block text-xs font-black">{index === 0 ? t('repeat_medicine.latest_prescription', 'Latest prescription') : t('repeat_medicine.previous_prescription', 'Previous prescription')}</span>
+                      <span className="mt-1 block text-xs font-medium">{prescription.appointment_date.slice(0, 10)} • {prescription.doctor_name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             {lastPrescription ? (
               <div className="space-y-2">
@@ -771,7 +860,7 @@ export default function RepeatMedicine() {
                   Previous prescription available nahi hai
                 </p>
                 <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-widest mt-1">
-                  Is patient ke liye sirf Medical Added medicine add karke bill banega.
+                  Is patient ke liye Medical Added medicine ya tests add karke bill bana sakte hain.
                 </p>
               </div>
             )}
@@ -847,6 +936,26 @@ export default function RepeatMedicine() {
                 );
               })}
             </div>
+            <div className="border border-amber-100 bg-amber-50/40 p-3 space-y-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-xs font-black text-amber-700 uppercase tracking-widest">Tests</h4>
+                <span className="text-xs font-black text-amber-700">₹ {money(testGross)}</span>
+              </div>
+              {testLoadError ? <p role="alert" className="text-xs font-bold text-red-600">{testLoadError}</p> : (
+                <SearchableDropdown
+                  options={testMaster.filter(test => !selectedTestIds.includes(Number(test.id))).map(test => ({ value: String(test.id), label: `${test.test_name} · ₹ ${money(test.amount)}` }))}
+                  value="" placeholder="Add Test — search Test Master" disabled={isSaving}
+                  onChange={value => { const id = Number(value); if (testMaster.some(test => Number(test.id) === id)) setSelectedTestIds(prev => prev.includes(id) ? prev : [...prev, id]); }}
+                />
+              )}
+              {selectedTests.map(test => (
+                <div key={test.id} className="flex items-center gap-3 border border-amber-100 bg-white p-2">
+                  <span className="flex-1 text-xs font-bold text-gray-700">{test.test_name}</span>
+                  <span className="text-xs font-black text-amber-700">₹ {money(test.amount)}</span>
+                  <button type="button" disabled={isSaving} aria-label={`Remove test ${test.test_name}`} onClick={() => setSelectedTestIds(prev => prev.filter(id => id !== Number(test.id)))} className="p-1 text-red-500 cursor-pointer"><Trash2 size={14} /></button>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="bg-white border border-gray-200 shadow-sm flex flex-col sticky top-24 max-h-[calc(100vh-7rem)]">
@@ -869,6 +978,7 @@ export default function RepeatMedicine() {
             >
             <MedicationDuePaymentPanel
               todayAmount={netTotalAmount}
+              todayItemsLabel={selectedTests.length ? 'bill (medicines / tests)' : 'medicines'}
               previousBills={(activeAccountDues?.bills || []) as DueBill[]}
               collectedAmount={collectedAmount === '' ? money(collectTarget) : collectedAmount}
               onCollectedAmountChange={setCollectedAmount}
@@ -890,7 +1000,7 @@ export default function RepeatMedicine() {
 
             <BillingDiscountEditor
               discounts={billingDiscounts}
-              grossByCategory={{ MEDICINE: medicineGross, COURIER: courierGross }}
+              grossByCategory={{ MEDICINE: medicineGross, TEST: testGross, COURIER: courierGross }}
               onChange={setBillingDiscounts}
               compact
             />

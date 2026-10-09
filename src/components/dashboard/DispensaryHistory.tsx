@@ -1,3 +1,4 @@
+import DispensaryWhatsAppModal from '../DispensaryWhatsAppModal';
 import ClinicBillPrint from '../print/ClinicBillPrint';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -28,7 +29,8 @@ import {
   Hash,
   FlaskConical,
   Printer,
-  Download
+  Download,
+  MessageCircle
 } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import CustomDatePicker from '../CustomDatePicker';
@@ -280,6 +282,8 @@ export default function DispensaryHistory() {
   const [courierSlipRecord, setCourierSlipRecord] = useState<any | null>(null);
   const [previewPrescription, setPreviewPrescription] = useState<any | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [whatsAppShare, setWhatsAppShare] = useState<{ billId: number; paymentIds: number[]; initialKind: 'BILL' | 'RECEIPT' } | null>(null);
+  const [whatsAppStatuses, setWhatsAppStatuses] = useState<Record<number, string>>({});
   const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
   const [amount, setAmount] = useState('');
   const [remark, setRemark] = useState('');
@@ -424,6 +428,19 @@ export default function DispensaryHistory() {
     }
   };
 
+  const openWhatsAppShare = (record: any) => {
+    const billId = Number(record?.medication_bill?.bill_id || record?.bill_id);
+    if (!Number.isSafeInteger(billId) || billId <= 0) { addToast('Saved bill is required to share', 'warning'); return; }
+    const previous = isPreviousAmountReceivedRow(record, filterDate);
+    const payments = previous
+      ? getIncomingPreviousPayments(record).filter((payment: any) => filterDate === 'all' || toLocalDateKey(payment.collected_at || payment.created_at) === (filterDate || getLocalDateString()))
+      : [...(record.medication_bill?.payments || []), ...(record.medication_bill?.previous_pending_settlements || [])];
+    const successful = payments.filter((p: any) => String(p.status || '').toUpperCase() === 'SUCCESS').sort((a: any, b: any) => new Date(b.collected_at || b.created_at).getTime() - new Date(a.collected_at || a.created_at).getTime());
+    const latest = successful[0];
+    const eventRows = latest ? successful.filter((p: any) => new Date(p.collected_at || p.created_at).getTime() === new Date(latest.collected_at || latest.created_at).getTime()) : [];
+    setWhatsAppShare({ billId, initialKind: previous ? 'RECEIPT' : 'BILL', paymentIds: eventRows.map((p: any) => Number(p.payment_id || p.id)).filter(id => Number.isSafeInteger(id) && id > 0) });
+  };
+
   const HistoryRowActions = ({ record }: { record: any }) => {
     const previous = isPreviousAmountReceivedRow(record, filterDate);
     const consultationId = getValidPrescriptionConsultationId(record);
@@ -438,6 +455,10 @@ export default function DispensaryHistory() {
       {isCourier && <button onClick={() => setCourierSlipRecord(record)} className="inline-flex items-center gap-2 rounded-xl border border-[#549E9E]/20 bg-white px-3 py-2 text-[10px] font-bold text-[#2d8789] hover:bg-[#549E9E]/5">
         <Printer size={14} /> {t('reports_next.courier_register.print_slip', 'Print courier slip')}
       </button>}
+      <button onClick={() => openWhatsAppShare(record)} className="inline-flex items-center gap-2 rounded-xl border border-[#549E9E]/30 bg-white px-3 py-2 text-[10px] font-bold text-[#2d8789] hover:bg-[#549E9E]/5">
+        <MessageCircle size={14} /> Send on WhatsApp
+      </button>
+      {whatsAppStatuses[Number(record.medication_bill?.bill_id || record.bill_id)] && <span className={`text-[10px] font-bold capitalize ${whatsAppStatuses[Number(record.medication_bill?.bill_id || record.bill_id)] === 'failed' ? 'text-red-600' : 'text-[#2d8789]'}`}>{whatsAppStatuses[Number(record.medication_bill?.bill_id || record.bill_id)]}</span>}
       <button onClick={() => handleViewDetails(record)} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[10px] font-bold ${previous ? 'border border-gray-200 text-gray-600 bg-white' : 'bg-[#549E9E] text-white'}`}>
         <FileText size={14} /> {previous ? t('dispensary_history.original_bill', 'Original Bill') : t('dispensary_history.table.view', 'View')}
       </button>
@@ -1348,6 +1369,8 @@ export default function DispensaryHistory() {
           </div>
         )}
       </AnimatePresence>
+
+      {whatsAppShare && token && <DispensaryWhatsAppModal token={token} {...whatsAppShare} onClose={() => setWhatsAppShare(null)} onStatus={(status, simulated) => setWhatsAppStatuses(previous => ({ ...previous, [whatsAppShare.billId]: simulated ? 'Simulated' : status }))} />}
 
       {previewPrescription && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/80 p-4 backdrop-blur-md no-print">

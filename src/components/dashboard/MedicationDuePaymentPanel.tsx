@@ -10,6 +10,7 @@ import {
 
 type Props = {
   todayAmount: number;
+  todayItemsLabel?: string;
   previousBills?: DueBill[];
   collectedAmount: string;
   onCollectedAmountChange: (value: string) => void;
@@ -50,6 +51,7 @@ const AmountNumberInput = ({
 
 export default function MedicationDuePaymentPanel({
   todayAmount,
+  todayItemsLabel = 'medicines',
   previousBills = [],
   collectedAmount,
   onCollectedAmountChange,
@@ -205,7 +207,7 @@ export default function MedicationDuePaymentPanel({
 
       <div className={`space-y-2 rounded-xl border border-gray-100 bg-white ${compact ? 'px-2.5 py-2' : 'px-3 py-3'}`}>
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] font-bold text-gray-500">Today's medicines</span>
+          <span className="text-[11px] font-bold text-gray-500">Today's {todayItemsLabel}</span>
           <span className="text-sm font-black text-[#549E9E]">{formatMoney(todayAmount)}</span>
         </div>
         {previousPending > 0 && (
@@ -326,7 +328,7 @@ export default function MedicationDuePaymentPanel({
                 ? 'This amount goes to previous pending. Type less if they can pay only part of the old bill.'
                 : includePrevious
                 ? 'Pay today first. Extra money goes to previous pending. Type less if they can pay only part of the old bill.'
-                : 'This amount is for today\'s medicines. Type less if they will pay the rest later.'}
+                : `This amount is for today's ${todayItemsLabel}. Type less if they will pay the rest later.`}
             </p>
           </div>
 

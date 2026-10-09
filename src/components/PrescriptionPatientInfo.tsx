@@ -21,11 +21,11 @@ export default function PrescriptionPatientInfo({
 }: PrescriptionPatientInfoProps) {
   return (
     <div className="w-full mb-4 px-1 mt-1 font-bold text-gray-800 text-[10px]">
-      <div className="flex items-center justify-center gap-1.5 text-[10px]">
-        <span className="font-black uppercase tracking-wider text-gray-500">
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[#cc3333]">
+        <span className="text-[11px] font-black uppercase tracking-wider">
           {isHi ? 'रजिस्ट्रेशन नं. :' : 'Reg. No. :'}
         </span>
-        <span className="font-mono text-[11px] font-black tracking-wide text-[#1a2b4c]">
+        <span className="font-mono text-[14px] font-black tracking-wide leading-tight">
           {patientId || 'N/A'}
         </span>
       </div>

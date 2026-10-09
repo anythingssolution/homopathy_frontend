@@ -1,4 +1,5 @@
 import VisitListPrint from './VisitListPrint';
+import DayWisePanel from './DayWisePanel';
 import useListPagination from './useListPagination';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 // import { Link } from 'react-router-dom';
@@ -518,6 +519,7 @@ export default function BillsNext() {
           { id: 'consultants', label: t('bills_next.tab_consultants') },
           { id: 'morning', label: t('bills_next.tab_morning') },
           { id: 'evening', label: t('bills_next.tab_evening') },
+          { id: 'daily', label: i18n.language.startsWith('hi') ? 'दिनवार' : 'Day-wise' },
         ] as const).map((item) => (
           <button
             key={item.id}
@@ -814,9 +816,11 @@ export default function BillsNext() {
       ) : tab === 'consultants' ? (
         <ConsultantsPanel key={listScope} consultant={reports?.revenue_by_consultant} />
       ) : tab === 'morning' ? (
-        <SessionPanel key={listScope} slot="morning" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} payments={receivedPayments} />
+        <SessionPanel key={listScope} slot="morning" consultant={reports?.revenue_by_consultant} payments={receivedPayments} />
       ) : tab === 'evening' ? (
-        <SessionPanel key={listScope} slot="evening" consultant={reports?.revenue_by_consultant} medicine={reports?.revenue_by_medicine} payments={receivedPayments} />
+        <SessionPanel key={listScope} slot="evening" consultant={reports?.revenue_by_consultant} payments={receivedPayments} />
+      ) : tab === 'daily' ? (
+        <DayWisePanel key={listScope} bills={rangeBills} payments={receivedPayments} />
       ) : null}
 
       <VisitDrawer

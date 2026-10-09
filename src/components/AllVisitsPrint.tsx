@@ -163,6 +163,14 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                 <div className="text-[10px] text-gray-500">{isHi ? 'कोई दवा दर्ज नहीं।' : 'No medicine item recorded.'}</div>
                               )}
                             </div>
+                            {(consultation?.tests || details?.tests || []).length > 0 && (
+                              <div className="mt-3 space-y-1 border-t border-amber-200 pt-2">
+                                <h4 className="text-[9px] font-black uppercase tracking-wider text-amber-700">{isHi ? 'जाँच' : 'Tests'}</h4>
+                                {(consultation?.tests || details?.tests || []).map((test: any, index: number) => (
+                                  <div key={test.consultation_test_id || index} className="text-[10px] font-bold text-gray-800">{test.test_name} <span className="text-amber-700">₹ {Number(test.amount || 0).toFixed(2)}</span></div>
+                                ))}
+                              </div>
+                            )}
                             <p className="mt-2 text-[8px] font-bold text-gray-500 text-right">
                               {isHi ? 'यह दवा लेने का रिकॉर्ड है; इससे नया चिकित्सकीय परामर्श नहीं बना।' : 'Medicine collection record; no new clinical consultation was created.'}
                             </p>

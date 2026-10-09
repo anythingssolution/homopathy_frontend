@@ -2,7 +2,7 @@ import Pagination from '../../Pagination';
 import useListPagination from './useListPagination';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { money, mergeConsultants, mergeMedicines, sessionBundle, sessionPaymentTotals } from './lib';
+import { money, mergeConsultants, sessionBundle, sessionPaymentTotals } from './lib';
 
 type MixBarProps = {
   label: string;
@@ -41,7 +41,7 @@ const Mini = ({ label, value }: { label: string; value: string }) => (
 
 const ConsultantTable = ({ rows, counts, slot }: { rows: any[]; counts?: any[]; slot?: 'morning' | 'evening' }) => {
   const { t } = useTranslation();
-  const list = mergeConsultants(rows, counts, slot);
+  const list = mergeConsultants(rows, counts, slot).filter((row) => Number(row.doctor_id) > 0);
   const pagination = useListPagination(list);
   if (list.length === 0) {
     return <p className="py-10 text-center text-sm font-semibold text-slate-400">{t('bills_next.no_consultants')}</p>;
@@ -85,31 +85,6 @@ const ConsultantTable = ({ rows, counts, slot }: { rows: any[]; counts?: any[]; 
   );
 };
 
-const MedicineList = ({ rows }: { rows: any[] }) => {
-  const { t } = useTranslation();
-  const list = mergeMedicines(rows);
-  const pagination = useListPagination(list);
-  if (list.length === 0) {
-    return <p className="py-10 text-center text-sm font-semibold text-slate-400">{t('bills_next.no_meds')}</p>;
-  }
-  return (
-    <div className="space-y-2">
-      {pagination.rows.map((med) => (
-        <div key={med.name} className="flex items-center justify-between gap-3 rounded-xl border border-gray-50 px-3 py-2.5">
-          <div className="min-w-0">
-            <p className="text-sm font-black text-slate-800 truncate">{String(med.name || '').toUpperCase()}</p>
-            <p className="text-[10px] font-bold text-slate-400">
-              {t('bills_next.qty_bills', { qty: med.qty, bills: med.bills })}
-            </p>
-          </div>
-          <p className="text-sm font-black text-emerald-600 shrink-0">{money(med.gross)}</p>
-        </div>
-      ))}
-      <Pagination {...pagination.controls} />
-    </div>
-  );
-};
-
 export function ConsultantsPanel({ consultant }: { consultant: any }) {
   const { t } = useTranslation();
   const bundle = sessionBundle(consultant);
@@ -127,17 +102,14 @@ export function ConsultantsPanel({ consultant }: { consultant: any }) {
 export function SessionPanel({
   slot,
   consultant,
-  medicine,
   payments,
 }: {
   slot: 'morning' | 'evening';
   consultant: any;
-  medicine: any;
   payments: any[];
 }) {
   const { t } = useTranslation();
   const doctors = sessionBundle(consultant)[slot];
-  const meds = sessionBundle(medicine)[slot];
   const merged = mergeConsultants(doctors, consultant?.consultation_counts, slot);
   const gross = merged.reduce((sum, row) => sum + Number(row.total_gross_revenue || 0), 0);
   const paid = merged.reduce((sum, row) => sum + Number(row.total_paid_revenue || 0), 0);
@@ -168,18 +140,12 @@ export function SessionPanel({
           </p>
         </div>
       )}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-50">
             <h3 className="text-sm font-black text-slate-800">{t('bills_next.tab_consultants')}</h3>
           </div>
           <ConsultantTable rows={doctors} counts={consultant?.consultation_counts} slot={slot} />
         </div>
-        <div className="rounded-2xl border border-gray-100 bg-white p-5">
-          <h3 className="text-sm font-black text-slate-800 mb-3">{t('bills_next.top_meds')}</h3>
-          <MedicineList rows={meds} />
-        </div>
-      </div>
     </div>
   );
 }
