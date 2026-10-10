@@ -2229,7 +2229,7 @@
     "form_add_subtitle": "मरीज विवरण और DTH पंजीकरण संख्या दर्ज करें। मौजूदा संपर्क होने पर वही मरीज खाता अपडेट होगा।",
     "full_name": "पूरा नाम *",
     "patient_id": "पंजीकरण संख्या *",
-    "patient_id_placeholder": "जैसे DTH1210",
+    "patient_id_placeholder": "जैसे DTH_1210",
     "mobile": "मोबाइल नंबर *",
     "mobile_placeholder": "10 अंक, 6–9 से शुरू",
     "mobile_title": "6, 7, 8 या 9 से शुरू होने वाला 10 अंकों का मोबाइल नंबर दर्ज करें",

@@ -741,7 +741,7 @@ export default function ReceptionPatientManagement() {
                   </span>
                   <input
                     maxLength={36}
-                    placeholder="e.g. DTH1210"
+                    placeholder="e.g. DTH_1210"
                     value={editForm.patient_uuid}
                     onChange={(event) =>
                       setEditForm((current) => ({

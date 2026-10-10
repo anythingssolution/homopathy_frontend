@@ -2171,7 +2171,7 @@
     "form_add_subtitle": "Enter patient details and the DTH registration number. An existing contact updates the same patient account.",
     "full_name": "Full Name *",
     "patient_id": "Registration No. *",
-    "patient_id_placeholder": "e.g. DTH1210",
+    "patient_id_placeholder": "e.g. DTH_1210",
     "mobile": "Mobile Number *",
     "mobile_placeholder": "10 digits, starts with 6-9",
     "mobile_title": "Enter a 10-digit mobile number starting with 6, 7, 8 or 9",
