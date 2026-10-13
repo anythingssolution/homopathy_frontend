@@ -40,6 +40,17 @@ export type ConsultDraftTest = {
   amount: string;
 };
 
+export type ConsultDraftInvestigation = {
+  id?: number | null;
+  investigation_type: string;
+  test_name: string;
+  investigation_date: string;
+  status: string;
+  findings: string;
+  report_reference: string;
+  document_id?: number | null;
+};
+
 export type ConsultDraft = {
   version: typeof DRAFT_VERSION;
   appointmentId: number;
@@ -69,6 +80,7 @@ export type ConsultDraft = {
   medications: ConsultDraftMedication[];
   otherMedications: ConsultDraftOtherMedication[];
   tests: ConsultDraftTest[];
+  investigations?: ConsultDraftInvestigation[];
   universalRemark: string;
   occupation: string;
   historyPresentIllness: string;

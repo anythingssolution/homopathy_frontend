@@ -14,6 +14,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { formatAgeValue } from '../../../../utils/ageDisplay';
 import { useAuth } from '../../../../context/AuthContext';
@@ -36,6 +37,7 @@ const PAGE_SIZE = 40;
 
 type RegisterStatus = 'REPORT_PENDING' | 'REVIEWED' | 'REMOVED';
 type ReportSendStatus = 'SENT' | 'NOT_SENT';
+type ReportSendFilter = 'ALL' | ReportSendStatus | 'UNMARKED';
 
 type TestRegisterRow = {
   consultation_test_id: number | string;
@@ -91,6 +93,18 @@ type ReportStatusModalState = {
   reason: string;
 };
 
+const TEST_STATUS_COLORS: Record<RegisterStatus, string> = {
+  REVIEWED: '#10B981',
+  REPORT_PENDING: '#F59E0B',
+  REMOVED: '#94A3B8',
+};
+
+const REPORT_SEND_COLORS: Record<Exclude<ReportSendFilter, 'ALL'>, string> = {
+  SENT: '#059669',
+  NOT_SENT: '#EF4444',
+  UNMARKED: '#0EA5E9',
+};
+
 const rowStatus = (row: TestRegisterRow): RegisterStatus => {
   if (String(row.dispense_status || '').toUpperCase() === 'VOID') return 'REMOVED';
   if (String(row.finding_text || '').trim()) return 'REVIEWED';
@@ -128,6 +142,7 @@ export default function TestRegisterPage() {
   const [rows, setRows] = useState<TestRegisterRow[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | RegisterStatus>('ALL');
+  const [reportSendFilter, setReportSendFilter] = useState<ReportSendFilter>('ALL');
   const [testFilter, setTestFilter] = useState('ALL');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -161,7 +176,7 @@ export default function TestRegisterPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, testFilter, dateFilter, customDateRange]);
+  }, [search, statusFilter, reportSendFilter, testFilter, dateFilter, customDateRange]);
 
   const testNames = useMemo(
     () => [...new Set(rows.map((row) => String(row.test_name || '').trim()).filter(Boolean))]
@@ -202,8 +217,10 @@ export default function TestRegisterPage() {
     return allGroups.flatMap((group) => {
       const matchingTests = group.tests.filter((test) => {
         const matchesStatus = statusFilter === 'ALL' || rowStatus(test) === statusFilter;
+        const matchesReportSend = reportSendFilter === 'ALL'
+          || (reportSendFilter === 'UNMARKED' ? !test.report_send_status : test.report_send_status === reportSendFilter);
         const matchesTest = testFilter === 'ALL' || test.test_name === testFilter;
-        return matchesStatus && matchesTest;
+        return matchesStatus && matchesReportSend && matchesTest;
       });
       if (matchingTests.length === 0) return [];
 
@@ -220,7 +237,7 @@ export default function TestRegisterPage() {
       if (query && !haystack.includes(query)) return [];
       return [{ ...group, tests: matchingTests }];
     });
-  }, [allGroups, search, statusFilter, testFilter]);
+  }, [allGroups, search, statusFilter, reportSendFilter, testFilter]);
 
   const pages = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE));
   const visibleGroups = filteredGroups.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -230,6 +247,67 @@ export default function TestRegisterPage() {
   const totalAmount = activeRows.reduce((sum, row) => sum + num(row.amount), 0);
   const patientCount = allGroups.length;
   const windowLabel = formatReportWindowLabel(t, dateFilter, customDateRange, dateLocale);
+  const percent = (value: number, total: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
+  const overview = useMemo(() => {
+    const totalTests = rows.length;
+    const activeTests = rows.filter((row) => rowStatus(row) !== 'REMOVED');
+    const reviewedTests = rows.filter((row) => rowStatus(row) === 'REVIEWED').length;
+    const pendingTests = rows.filter((row) => rowStatus(row) === 'REPORT_PENDING').length;
+    const removedTests = rows.filter((row) => rowStatus(row) === 'REMOVED').length;
+    const sentReports = activeTests.filter((row) => row.report_send_status === 'SENT').length;
+    const notSentReports = activeTests.filter((row) => row.report_send_status === 'NOT_SENT').length;
+    const sendPendingReports = activeTests.length - sentReports - notSentReports;
+    return {
+      totalTests,
+      activeTests: activeTests.length,
+      status: [
+        {
+          key: 'REVIEWED' as const,
+          name: t('reports_next.test_register.status_done_chart'),
+          value: reviewedTests,
+          percent: percent(reviewedTests, totalTests),
+          color: TEST_STATUS_COLORS.REVIEWED,
+        },
+        {
+          key: 'REPORT_PENDING' as const,
+          name: t('reports_next.test_register.status_pending_chart'),
+          value: pendingTests,
+          percent: percent(pendingTests, totalTests),
+          color: TEST_STATUS_COLORS.REPORT_PENDING,
+        },
+        {
+          key: 'REMOVED' as const,
+          name: t('reports_next.test_register.status_cancelled_chart'),
+          value: removedTests,
+          percent: percent(removedTests, totalTests),
+          color: TEST_STATUS_COLORS.REMOVED,
+        },
+      ],
+      reportSend: [
+        {
+          key: 'SENT' as const,
+          name: t('reports_next.test_register.report_sent'),
+          value: sentReports,
+          percent: percent(sentReports, activeTests.length),
+          color: REPORT_SEND_COLORS.SENT,
+        },
+        {
+          key: 'UNMARKED' as const,
+          name: t('reports_next.test_register.report_send_pending'),
+          value: sendPendingReports,
+          percent: percent(sendPendingReports, activeTests.length),
+          color: REPORT_SEND_COLORS.UNMARKED,
+        },
+        {
+          key: 'NOT_SENT' as const,
+          name: t('reports_next.test_register.report_not_sent'),
+          value: notSentReports,
+          percent: percent(notSentReports, activeTests.length),
+          color: REPORT_SEND_COLORS.NOT_SENT,
+        },
+      ],
+    };
+  }, [rows, t]);
 
   const formatDate = (value: unknown) => {
     const parsed = parseIsoDate(value);
@@ -533,6 +611,129 @@ export default function TestRegisterPage() {
               />
             </div>
 
+            <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(420px,1.1fr)]">
+              <div className="rounded-2xl border border-gray-100 bg-white p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-600">
+                      {t('reports_next.test_register.test_status_overview')}
+                    </h4>
+                    <p className="mt-1 text-[11px] font-semibold text-slate-400">{windowLabel}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('ALL')}
+                    className={`rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider transition-colors ${statusFilter === 'ALL' ? 'border-[#549E9E]/30 bg-[#549E9E]/10 text-[#2d8789]' : 'border-slate-200 text-slate-400 hover:border-[#549E9E]/30 hover:text-[#2d8789]'}`}
+                  >
+                    {t('reports_next.test_register.all_statuses')}
+                  </button>
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-[180px_1fr] sm:items-center">
+                  <div className="relative h-44">
+                    {overview.totalTests > 0 ? (
+                      <>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={overview.status.filter((item) => item.value > 0)} dataKey="value" innerRadius={48} outerRadius={72} paddingAngle={3}>
+                              {overview.status.filter((item) => item.value > 0).map((entry) => (
+                                <Cell key={entry.key} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(value, name, item) => [`${value} (${item.payload.percent}%)`, name]} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-2xl font-black text-slate-900">{overview.totalTests}</span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            {t('reports_next.test_register.tests')}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex h-full items-center justify-center rounded-xl bg-slate-50 text-xs font-bold text-slate-400">
+                        {t('reports_next.test_register.empty')}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {overview.status.map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setStatusFilter(item.key)}
+                        className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition-colors ${statusFilter === item.key ? 'border-[#549E9E]/40 bg-[#549E9E]/5' : 'border-slate-100 hover:border-[#549E9E]/25'}`}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                          <span className="truncate text-xs font-black text-slate-700">{item.name}</span>
+                        </span>
+                        <span className="shrink-0 text-xs font-black tabular-nums text-slate-900">
+                          {item.value} <span className="text-slate-400">({item.percent}%)</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-600">
+                      {t('reports_next.test_register.report_send_overview')}
+                    </h4>
+                    <p className="mt-1 text-[11px] font-semibold text-slate-400">
+                      {t('reports_next.test_register.active_tests_count', { count: overview.activeTests })}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReportSendFilter('ALL')}
+                    className={`self-start rounded-lg border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider transition-colors ${reportSendFilter === 'ALL' ? 'border-[#549E9E]/30 bg-[#549E9E]/10 text-[#2d8789]' : 'border-slate-200 text-slate-400 hover:border-[#549E9E]/30 hover:text-[#2d8789]'}`}
+                  >
+                    {t('reports_next.test_register.all_reports')}
+                  </button>
+                </div>
+                <div className="mt-5 overflow-hidden rounded-full bg-slate-100">
+                  <div className="flex h-4">
+                    {overview.reportSend.map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setReportSendFilter(item.key)}
+                        title={`${item.name}: ${item.value} (${item.percent}%)`}
+                        className="min-w-0 transition-opacity hover:opacity-80"
+                        style={{
+                          width: `${overview.activeTests > 0 ? item.percent : 0}%`,
+                          backgroundColor: item.color,
+                        }}
+                        aria-label={`${item.name}: ${item.value} (${item.percent}%)`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  {overview.reportSend.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setReportSendFilter(item.key)}
+                      className={`rounded-xl border px-3 py-3 text-left transition-colors ${reportSendFilter === item.key ? 'border-[#549E9E]/40 bg-[#549E9E]/5' : 'border-slate-100 hover:border-[#549E9E]/25'}`}
+                    >
+                      <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                        {item.name}
+                      </span>
+                      <span className="mt-2 block text-xl font-black tabular-nums text-slate-900">
+                        {item.value}
+                        <span className="ml-1 text-sm text-slate-400">({item.percent}%)</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
               <div className="flex flex-col gap-3 border-b border-gray-50 p-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
@@ -559,6 +760,17 @@ export default function TestRegisterPage() {
                     <option value="REPORT_PENDING">{t('reports_next.test_register.status_report_pending')}</option>
                     <option value="REVIEWED">{t('reports_next.test_register.status_reviewed')}</option>
                     <option value="REMOVED">{t('reports_next.test_register.status_removed')}</option>
+                  </select>
+                  <select
+                    value={reportSendFilter}
+                    onChange={(event) => setReportSendFilter(event.target.value as ReportSendFilter)}
+                    className="cursor-pointer rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs font-bold text-slate-600 outline-none focus:border-[#549E9E]"
+                    aria-label={t('reports_next.test_register.filter_report_send')}
+                  >
+                    <option value="ALL">{t('reports_next.test_register.all_reports')}</option>
+                    <option value="SENT">{t('reports_next.test_register.report_sent')}</option>
+                    <option value="NOT_SENT">{t('reports_next.test_register.report_not_sent')}</option>
+                    <option value="UNMARKED">{t('reports_next.test_register.report_send_pending')}</option>
                   </select>
                   <select
                     value={testFilter}

@@ -40,6 +40,11 @@ import { useCoalescedCallback } from "../../hooks/useCoalescedCallback";
 import { dedupedFetch } from "../../utils/dedupedFetch";
 import TokenLayoutManager from "./TokenLayoutManager";
 import PrescriptionPrint from "../PrescriptionPrint";
+import InvestigationRows, {
+  normalizeInvestigationRows,
+  toInvestigationPayload,
+  type InvestigationEntry,
+} from "./InvestigationRows";
 import BillingDiscountEditor, {
   discountTotal,
   makeDiscountDrafts,
@@ -192,6 +197,8 @@ export default function ReceptionistPortal() {
   // Payment Modal State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [paymentAppointment, setPaymentAppointment] = useState<any | null>(null);
+  const [paymentFollowUpOverride, setPaymentFollowUpOverride] = useState<any | null>(null);
   const [paymentData, setPaymentData] = useState({
     payment_mode: "CASH",
     amount: "",
@@ -265,6 +272,7 @@ export default function ReceptionistPortal() {
   const [extDisease, setExtDisease] = useState("");
   const [extFollowUp, setExtFollowUp] = useState("");
   const [extDifferentialDiagnosis, setExtDifferentialDiagnosis] = useState("");
+  const [extInvestigations, setExtInvestigations] = useState<InvestigationEntry[]>([]);
 
   const openExtendedHistoryModal = (appointment: any) => {
     setHistoryAppointment(appointment);
@@ -281,6 +289,7 @@ export default function ReceptionistPortal() {
     setExtDisease(appointment?.disease || "");
     setExtFollowUp(appointment?.follow_up || "");
     setExtDifferentialDiagnosis(appointment?.differential_diagnosis || "");
+    setExtInvestigations(normalizeInvestigationRows(appointment?.investigations));
 
     const rawO2 = String(appointment?.oxygen_saturation || "").trim();
     const rawBp = String(appointment?.blood_pressure || "").trim();
@@ -348,6 +357,7 @@ export default function ReceptionistPortal() {
             disease: extDisease.trim(),
             follow_up: extFollowUp.trim(),
             differential_diagnosis: extDifferentialDiagnosis.trim(),
+            investigations: toInvestigationPayload(extInvestigations),
           }),
         },
       );
@@ -661,14 +671,21 @@ export default function ReceptionistPortal() {
     };
   }, [token, appointments, dateStr, selectedBranchId]);
 
-  const isFollowUpAutoPaidAppointment = (appointment: any) =>
-    appointment?.consultation_payment_status === "PAID" &&
-    appointment?.consultation_payment_settlement_type === "FOLLOW_UP";
-
-  const openConsultationPaymentModal = (appointment: any, amount?: number) => {
+  const openConsultationPaymentModal = (
+    appointment: any,
+    amount?: number,
+    followUpOverride?: any,
+  ) => {
     setApprovingId(Number(appointment.appointment_id));
+    setPaymentAppointment(appointment);
+    setPaymentFollowUpOverride(followUpOverride || null);
+    const followUpHint = followUpOverride || appointment?.follow_up_payment_hint;
+    const isFollowUp = Boolean(followUpHint?.is_follow_up);
+    const suggestedAmount = isFollowUp && !followUpHint?.should_charge_fee
+      ? 0
+      : Number(appointment?.consultation_fee);
     const resolvedAmount =
-      amount !== undefined ? Number(amount) : Number(appointment?.consultation_fee);
+      amount !== undefined ? Number(amount) : suggestedAmount;
     const gross = Number.isFinite(resolvedAmount) && resolvedAmount > 0 ? resolvedAmount : 0;
     setConsultationGross(gross);
     setConsultationDiscounts(makeDiscountDrafts(["CONSULTATION"]));
@@ -689,42 +706,6 @@ export default function ReceptionistPortal() {
       (item: any) => Number(item.appointment_id) === Number(id),
     );
     setApprovingId(id);
-
-    if (isFollowUpAutoPaidAppointment(appointment)) {
-      setIsApproving(true);
-      try {
-        const res = await fetch(
-          `/api/v1/receptionist/appointments/${id}/approve-and-collect-payment`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({}),
-          },
-        );
-        const data = await res.json();
-        if (data.success) {
-          addToast(
-            data.message || "Follow-up appointment approved successfully",
-            "success",
-          );
-          setCheckInPromptAppointmentId(id);
-          setIsCheckInPromptOpen(true);
-          fetchAppointments();
-        } else {
-          addToast(data.message || "Failed to approve", "error");
-        }
-      } catch (err) {
-        console.error(err);
-        addToast("Failed to approve", "error");
-      } finally {
-        setIsApproving(false);
-        setApprovingId(null);
-      }
-      return;
-    }
 
     openConsultationPaymentModal(appointment);
   };
@@ -769,6 +750,15 @@ export default function ReceptionistPortal() {
           Number.isFinite(Number(data.data?.amount)) && Number(data.data?.amount) > 0
             ? Number(data.data?.amount)
             : undefined,
+          {
+            ...(appointment?.follow_up_payment_hint || {}),
+            is_follow_up: true,
+            should_charge_fee: true,
+            days_difference: data.data?.days_difference ?? appointment?.follow_up_payment_hint?.days_difference ?? null,
+            free_days: data.data?.free_days ?? appointment?.follow_up_payment_hint?.free_days ?? null,
+            branch_free_days: data.data?.free_days ?? appointment?.follow_up_payment_hint?.branch_free_days ?? null,
+            suggested_amount: data.data?.amount ?? appointment?.consultation_fee ?? 0,
+          },
         );
         addToast(data.message || "Consultation payment is required before check-in", "warning");
         fetchAppointments();
@@ -797,6 +787,21 @@ export default function ReceptionistPortal() {
     Math.abs(paymentAmountValue - consultationNetPayable) < 0.005 &&
     (paymentAmountValue <= 0 || paymentData.payment_mode !== "ONLINE" ||
       Boolean(paymentData.transaction_reference.trim()));
+  const paymentFollowUpHint = paymentFollowUpOverride || paymentAppointment?.follow_up_payment_hint || null;
+  const isPaymentForFollowUp = Boolean(paymentFollowUpHint?.is_follow_up);
+  const formatPaymentHintDate = (value?: string | null) => {
+    if (!value) return "—";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime())
+      ? String(value).slice(0, 10)
+      : parsed.toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" });
+  };
+  const paymentHintDaysLabel = paymentFollowUpHint?.days_difference ?? (
+    paymentFollowUpHint?.last_completed_at ? "—" : "No visit"
+  );
+  const paymentHintVisitLabel = paymentFollowUpHint?.last_completed_at
+    ? formatPaymentHintDate(paymentFollowUpHint.last_completed_at)
+    : "No previous completed visit found";
 
   const confirmPayment = async () => {
     if (!approvingId) return;
@@ -846,6 +851,8 @@ export default function ReceptionistPortal() {
           "success",
         );
         setIsPaymentModalOpen(false);
+        setPaymentAppointment(null);
+        setPaymentFollowUpOverride(null);
         setCheckInPromptAppointmentId(approvingId);
         setIsCheckInPromptOpen(true);
         fetchAppointments();
@@ -1145,6 +1152,18 @@ export default function ReceptionistPortal() {
     app.reception_status === "APPROVED_BY_RECEPTION" &&
     app.consultation_payment_status === "PAID" &&
     ["BOOKED", "WAITING"].includes(app.queue_status);
+
+  const isApprovedByReception = (app: any) =>
+    app.reception_status === "APPROVED_BY_RECEPTION" &&
+    !["Cancelled", "Completed"].includes(app.status);
+
+  const appointmentRowClass = (app: any) => {
+    if (isApprovedByReception(app)) {
+      return "border-l-[3px] border-[#549E9E]/40 bg-[#549E9E]/10 hover:bg-[#549E9E]/15";
+    }
+    if (app.is_shifted) return "bg-orange-50/30 hover:bg-orange-50/50";
+    return "hover:bg-[#549E9E]/5";
+  };
 
   const openPrescriptionPreview = async (consultationId?: number | string | null) => {
     if (!token || !consultationId) return;
@@ -1597,7 +1616,7 @@ export default function ReceptionistPortal() {
           </div>
           <div className="bg-white border border-gray-100 shadow-sm rounded-xl sm:rounded-none overflow-hidden">
             {/* === MOBILE CARD VIEW === */}
-            <div className="sm:hidden divide-y divide-gray-100">
+            <div className="sm:hidden">
               {isLoadingAppointments && appointments.length === 0 ? (
                 <div className="p-8 text-center text-gray-400">Loading...</div>
               ) : filteredAppointments.length === 0 ? (
@@ -1608,7 +1627,7 @@ export default function ReceptionistPortal() {
                   .map((app) => (
                     <div
                       key={app.appointment_id}
-                      className={`p-4 ${app.is_shifted ? "bg-orange-50/30" : ""}`}
+                      className={`p-4 transition-colors ${appointmentRowClass(app)}`}
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-gray-50 rounded-lg">
@@ -1757,7 +1776,7 @@ export default function ReceptionistPortal() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody>
                   {isLoadingAppointments && appointments.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-8 text-center text-gray-400">
@@ -1782,7 +1801,7 @@ export default function ReceptionistPortal() {
                       .map((app) => (
                         <tr
                           key={app.appointment_id}
-                          className={`hover:bg-[#549E9E]/5 transition-colors ${app.is_shifted ? "bg-orange-50/30" : ""}`}
+                          className={`transition-colors ${appointmentRowClass(app)}`}
                         >
                           <td className="px-5 py-4">
                             <div className="flex flex-col">
@@ -2639,6 +2658,12 @@ export default function ReceptionistPortal() {
                           </div>
                         </div>
 
+                        <InvestigationRows
+                          value={extInvestigations}
+                          onChange={setExtInvestigations}
+                          disabled={isSavingHistory}
+                        />
+
                         {/* Diagnosis & Follow Up */}
                         <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
                           <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
@@ -3058,7 +3083,7 @@ export default function ReceptionistPortal() {
                       initial={{ scale: 0.9, opacity: 0, y: 20 }}
                       animate={{ scale: 1, opacity: 1, y: 0 }}
                       exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                      className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl overflow-hidden p-8"
+                      className="relative max-h-[90vh] w-full max-w-md overflow-y-auto bg-white rounded-[40px] shadow-2xl p-8"
                     >
                       <div className="text-center mb-6">
                         <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -3131,7 +3156,12 @@ export default function ReceptionistPortal() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      onClick={() => !isApproving && setIsPaymentModalOpen(false)}
+                      onClick={() => {
+                        if (isApproving) return;
+                        setIsPaymentModalOpen(false);
+                        setPaymentAppointment(null);
+                        setPaymentFollowUpOverride(null);
+                      }}
                       className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
                     />
                     <motion.div
@@ -3153,6 +3183,49 @@ export default function ReceptionistPortal() {
                       </div>
 
                       <div className="space-y-4">
+                        {isPaymentForFollowUp && (
+                          <div className={`rounded-2xl border px-4 py-3 ${paymentFollowUpHint?.should_charge_fee ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest">
+                                  Follow-up payment check
+                                </p>
+                                <p className="mt-1 text-xs font-bold leading-relaxed">
+                                  {paymentFollowUpHint?.should_charge_fee
+                                    ? "Free follow-up limit cross ho chuki hai. Amount collect karna ho to yahi se collect karein."
+                                    : "Free follow-up limit ke andar hai. Amount 0 reh sakta hai, ya reception amount enter kar sakta hai."}
+                                </p>
+                              </div>
+                              <span className="shrink-0 rounded-lg bg-white/70 px-2 py-1 text-[10px] font-black uppercase tracking-widest">
+                                {paymentFollowUpHint?.should_charge_fee ? "Chargeable" : "Free"}
+                              </span>
+                            </div>
+                            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                              <div className="rounded-xl bg-white/65 px-2 py-2">
+                                <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Days</p>
+                                <p className="mt-0.5 text-sm font-black">
+                                  {paymentHintDaysLabel}
+                                </p>
+                              </div>
+                              <div className="rounded-xl bg-white/65 px-2 py-2">
+                                <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Free days</p>
+                                <p className="mt-0.5 text-sm font-black">
+                                  {paymentFollowUpHint?.free_days ?? paymentFollowUpHint?.branch_free_days ?? "—"}
+                                </p>
+                              </div>
+                              <div className="rounded-xl bg-white/65 px-2 py-2">
+                                <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Branch</p>
+                                <p className="mt-0.5 truncate text-[11px] font-black">
+                                  {paymentFollowUpHint?.branch_name || paymentAppointment?.branch_name || "—"}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="mt-2 text-[10px] font-bold opacity-75">
+                              Last visit basis: {paymentHintVisitLabel}
+                            </p>
+                          </div>
+                        )}
+
                         <BillingDiscountEditor
                           discounts={consultationDiscounts}
                           grossByCategory={{ CONSULTATION: consultationGross }}
@@ -3266,7 +3339,11 @@ export default function ReceptionistPortal() {
 
                         <div className="flex gap-4 pt-4">
                           <button
-                            onClick={() => setIsPaymentModalOpen(false)}
+                            onClick={() => {
+                              setIsPaymentModalOpen(false);
+                              setPaymentAppointment(null);
+                              setPaymentFollowUpOverride(null);
+                            }}
                             disabled={isApproving}
                             className="flex-1 py-4 px-6 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-100 transition-colors"
                           >

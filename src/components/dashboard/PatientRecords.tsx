@@ -209,6 +209,7 @@ export default function PatientRecords() {
   const location = useLocation();
   const savedRecordsView = readViewState<{
     patientSearch: string;
+    registrationSearch?: string;
     patientPage: number;
     sortBy?: RegistrySortField;
     sortOrder?: 'asc' | 'desc';
@@ -216,12 +217,15 @@ export default function PatientRecords() {
   const routedSearch = String(
     searchParams.get("search") || (location.state as { patientSearch?: string } | null)?.patientSearch || "",
   ).trim();
+  const routedRegistrationSearch = String(searchParams.get("reg_no") || searchParams.get("registration_no") || "").trim();
   const incomingSearch = routedSearch || savedRecordsView?.patientSearch || "";
+  const incomingRegistrationSearch = routedRegistrationSearch || savedRecordsView?.registrationSearch || "";
   const incomingPatientId = String(searchParams.get("patient_id") || (location.state as { patientId?: string | number } | null)?.patientId || "").trim();
   const [patients, setPatients] = useState<PatientRegistryRow[]>([]);
   const [patientSearch, setPatientSearch] = useState(incomingSearch);
+  const [registrationSearch, setRegistrationSearch] = useState(incomingRegistrationSearch);
   const [patientPage, setPatientPage] = useState(() => (
-    !savedRecordsView?.sortBy || searchParams.get("search") || (location.state as { patientSearch?: string } | null)?.patientSearch
+    !savedRecordsView?.sortBy || searchParams.get("search") || searchParams.get("reg_no") || searchParams.get("registration_no") || (location.state as { patientSearch?: string } | null)?.patientSearch
       ? 1
       : Number(savedRecordsView?.patientPage || 1)
   ));
@@ -229,7 +233,7 @@ export default function PatientRecords() {
     savedRecordsView?.sortBy && REGISTRY_SORT_FIELDS.includes(savedRecordsView.sortBy) ? savedRecordsView.sortBy : 'patient_id',
   );
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(savedRecordsView?.sortOrder === 'desc' ? 'desc' : 'asc');
-  usePersistViewState("patient-records", { patientSearch, patientPage, sortBy, sortOrder });
+  usePersistViewState("patient-records", { patientSearch, registrationSearch, patientPage, sortBy, sortOrder });
   const registryRequest = useRef<AbortController | null>(null);
   const changeRegistrySort = (field: RegistrySortField) => {
     setSortOrder(sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc');
@@ -288,6 +292,7 @@ export default function PatientRecords() {
     try {
       const params = new URLSearchParams();
       if (patientSearch.trim()) params.set("patient_search", patientSearch.trim());
+      if (registrationSearch.trim()) params.set("registration_no", registrationSearch.trim());
       params.set("page", String(pageNum));
       params.set("page_size", String(PAGE_SIZE));
       params.set("sort_by", sortBy);
@@ -312,7 +317,7 @@ export default function PatientRecords() {
     } finally {
       if (!controller.signal.aborted) setIsRegistryLoading(false);
     }
-  }, [token, patientSearch, patientPage, sortBy, sortOrder]);
+  }, [token, patientSearch, registrationSearch, patientPage, sortBy, sortOrder]);
 
   const fetchPatientDetail = async (patient: PatientRegistryRow) => {
     if (!token) return;
@@ -386,16 +391,18 @@ export default function PatientRecords() {
 
   useEffect(() => {
     const nextSearch = String(searchParams.get("search") || "").trim();
-    const queryKey = `${nextSearch}|${searchParams.get("patient_id") || ""}`;
+    const nextRegistrationSearch = String(searchParams.get("reg_no") || searchParams.get("registration_no") || "").trim();
+    const queryKey = `${nextSearch}|${nextRegistrationSearch}|${searchParams.get("patient_id") || ""}`;
     if (!queryKey.replace("|", "") || queryKey === lastIncomingQuery.current) return;
     lastIncomingQuery.current = queryKey;
     openedFromQuery.current = false;
     if (nextSearch) { setPatientSearch(nextSearch); setPatientPage(1); }
+    if (nextRegistrationSearch) { setRegistrationSearch(nextRegistrationSearch); setPatientPage(1); }
   }, [searchParams]);
 
   useEffect(() => {
     if (openedFromQuery.current || isRegistryLoading || selectedPatient) return;
-    if (!routedSearch && !incomingPatientId) return;
+    if (!routedSearch && !routedRegistrationSearch && !incomingPatientId) return;
     const match = incomingPatientId
       ? patients.find((row) => String(row.patient_id) === incomingPatientId)
       : patients.length === 1
@@ -404,7 +411,7 @@ export default function PatientRecords() {
     if (!match) return;
     openedFromQuery.current = true;
     void fetchPatientDetail(match);
-  }, [patients, isRegistryLoading, selectedPatient, routedSearch, incomingPatientId]);
+  }, [patients, isRegistryLoading, selectedPatient, routedSearch, routedRegistrationSearch, incomingPatientId]);
 
   useEffect(() => {
     if (selectedPatient) fetchHistory(historyPage);
@@ -594,20 +601,31 @@ export default function PatientRecords() {
         </div>
       </div>
 
-      <div className="border border-gray-200 bg-white p-6 rounded-xl shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-        <div className="relative group flex-1">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E]" size={22} />
+      <div className="border border-gray-200 bg-white p-6 rounded-xl shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
+        <label className="relative group flex-1">
+          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">{t('patient_records.search_label', 'Common Search')}</span>
+          <Search className="absolute left-5 top-[calc(50%+10px)] -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E]" size={22} />
           <input
             value={patientSearch}
             onChange={(event) => { setPatientSearch(event.target.value); setPatientPage(1); }}
-            placeholder={t('patient_records.search_placeholder', 'Search primary patient, mobile, patient ID, family member, AUID...')}
+            placeholder={t('patient_records.search_placeholder', 'Search patient, mobile, family member, AUID or bill number...')}
             className="w-full border-2 border-gray-50 bg-white py-4 pl-14 pr-6 text-sm font-bold text-gray-600 outline-none transition-all placeholder:text-gray-300 focus:border-[#549E9E]/20 rounded-xl"
           />
-        </div>
+        </label>
+        <label className="relative group lg:w-64">
+          <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">{t('patient_records.registration_search_label', 'Reg No')}</span>
+          <Search className="absolute left-4 top-[calc(50%+10px)] -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E]" size={18} />
+          <input
+            value={registrationSearch}
+            onChange={(event) => { setRegistrationSearch(event.target.value); setPatientPage(1); }}
+            placeholder={t('patient_records.registration_search_placeholder', 'Search Reg No...')}
+            className="w-full border-2 border-gray-50 bg-white py-4 pl-11 pr-4 text-sm font-bold text-gray-600 outline-none transition-all placeholder:text-gray-300 focus:border-[#549E9E]/20 rounded-xl"
+          />
+        </label>
         <button
           type="button"
           onClick={() => fetchPatients(patientPage)}
-          className="inline-flex items-center justify-center gap-3 border-2 border-[#549E9E]/10 bg-[#549E9E]/10 px-6 py-4 text-xs font-black uppercase tracking-widest text-[#549E9E] transition-all hover:bg-[#549E9E] hover:text-white shrink-0 cursor-pointer rounded-xl active:scale-95"
+          className="inline-flex items-center justify-center gap-3 border-2 border-[#549E9E]/10 bg-[#549E9E]/10 px-6 py-4 text-xs font-black uppercase tracking-widest text-[#549E9E] transition-all hover:bg-[#549E9E] hover:text-white shrink-0 cursor-pointer rounded-xl active:scale-95 lg:mt-5"
         >
           <RefreshCcw size={16} className={isRegistryLoading ? "animate-spin" : ""} />
           {t('patient_records.refresh', 'Refresh')}

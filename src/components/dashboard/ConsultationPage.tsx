@@ -28,6 +28,12 @@ import {
   Copy,
 } from "lucide-react";
 import PatientDetailsEditModal from "./PatientDetailsEditModal";
+import InvestigationRows, {
+  hasInvestigationContent,
+  normalizeInvestigationRows,
+  toInvestigationPayload,
+  type InvestigationEntry,
+} from "./InvestigationRows";
 import AppointmentTokenBadge from "../AppointmentTokenBadge";
 import AllVisitsPrint from "../AllVisitsPrint";
 import { loadPrescriptionTimeline } from "../../utils/prescriptionTimeline";
@@ -879,6 +885,9 @@ export default function ConsultationPage() {
     app?.mental_mind_status || "",
   );
   const [disease, setDisease] = useState<string>(app?.disease || "");
+  const [investigations, setInvestigations] = useState<InvestigationEntry[]>(
+    normalizeInvestigationRows(app?.investigations),
+  );
 
   const [isPatientEditOpen, setIsPatientEditOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1134,6 +1143,13 @@ export default function ConsultationPage() {
             setFollowUp((prev) => prev || result.data.follow_up || "");
             setDisease((prev) => prev || result.data.disease || "");
             setMentalMindStatus((prev) => prev || result.data.mental_mind_status || "");
+            if (Array.isArray(result.data.investigations)) {
+              setInvestigations((prev) =>
+                prev.some(hasInvestigationContent)
+                  ? prev
+                  : normalizeInvestigationRows(result.data.investigations),
+              );
+            }
           }
         }
       } catch (err) {
@@ -1235,6 +1251,7 @@ export default function ConsultationPage() {
           if (c.differential_diagnosis) setDifferentialDiagnosis(c.differential_diagnosis);
           if (c.disease) setDisease(c.disease);
           if (c.mental_mind_status) setMentalMindStatus(c.mental_mind_status);
+          setInvestigations(normalizeInvestigationRows(c.investigations));
           setQuickNumericInput(c.quick_formula_input || "");
           setUniversalRemark(c.universal_remark || "");
           setLastAppliedQuickFormulaVersion(
@@ -1506,6 +1523,7 @@ export default function ConsultationPage() {
       setFollowUp(draft.followUp || "");
       setMentalMindStatus(draft.mentalMindStatus || "");
       setDisease(draft.disease || "");
+      setInvestigations(normalizeInvestigationRows(draft.investigations));
       setFollowUpChainClosed(Boolean(draft.followUpChainClosed));
     }
 
@@ -1580,6 +1598,7 @@ export default function ConsultationPage() {
       followUp,
       mentalMindStatus,
       disease,
+      investigations,
       followUpChainClosed,
     };
 
@@ -1641,6 +1660,7 @@ export default function ConsultationPage() {
     followUp,
     mentalMindStatus,
     disease,
+    investigations,
     followUpChainClosed,
   ]);
 
@@ -2878,12 +2898,26 @@ export default function ConsultationPage() {
       const finalSymptoms = chiefComplaints.trim();
       const finalDiagnosis = diagnosis.trim() || null;
       const finalTreatmentAdvice = treatmentNotes.trim() || null;
+      const formattedInvestigations = toInvestigationPayload(investigations);
       const hasMeaningfulNoPrescriptionData = Boolean(
         finalSymptoms ||
         finalDiagnosis ||
         finalTreatmentAdvice ||
         formattedMedications.length > 0 ||
         formattedTests.length > 0 ||
+        formattedInvestigations.length > 0 ||
+        occupation.trim() ||
+        historyPresentIllness.trim() ||
+        historyPastIllness.trim() ||
+        familyHistory.trim() ||
+        allergiesHistory.trim() ||
+        gynecologicalHistory.trim() ||
+        personalSocialHistory.trim() ||
+        generalExamination.trim() ||
+        systematicExamination.trim() ||
+        differentialDiagnosis.trim() ||
+        disease.trim() ||
+        mentalMindStatus.trim() ||
         universalRemark.trim(),
       );
 
@@ -2936,6 +2970,18 @@ export default function ConsultationPage() {
             : heightValue
           : "",
         patient_weight: weightValue ? `${weightValue} kg` : "",
+        occupation: occupation.trim() || null,
+        history_present_illness: historyPresentIllness.trim() || null,
+        history_past_illness: historyPastIllness.trim() || null,
+        family_history: familyHistory.trim() || null,
+        allergies_history: allergiesHistory.trim() || null,
+        gynecological_history: gynecologicalHistory.trim() || null,
+        personal_social_history: personalSocialHistory.trim() || null,
+        general_examination: generalExamination.trim() || null,
+        systematic_examination: systematicExamination.trim() || null,
+        differential_diagnosis: differentialDiagnosis.trim() || null,
+        disease: disease.trim() || null,
+        mental_mind_status: mentalMindStatus.trim() || null,
         formula_set_id:
           lastAppliedQuickFormulaSetId || formulaSnapshot?.set_id || null,
         formula_version_used:
@@ -2943,6 +2989,7 @@ export default function ConsultationPage() {
         quick_formula_input: quickNumericInput.trim() || null,
         universal_remark: universalRemark.trim() || null,
         universal_remark_hi: translateRemarkToHindi(universalRemark).trim() || null,
+        investigations: formattedInvestigations,
         total_amount: Number(totalAmount),
         medications: formattedMedications,
         tests: formattedTests,
@@ -4655,6 +4702,12 @@ export default function ConsultationPage() {
                         </div>
                       </div>
                     </div>
+
+                    <InvestigationRows
+                      value={investigations}
+                      onChange={setInvestigations}
+                      disabled={isReadOnly}
+                    />
 
                     {/* Diagnosis & Follow Up */}
                     <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
