@@ -21,7 +21,7 @@ import { useReportWindow } from '../useReportWindow';
 export default function AppointmentsPage() {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
-  const { token } = useAuth();
+  const { token, branchScope } = useAuth();
   const [tab, setTab] = useState<'status' | 'came'>('status');
   const { dateFilter, setDateFilter } = useReportWindow('1_week');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
@@ -45,8 +45,14 @@ export default function AppointmentsPage() {
     prevFrom.setDate(prevTo.getDate() - days);
     try {
       const [current, previous] = await Promise.all([
-        fetchReportModule(token, 'appointments', range.from, range.to, { force }),
-        fetchReportModule(token, 'appointments', prevFrom.toISOString().slice(0, 10), prevTo.toISOString().slice(0, 10), { force }),
+        fetchReportModule(token, 'appointments', range.from, range.to, {
+          force,
+          branchId: branchScope?.selected_branch_id || undefined,
+        }),
+        fetchReportModule(token, 'appointments', prevFrom.toISOString().slice(0, 10), prevTo.toISOString().slice(0, 10), {
+          force,
+          branchId: branchScope?.selected_branch_id || undefined,
+        }),
       ]);
       setData(current);
       setPrevData(previous);
@@ -55,7 +61,7 @@ export default function AppointmentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, dateFilter, customDateRange, tab, t]);
+  }, [token, branchScope?.selected_branch_id, dateFilter, customDateRange, tab, t]);
 
   useEffect(() => {
     void load(false);

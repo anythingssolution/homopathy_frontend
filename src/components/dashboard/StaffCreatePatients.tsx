@@ -3,6 +3,7 @@ import {
   Check,
   ChevronDown,
   KeyRound,
+  Calendar,
   Loader2,
   Phone,
   Plus,
@@ -16,12 +17,15 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../Pagination';
 import CustomDatePicker from '../CustomDatePicker';
+import { calculateAgeYearsFromDob, formatAgeValue } from '../../utils/ageDisplay';
 
 type StaffPatient = {
   patient_id: number;
   patient_uuid: string;
   full_name: string;
   age: number;
+  date_of_birth?: string | null;
+  age_display?: string | null;
   gender: string;
   mobile_no: string;
   created_at: string;
@@ -173,6 +177,7 @@ export default function StaffCreatePatients() {
     full_name: '',
     mobile_no: '',
     age: '',
+    date_of_birth: '',
     gender: 'other',
     email: '', address: '', ward_no: '', vidhan_sabha: '', pincode: '', city: '',
   });
@@ -348,7 +353,7 @@ export default function StaffCreatePatients() {
       return;
     }
 
-    const age = Number(form.age);
+    const age = form.date_of_birth ? calculateAgeYearsFromDob(form.date_of_birth) : Number(form.age);
     if (!form.full_name.trim()) {
       setFormError(t('staff_patients.error_name'));
       return;
@@ -357,7 +362,7 @@ export default function StaffCreatePatients() {
       setFormError(t('staff_patients.error_mobile'));
       return;
     }
-    if (!Number.isInteger(age) || age < 1 || age > 120) {
+    if (age === null || !Number.isInteger(age) || age < 0 || age > 120 || (!form.date_of_birth && age < 1)) {
       setFormError(t('staff_patients.error_age'));
       return;
     }
@@ -378,6 +383,7 @@ export default function StaffCreatePatients() {
           full_name: form.full_name.trim(),
           mobile_no: form.mobile_no.trim(),
           age,
+          date_of_birth: form.date_of_birth || null,
           gender: form.gender,
           email: form.email.trim(),
           address: form.address.trim(),
@@ -400,7 +406,7 @@ export default function StaffCreatePatients() {
           ? t('staff_patients.success_create_id', { id: createdUuid })
           : t('staff_patients.success_create'),
       );
-      setForm({ full_name: '', mobile_no: '', age: '', gender: 'other', email: '', address: '', ward_no: '', vidhan_sabha: '', pincode: '', city: '' });
+      setForm({ full_name: '', mobile_no: '', age: '', date_of_birth: '', gender: 'other', email: '', address: '', ward_no: '', vidhan_sabha: '', pincode: '', city: '' });
       resetMobileVerification();
       setCreatedFrom(todayIsoDate());
       setCreatedTo(todayIsoDate());
@@ -468,7 +474,7 @@ export default function StaffCreatePatients() {
                   <button
                     type="button"
                     onClick={() => {
-                      setForm((current) => ({ ...current, full_name: '', age: '', gender: 'other', email: '', address: '', ward_no: '', vidhan_sabha: '', pincode: '', city: '' }));
+                      setForm((current) => ({ ...current, full_name: '', age: '', date_of_birth: '', gender: 'other', email: '', address: '', ward_no: '', vidhan_sabha: '', pincode: '', city: '' }));
                       resetMobileVerification();
                     }}
                     className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 px-4 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:border-[#549E9E]"
@@ -549,10 +555,35 @@ export default function StaffCreatePatients() {
                       setForm((current) => ({ ...current, age: event.target.value.replace(/\D/g, '') }))
                     }
                     inputMode="numeric"
+                    min={form.date_of_birth ? 0 : 1}
+                    max={120}
                     disabled={!mobileVerified}
                     className="h-11 w-full rounded-xl border border-slate-200 px-4 text-sm font-semibold outline-none focus:border-[#549E9E] disabled:bg-slate-50"
                     placeholder="18"
                   />
+                </div>
+                <div>
+                  <label className="mb-2 block h-4 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+                    Date of Birth
+                  </label>
+                  <div className="relative">
+                    <Calendar size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                    <input
+                      type="date"
+                      max={new Date().toISOString().slice(0, 10)}
+                      value={form.date_of_birth}
+                      onChange={(event) => {
+                        const calculated = calculateAgeYearsFromDob(event.target.value);
+                        setForm((current) => ({
+                          ...current,
+                          date_of_birth: event.target.value,
+                          age: calculated === null ? current.age : String(calculated),
+                        }));
+                      }}
+                      disabled={!mobileVerified}
+                      className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-4 text-sm font-semibold outline-none focus:border-[#549E9E] disabled:bg-slate-50"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="mb-2 block h-4 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
@@ -722,7 +753,7 @@ export default function StaffCreatePatients() {
                       <td className="px-6 py-5 text-sm font-bold text-slate-700">{patient.patient_uuid}</td>
                       <td className="px-6 py-5 text-sm font-bold text-slate-700">{patient.mobile_no}</td>
                       <td className="px-6 py-5 text-sm font-bold capitalize text-slate-700">
-                        {patient.gender} / {patient.age}
+                        {patient.gender} / {formatAgeValue(patient.age, patient.age_display, patient.date_of_birth, i18n.language)}
                       </td>
                       <td className="px-6 py-5">
                         <p className="text-sm font-bold text-slate-800">

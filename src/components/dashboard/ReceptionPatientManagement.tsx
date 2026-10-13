@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronUp,
   History,
+  KeyRound,
   Loader2,
   Pencil,
   RefreshCcw,
@@ -11,16 +12,20 @@ import {
   UserRound,
   Users,
   X,
+  Calendar,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../Pagination';
+import { calculateAgeYearsFromDob, formatAgeValue } from '../../utils/ageDisplay';
 
 type FamilyMember = {
   family_member_id: number;
   fk_primary_patient_id?: number;
   full_name: string;
   age: number;
+  date_of_birth?: string | null;
+  age_display?: string | null;
   gender: 'male' | 'female' | 'other' | string;
   relationship: string;
   description?: string | null;
@@ -34,6 +39,8 @@ type Patient = {
   patient_uuid: string;
   full_name: string;
   age: number;
+  date_of_birth?: string | null;
+  age_display?: string | null;
   gender: 'male' | 'female' | 'other';
   mobile_no: string;
   area_name?: string | null;
@@ -59,6 +66,8 @@ type AuditEntry = {
 type EditTarget =
   | { type: 'SELF'; patient: Patient }
   | { type: 'FAMILY_MEMBER'; patient: Patient; member: FamilyMember };
+
+const DEFAULT_PATIENT_PASSWORD = 'DTH@2510';
 
 type ThemeSelectOption = {
   id: string;
@@ -167,7 +176,7 @@ const formatFieldName = (field: string) =>
 
 export default function ReceptionPatientManagement() {
   const { token } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState('');
   const [gender, setGender] = useState('');
@@ -183,6 +192,7 @@ export default function ReceptionPatientManagement() {
     mobile_no: '',
     gender: 'other',
     age: '',
+    date_of_birth: '',
     relationship: '',
     patient_uuid: '',
     area_name: '',
@@ -193,6 +203,8 @@ export default function ReceptionPatientManagement() {
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
   const [history, setHistory] = useState<AuditEntry[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [resetTarget, setResetTarget] = useState<Patient | null>(null);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [expandedPatientIds, setExpandedPatientIds] = useState<Set<number>>(new Set());
 
   const fetchPatients = useCallback(async () => {
@@ -262,6 +274,7 @@ export default function ReceptionPatientManagement() {
       mobile_no: patient.mobile_no,
       gender: patient.gender,
       age: String(patient.age || ''),
+      date_of_birth: patient.date_of_birth ? String(patient.date_of_birth).slice(0, 10) : '',
       relationship: '',
       patient_uuid: patient.patient_uuid || '',
       area_name: patient.area_name || '',
@@ -278,6 +291,7 @@ export default function ReceptionPatientManagement() {
       mobile_no: patient.mobile_no,
       gender: String(member.gender || 'other').toLowerCase(),
       age: String(member.age || ''),
+      date_of_birth: member.date_of_birth ? String(member.date_of_birth).slice(0, 10) : '',
       relationship: member.relationship || '',
       patient_uuid: '',
       area_name: '',
@@ -296,14 +310,15 @@ export default function ReceptionPatientManagement() {
 
     try {
       const isFamily = editTarget.type === 'FAMILY_MEMBER';
-      const parsedAge = Number(editForm.age);
-      if (!Number.isInteger(parsedAge) || parsedAge < 1 || parsedAge > 120) {
+      const parsedAge = editForm.date_of_birth ? calculateAgeYearsFromDob(editForm.date_of_birth) : Number(editForm.age);
+      if (parsedAge === null || !Number.isInteger(parsedAge) || parsedAge < 0 || parsedAge > 120 || (!editForm.date_of_birth && parsedAge < 1)) {
         throw new Error('Age must be between 1 and 120');
       }
       const payload: Record<string, string | number | null> = {
         full_name: editForm.full_name.trim(),
         gender: editForm.gender,
         age: parsedAge,
+        date_of_birth: editForm.date_of_birth || null,
       };
 
       if (isFamily) {
@@ -380,6 +395,35 @@ export default function ReceptionPatientManagement() {
       setError(historyError instanceof Error ? historyError.message : 'Unable to fetch update history');
     } finally {
       setIsHistoryLoading(false);
+    }
+  };
+
+  const resetPassword = async () => {
+    if (!resetTarget || !token) return;
+
+    setIsResettingPassword(true);
+    setError('');
+
+    try {
+      const response = await fetch(
+        `/api/v1/receptionist/patients/${resetTarget.patient_id}/reset-password`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Unable to reset patient password');
+      }
+
+      setResetTarget(null);
+      await fetchPatients();
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : 'Unable to reset patient password');
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -556,7 +600,7 @@ export default function ReceptionPatientManagement() {
                         </td>
                         <td className="px-6 py-5 text-sm font-bold text-slate-700">{patient.mobile_no}</td>
                         <td className="px-6 py-5 text-sm font-bold capitalize text-slate-700">
-                          {patient.gender} / {patient.age}
+                          {patient.gender} / {formatAgeValue(patient.age, patient.age_display, patient.date_of_birth, i18n.language)}
                         </td>
                         <td className="px-6 py-5 text-sm font-black text-slate-700">
                           {Number(patient.total_appointments || 0)}
@@ -589,6 +633,17 @@ export default function ReceptionPatientManagement() {
                             >
                               <History size={14} />
                               History
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setResetTarget(patient);
+                                setError('');
+                              }}
+                              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2 text-[10px] font-black uppercase tracking-wider text-amber-700 hover:border-amber-300 hover:bg-amber-100"
+                            >
+                              <KeyRound size={14} />
+                              Reset
                             </button>
                             <button
                               type="button"
@@ -633,7 +688,7 @@ export default function ReceptionPatientManagement() {
                               </span>
                             </td>
                             <td className="px-6 py-4 text-sm font-bold capitalize text-slate-700">
-                              {member.gender} / {member.age}
+                              {member.gender} / {formatAgeValue(member.age, member.age_display, member.date_of_birth, i18n.language)}
                             </td>
                             <td className="px-6 py-4 text-sm font-semibold text-slate-400">—</td>
                             <td className="px-6 py-4 text-sm font-semibold text-slate-400">—</td>
@@ -661,6 +716,68 @@ export default function ReceptionPatientManagement() {
 
         <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
       </section>
+
+      {resetTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-[28px] border border-white/20 bg-white p-6 shadow-2xl sm:p-8">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+                <KeyRound size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-600">
+                  Password Reset
+                </p>
+                <h2 className="mt-2 text-2xl font-black text-slate-900">
+                  Reset patient password?
+                </h2>
+                <p className="mt-2 text-sm font-semibold text-slate-500">
+                  {resetTarget.full_name} will be able to login with the default password below.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResetTarget(null)}
+                className="rounded-xl bg-slate-100 p-2 text-slate-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">
+                Default Password
+              </p>
+              <p className="mt-1 font-mono text-2xl font-black tracking-wide text-slate-900">
+                {DEFAULT_PATIENT_PASSWORD}
+              </p>
+              <p className="mt-2 text-xs font-semibold text-amber-800/80">
+                Share this only with the verified patient on call.
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setResetTarget(null)}
+                disabled={isResettingPassword}
+                className="h-12 rounded-2xl border border-slate-200 text-xs font-black uppercase tracking-wider text-slate-600 hover:border-slate-300 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void resetPassword()}
+                disabled={isResettingPassword}
+                className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-amber-500 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-amber-200/60 hover:bg-amber-600 disabled:opacity-60"
+              >
+                {isResettingPassword ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
+                Reset Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editTarget && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
@@ -837,7 +954,7 @@ export default function ReceptionPatientManagement() {
                   <input
                     required
                     inputMode="numeric"
-                    min={1}
+                    min={editForm.date_of_birth ? 0 : 1}
                     max={120}
                     value={editForm.age}
                     onChange={(event) =>
@@ -848,6 +965,29 @@ export default function ReceptionPatientManagement() {
                     }
                     className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
                   />
+                </label>
+
+                <label className="block">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    Date of Birth
+                  </span>
+                  <div className="relative">
+                    <Calendar size={16} className="absolute left-4 top-[26px] text-slate-300" />
+                    <input
+                      type="date"
+                      max={new Date().toISOString().slice(0, 10)}
+                      value={editForm.date_of_birth}
+                      onChange={(event) => {
+                        const calculated = calculateAgeYearsFromDob(event.target.value);
+                        setEditForm((current) => ({
+                          ...current,
+                          date_of_birth: event.target.value,
+                          age: calculated === null ? current.age : String(calculated),
+                        }));
+                      }}
+                      className="mt-2 h-12 w-full rounded-2xl border border-slate-200 pl-10 pr-4 font-bold outline-none focus:border-[#549E9E]"
+                    />
+                  </div>
                 </label>
 
               <label className="block">

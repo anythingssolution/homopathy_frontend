@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { User, Phone, Calendar, Mail, Shield, Edit2, X, Save, CheckCircle2, AlertCircle, MapPin, Lock, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { User, Phone, Calendar, Mail, Shield, Edit2, X, Save, MapPin, Lock, Eye, EyeOff, KeyRound, Camera, ImageUp } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useApi } from '../../hooks/useApi';
 import { useNotifications } from '../../context/NotificationContext';
+import { calculateAgeYearsFromDob } from '../../utils/ageDisplay';
 
 export default function Profile() {
   const { user, refreshProfile, isLoading } = useAuth();
@@ -13,11 +14,14 @@ export default function Profile() {
   const { addToast } = useNotifications();
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     age: '',
+    date_of_birth: '',
     gender: '',
     address: ''
   });
@@ -44,6 +48,7 @@ export default function Profile() {
         name: user.name || '',
         email: user.email || '',
         age: user.age?.toString() || '',
+        date_of_birth: user.date_of_birth ? String(user.date_of_birth).slice(0, 10) : '',
         gender: user.gender || '',
         address: user.address || ''
       });
@@ -60,7 +65,8 @@ export default function Profile() {
         body: {
           full_name: formData.name,
           email: formData.email,
-          age: parseInt(formData.age),
+          age: formData.date_of_birth ? calculateAgeYearsFromDob(formData.date_of_birth) : parseInt(formData.age),
+          date_of_birth: formData.date_of_birth || null,
           gender: formData.gender.toLowerCase(),
           address: formData.address
         }
@@ -123,6 +129,62 @@ export default function Profile() {
     }
   };
 
+  const handleProfileImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      addToast('Please select a valid image file', 'error');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    setIsUploadingImage(true);
+    try {
+      const result = await apiFetch('/api/v1/auth/me/profile-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (result?.success) {
+        addToast(t('profile.image_update_success', 'Profile image updated successfully!'), 'success');
+        await refreshProfile();
+      } else {
+        addToast(result?.message || 'Failed to update profile image', 'error');
+      }
+    } catch (error: any) {
+      console.error('Error uploading profile image:', error);
+      addToast(error?.message || 'A network error occurred. Please try again.', 'error');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleRemoveProfileImage = async () => {
+    if (!user?.profile_image_url) return;
+
+    setIsUploadingImage(true);
+    try {
+      const result = await apiFetch('/api/v1/auth/me/profile-image', {
+        method: 'DELETE',
+      });
+
+      if (result?.success) {
+        addToast(t('profile.image_remove_success', 'Profile image removed successfully!'), 'success');
+        await refreshProfile();
+      } else {
+        addToast(result?.message || 'Failed to remove profile image', 'error');
+      }
+    } catch (error: any) {
+      console.error('Error removing profile image:', error);
+      addToast(error?.message || 'A network error occurred. Please try again.', 'error');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   if (isLoading && !user) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -132,6 +194,7 @@ export default function Profile() {
   }
 
   const hasEmail = !!user?.email;
+  const isDoctor = user?.role_code === 'DOC' || String(user?.role || '').toLowerCase() === 'doctor' || String(user?.role || '').toLowerCase() === 'doc';
 
   const inputClass = (enabled: boolean) =>
     `w-full border rounded-xl h-11 pl-10 pr-3 text-sm transition-all outline-none font-medium ${
@@ -151,8 +214,53 @@ export default function Profile() {
         <div className="bg-gradient-to-br from-[#549E9E] via-[#549E9E] to-[#3D7474] px-5 py-4 md:px-6 md:py-5 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-24 -mt-24 blur-2xl" />
           <div className="flex flex-row items-center gap-4 relative z-10">
-            <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-primary-teal shadow-md border-2 border-white/50 shrink-0">
-              <User size={26} strokeWidth={1.5} />
+            <div className="relative shrink-0">
+              <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-primary-teal shadow-md border-2 border-white/50 overflow-hidden">
+                {user?.profile_image_url ? (
+                  <img
+                    src={user.profile_image_url}
+                    alt={user?.name || 'Profile'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User size={26} strokeWidth={1.5} />
+                )}
+              </div>
+              {isDoctor && isEditing && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleProfileImageChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingImage}
+                    className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white text-[#549E9E] border border-white/70 shadow-md flex items-center justify-center hover:bg-[#eefafa] transition-all disabled:opacity-60 cursor-pointer"
+                    title={t('profile.change_photo', 'Change photo')}
+                  >
+                    {isUploadingImage ? (
+                      <ImageUp size={13} className="animate-pulse" />
+                    ) : (
+                      <Camera size={13} />
+                    )}
+                  </button>
+                  {user?.profile_image_url && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveProfileImage}
+                      disabled={isUploadingImage}
+                      className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-red-500 text-white border border-white/80 shadow-md flex items-center justify-center hover:bg-red-600 transition-all disabled:opacity-60 cursor-pointer"
+                      title={t('profile.remove_photo', 'Remove photo')}
+                    >
+                      <X size={12} strokeWidth={3} />
+                    </button>
+                  )}
+                </>
+              )}
             </div>
 
             <div className="min-w-0 flex-1">
@@ -247,6 +355,28 @@ export default function Profile() {
                         disabled={!isEditing}
                         value={formData.age}
                         onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                        className={inputClass(isEditing)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">Date of Birth</label>
+                    <div className="relative">
+                      <Calendar size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="date"
+                        disabled={!isEditing}
+                        max={new Date().toISOString().slice(0, 10)}
+                        value={formData.date_of_birth}
+                        onChange={(e) => {
+                          const calculated = calculateAgeYearsFromDob(e.target.value);
+                          setFormData({
+                            ...formData,
+                            date_of_birth: e.target.value,
+                            age: calculated === null ? formData.age : String(calculated),
+                          });
+                        }}
                         className={inputClass(isEditing)}
                       />
                     </div>

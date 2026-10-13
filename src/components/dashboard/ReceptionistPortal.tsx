@@ -1625,6 +1625,11 @@ export default function ReceptionistPortal() {
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">
+	                          {app.patient_uuid && (
+	                            <p className="mb-0.5 text-[11.5px] font-black uppercase tracking-widest text-[#0284c7]" style={{ fontWeight: 900 }}>
+	                              {app.patient_uuid}
+	                            </p>
+	                          )}
                           <div className="flex items-center gap-2 mb-1">
                             <p className="text-sm font-black text-gray-800 uppercase tracking-wider truncate">
                               {app.patient_full_name}
@@ -1815,6 +1820,11 @@ export default function ReceptionistPortal() {
                           </td>
                           <td className="px-5 py-4">
                             <div className="flex flex-col">
+	                              {app.patient_uuid && (
+	                                <span className="mb-0.5 text-[11.5px] font-black uppercase tracking-widest text-[#0284c7]" style={{ fontWeight: 900 }}>
+	                                  {app.patient_uuid}
+	                                </span>
+	                              )}
                               <span className="text-sm font-black text-gray-800 uppercase tracking-wider">
                                 {app.patient_full_name}
                                 {app.booked_for_type === "FAMILY_MEMBER" && (

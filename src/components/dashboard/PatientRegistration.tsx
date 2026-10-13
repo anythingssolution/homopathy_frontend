@@ -11,16 +11,20 @@ import {
   Search,
   UserRound,
   X,
+  Calendar,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../Pagination';
+import { calculateAgeYearsFromDob, formatAgeValue } from '../../utils/ageDisplay';
 
 type RegisteredPatient = {
   patient_id: number;
   full_name: string;
   patient_uuid: string;
   age: number;
+  date_of_birth?: string | null;
+  age_display?: string | null;
   gender: string;
   mobile_no: string;
   email: string | null;
@@ -144,6 +148,7 @@ const emptyForm = {
   full_name: '',
   patient_uuid: '',
   age: '',
+  date_of_birth: '',
   gender: 'other',
   mobile_no: '',
   email: '',
@@ -233,6 +238,7 @@ export default function PatientRegistration() {
       full_name: patient.full_name || '',
       patient_uuid: patient.patient_uuid || '',
       age: patient.age ? String(patient.age) : '',
+      date_of_birth: patient.date_of_birth ? String(patient.date_of_birth).slice(0, 10) : '',
       gender: patient.gender || 'other',
       mobile_no: patient.mobile_no || '',
       email: patient.email || '',
@@ -259,12 +265,12 @@ export default function PatientRegistration() {
     event.preventDefault();
     if (!token) return;
 
-    const age = Number(form.age);
+    const age = form.date_of_birth ? calculateAgeYearsFromDob(form.date_of_birth) : Number(form.age);
     if (!form.full_name.trim()) {
       setFormError(t('patient_registration.error_name'));
       return;
     }
-    if (!Number.isInteger(age) || age < 1 || age > 120) {
+    if (age === null || !Number.isInteger(age) || age < 0 || age > 120 || (!form.date_of_birth && age < 1)) {
       setFormError(t('patient_registration.error_age'));
       return;
     }
@@ -292,6 +298,7 @@ export default function PatientRegistration() {
           full_name: form.full_name.trim(),
           patient_uuid: form.patient_uuid.replace(/\s+/g, '').toUpperCase() || null,
           age,
+          date_of_birth: form.date_of_birth || null,
           gender: form.gender,
           mobile_no: form.mobile_no,
           email: form.email.trim() || null,
@@ -446,7 +453,7 @@ export default function PatientRegistration() {
                     </td>
                     <td className="px-6 py-5 text-sm font-bold text-slate-700">{patient.mobile_no}</td>
                     <td className="px-6 py-5 text-sm font-bold text-slate-700">
-                      {genderLabel(patient.gender, t)} / {patient.age}
+                      {genderLabel(patient.gender, t)} / {formatAgeValue(patient.age, patient.age_display, patient.date_of_birth, i18n.language)}
                     </td>
                     <td className="px-6 py-5">
                       <p className="text-sm font-bold text-slate-800">
@@ -579,6 +586,8 @@ export default function PatientRegistration() {
                 <input
                   required
                   inputMode="numeric"
+                  min={form.date_of_birth ? 0 : 1}
+                  max={120}
                   value={form.age}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -590,7 +599,30 @@ export default function PatientRegistration() {
                 />
               </label>
 
-              <label className="block sm:col-span-2">
+              <label className="block sm:col-span-1">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Date of Birth
+                </span>
+                <div className="relative">
+                  <Calendar size={15} className="absolute left-4 top-[17px] text-slate-300" />
+                  <input
+                    type="date"
+                    max={new Date().toISOString().slice(0, 10)}
+                    value={form.date_of_birth}
+                    onChange={(event) => {
+                      const calculated = calculateAgeYearsFromDob(event.target.value);
+                      setForm((current) => ({
+                        ...current,
+                        date_of_birth: event.target.value,
+                        age: calculated === null ? current.age : String(calculated),
+                      }));
+                    }}
+                    className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 pl-10 pr-4 font-bold outline-none focus:border-[#549E9E]"
+                  />
+                </div>
+              </label>
+
+              <label className="block sm:col-span-1">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                   {t('patient_registration.gender')}
                 </span>

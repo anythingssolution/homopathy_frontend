@@ -4,12 +4,15 @@ import { useTranslation } from 'react-i18next';
 import { Users, UserPlus, Edit2, ShieldAlert, Heart, Calendar, Plus, X, ToggleLeft, ToggleRight, Check, AlertCircle, ChevronDown } from 'lucide-react';
 import { useApi } from '../../hooks/useApi';
 import { useNotifications } from '../../context/NotificationContext';
+import { calculateAgeYearsFromDob, formatAgeValue } from '../../utils/ageDisplay';
 
 interface FamilyMember {
   family_member_id: number;
   fk_primary_patient_id: number;
   full_name: string;
   age: number;
+  date_of_birth?: string | null;
+  age_display?: string | null;
   gender: string;
   relationship: string;
   description: string | null;
@@ -35,6 +38,7 @@ export default function FamilyMembers() {
   const [fullName, setFullName] = useState('');
   const [relationship, setRelationship] = useState('');
   const [age, setAge] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [gender, setGender] = useState('male');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,6 +71,7 @@ export default function FamilyMembers() {
     setFullName('');
     setRelationship('');
     setAge('');
+    setDateOfBirth('');
     setGender('male');
     setDescription('');
     setIsModalOpen(true);
@@ -77,6 +82,7 @@ export default function FamilyMembers() {
     setFullName(member.full_name);
     setRelationship(member.relationship);
     setAge(String(member.age));
+    setDateOfBirth(member.date_of_birth ? String(member.date_of_birth).slice(0, 10) : '');
     setGender(member.gender.toLowerCase());
     setDescription(member.description || '');
     setIsModalOpen(true);
@@ -85,13 +91,13 @@ export default function FamilyMembers() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fullName.trim() || !relationship.trim() || !age.trim() || !gender) {
+    if (!fullName.trim() || !relationship.trim() || (!age.trim() && !dateOfBirth) || !gender) {
       addToast('Please fill all required fields.', 'warning');
       return;
     }
 
-    const parsedAge = parseInt(age);
-    if (isNaN(parsedAge) || parsedAge < 1 || parsedAge > 120) {
+    const parsedAge = dateOfBirth ? calculateAgeYearsFromDob(dateOfBirth) : parseInt(age);
+    if (parsedAge === null || isNaN(parsedAge) || parsedAge < 0 || parsedAge > 120 || (!dateOfBirth && parsedAge < 1)) {
       addToast('Age must be between 1 and 120.', 'warning');
       return;
     }
@@ -107,6 +113,7 @@ export default function FamilyMembers() {
             full_name: fullName.trim(),
             relationship: relationship.trim(),
             age: parsedAge,
+            date_of_birth: dateOfBirth || null,
             gender: gender.toLowerCase(),
             description: description.trim() || null,
           },
@@ -125,6 +132,7 @@ export default function FamilyMembers() {
             full_name: fullName.trim(),
             relationship: relationship.trim(),
             age: parsedAge,
+            date_of_birth: dateOfBirth || null,
             gender: gender.toLowerCase(),
             description: description.trim() || null,
           },
@@ -287,7 +295,7 @@ export default function FamilyMembers() {
                 <div className="grid grid-cols-2 gap-4 py-3 border-t border-b border-gray-100/80 mb-4 text-xs font-bold text-gray-500">
                   <div className="flex items-center gap-2">
                     <Calendar size={14} className="text-gray-400" />
-                    <span>Age: {member.age} Yrs</span>
+                    <span>Age: {formatAgeValue(member.age, member.age_display, member.date_of_birth)}</span>
                   </div>
                   <div className="flex items-center gap-2 capitalize">
                     <Heart size={14} className="text-gray-400" />
@@ -410,10 +418,27 @@ export default function FamilyMembers() {
                       type="number"
                       value={age}
                       onChange={(e) => setAge(e.target.value)}
-                      required
+                      required={!dateOfBirth}
                       min={1}
                       max={120}
                       placeholder="Age in years"
+                      className="w-full bg-gray-50 border-none rounded-full py-3 px-6 outline-none text-gray-700 font-bold focus:ring-2 focus:ring-primary-teal/20 transition-all text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-primary-teal uppercase tracking-widest">
+                      Date of Birth
+                    </label>
+                    <input
+                      type="date"
+                      value={dateOfBirth}
+                      onChange={(e) => {
+                        setDateOfBirth(e.target.value);
+                        const calculated = calculateAgeYearsFromDob(e.target.value);
+                        if (calculated !== null) setAge(String(calculated));
+                      }}
+                      max={new Date().toISOString().slice(0, 10)}
                       className="w-full bg-gray-50 border-none rounded-full py-3 px-6 outline-none text-gray-700 font-bold focus:ring-2 focus:ring-primary-teal/20 transition-all text-sm"
                     />
                   </div>

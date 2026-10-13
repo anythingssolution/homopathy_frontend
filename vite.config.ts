@@ -61,6 +61,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        '/uploads': {
+          target: backendTarget,
+          changeOrigin: true,
+          secure: false,
+        },
         "/socket.io": {
           target: backendTarget,
           changeOrigin: true,

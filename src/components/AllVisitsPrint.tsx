@@ -98,6 +98,7 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                 patientId={patient?.patient_uuid}
                 name={patient?.full_name || patient?.patient_full_name}
                 age={patient?.age}
+                ageDisplay={patient?.age_display || patient?.patient_age_display}
                 gender={patient?.gender}
                 date={new Date().toLocaleDateString('en-GB', {
                   day: '2-digit',

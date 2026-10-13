@@ -176,6 +176,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                 patientId={appointment.patient_uuid || appointment.patient?.patient_uuid}
                 name={appointment.patient_full_name || appointment.patient?.full_name}
                 age={appointment.patient_age || appointment.patient?.age}
+                ageDisplay={appointment.patient_age_display || appointment.patient?.age_display}
                 gender={appointment.patient_gender || appointment.patient?.gender}
                 date={new Date(appointment.appointment_date || Date.now()).toLocaleDateString('en-GB', {
                   day: '2-digit',

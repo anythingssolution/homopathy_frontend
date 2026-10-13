@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
@@ -9,10 +10,14 @@ import {
   FileClock,
   RefreshCcw,
   Search,
+  Send,
   UserRound,
+  X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { formatAgeValue } from '../../../../utils/ageDisplay';
 import { useAuth } from '../../../../context/AuthContext';
+import { useNotifications } from '../../../../context/NotificationContext';
 import { SummaryMetricCard } from '../../doctor-reports/components/SummaryMetricCard';
 import { DateBar } from '../DateBar';
 import {
@@ -30,10 +35,13 @@ import { useReportWindow } from '../useReportWindow';
 const PAGE_SIZE = 40;
 
 type RegisterStatus = 'REPORT_PENDING' | 'REVIEWED' | 'REMOVED';
+type ReportSendStatus = 'SENT' | 'NOT_SENT';
 
 type TestRegisterRow = {
   consultation_test_id: number | string;
   test_source?: string;
+  report_source_type?: 'CONSULTATION' | 'BILL';
+  report_source_id?: number | string;
   bill_id?: number;
   bill_number?: string;
   recommended_at?: string;
@@ -49,6 +57,8 @@ type TestRegisterRow = {
   interpreted_at?: string | null;
   patient_full_name?: string | null;
   patient_age?: number | string | null;
+  patient_age_display?: string | null;
+  patient_date_of_birth?: string | null;
   patient_gender?: string | null;
   patient_mobile_no?: string | null;
   fk_patient_id?: number | null;
@@ -59,6 +69,10 @@ type TestRegisterRow = {
   token_number?: number | null;
   display_token_display?: string | null;
   token_display?: string | null;
+  report_send_status?: ReportSendStatus | null;
+  report_not_sent_reason?: string | null;
+  report_status_marked_at?: string | null;
+  report_status_marked_by_name?: string | null;
 };
 
 type VisitGroup = {
@@ -68,6 +82,13 @@ type VisitGroup = {
   appointmentId: number;
   first: TestRegisterRow;
   tests: TestRegisterRow[];
+};
+
+type ReportStatusModalState = {
+  group: VisitGroup;
+  selectedKey: string;
+  status: ReportSendStatus;
+  reason: string;
 };
 
 const rowStatus = (row: TestRegisterRow): RegisterStatus => {
@@ -98,6 +119,7 @@ export default function TestRegisterPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { token, branchScope } = useAuth();
+  const { addToast } = useNotifications();
   const { dateFilter, setDateFilter } = useReportWindow('1_month');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
   const [rows, setRows] = useState<TestRegisterRow[]>([]);
@@ -107,6 +129,9 @@ export default function TestRegisterPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [reportModal, setReportModal] = useState<ReportStatusModalState | null>(null);
+  const [savingReportStatus, setSavingReportStatus] = useState(false);
+  const [reportStatusError, setReportStatusError] = useState('');
 
   const load = useCallback(async (force = false) => {
     if (!token) return;
@@ -217,9 +242,98 @@ export default function TestRegisterPage() {
     return 'border-amber-200 bg-amber-50 text-amber-700';
   };
 
+  const reportSourceKey = (row: TestRegisterRow) => {
+    const sourceType = row.report_source_type || (row.test_source === 'BILL' ? 'BILL' : 'CONSULTATION');
+    const sourceId = row.report_source_id || row.consultation_test_id;
+    return `${sourceType}:${sourceId}`;
+  };
+
+  const reportStatusLabel = (status?: string | null) => {
+    if (status === 'SENT') return t('reports_next.test_register.report_sent');
+    if (status === 'NOT_SENT') return t('reports_next.test_register.report_not_sent');
+    return t('reports_next.test_register.report_not_marked');
+  };
+
+  const reportStatusClass = (status?: string | null) => {
+    if (status === 'SENT') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    if (status === 'NOT_SENT') return 'border-red-200 bg-red-50 text-red-700';
+    return 'border-slate-200 bg-slate-50 text-slate-500';
+  };
+
   const openPatientRecord = (item: TestRegisterRow) => {
     const href = patientRecordsHref(item);
     if (href) navigate(href);
+  };
+
+  const openReportStatusModal = (group: VisitGroup) => {
+    const firstTest = group.tests[0];
+    setReportStatusError('');
+    setReportModal({
+      group,
+      selectedKey: reportSourceKey(firstTest),
+      status: firstTest.report_send_status === 'NOT_SENT' ? 'NOT_SENT' : 'SENT',
+      reason: firstTest.report_not_sent_reason || '',
+    });
+  };
+
+  const selectedReportTest = reportModal
+    ? reportModal.group.tests.find((test) => reportSourceKey(test) === reportModal.selectedKey) || reportModal.group.tests[0]
+    : null;
+
+  const saveReportSendStatus = async () => {
+    if (!token || !reportModal || !selectedReportTest) return;
+    const sourceType = selectedReportTest.report_source_type || (selectedReportTest.test_source === 'BILL' ? 'BILL' : 'CONSULTATION');
+    const sourceId = Number(selectedReportTest.report_source_id || selectedReportTest.consultation_test_id);
+    if (!Number.isInteger(sourceId) || sourceId <= 0) {
+      setReportStatusError(t('reports_next.test_register.report_status_source_error'));
+      return;
+    }
+    if (reportModal.status === 'NOT_SENT' && !reportModal.reason.trim()) {
+      setReportStatusError(t('reports_next.test_register.report_reason_required'));
+      return;
+    }
+
+    setSavingReportStatus(true);
+    setReportStatusError('');
+    try {
+      const response = await fetch('/api/v1/reports/test-register/report-status', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          source_type: sourceType,
+          source_id: sourceId,
+          status: reportModal.status,
+          reason: reportModal.status === 'NOT_SENT' ? reportModal.reason.trim() : null,
+          branch_id: branchScope?.selected_branch_id || undefined,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.message || t('reports_next.test_register.report_status_failed'));
+      }
+      const updated = payload.data?.row || {};
+      const updatedKey = `${updated.source_type || sourceType}:${updated.source_id || sourceId}`;
+      setRows((current) => current.map((row) => (
+        reportSourceKey(row) === updatedKey
+          ? {
+              ...row,
+              report_send_status: updated.report_send_status || reportModal.status,
+              report_not_sent_reason: updated.report_not_sent_reason || null,
+              report_status_marked_at: updated.report_status_marked_at || null,
+              report_status_marked_by_name: updated.report_status_marked_by_name || null,
+            }
+          : row
+      )));
+      addToast(t('reports_next.test_register.report_status_saved'), 'success');
+      setReportModal(null);
+    } catch (saveError) {
+      setReportStatusError(saveError instanceof Error ? saveError.message : t('reports_next.test_register.report_status_failed'));
+    } finally {
+      setSavingReportStatus(false);
+    }
   };
 
   const renderRows = (groups: VisitGroup[], print = false) => {
@@ -240,7 +354,7 @@ export default function TestRegisterPage() {
         (sum, test) => sum + (rowStatus(test) === 'REMOVED' ? 0 : num(test.amount)),
         0,
       );
-      const age = group.first.patient_age ? String(group.first.patient_age) : '—';
+      const age = formatAgeValue(group.first.patient_age, group.first.patient_age_display, group.first.patient_date_of_birth, i18n.language);
       parts.push(
         <tr key={group.key} className={print ? 'break-inside-avoid' : 'align-top hover:bg-slate-50/80'}>
           <td className="px-4 py-3 text-xs font-black text-slate-500 tabular-nums">{group.sequence}</td>
@@ -270,12 +384,18 @@ export default function TestRegisterPage() {
                       <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${statusClass(status)}`}>
                         {statusLabel(status)}
                       </span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${reportStatusClass(test.report_send_status)}`}>
+                        {reportStatusLabel(test.report_send_status)}
+                      </span>
                     </div>
                     {status === 'REVIEWED' && (
                       <p className="mt-1 max-w-md text-[11px] font-medium text-emerald-700 line-clamp-2">{test.finding_text}</p>
                     )}
                     {status === 'REMOVED' && test.void_reason && (
                       <p className="mt-1 text-[10px] font-medium text-slate-400">{test.void_reason}</p>
+                    )}
+                    {test.report_send_status === 'NOT_SENT' && test.report_not_sent_reason && (
+                      <p className="mt-1 max-w-md text-[10px] font-medium text-red-600 line-clamp-2">{test.report_not_sent_reason}</p>
                     )}
                   </div>
                 );
@@ -311,6 +431,15 @@ export default function TestRegisterPage() {
                 >
                   <Eye size={13} />
                   {group.first.test_source === 'BILL' ? 'Tests' : t('reports_next.test_register.consult_short')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openReportStatusModal(group)}
+                  title={t('reports_next.test_register.report_send')}
+                  className="inline-flex cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 px-2 py-1.5 text-[9px] font-black uppercase tracking-wide text-slate-500 transition-colors hover:border-[#549E9E]/30 hover:bg-[#549E9E]/5 hover:text-[#2d8789]"
+                >
+                  <Send size={13} />
+                  {t('reports_next.test_register.report_send_short')}
                 </button>
               </div>
             </td>
@@ -487,6 +616,108 @@ export default function TestRegisterPage() {
           </table>
         )}
       </section>
+      {reportModal && selectedReportTest && createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm no-print">
+          <div role="dialog" aria-modal="true" aria-labelledby="test-report-send-heading" className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <h3 id="test-report-send-heading" className="text-sm font-black uppercase tracking-widest text-slate-900">
+                  {t('reports_next.test_register.report_send_title')}
+                </h3>
+                <p className="mt-1 text-xs font-semibold text-slate-400">
+                  {reportModal.group.first.patient_full_name || '—'} · {reportModal.group.first.patient_mobile_no || '—'}
+                </p>
+              </div>
+              <button type="button" onClick={() => setReportModal(null)} className="rounded-full bg-slate-100 p-2 text-slate-500">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-5">
+              <label className="block">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('reports_next.test_register.select_test')}</span>
+                <select
+                  value={reportModal.selectedKey}
+                  onChange={(event) => {
+                    const nextTest = reportModal.group.tests.find((test) => reportSourceKey(test) === event.target.value) || reportModal.group.tests[0];
+                    setReportStatusError('');
+                    setReportModal({
+                      ...reportModal,
+                      selectedKey: event.target.value,
+                      status: nextTest.report_send_status === 'NOT_SENT' ? 'NOT_SENT' : 'SENT',
+                      reason: nextTest.report_not_sent_reason || '',
+                    });
+                  }}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-[#549E9E]"
+                >
+                  {reportModal.group.tests.map((test) => (
+                    <option key={reportSourceKey(test)} value={reportSourceKey(test)}>
+                      {test.test_name} · {reportStatusLabel(test.report_send_status)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReportStatusError('');
+                    setReportModal({ ...reportModal, status: 'SENT', reason: '' });
+                  }}
+                  className={`rounded-xl border px-4 py-3 text-xs font-black uppercase tracking-widest transition-colors ${reportModal.status === 'SENT' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-emerald-200'}`}
+                >
+                  {t('reports_next.test_register.report_sent')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReportStatusError('');
+                    setReportModal({ ...reportModal, status: 'NOT_SENT' });
+                  }}
+                  className={`rounded-xl border px-4 py-3 text-xs font-black uppercase tracking-widest transition-colors ${reportModal.status === 'NOT_SENT' ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 text-slate-500 hover:border-red-200'}`}
+                >
+                  {t('reports_next.test_register.report_not_sent')}
+                </button>
+              </div>
+
+              {reportModal.status === 'NOT_SENT' && (
+                <label className="block">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t('reports_next.test_register.not_sent_reason')}</span>
+                  <textarea
+                    value={reportModal.reason}
+                    onChange={(event) => setReportModal({ ...reportModal, reason: event.target.value.slice(0, 500) })}
+                    rows={4}
+                    placeholder={t('reports_next.test_register.not_sent_reason_placeholder')}
+                    className="mt-2 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-[#549E9E]"
+                  />
+                </label>
+              )}
+
+              {reportStatusError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                  {reportStatusError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setReportModal(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-500">
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveReportSendStatus()}
+                  disabled={savingReportStatus}
+                  className="rounded-xl bg-[#549E9E] px-4 py-2 text-xs font-black uppercase tracking-widest text-white disabled:opacity-50"
+                >
+                  {savingReportStatus ? t('common.saving') : t('common.save')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </>
   );
 }

@@ -6,6 +6,7 @@ import Pagination from '../../../Pagination';
 import { FilterDropdown } from '../components/FilterDropdown';
 import CustomDatePicker from '../../../CustomDatePicker';
 import { useAuth } from '../../../../context/AuthContext';
+import { formatAgeValue } from '../../../../utils/ageDisplay';
 
 interface PatientDirectoryProps {
   token: string | null;
@@ -267,7 +268,7 @@ export const PatientDirectory: React.FC<PatientDirectoryProps> = ({ token }) => 
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex flex-col">
-                        <span className="text-xs font-bold text-gray-700">{p.age ? t('reports.directory.yrs', { age: p.age }) : '-'}</span>
+                        <span className="text-xs font-bold text-gray-700">{formatAgeValue(p.age, p.age_display, p.date_of_birth, i18n.language)}</span>
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{
                           String(p.gender || '').toLowerCase() === 'male' || String(p.gender || '').toLowerCase() === 'm'
                             ? t('reports.patients.male')

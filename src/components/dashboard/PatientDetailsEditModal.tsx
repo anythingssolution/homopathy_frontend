@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Save, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { calculateAgeYearsFromDob } from "../../utils/ageDisplay";
 
 interface PatientDetailsEditModalProps {
   isOpen: boolean;
@@ -8,6 +9,7 @@ interface PatientDetailsEditModalProps {
     patient_id: number;
     full_name: string;
     age: string | number;
+    date_of_birth?: string | null;
     gender: string;
     mobile_no: string;
     area_name: string;
@@ -18,6 +20,7 @@ interface PatientDetailsEditModalProps {
   onSave: (data: {
     full_name: string;
     age: number;
+    date_of_birth?: string | null;
     gender: string;
     mobile_no: string;
     area_name: string;
@@ -35,6 +38,7 @@ export default function PatientDetailsEditModal({
   const { t } = useTranslation();
   const [fullName, setFullName] = useState("");
   const [age, setAge] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [gender, setGender] = useState("");
   const [mobileNo, setMobileNo] = useState("");
   const [areaName, setAreaName] = useState("");
@@ -47,6 +51,7 @@ export default function PatientDetailsEditModal({
     if (isOpen && patientData) {
       setFullName(patientData.full_name || "");
       setAge(String(patientData.age || ""));
+      setDateOfBirth(patientData.date_of_birth ? String(patientData.date_of_birth).slice(0, 10) : "");
       setGender(patientData.gender || "");
       setMobileNo(patientData.mobile_no || "");
       setAreaName(patientData.area_name || "");
@@ -63,8 +68,8 @@ export default function PatientDetailsEditModal({
     if (!trimmedName || trimmedName.length > 100) {
       newErrors.full_name = "Name must be between 1 and 100 characters";
     }
-    const parsedAge = Number(age);
-    if (!Number.isInteger(parsedAge) || parsedAge < 1 || parsedAge > 120) {
+    const parsedAge = dateOfBirth ? calculateAgeYearsFromDob(dateOfBirth) : Number(age);
+    if (parsedAge === null || !Number.isInteger(parsedAge) || parsedAge < 0 || parsedAge > 120 || (!dateOfBirth && parsedAge < 1)) {
       newErrors.age = "Age must be between 1 and 120";
     }
     if (!["male", "female", "other"].includes(gender.toLowerCase())) {
@@ -96,7 +101,8 @@ export default function PatientDetailsEditModal({
     try {
       await onSave({
         full_name: fullName.trim(),
-        age: Number(age),
+        age: dateOfBirth ? calculateAgeYearsFromDob(dateOfBirth) ?? Number(age) : Number(age),
+        date_of_birth: dateOfBirth || null,
         gender: gender.toLowerCase(),
         mobile_no: mobileNo.trim(),
         area_name: areaName.trim(),
@@ -161,7 +167,7 @@ export default function PatientDetailsEditModal({
             {errors.area_name && <p className="text-red-500 text-xs mt-1">{errors.area_name}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
                 Pincode
@@ -201,7 +207,7 @@ export default function PatientDetailsEditModal({
                 type="number"
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
-                min={1}
+                min={dateOfBirth ? 0 : 1}
                 max={120}
                 className={`w-full px-4 py-2.5 border rounded-lg text-sm font-bold text-gray-800 transition-all focus:outline-none focus:ring-4 focus:ring-[#549E9E]/10 focus:border-[#549E9E] ${errors.age ? "border-red-400" : "border-gray-200"}`}
                 disabled={isSaving}
@@ -209,6 +215,23 @@ export default function PatientDetailsEditModal({
               {errors.age && (
                 <p className="text-red-500 text-xs mt-1">{errors.age}</p>
               )}
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
+                Date of Birth
+              </label>
+              <input
+                type="date"
+                value={dateOfBirth}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => {
+                  setDateOfBirth(e.target.value);
+                  const calculated = calculateAgeYearsFromDob(e.target.value);
+                  if (calculated !== null) setAge(String(calculated));
+                }}
+                className="w-full px-4 py-2.5 border rounded-lg text-sm font-bold text-gray-800 transition-all focus:outline-none focus:ring-4 focus:ring-[#549E9E]/10 focus:border-[#549E9E] border-gray-200"
+                disabled={isSaving}
+              />
             </div>
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">

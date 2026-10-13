@@ -4,6 +4,7 @@ interface PrescriptionPatientInfoProps {
   patientId?: string | null;
   name?: string | null;
   age?: string | number | null;
+  ageDisplay?: string | null;
   gender?: string | null;
   date: string;
   contactNumber?: string | null;
@@ -14,6 +15,7 @@ export default function PrescriptionPatientInfo({
   patientId,
   name,
   age,
+  ageDisplay,
   gender,
   date,
   contactNumber,
@@ -39,7 +41,7 @@ export default function PrescriptionPatientInfo({
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <span>
               <span className="text-gray-500">{isHi ? 'उम्र :' : 'Age :'}</span>{' '}
-              <span className="text-[#1a2b4c]">{age || 'N/A'}{age ? (isHi ? ' वर्ष' : ' Y') : ''}</span>
+              <span className="text-[#1a2b4c]">{ageDisplay || (age ? `${age}${isHi ? ' वर्ष' : ' Y'}` : 'N/A')}</span>
             </span>
             <span>
               <span className="text-gray-500">{isHi ? 'लिंग :' : 'Gender :'}</span>{' '}

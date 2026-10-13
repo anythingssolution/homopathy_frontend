@@ -12,6 +12,7 @@ import { readViewState, usePersistViewState } from '../utils/viewState';
 import { useTranslation } from 'react-i18next';
 import { getSocket } from '../services/socket';
 import { useNotifications } from '../context/NotificationContext';
+import { formatAgeValue } from '../utils/ageDisplay';
 import { useCoalescedCallback } from '../hooks/useCoalescedCallback';
 import { dedupedFetch } from '../utils/dedupedFetch';
 import CustomAlertDialog, { CustomAlertState } from './CustomAlertDialog';
@@ -113,6 +114,8 @@ type DoctorAppointment = {
   patient_uuid: string;
   patient_full_name: string;
   patient_age: number | null;
+  patient_age_display?: string | null;
+  patient_date_of_birth?: string | null;
   patient_gender: string | null;
   patient_email: string | null;
   patient_mobile_no: string;
@@ -148,6 +151,8 @@ type DoctorAppointment = {
   family_member_relationship?: string | null;
   family_member_full_name?: string | null;
   family_member_age?: number | null;
+  family_member_age_display?: string | null;
+  family_member_date_of_birth?: string | null;
   family_member_gender?: string | null;
   family_member_description?: string | null;
   primary_patient_full_name?: string | null;
@@ -1659,7 +1664,7 @@ export default function DoctorPortal() {
                         <div className="grid grid-cols-2 gap-3">
                           <div className="bg-gray-50 rounded-xl p-3">
                             <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Age</span>
-                            <p className="text-sm font-bold text-gray-700">{app.patient_age || '—'}</p>
+                            <p className="text-sm font-bold text-gray-700">{formatAgeValue(app.patient_age, app.patient_age_display, app.patient_date_of_birth, i18n.language)}</p>
                           </div>
                           <div className="bg-gray-50 rounded-xl p-3">
                             <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Gender</span>
@@ -1850,7 +1855,7 @@ export default function DoctorPortal() {
                                       </div>
                                       <div>
                                         <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Age</span>
-                                        <p className="text-sm font-bold text-gray-700">{app.patient_age || '—'}</p>
+                                        <p className="text-sm font-bold text-gray-700">{formatAgeValue(app.patient_age, app.patient_age_display, app.patient_date_of_birth, i18n.language)}</p>
                                       </div>
                                       <div>
                                         <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Gender</span>

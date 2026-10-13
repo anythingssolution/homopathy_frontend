@@ -27,8 +27,14 @@ interface User {
   role_code?: string;
   uuid?: string;
   age?: number;
+  date_of_birth?: string | null;
+  age_display?: string | null;
   gender?: string;
   address?: string;
+  profile_image_url?: string | null;
+  profile_image_key?: string | null;
+  profile_image_mime_type?: string | null;
+  profile_image_size?: number | null;
   has_cross_module_access?: number | boolean;
   can_access_reception_module?: number | boolean;
   can_access_medical_module?: number | boolean;
@@ -125,6 +131,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           age: result.data.age,
           gender: result.data.gender,
           address: result.data.address !== undefined ? result.data.address : existingUser.address,
+          profile_image_url: result.data.profile_image_url !== undefined ? result.data.profile_image_url : existingUser.profile_image_url,
+          profile_image_key: result.data.profile_image_key !== undefined ? result.data.profile_image_key : existingUser.profile_image_key,
+          profile_image_mime_type: result.data.profile_image_mime_type !== undefined ? result.data.profile_image_mime_type : existingUser.profile_image_mime_type,
+          profile_image_size: result.data.profile_image_size !== undefined ? result.data.profile_image_size : existingUser.profile_image_size,
           has_cross_module_access: result.data.has_cross_module_access !== undefined ? result.data.has_cross_module_access : existingUser.has_cross_module_access,
           can_access_reception_module: result.data.can_access_reception_module !== undefined ? result.data.can_access_reception_module : existingUser.can_access_reception_module,
           can_access_medical_module: result.data.can_access_medical_module !== undefined ? result.data.can_access_medical_module : existingUser.can_access_medical_module

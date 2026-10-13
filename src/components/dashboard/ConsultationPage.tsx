@@ -75,6 +75,7 @@ import {
   deriveManualUnitPrice,
   resolveOtherMedicineUnitPrice,
 } from "../../utils/otherMedicinePricing";
+import { formatAgeValue } from "../../utils/ageDisplay";
 
 type MedicationEntry = {
   name: string;
@@ -92,6 +93,26 @@ type MedicationEntry = {
     afternoon: number;
     night: number;
   };
+};
+
+type MedicationDoses = MedicationEntry["doses"];
+type DoseFrequency = "2" | "3";
+
+const getDurationDoseOverride = (
+  durationKey: string,
+  frequency: DoseFrequency,
+): MedicationDoses => {
+  const durationDays = getDurationDaysFromKey(durationKey);
+  if (durationDays === 7 || durationDays === 15) {
+    if (frequency === "2") {
+      return { morning: 8, afternoon: 0, night: 8 };
+    }
+    return { morning: 4, afternoon: 4, night: 4 };
+  }
+  if (frequency === "2") {
+    return { morning: 6, afternoon: 0, night: 6 };
+  }
+  return { morning: 3, afternoon: 3, night: 3 };
 };
 
 type TextMedicine = {
@@ -274,7 +295,7 @@ function NumberDropdown({
   options?: string[];
   id?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -670,7 +691,7 @@ function SearchableDropdown({
 }
 
 export default function ConsultationPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { state } = useLocation();
   const navigate = useNavigate();
   const { appointmentId } = useParams();
@@ -1847,12 +1868,10 @@ export default function ConsultationPage() {
 
     setMedications(
       quickFormulaPreview.entries.map((entry) => {
-        let targetDoses = { ...entry.doses };
-        if (thirtyDaysDoseFrequency === "3") {
-          targetDoses = { morning: 3, afternoon: 3, night: 3 };
-        } else if (thirtyDaysDoseFrequency === "2") {
-          targetDoses = { morning: 6, afternoon: 0, night: 6 };
-        }
+        const targetDoses = getDurationDoseOverride(
+          globalDuration,
+          thirtyDaysDoseFrequency,
+        );
 
         return {
           name: entry.name,
@@ -1951,12 +1970,10 @@ export default function ConsultationPage() {
           hasChanges = true;
         }
 
-        let targetDoses = med.originalDoses || med.doses;
-        if (thirtyDaysDoseFrequency === "3") {
-          targetDoses = { morning: 3, afternoon: 3, night: 3 };
-        } else if (thirtyDaysDoseFrequency === "2") {
-          targetDoses = { morning: 6, afternoon: 0, night: 6 };
-        }
+        const targetDoses = getDurationDoseOverride(
+          globalDuration,
+          thirtyDaysDoseFrequency,
+        );
 
         if (
           targetDoses.morning !== med.doses.morning ||
@@ -2630,12 +2647,10 @@ export default function ConsultationPage() {
       if (parsed.entries.length > 0) {
         setMedications(
           parsed.entries.map((entry) => {
-            let targetDoses = { ...entry.doses };
-            if (thirtyDaysDoseFrequency === "3") {
-              targetDoses = { morning: 3, afternoon: 3, night: 3 };
-            } else if (thirtyDaysDoseFrequency === "2") {
-              targetDoses = { morning: 6, afternoon: 0, night: 6 };
-            }
+            const targetDoses = getDurationDoseOverride(
+              globalDuration,
+              thirtyDaysDoseFrequency,
+            );
 
             return {
               name: entry.name,
@@ -2968,6 +2983,7 @@ export default function ConsultationPage() {
   const handleUpdatePatientDetails = async (updatedData: {
     full_name: string;
     age: number;
+    date_of_birth?: string | null;
     gender: string;
     mobile_no: string;
     area_name: string;
@@ -2999,6 +3015,8 @@ export default function ConsultationPage() {
               ...prev,
               patient_full_name: updatedData.full_name,
               patient_age: updatedData.age,
+              patient_date_of_birth: updatedData.date_of_birth,
+              patient_age_display: undefined,
               patient_gender: updatedData.gender,
               patient_mobile_no: updatedData.mobile_no,
               patient_area_name: updatedData.area_name,
@@ -3209,6 +3227,7 @@ export default function ConsultationPage() {
             patient_id: currentApp.fk_patient_id || currentApp.patient_id,
             full_name: currentApp.patient_full_name || "",
             age: currentApp.patient_age || "",
+            date_of_birth: currentApp.patient_date_of_birth || "",
             gender: currentApp.patient_gender || "",
             mobile_no: currentApp.patient_mobile_no || "",
             area_name: currentApp.patient_area_name || "",
@@ -3293,7 +3312,7 @@ export default function ConsultationPage() {
             <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-100 px-3 py-2 text-xs font-black uppercase tracking-wider text-amber-900 shadow-sm">
               <User size={14} className="text-amber-700" />
               {t("consultation_modal.age_gender", "AGE / GENDER")}:{" "}
-              {currentApp.patient_age || "—"} /{" "}
+              {formatAgeValue(currentApp.patient_age, currentApp.patient_age_display, currentApp.patient_date_of_birth, i18n.language)} /{" "}
               {currentApp.patient_gender || "—"}
             </span>
             <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-2 text-xs font-black tracking-wider text-emerald-900 shadow-sm">

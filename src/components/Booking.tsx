@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, User, CheckCircle2, MapPin, ChevronDown, Phone, X, Smartphone, Download, Zap, Users, Lock, Mail, Stethoscope, Eye, EyeOff, Key, MessageSquare, Link2, Activity, ClipboardList } from 'lucide-react';
+import { Clock, User, CheckCircle2, MapPin, ChevronDown, Phone, X, Smartphone, Download, Zap, Users, Lock, Mail, Stethoscope, Eye, EyeOff, Key, MessageSquare, Link2, Activity, ClipboardList, Calendar } from 'lucide-react';
 import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +10,7 @@ import { getSocket } from '../services/socket';
 import CustomDatePicker from './CustomDatePicker';
 import ReCAPTCHA from 'react-google-recaptcha';
 import { formatTimeTo12Hour } from '../utils/dateUtils';
+import { calculateAgeYearsFromDob, formatAgeValue } from '../utils/ageDisplay';
 import ScheduleRuleNotice from './ScheduleRuleNotice';
 import ReceptionBookingAddress from './ReceptionBookingAddress';
 const RECAPTCHA_SITE_KEY = String(import.meta.env.VITE_RECAPTCHA_SITE_KEY || '');
@@ -245,6 +246,8 @@ export default function Booking() {
     patient_uuid: string;
     full_name: string;
     age?: number;
+    date_of_birth?: string | null;
+    age_display?: string | null;
     gender?: string;
     email?: string;
     mobile_no: string;
@@ -369,6 +372,7 @@ export default function Booking() {
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regAge, setRegAge] = useState('');
+  const [regDateOfBirth, setRegDateOfBirth] = useState('');
   const [regGender, setRegGender] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
@@ -417,6 +421,7 @@ export default function Booking() {
   const [patientFullName, setPatientFullName] = useState('');
   const [patientMobileNo, setPatientMobileNo] = useState('');
   const [patientAge, setPatientAge] = useState('');
+  const [patientDateOfBirth, setPatientDateOfBirth] = useState('');
   const [patientGender, setPatientGender] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<ReceptionistPatientOption | null>(null);
   const [patientSearchResults, setPatientSearchResults] = useState<ReceptionistPatientOption[]>([]);
@@ -436,6 +441,7 @@ export default function Booking() {
   const [newFamilyMember, setNewFamilyMember] = useState({
     full_name: '',
     age: '',
+    date_of_birth: '',
     gender: '',
     relationship: '',
     description: '',
@@ -819,6 +825,7 @@ export default function Booking() {
     setNewFamilyMember({
       full_name: '',
       age: '',
+      date_of_birth: '',
       gender: '',
       relationship: '',
       description: '',
@@ -996,9 +1003,9 @@ export default function Booking() {
       newErrors.email = t('booking.errors.email_inv');
     }
 
-    if (!regAge) {
+    if (!regAge && !regDateOfBirth) {
       newErrors.age = t('booking.errors.age_req');
-    } else if (parseInt(regAge) <= 0 || parseInt(regAge) > 120) {
+    } else if (!regDateOfBirth && (parseInt(regAge) <= 0 || parseInt(regAge) > 120)) {
       newErrors.age = t('booking.errors.age_inv');
     }
 
@@ -1108,7 +1115,8 @@ export default function Booking() {
         try {
           const payload = {
             full_name: regName,
-            age: parseInt(regAge),
+            age: regDateOfBirth ? calculateAgeYearsFromDob(regDateOfBirth) : parseInt(regAge),
+            date_of_birth: regDateOfBirth || null,
             gender: regGender.toLowerCase(),
             email: regEmail || undefined,
             mobile_no: phone,
@@ -1393,15 +1401,15 @@ export default function Booking() {
 
     const fullName = newFamilyMember.full_name.trim();
     const relationship = newFamilyMember.relationship.trim();
-    const parsedAge = Number(newFamilyMember.age);
+    const parsedAge = newFamilyMember.date_of_birth ? calculateAgeYearsFromDob(newFamilyMember.date_of_birth) : Number(newFamilyMember.age);
     const gender = newFamilyMember.gender.trim().toLowerCase();
 
-    if (!fullName || !relationship || !newFamilyMember.age || !gender) {
-      setErrors({ appointment: 'Family member name, relationship, age and gender are required.' });
+    if (!fullName || !relationship || (!newFamilyMember.age && !newFamilyMember.date_of_birth) || !gender) {
+      setErrors({ appointment: 'Family member name, relationship, age or date of birth and gender are required.' });
       return;
     }
 
-    if (!Number.isInteger(parsedAge) || parsedAge < 1 || parsedAge > 120) {
+    if (parsedAge === null || !Number.isInteger(parsedAge) || parsedAge < 0 || parsedAge > 120 || (!newFamilyMember.date_of_birth && parsedAge < 1)) {
       setErrors({ appointment: 'Family member age must be between 1 and 120.' });
       return;
     }
@@ -1425,6 +1433,7 @@ export default function Booking() {
           full_name: fullName,
           relationship,
           age: parsedAge,
+          date_of_birth: newFamilyMember.date_of_birth || null,
           gender,
           description: newFamilyMember.description.trim() || null,
         }),
@@ -1442,6 +1451,7 @@ export default function Booking() {
       setNewFamilyMember({
         full_name: '',
         age: '',
+        date_of_birth: '',
         gender: '',
         relationship: '',
         description: '',
@@ -1495,6 +1505,7 @@ export default function Booking() {
       }
 
 
+      let parsedPatientAge: number | null = null;
       if (isReceptionist) {
         if (patientIdSearch.trim() && !selectedPatient) {
           setErrors({ appointment: 'Select a patient from the ID search results, or choose New Patient.' });
@@ -1507,7 +1518,7 @@ export default function Booking() {
         }
         const trimmedPatientName = patientFullName.trim();
         const trimmedPatientMobile = patientMobileNo.trim();
-        const parsedPatientAge = Number(patientAge);
+        parsedPatientAge = patientDateOfBirth ? calculateAgeYearsFromDob(patientDateOfBirth) : Number(patientAge);
         const normalizedPatientGender = patientGender.trim().toLowerCase();
 
         if (!trimmedPatientName || !trimmedPatientMobile) {
@@ -1516,13 +1527,13 @@ export default function Booking() {
         }
 
         if (!selectedPatient?.patient_id ||
-          patientAge !== String(selectedPatient.age ?? '') || patientGender !== (selectedPatient.gender || '').toLowerCase()) {
-          if (!patientAge || !patientGender) {
-            setErrors({ appointment: 'Patient age and gender are required before booking.' });
+          patientAge !== String(selectedPatient.age ?? '') || patientDateOfBirth !== String(selectedPatient.date_of_birth || '').slice(0, 10) || patientGender !== (selectedPatient.gender || '').toLowerCase()) {
+          if ((!patientAge && !patientDateOfBirth) || !patientGender) {
+            setErrors({ appointment: 'Patient age/date of birth and gender are required before booking.' });
             return;
           }
 
-          if (!Number.isInteger(parsedPatientAge) || parsedPatientAge < 1 || parsedPatientAge > 120) {
+          if (parsedPatientAge === null || !Number.isInteger(parsedPatientAge) || parsedPatientAge < 0 || parsedPatientAge > 120 || (!patientDateOfBirth && parsedPatientAge < 1)) {
             setErrors({ appointment: 'Age must be between 1 and 120.' });
             return;
           }
@@ -1564,13 +1575,15 @@ export default function Booking() {
             if (patientFullName.trim() !== selectedPatient.full_name) corrections.full_name = patientFullName.trim();
             if (patientMobileNo.trim() !== selectedPatient.mobile_no) corrections.mobile_no = patientMobileNo.trim();
             if (patientAge !== String(selectedPatient.age ?? '')) corrections.age = Number(patientAge);
+            if (patientDateOfBirth !== String(selectedPatient.date_of_birth || '').slice(0, 10)) corrections.date_of_birth = patientDateOfBirth || '';
             if (patientGender !== (selectedPatient.gender || '').toLowerCase()) corrections.gender = patientGender.trim().toLowerCase();
             if (Object.keys(corrections).length) payload.patient_updates = corrections;
           } else {
             payload.patient = {
               full_name: patientFullName.trim(),
               mobile_no: patientMobileNo.trim(),
-              age: Number(patientAge),
+              age: patientDateOfBirth ? parsedPatientAge : Number(patientAge),
+              date_of_birth: patientDateOfBirth || null,
               gender: patientGender.trim().toLowerCase(),
             };
           }
@@ -1664,6 +1677,7 @@ export default function Booking() {
     setPatientFullName('');
     setPatientMobileNo('');
     setPatientAge('');
+    setPatientDateOfBirth('');
     setPatientGender('');
     setPatientSearchResults([]);
     setPatientLookupError('');
@@ -1682,6 +1696,7 @@ export default function Booking() {
     setPatientFullName(patient.full_name || '');
     setPatientMobileNo(patient.mobile_no || '');
     setPatientAge(patient.age != null ? String(patient.age) : '');
+    setPatientDateOfBirth(patient.date_of_birth ? String(patient.date_of_birth).slice(0, 10) : '');
     setPatientGender((patient.gender || '').toLowerCase());
     setPatientSearchResults([]);
     setPatientLookupError('');
@@ -1727,7 +1742,7 @@ export default function Booking() {
                                       <p className="mt-0.5 text-[15px] font-semibold text-slate-900 leading-snug break-words">{patient.full_name}</p>
                                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-700">
                                         {patient.mobile_no && <span className="tabular-nums">{patient.mobile_no}</span>}
-                                        {patient.age != null && <span>{patient.mobile_no && <span className="mr-2 text-slate-400" aria-hidden="true">·</span>}{t('booking.age', 'Age')} {patient.age}</span>}
+                                        {patient.age != null && <span>{patient.mobile_no && <span className="mr-2 text-slate-400" aria-hidden="true">·</span>}{t('booking.age', 'Age')} {formatAgeValue(patient.age, patient.age_display, patient.date_of_birth, i18n.language)}</span>}
                                         {patient.gender && <span className="capitalize">{(patient.mobile_no || patient.age != null) && <span className="mr-2 text-slate-400" aria-hidden="true">·</span>}{patient.gender}</span>}
                                       </div>
                                     </button>
@@ -1847,14 +1862,31 @@ export default function Booking() {
                         <Users size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
                         <input
                           type="number"
-                          min={selectedPatient?.age === 0 && patientAge === '0' ? '0' : '1'}
+                          min={patientDateOfBirth || (selectedPatient?.age === 0 && patientAge === '0') ? '0' : '1'}
                           max="120"
                           value={patientAge}
                           onChange={(e) => {
                             setPatientAge(e.target.value.replace(/\D/g, '').slice(0, 3));
                           }}
-                          required={isReceptionist && bookedForType === 'SELF'}
+                          required={isReceptionist && bookedForType === 'SELF' && !patientDateOfBirth}
                           placeholder={t('booking.enter_age', 'Enter age')}
+                          className="w-full bg-gray-50 border-none rounded-full py-3 pl-12 pr-6 outline-none text-gray-700 font-bold focus:ring-2 focus:ring-primary-teal/20 transition-all disabled:opacity-70"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">Date of Birth</label>
+                      <div className="relative">
+                        <Calendar size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
+                        <input
+                          type="date"
+                          max={new Date().toISOString().slice(0, 10)}
+                          value={patientDateOfBirth}
+                          onChange={(e) => {
+                            setPatientDateOfBirth(e.target.value);
+                            const calculated = calculateAgeYearsFromDob(e.target.value);
+                            if (calculated !== null) setPatientAge(String(calculated));
+                          }}
                           className="w-full bg-gray-50 border-none rounded-full py-3 pl-12 pr-6 outline-none text-gray-700 font-bold focus:ring-2 focus:ring-primary-teal/20 transition-all disabled:opacity-70"
                         />
                       </div>
@@ -2011,11 +2043,32 @@ export default function Booking() {
                             <Users size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
                             <input
                               type="number"
-                              min="1"
+                              min={newFamilyMember.date_of_birth ? '0' : '1'}
                               max="120"
                               value={newFamilyMember.age}
                               onChange={(e) => setNewFamilyMember((value) => ({ ...value, age: e.target.value.replace(/\D/g, '').slice(0, 3) }))}
                               placeholder={t('booking.enter_age', 'Enter age')}
+                              className="w-full bg-gray-50 border-none rounded-full py-4 pl-12 pr-6 outline-none text-gray-700 font-bold focus:ring-2 focus:ring-primary-teal/20 transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">Date of Birth</label>
+                          <div className="relative">
+                            <Calendar size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
+                            <input
+                              type="date"
+                              max={new Date().toISOString().slice(0, 10)}
+                              value={newFamilyMember.date_of_birth}
+                              onChange={(e) => {
+                                const calculated = calculateAgeYearsFromDob(e.target.value);
+                                setNewFamilyMember((value) => ({
+                                  ...value,
+                                  date_of_birth: e.target.value,
+                                  age: calculated === null ? value.age : String(calculated),
+                                }));
+                              }}
                               className="w-full bg-gray-50 border-none rounded-full py-4 pl-12 pr-6 outline-none text-gray-700 font-bold focus:ring-2 focus:ring-primary-teal/20 transition-all"
                             />
                           </div>
@@ -2080,7 +2133,7 @@ export default function Booking() {
                           options={familyMembers.map((m) => ({
                             id: m.family_member_id,
                             label: `${m.full_name} (${m.relationship})`,
-                            description: `Age: ${m.age} • Gender: ${m.gender}`,
+                            description: `Age: ${formatAgeValue(m.age, m.age_display, m.date_of_birth)} • Gender: ${m.gender}`,
                           }))}
                           value={selectedFamilyMemberId}
                           onChange={(val) => setSelectedFamilyMemberId(val as number)}
@@ -2962,8 +3015,8 @@ export default function Booking() {
                         </div>
                       </div>
 
-                      {/* Row 2: Age & Gender */}
-                      <div className="grid grid-cols-2 gap-8">
+                      {/* Row 2: Age, DOB & Gender */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <div className="space-y-2">
                           <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">{t('booking.age')}</label>
                           <input
@@ -2977,6 +3030,21 @@ export default function Booking() {
                             className={`w-full bg-gray-50 border-none rounded-full py-4 px-6 focus:ring-2 transition-all outline-none text-[#6A6A50] font-medium ${errors.age ? 'ring-2 ring-red-100 bg-red-50/30' : 'focus:ring-primary-teal/20'}`}
                           />
                           {errors.age && <p className="text-[10px] text-red-500 font-bold mt-2 ml-2 uppercase tracking-widest">{errors.age}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">Date of Birth</label>
+                          <input
+                            type="date"
+                            max={new Date().toISOString().slice(0, 10)}
+                            value={regDateOfBirth}
+                            onChange={(e) => {
+                              setRegDateOfBirth(e.target.value);
+                              const calculated = calculateAgeYearsFromDob(e.target.value);
+                              if (calculated !== null) setRegAge(String(calculated));
+                              if (errors.age) setErrors(prev => { const n = { ...prev }; delete n.age; return n; });
+                            }}
+                            className="w-full bg-gray-50 border-none rounded-full py-4 px-6 focus:ring-2 transition-all outline-none text-[#6A6A50] font-medium focus:ring-primary-teal/20"
+                          />
                         </div>
                         <div className="space-y-0">
                           <CustomSelect

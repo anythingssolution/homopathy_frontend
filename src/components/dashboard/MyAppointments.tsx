@@ -54,15 +54,21 @@ interface Appointment {
   family_member_relationship?: string | null;
   family_member_full_name?: string | null;
   family_member_age?: number | null;
+  family_member_age_display?: string | null;
+  family_member_date_of_birth?: string | null;
   family_member_gender?: string | null;
   family_member_description?: string | null;
   patient_full_name?: string;
   primary_patient_full_name?: string;
   primary_patient_age?: number;
+  primary_patient_age_display?: string | null;
+  primary_patient_date_of_birth?: string | null;
   primary_patient_gender?: string;
   patient_uuid?: string;
   patient_mobile_no?: string;
   patient_age?: number;
+  patient_age_display?: string | null;
+  patient_date_of_birth?: string | null;
   patient_gender?: string;
   scheduled_start_time?: string;
   live_estimated_start_at?: string | null;
@@ -364,6 +370,8 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
           patient_uuid: accountAppointment.patient_uuid,
           full_name: accountAppointment.primary_patient_full_name || accountAppointment.patient_full_name,
           age: accountAppointment.primary_patient_age || accountAppointment.patient_age,
+          age_display: accountAppointment.primary_patient_age_display || accountAppointment.patient_age_display,
+          date_of_birth: accountAppointment.primary_patient_date_of_birth || accountAppointment.patient_date_of_birth,
           gender: accountAppointment.primary_patient_gender || accountAppointment.patient_gender,
           mobile_no: accountAppointment.patient_mobile_no,
         },
