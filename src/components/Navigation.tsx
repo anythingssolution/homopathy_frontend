@@ -255,7 +255,7 @@ export default function Navigation() {
     // Doctor specific additional tabs
     // Old Reports (Analytics) — hidden while we use Reports Next. Route /reports still works if uncommented.
     // { to: '/reports', icon: BarChart, label: t('dashboard.menu.reports'), subLabel: t('dashboard.menu_sub.reports'), roles: ['DOC', 'doc', 'doctor'] },
-    { to: '/reports-next', icon: Sparkles, label: t('dashboard.menu.reports_next'), subLabel: t('dashboard.menu_sub.reports_next'), roles: ['DOC', 'doc', 'doctor'] },
+    { to: '/reports-next', icon: Sparkles, label: t('dashboard.menu.reports_next'), subLabel: t('dashboard.menu_sub.reports_next'), roles: ['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist'] },
     { to: '/doctor-leave-calendar', icon: Calendar, label: t('dashboard.menu.leave_calendar', 'Leave Calendar'), subLabel: t('dashboard.menu_sub.leave_calendar', 'Doctor leave dates'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/clinic-history', icon: History, label: t('dashboard.menu.clinic_history'), subLabel: t('dashboard.menu_sub.clinic_history'), roles: ['DOC', 'doc', 'doctor'] },
     { to: '/patient-records', icon: FileText, label: t('dashboard.menu.patient_records', 'Patient Records'), subLabel: t('dashboard.menu_sub.patient_records', 'History & documents'), roles: ['DOC', 'doc', 'doctor', 'REC', 'rec', 'receptionist', 'MED', 'med', 'medical'] },

@@ -9,11 +9,14 @@ import { fetchReportModule, isoDate, rangeForFilter, rangeForFollowUpFilter } fr
 const emptyBadges: BadgeCounts = { followUps: 0, collections: 0, dispensary: 0 };
 
 export default function ReportsNext() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [badges, setBadges] = useState<BadgeCounts>(emptyBadges);
+  const roleCode = String(user?.role_code || '').toUpperCase();
+  const role = String(user?.role || '').toLowerCase();
+  const isReceptionist = roleCode === 'REC' || role === 'rec' || role === 'receptionist';
 
   const loadBadges = useCallback(async () => {
-    if (!token) return;
+    if (!token || isReceptionist) return;
     const open = rangeForFilter('3_months', { from: '', to: '' });
     const today = isoDate(new Date());
     const upcomingFollowUps = rangeForFollowUpFilter('3_months', { from: '', to: '' });
@@ -31,7 +34,7 @@ export default function ReportsNext() {
     } catch {
       setBadges(emptyBadges);
     }
-  }, [token]);
+  }, [token, isReceptionist]);
 
   useEffect(() => {
     loadBadges();

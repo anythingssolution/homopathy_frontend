@@ -86,6 +86,19 @@ function HomePage() {
   );
 }
 
+function ReportsNextIndex() {
+  const { user } = useAuth();
+  const roleCode = String(user?.role_code || '').toUpperCase();
+  const role = String(user?.role || '').toLowerCase();
+  const isReceptionist = roleCode === 'REC' || role === 'rec' || role === 'receptionist';
+
+  if (isReceptionist) {
+    return <Navigate to="/reports-next/test-register?window=1_month" replace />;
+  }
+
+  return <TodayPage />;
+}
+
 function AnimatedRoutes() {
   const location = useLocation();
   const lenisRef = useRef<Lenis | null>(null);
@@ -241,18 +254,18 @@ function AnimatedRoutes() {
               <Route path="/doctor-leave-calendar" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorLeaveCalendar /></ProtectedRoute>} />
               <Route path="/consult/:appointmentId" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><ConsultationPage /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorReports /></ProtectedRoute>} />
-              <Route path="/reports-next" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><ReportsNext /></ProtectedRoute>}>
-                <Route index element={<TodayPage />} />
-                <Route path="appointments" element={<AppointmentsPage />} />
-                <Route path="follow-ups" element={<FollowUpsPage />} />
-                <Route path="first-consults" element={<FirstConsultationsPage />} />
-                <Route path="test-register" element={<TestRegisterPage />} />
-                <Route path="courier-register" element={<CourierRegisterPage />} />
-                <Route path="dispensary" element={<DispensaryPage />} />
-                <Route path="collections" element={<CollectionsPage />} />
-                <Route path="patients" element={<PatientsPage />} />
-                <Route path="diagnosis" element={<DiagnosisPage />} />
-                <Route path="compare" element={<ComparePage />} />
+              <Route path="/reports-next" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor', 'REC', 'rec', 'receptionist']}><ReportsNext /></ProtectedRoute>}>
+                <Route index element={<ReportsNextIndex />} />
+                <Route path="appointments" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><AppointmentsPage /></ProtectedRoute>} />
+                <Route path="follow-ups" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><FollowUpsPage /></ProtectedRoute>} />
+                <Route path="first-consults" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><FirstConsultationsPage /></ProtectedRoute>} />
+                <Route path="test-register" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor', 'REC', 'rec', 'receptionist']}><TestRegisterPage /></ProtectedRoute>} />
+                <Route path="courier-register" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><CourierRegisterPage /></ProtectedRoute>} />
+                <Route path="dispensary" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DispensaryPage /></ProtectedRoute>} />
+                <Route path="collections" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><CollectionsPage /></ProtectedRoute>} />
+                <Route path="patients" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><PatientsPage /></ProtectedRoute>} />
+                <Route path="diagnosis" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DiagnosisPage /></ProtectedRoute>} />
+                <Route path="compare" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><ComparePage /></ProtectedRoute>} />
               </Route>
               <Route path="/book-appointment" element={<Booking />} />
               <Route path="/reception-patients" element={<ProtectedRoute allowedRoles={['REC', 'rec', 'receptionist']}><ReceptionPatientManagement /></ProtectedRoute>} />

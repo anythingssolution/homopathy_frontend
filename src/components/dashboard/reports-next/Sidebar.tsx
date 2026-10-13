@@ -14,6 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../../context/AuthContext';
 
 export type BadgeCounts = {
   followUps: number;
@@ -47,8 +48,51 @@ const Badge = ({ count, active }: { count: number; active: boolean }) => {
 
 export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { pathname } = useLocation();
   const pathActive = (path: string) => pathname === path;
+  const roleCode = String(user?.role_code || '').toUpperCase();
+  const role = String(user?.role || '').toLowerCase();
+  const isReceptionist = roleCode === 'REC' || role === 'rec' || role === 'receptionist';
+
+  if (isReceptionist) {
+    return (
+      <div className="w-full h-full bg-white border-b md:border-b-0 md:border-r border-gray-200 flex flex-col p-4 overflow-hidden">
+        <div className="mb-4 px-2 hidden md:block shrink-0">
+          <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">
+            {t('reports_next.menu')}
+          </h3>
+          <p className="mt-1 text-[10px] font-bold text-[#549E9E] uppercase tracking-widest">
+            {t('reports_next.menu_hint')}
+          </p>
+        </div>
+
+        <nav className="flex flex-row md:flex-col gap-4 overflow-x-auto md:overflow-y-auto md:min-h-0 scrollbar-none md:flex-1 pb-2 md:pb-0">
+          <div className="shrink-0 space-y-1.5 min-w-[220px] md:min-w-0">
+            <p className="px-2 text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 hidden md:block">
+              {t('reports_next.group_work')}
+            </p>
+            <NavLink
+              to="/reports-next/test-register?window=1_month"
+              className={() => itemClass(pathActive('/reports-next/test-register'))}
+            >
+              {() => {
+                const isActive = pathActive('/reports-next/test-register');
+                return (
+                  <>
+                    <TestTube2 size={18} className={isActive ? 'text-white' : 'text-gray-400'} />
+                    <span className="text-xs font-bold uppercase tracking-widest leading-tight flex-1">
+                      {t('reports_next.nav.test_register')}
+                    </span>
+                  </>
+                );
+              }}
+            </NavLink>
+          </div>
+        </nav>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-white border-b md:border-b-0 md:border-r border-gray-200 flex flex-col p-4 overflow-hidden">

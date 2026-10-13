@@ -118,8 +118,11 @@ export default function TestRegisterPage() {
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const navigate = useNavigate();
   const location = useLocation();
-  const { token, branchScope } = useAuth();
+  const { token, branchScope, user } = useAuth();
   const { addToast } = useNotifications();
+  const roleCode = String(user?.role_code || '').toUpperCase();
+  const role = String(user?.role || '').toLowerCase();
+  const isReceptionist = roleCode === 'REC' || role === 'rec' || role === 'receptionist';
   const { dateFilter, setDateFilter } = useReportWindow('1_month');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
   const [rows, setRows] = useState<TestRegisterRow[]>([]);
@@ -410,28 +413,32 @@ export default function TestRegisterPage() {
           {!print && (
             <td className="no-print px-4 py-3">
               <div className="flex flex-col items-stretch gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => openPatientRecord(group.first)}
-                  title={t('reports_next.test_register.open_patient')}
-                  className="inline-flex cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 px-2 py-1.5 text-[9px] font-black uppercase tracking-wide text-slate-500 transition-colors hover:border-[#549E9E]/30 hover:bg-[#549E9E]/5 hover:text-[#2d8789]"
-                >
-                  <UserRound size={13} />
-                  {t('reports_next.test_register.record_short')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => group.first.test_source === 'BILL' ? openPatientRecord(group.first) : navigate(`/consult/${group.appointmentId}`, {
-                    state: {
-                      from: { pathname: location.pathname, search: location.search },
-                    },
-                  })}
-                  title={group.first.test_source === 'BILL' ? 'View tests in patient record' : t('reports_next.test_register.open_consultation')}
-                  className="inline-flex cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 px-2 py-1.5 text-[9px] font-black uppercase tracking-wide text-slate-500 transition-colors hover:border-[#549E9E]/30 hover:bg-[#549E9E]/5 hover:text-[#2d8789]"
-                >
-                  <Eye size={13} />
-                  {group.first.test_source === 'BILL' ? 'Tests' : t('reports_next.test_register.consult_short')}
-                </button>
+                {!isReceptionist && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openPatientRecord(group.first)}
+                      title={t('reports_next.test_register.open_patient')}
+                      className="inline-flex cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 px-2 py-1.5 text-[9px] font-black uppercase tracking-wide text-slate-500 transition-colors hover:border-[#549E9E]/30 hover:bg-[#549E9E]/5 hover:text-[#2d8789]"
+                    >
+                      <UserRound size={13} />
+                      {t('reports_next.test_register.record_short')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => group.first.test_source === 'BILL' ? openPatientRecord(group.first) : navigate(`/consult/${group.appointmentId}`, {
+                        state: {
+                          from: { pathname: location.pathname, search: location.search },
+                        },
+                      })}
+                      title={group.first.test_source === 'BILL' ? 'View tests in patient record' : t('reports_next.test_register.open_consultation')}
+                      className="inline-flex cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 px-2 py-1.5 text-[9px] font-black uppercase tracking-wide text-slate-500 transition-colors hover:border-[#549E9E]/30 hover:bg-[#549E9E]/5 hover:text-[#2d8789]"
+                    >
+                      <Eye size={13} />
+                      {group.first.test_source === 'BILL' ? 'Tests' : t('reports_next.test_register.consult_short')}
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => openReportStatusModal(group)}
