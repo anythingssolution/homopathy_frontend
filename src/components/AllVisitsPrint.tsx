@@ -1,4 +1,5 @@
 import React from 'react';
+import PrescriptionBranchLocations from './PrescriptionBranchLocations';
 import { Activity, Mail, Phone, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
 import { getMedicationRoleLabel, formatPrescriptionMedicineText, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedNumericFormulaDisplay, getPrintedTestFinding } from '../utils/prescriptionFormat';
 import { formatPrintDurationLabel, getFollowUpDueDate, getMedicationPeriodDates } from '../utils/medicationDuration';
@@ -533,23 +534,7 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                   </h2>
                 </div>
 
-                {/* Addresses */}
-                <div className="flex justify-between w-full mb-1 gap-4">
-                  <div className="flex-1 text-center">
-                    <p className="text-[10px] font-bold text-gray-800 leading-tight">लिली चौक, बरई मंदिर गली, पुरानी बस्ती, रायपुर (छ.ग.)</p>
-                    <p className="text-[10.5px] font-black text-gray-800 leading-tight mb-1 mt-0.5">मो. 7772043001</p>
-                    <div className="bg-[#1a2b4c] text-white text-[8.5px] py-1 px-1 tracking-wide font-bold">
-                      समय प्रातः 11 बजे से 2 बजे तक | सायं 6 बजे से 9 बजे तक | रविवार : सुबह 11 से 3 बजे तक
-                    </div>
-                  </div>
-                  <div className="flex-1 text-center">
-                    <p className="text-[10px] font-bold text-gray-800 leading-tight">सेक्टर 5, मंडी गेट के पास, देवेन्द्र नगर, सेंट मेरी स्कूल के सामने, रायपुर (छ.ग.)</p>
-                    <p className="text-[10.5px] font-black text-gray-800 leading-tight mb-1 mt-0.5">मो. 7773043001</p>
-                    <div className="bg-[#1a2b4c] text-white text-[8.5px] py-1 px-1 tracking-wide font-bold">
-                      प्रति मंगलवार प्रातः 11.00 से शाम 06.00 बजे तक
-                    </div>
-                  </div>
-                </div>
+                <PrescriptionBranchLocations />
 
                 {/* Social Links */}
                 <div className="flex justify-center items-center space-x-3 mt-1.5 mb-1">
