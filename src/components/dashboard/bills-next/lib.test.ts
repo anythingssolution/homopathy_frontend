@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { consultantTotals, dailyBreakdown, fetchBillPayments, fetchBillRows, mergeConsultants, sessionPaymentTotals } from './lib';
+import { BILL_SOURCE_FIELDS, filterVisits, groupVisits, visitSourceAmount, visitDeliveryTotals, withPreviousPayments, consultantTotals, dailyBreakdown, fetchBillPayments, fetchBillRows, mergeConsultants, sessionPaymentTotals } from './lib';
 
 test('daily breakdown separates receipt day from bill day and includes direct medicine without a consultation count', () => {
   const rows = dailyBreakdown([
@@ -148,4 +148,89 @@ test('session payment totals split actual cash and online receipts without assig
     evening: { cash: 300, online: 0, total: 300 },
     no_slot: { cash: 0, online: 125, total: 125 },
   });
+});
+
+
+test('source drilldowns reconcile with dashboard amounts after discounts across consultation, courier, direct and repeat bills', () => {
+  const visits = groupVisits([
+    { bill_id: 1, appointment_id: 10, bill_type: 'CONSULTATION', patient_full_name: 'Alpha', total_amount: 90.25, gross_amount: 100, discount_amount: 9.75 },
+    { bill_id: 2, appointment_id: 10, bill_type: 'MEDICATION', delivery_mode: 'COURIER', patient_full_name: 'Alpha', gross_amount: 600, total_amount: 540, test_amount: 200, courier_amount: 50, medicine_discount_amount: 40, test_discount_amount: 20 },
+    { bill_id: 3, bill_type: 'MEDICATION', patient_full_name: 'Beta', remark: 'Medical Only', gross_amount: 80, total_amount: 80 },
+    { bill_id: 4, bill_type: 'MEDICATION', consultation_id: 5, patient_full_name: 'Gamma', gross_amount: 40, total_amount: 30, test_amount: 40, test_discount_amount: 10 },
+    { bill_id: 5, appointment_id: 11, bill_type: 'CONSULTATION', patient_full_name: 'Free follow up', total_amount: 0 },
+  ]);
+  const expected = { source_consult: 90.25, source_medicine: 80, source_tests: 210, source_courier: 360 };
+  const projectedVisits = visits.map(row => ({ ...row, ...visitDeliveryTotals(row) }));
+  for (const [category, field] of Object.entries(BILL_SOURCE_FIELDS)) {
+    const selected = filterVisits(visits, category);
+    assert.equal(selected.reduce((sum, row) => sum + Number(visitSourceAmount(row, category)), 0), expected[category]);
+    assert.equal(selected.reduce((sum, row) => sum + Number(visitSourceAmount(row, category)), 0), projectedVisits.reduce((sum, row) => sum + row[field], 0));
+    assert.ok(selected.every(row => Number(visitSourceAmount(row, category)) > 0));
+    assert.deepEqual(selected.map(row => row.group_key), projectedVisits.filter(row => row[field] > 0).map(row => row.group_key));
+  }
+  assert.equal(filterVisits(visits, 'source_medicine').length, 1);
+  assert.equal(filterVisits(visits, 'source_medicine', 'Alpha').length, 0);
+  assert.equal(filterVisits(visits, 'source_courier', 'Alpha').length, 1);
+  assert.equal(Object.values(expected).reduce((sum, value) => sum + value, 0), visits.reduce((sum, row) => sum + row.grand_total, 0));
+  assert.equal(filterVisits(visits, 'source_medicine', 'Beta').length, 1);
+  assert.equal(filterVisits(visits, 'source_tests', 'Beta').length, 0);
+  assert.equal(filterVisits(visits, 'source_consult').length, 1);
+  assert.equal(filterVisits(visits, 'all').length, visits.length);
+});
+
+test('day-wise Courier matches session split with discounted medicines plus delivery, keeping tests separate', () => {
+  const bills = [
+    { bill_id: 1, appointment_id: 20, appointment_date: '2026-10-17', bill_type: 'CONSULTATION', gross_amount: 100, total_amount: 100, paid_amount: 100 },
+    { bill_id: 2, appointment_id: 20, appointment_date: '2026-10-17', bill_type: 'MEDICATION', delivery_mode: 'COURIER', gross_amount: 1300, total_amount: 1180, discount_amount: 120, test_amount: 200, courier_amount: 100, medicine_discount_amount: 100, courier_discount_amount: 20, paid_amount: 1000, pending_amount: 180 },
+    { bill_id: 3, appointment_id: 20, appointment_date: '2026-10-17', bill_type: 'MEDICATION', delivery_mode: 'HAND_DELIVERY', gross_amount: 300, total_amount: 270, discount_amount: 30, medicine_discount_amount: 30, paid_amount: 270 },
+  ];
+  const [day] = dailyBreakdown(bills, []);
+  assert.equal(day.consultation, 100);
+  assert.equal(day.medicine, 270);
+  assert.equal(day.tests, 200);
+  assert.equal(day.courier, 980);
+  assert.equal(day.consultation + day.medicine + day.tests + day.courier, day.billed);
+  assert.equal(day.gross - day.discount, day.billed);
+  assert.equal(day.paid, 1370);
+  assert.equal(day.pending, 180);
+  // Visit details and category drilldowns must retain their own medicine/charge breakdown.
+  const [visit] = groupVisits(bills);
+  const printRow = { ...visit, ...visitDeliveryTotals(visit) };
+  assert.equal(printRow.medicine_total, 270);
+  assert.equal(printRow.courier_total, 980);
+  assert.equal(printRow.consult_total + printRow.medicine_total + printRow.test_total + printRow.courier_total, printRow.grand_total);
+  assert.equal(printRow.grand_paid, visit.grand_paid);
+  assert.equal(printRow.grand_pending, visit.grand_pending);
+  assert.equal(visit.medicine_total, 1170);
+  assert.equal(visit.courier_total, 80);
+  assert.equal(visitSourceAmount(visit, 'source_courier'), 980);
+  assert.equal(visitSourceAmount(visit, 'source_medicine'), 270);
+});
+
+test('courier source includes medicine even when delivery is free', () => {
+  const visits = groupVisits([{ bill_id: 70, bill_type: 'MEDICATION', delivery_mode: 'COURIER', gross_amount: 500, total_amount: 450, medicine_discount_amount: 50, courier_amount: 0 }]);
+  assert.equal(visitSourceAmount(visits[0], 'source_courier'), 450);
+  assert.equal(filterVisits(visits, 'source_courier').length, 1);
+  assert.equal(filterVisits(visits, 'source_medicine').length, 0);
+});
+
+test('print delivery totals keep old-due receipt rows separate from current billing', () => {
+  const [receipt] = withPreviousPayments([], [{ payment_id: 1, amount: 400, collected_at: '2026-10-17', bill_number: 'OLD-1' }]);
+  const printRow = { ...receipt, ...visitDeliveryTotals(receipt) };
+  assert.equal(printRow.medicine_total, 0);
+  assert.equal(printRow.courier_total, 0);
+  assert.equal(printRow.grand_total, 0);
+  assert.equal(printRow.paid_towards_previous_pending, 400);
+});
+
+test('day-wise Courier includes direct/repeat courier bills and excludes fully discounted medicine amounts', () => {
+  const rows = dailyBreakdown([
+    { bill_id: 10, appointment_date: '2026-10-17', bill_type: 'MEDICATION', delivery_mode: 'COURIER', gross_amount: 600, total_amount: 550, discount_amount: 50, medicine_discount_amount: 50, courier_amount: 100 },
+    { bill_id: 11, appointment_date: '2026-10-16', bill_type: 'MEDICATION', delivery_mode: 'COURIER', gross_amount: 150, total_amount: 50, discount_amount: 100, medicine_discount_amount: 100, courier_amount: 50 },
+  ], []);
+  assert.equal(rows[0].medicine, 0);
+  assert.equal(rows[0].courier, 550);
+  assert.equal(rows[0].consults, 0);
+  assert.equal(rows[1].medicine, 0);
+  assert.equal(rows[1].courier, 50);
 });

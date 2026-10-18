@@ -568,9 +568,9 @@ export default function PatientRecords() {
           <button
             type="button"
             onClick={() => goBackOr(navigate, "/doctor-portal")}
-            className="inline-flex items-center gap-1.5 mb-2 text-[10px] font-black uppercase tracking-widest text-[#549E9E] hover:text-[#3d7f7f]"
+            className="mb-4 inline-flex min-h-11 items-center gap-2.5 rounded-xl border border-[#256b6d] bg-[#2d7d7f] px-5 py-2.5 text-base font-extrabold text-white shadow-sm transition-colors hover:bg-[#256b6d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2d7d7f] focus-visible:ring-offset-2 cursor-pointer"
           >
-            <ArrowLeft size={14} />
+            <ArrowLeft size={20} strokeWidth={2.5} aria-hidden="true" />
             {t("common.back", "Back")}
           </button>
           <p className="text-xs font-black uppercase tracking-widest text-[#549E9E]">{t('patient_records.category', 'Patient History & Records')}</p>

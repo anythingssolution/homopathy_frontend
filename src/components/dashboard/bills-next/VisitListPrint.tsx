@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { billCategory, moneyExact, type VisitRow } from './lib';
+import { billCategory, moneyExact, visitDeliveryTotals, type VisitRow } from './lib';
 
 export default function VisitListPrint({ rows, branch, from, to, category, search, onClose }: {
   rows: VisitRow[]; branch: string; from: string; to: string; category: string; search: string; onClose: () => void;
@@ -20,7 +20,8 @@ export default function VisitListPrint({ rows, branch, from, to, category, searc
     };
   }, [onClose]);
   const date = (value?: string) => value ? new Date(value.includes('T') ? value : `${value}T00:00:00`).toLocaleDateString(i18n.language.startsWith('hi') ? 'hi-IN' : 'en-GB') : '—';
-  const sum = (key: keyof VisitRow) => moneyExact(rows.reduce((total, row) => total + Number(row[key] || 0), 0));
+  const printRows = rows.map(row => ({ ...row, ...visitDeliveryTotals(row) }));
+  const sum = (key: keyof VisitRow) => moneyExact(printRows.reduce((total, row) => total + Number(row[key] || 0), 0));
   return createPortal(<div className="print-only visit-list-print">
     <style>{`
       @media print {
@@ -51,6 +52,9 @@ export default function VisitListPrint({ rows, branch, from, to, category, searc
     <h1>{t('bills_next.tab_visits')} · {branch}</h1>
     <p>{date(from)} – {date(to)} · {category} · {t('bills_next.print_count', { count: rows.length })}</p>
     {search.trim() && <p>{t('bills_next.print_search')}: {search}</p>}
+    <p>{i18n.language.startsWith('hi')
+      ? 'कूरियर में भेजी गई दवाएँ और डिलीवरी शुल्क, छूट के बाद शामिल हैं। टेस्ट अलग दिखाए गए हैं।'
+      : 'Courier includes courier-delivered medicines and delivery charges after discounts. Tests are shown separately.'}</p>
     <table>
       <colgroup>
         {[3, 5, 15, 17, 6.5, 8, 6, 6, 8.5, 8.5, 8, 8.5].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
@@ -64,7 +68,7 @@ export default function VisitListPrint({ rows, branch, from, to, category, searc
         <th className="amount">{t('bills_next.collected')}</th><th className="amount">{t('bills_next.old_dues')}</th>
         <th className="amount">{t('bills_next.pending')}</th>
       </tr></thead>
-      <tbody>{rows.map((row, index) => <tr key={row.group_key}>
+      <tbody>{printRows.map((row, index) => <tr key={row.group_key}>
         <td className="token">{index + 1}</td>
         <td className="token">
           {row.previous_payment && <span className="badge direct-badge">{t('bills_next.extra.previous_pending')}</span>}

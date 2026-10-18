@@ -1,3 +1,4 @@
+import { bookingBranchStatus, type BookingDateAvailability } from '../utils/bookingWeekdays';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, User, CheckCircle2, MapPin, ChevronDown, Phone, X, Smartphone, Download, Zap, Users, Lock, Mail, Stethoscope, Eye, EyeOff, Key, MessageSquare, Link2, Activity, ClipboardList, Calendar } from 'lucide-react';
@@ -45,7 +46,7 @@ const CustomSelect = ({
   disabled
 }: {
   label: string,
-  options: { id: string | number, label: string, description?: string }[],
+  options: { id: string | number, label: string, description?: string, disabled?: boolean }[],
   value: string | number,
   onChange: (val: any) => void,
   icon: any,
@@ -94,25 +95,29 @@ const CustomSelect = ({
               className="absolute top-full left-0 right-0 mt-3 bg-white rounded-[30px] shadow-2xl border border-gray-100 overflow-hidden z-[100] py-2"
             >
               {options.length > 0 ? options.map((opt) => (
-                <div
+                <button
+                  type="button"
+                  disabled={opt.disabled}
+                  aria-disabled={opt.disabled || undefined}
                   key={opt.id}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (opt.disabled) return;
                     onChange(opt.id);
                     setIsOpen(false);
                   }}
-                  className={`px-8 py-4 text-sm font-bold transition-all flex items-center justify-between group ${value === opt.id ? 'bg-primary-teal text-white' : 'text-[#6A6A50] hover:bg-primary-teal/5 hover:text-primary-teal'}`}
+                  className={`w-full text-left px-8 py-4 text-sm font-bold transition-all flex items-center justify-between group ${opt.disabled ? 'cursor-not-allowed bg-slate-50 text-slate-400' : value === opt.id ? 'bg-primary-teal text-white' : 'text-[#6A6A50] hover:bg-primary-teal/5 hover:text-primary-teal'}`}
                 >
                   <div className="flex flex-col items-start gap-0.5">
                     <span className="leading-tight">{opt.label}</span>
                     {opt.description && (
-                      <span className={`text-[9px] font-medium leading-tight ${value === opt.id ? 'text-white/70' : 'text-gray-400'}`}>
+                      <span className={`${opt.disabled ? 'text-xs text-slate-500' : 'text-[9px]'} font-medium leading-snug ${!opt.disabled && value === opt.id ? 'text-white/70' : ''}`}>
                         {opt.description}
                       </span>
                     )}
                   </div>
-                  {value === opt.id && <CheckCircle2 size={14} className="text-white shrink-0 ml-2" />}
-                </div>
+                  {value === opt.id && !opt.disabled && <CheckCircle2 size={14} className="text-white shrink-0 ml-2" />}
+                </button>
               )) : (
                 <div className="px-8 py-4 text-[10px] font-bold text-gray-400 italic uppercase tracking-widest text-center">
                   {noOptionsMessage || 'No options available'}
@@ -486,6 +491,9 @@ export default function Booking() {
       default_end_time: string;
     }[];
   } | null>(null);
+  const [dateAvailability, setDateAvailability] = useState<BookingDateAvailability | null>(null);
+  const [dateAvailabilityError, setDateAvailabilityError] = useState('');
+  const [dateAvailabilityReload, setDateAvailabilityReload] = useState(0);
   const [tokenPlate, setTokenPlate] = useState<BookingTokenPlateItem[]>([]);
   const [tokenPlateMeta, setTokenPlateMeta] = useState<BookingTokenPlateData | null>(null);
   const [selectedTokenNumber, setSelectedTokenNumber] = useState<number | ''>('');
@@ -495,7 +503,11 @@ export default function Booking() {
   const followUpTreatmentIds = formData?.meta?.follow_up_rules?.follow_up_treatment_ids || [];
   const isFollowUpVisitSelected = Boolean(treatmentType && followUpTreatmentIds.includes(Number(treatmentType)));
   const hasEligibleFollowUps = eligibleFollowUps.length > 0;
-  const isDoctorUnavailable = bookingAvailability?.booking_enabled === false;
+  const branchBookingStatus = bookingBranchStatus(dateAvailability, appointmentDate, appointmentLocation);
+  const slotBookingStatus = branchBookingStatus?.slots.find(slot => Number(slot.slot_id) === Number(timeSlot));
+  const weekdayUnavailable = branchBookingStatus?.booking_enabled === false || slotBookingStatus?.booking_enabled === false;
+  const dateAvailabilityPending = Boolean(isAuthenticated && dateAvailability?.appointment_date !== appointmentDate);
+  const isDoctorUnavailable = bookingAvailability?.booking_enabled === false || weekdayUnavailable;
   const selectedTreatment = useMemo(
     () => (formData?.treatments || []).find((item: any) => Number(item.id) === Number(treatmentType)) || null,
     [formData?.treatments, treatmentType]
@@ -660,6 +672,37 @@ export default function Booking() {
   }, [formData, searchParams]);
 
   useEffect(() => {
+    const refresh = () => setDateAvailabilityReload(value => value + 1);
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const controller = new AbortController();
+    setDateAvailability(null); setDateAvailabilityError('');
+    fetch(`/api/v1/public/booking-date-availability?date=${encodeURIComponent(appointmentDate)}`, { signal: controller.signal, cache: 'no-store' })
+      .then(async response => { const result = await response.json(); if (!response.ok || !result.success) throw new Error(result.message || 'Unable to check booking days.'); return result.data; })
+      .then(data => {
+        if (controller.signal.aborted) return;
+        setDateAvailability(data);
+        setErrors(previous => {
+          if (previous.appointment !== 'Please wait while booking availability is checked.') return previous;
+          const next = { ...previous };
+          delete next.appointment;
+          return next;
+        });
+      })
+      .catch(err => { if (!controller.signal.aborted) setDateAvailabilityError(err.message || 'Unable to check booking days.'); });
+    return () => controller.abort();
+  }, [isAuthenticated, appointmentDate, dateAvailabilityReload]);
+
+  useEffect(() => {
+    if (dateAvailability?.appointment_date !== appointmentDate) return;
+    if (weekdayUnavailable) { setTimeSlot(''); setSelectedTokenNumber(''); }
+  }, [appointmentDate, dateAvailability, weekdayUnavailable]);
+
+  useEffect(() => {
     if (!appointmentLocation || !appointmentDate) {
       setBookingAvailability(null);
       setIsAvailabilityLoading(false);
@@ -694,14 +737,14 @@ export default function Booking() {
         }
         setBookingAvailability(null);
       } finally {
-        setIsAvailabilityLoading(false);
+        if (!controller.signal.aborted) setIsAvailabilityLoading(false);
       }
     };
 
     fetchAvailability();
 
     return () => controller.abort();
-  }, [appointmentLocation, appointmentDate]);
+  }, [appointmentLocation, appointmentDate, dateAvailabilityReload]);
 
   useEffect(() => {
     if (!appointmentLocation || !treatmentType || !appointmentDate || !timeSlot || isDoctorUnavailable) {
@@ -1469,6 +1512,9 @@ export default function Booking() {
 
   const handleAppointmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Availability has its own live status/error UI; loading must not become a persistent form error.
+    if (dateAvailabilityPending || dateAvailabilityError) return;
+    if (weekdayUnavailable) { setErrors({ appointment: slotBookingStatus?.reason || branchBookingStatus?.reason || 'Booking is closed for this session.' }); return; }
     if (appointmentLocation && treatmentType && appointmentDate && timeSlot) {
       if (bookingAvailability && bookingAvailability.booking_enabled === false) {
         setErrors({ appointment: bookingAvailability.reason || 'Doctor is not available in clinic' });
@@ -1781,6 +1827,260 @@ export default function Booking() {
               </div>
 
               <form className="space-y-8" onSubmit={handleAppointmentSubmit}>
+                <div className="space-y-2 text-sm">
+                  <p className="font-semibold text-slate-600">{i18n.language.startsWith('hi') ? 'बुकिंग की उपलब्धता इस तारीख के लिए है: ' : 'Booking availability for: '}{appointmentDate.split('-').reverse().join('/')}<span className="ml-2 font-normal text-slate-500">{i18n.language.startsWith('hi') ? 'तारीख नीचे बदल सकते हैं।' : 'You can change the date below.'}</span></p>
+                  {dateAvailabilityError && <div role="alert" className="rounded-xl bg-red-50 p-3 text-red-700">{dateAvailabilityError}<button type="button" onClick={() => setDateAvailabilityReload(value => value + 1)} className="ml-3 font-bold underline">Retry</button></div>}
+                  {branchBookingStatus?.booking_enabled === false && <p role="status" className="rounded-xl bg-amber-50 p-3 text-amber-800">{branchBookingStatus.reason}</p>}
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-8">
+                  <CustomSelect
+                    label={t('booking.clinic_location')}
+                    options={(formData?.branches || [])
+                      .map(b => ({
+                        id: b.id,
+                        label: b.branch_name,
+                        description: bookingBranchStatus(dateAvailability, appointmentDate, b.id)?.reason || b.address,
+                        disabled: dateAvailabilityPending || !bookingBranchStatus(dateAvailability, appointmentDate, b.id)?.booking_enabled,
+                      }))}
+                    value={appointmentLocation}
+                    onChange={(val) => {
+                      setAppointmentLocation(val);
+                      setTimeSlot(''); // Reset slot when branch changes
+                    }}
+                    icon={MapPin}
+                  />
+                  <CustomSelect
+                    label={t('booking.treatment_type')}
+                    options={formData?.treatments.map(t => ({
+                      id: t.id,
+                      label: t.treatment_name,
+                      description: t.description
+                    })) || []}
+                    value={treatmentType}
+                    onChange={setTreatmentType}
+                    icon={Stethoscope}
+                  />
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-8">
+                  <CustomDatePicker
+                    label={t('booking.appointment_date')}
+                    value={appointmentDate}
+                    onChange={(date) => {
+                      if (date && date !== 'all') {
+                        setAppointmentDate(date);
+                      }
+                    }}
+                    minDate={getLocalDateString()}
+                    allowClear={false}
+                  />
+                  <CustomSelect
+                    label={t('booking.time_slot_label')}
+                    options={
+                      !appointmentLocation
+                        ? []
+                        : formData?.slots
+                          .filter(s => Number(s.fk_branch_id) === Number(appointmentLocation))
+                          .map(s => {
+                            const activeOverride = bookingAvailability?.slot_time_overrides?.find(
+                              (o: any) => Number(o.fk_slot_id) === Number(s.id)
+                            );
+                            const plateSlot = tokenPlateMeta?.slot;
+                            const plateMatchesSlot =
+                              Number(plateSlot?.id || plateSlot?.slot_id) === Number(s.id);
+                            const hasOverride =
+                              !!activeOverride ||
+                              (plateMatchesSlot &&
+                                Boolean(plateSlot?.has_time_override || plateSlot?.has_override));
+
+                            const rawStart =
+                              activeOverride?.override_start_time ||
+                              (plateMatchesSlot &&
+                                (plateSlot?.effective_start_time || plateSlot?.start_time)) ||
+                              s.start_time;
+                            const rawEnd =
+                              activeOverride?.override_end_time ||
+                              (plateMatchesSlot &&
+                                (plateSlot?.effective_end_time || plateSlot?.end_time)) ||
+                              s.end_time;
+
+                            // Weekly rules are materialised as overrides by the backend, so the
+                            // override / plate timing already reflects them.
+                            const startLabel = formatTimeTo12Hour(String(rawStart || ''));
+                            const endLabel = formatTimeTo12Hour(String(rawEnd || ''));
+
+                            return {
+                              id: s.id,
+                              label: `${s.slot_name} (${startLabel} - ${endLabel})`,
+                              disabled: dateAvailabilityPending || !branchBookingStatus?.slots.find(slot => Number(slot.slot_id) === Number(s.id))?.booking_enabled,
+                              description: branchBookingStatus?.slots.find(slot => Number(slot.slot_id) === Number(s.id))?.reason || undefined,
+                            };
+                          }) || []
+                    }
+                    value={timeSlot}
+                    onChange={setTimeSlot}
+                    icon={Clock}
+                    disabled={!appointmentLocation || isDoctorUnavailable || isAvailabilityLoading}
+                    noOptionsMessage={!appointmentLocation ? "Select location first" : "No slots available"}
+                  />
+                </div>
+
+                <ScheduleRuleNotice
+                  branchId={appointmentLocation}
+                  appointmentDate={appointmentDate}
+                  className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-xl text-amber-800 text-sm"
+                />
+
+                {appointmentLocation && appointmentDate && (
+                  <div className={`p-4 rounded-[22px] border ${
+                    isAvailabilityLoading
+                      ? 'bg-amber-50 border-amber-100 text-amber-600'
+                      : isDoctorUnavailable
+                      ? 'bg-red-50 border-red-100 text-red-600'
+                      : 'bg-emerald-50 border-emerald-100 text-emerald-600'
+                  }`}>
+                    <p className="text-[11px] font-black uppercase tracking-widest">
+                      {isAvailabilityLoading
+                        ? t('booking.checking_doctor_availability', 'Checking doctor availability')
+                        : isDoctorUnavailable
+                          ? (branchBookingStatus?.reason || slotBookingStatus?.reason || bookingAvailability?.reason || t('booking.doctor_unavailable', 'Doctor is not available in clinic'))
+                          : t('booking.doctor_available', 'Doctor is available for the selected date')}
+                    </p>
+                    {!isAvailabilityLoading && bookingAvailability?.leave?.leave_reason && (
+                      <p className="text-sm mt-2 opacity-80">
+                        {bookingAvailability.leave.leave_reason}
+                      </p>
+                    )}
+                    {!isAvailabilityLoading &&
+                      tokenPlateMeta?.slot?.reason &&
+                      (tokenPlateMeta.slot.has_override || tokenPlateMeta.slot.has_time_override) && (
+                        <p className="text-sm mt-2 opacity-80">
+                          {tokenPlateMeta.slot.reason}
+                        </p>
+                      )}
+                  </div>
+                )}
+
+                {appointmentLocation && treatmentType && appointmentDate && timeSlot && !isDoctorUnavailable && selectedTreatmentVisitType && selectedTreatmentVisitType !== 'OTHER' && (
+                  <div className="space-y-4 bg-gray-50 border border-gray-100 rounded-[26px] p-5">
+                    <div className="flex flex-col gap-1">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-primary-teal">
+                        Booking Token Grid
+                      </p>
+                      <p className="text-sm font-medium text-gray-600">
+                        Select one token for <span className="font-black text-gray-800">{selectedTreatment?.treatment_name || tokenPlateMeta?.treatment_name || 'selected treatment'}</span>.
+                      </p>
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
+                        Only matching visit-type token cards are selectable.
+                      </p>
+                      {(tokenPlateMeta?.slot?.effective_start_time ||
+                        tokenPlateMeta?.slot?.start_time) && (
+                        <p className="text-[11px] font-bold text-gray-500">
+                          Session starts at{' '}
+                          <span className="font-black text-gray-800">
+                            {formatTimeTo12Hour(
+                              String(
+                                tokenPlateMeta.slot.effective_start_time ||
+                                  tokenPlateMeta.slot.start_time ||
+                                  '',
+                              ),
+                            )}
+                          </span>
+                          {(tokenPlateMeta.slot.effective_end_time ||
+                            tokenPlateMeta.slot.end_time) && (
+                            <>
+                              {' '}
+                              –{' '}
+                              {formatTimeTo12Hour(
+                                String(
+                                  tokenPlateMeta.slot.effective_end_time ||
+                                    tokenPlateMeta.slot.end_time ||
+                                    '',
+                                ),
+                              )}
+                            </>
+                          )}
+                        </p>
+                      )}
+                    </div>
+
+                    {isTokenPlateLoading && (
+                      <div className="p-4 rounded-[20px] border border-amber-100 bg-amber-50 text-[11px] font-black uppercase tracking-widest text-amber-600 text-center">
+                        Loading token grid...
+                      </div>
+                    )}
+
+                    {!isTokenPlateLoading && tokenPlateError && (
+                      <div className="p-4 rounded-[20px] border border-red-100 bg-red-50 text-[11px] font-black uppercase tracking-widest text-red-500 text-center">
+                        {tokenPlateError}
+                      </div>
+                    )}
+
+                    {!isTokenPlateLoading && !tokenPlateError && tokenPlate.length > 0 && (
+                      <>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
+                          {tokenPlate.map((tokenCard) => {
+                            const isPastOrCurrentTimeSlot = isPastDate || (isToday && currentTimeStr >= tokenCard.estimated_start_at);
+                            const isSelected = Number(selectedTokenNumber) === Number(tokenCard.token_number);
+                            const isDisabled = !tokenCard.is_selectable || isSubmitting || isPastOrCurrentTimeSlot;
+                            return (
+                              <button
+                                key={tokenCard.token_number}
+                                type="button"
+                                disabled={isDisabled}
+                                onClick={() => setSelectedTokenNumber(tokenCard.token_number)}
+                                className={`text-center rounded-xl border p-2 transition-all ${
+                                  isDisabled ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer hover:-translate-y-0.5'
+                                } ${isSelected ? 'ring-2 ring-offset-2 ring-primary-teal shadow-md' : 'shadow-sm'}`}
+                                style={{
+                                  borderColor: tokenCard.color_code,
+                                  backgroundColor: isSelected ? `${tokenCard.color_code}20` : `${tokenCard.color_code}12`,
+                                }}
+                              >
+                                <div className="text-center">
+                                  <span className="text-base font-black text-gray-900">
+                                    #{tokenCard.token_number}
+                                  </span>
+                                </div>
+                                <div className="mt-1.5">
+                                  <p className="text-[9px] font-extrabold uppercase tracking-wider truncate" style={{ color: tokenCard.color_code }} title={tokenCard.visit_type_label}>
+                                    {tokenCard.short_label}
+                                  </p>
+                                  <p className="mt-0.5 text-xs font-black text-gray-800">
+                                    {formatTimeTo12Hour(tokenCard.estimated_start_at)}
+                                  </p>
+                                  <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-gray-400">
+                                    {(tokenCard.is_booked || isPastOrCurrentTimeSlot)
+                                      ? 'Booked'
+                                      : tokenCard.is_selectable
+                                        ? 'Available'
+                                        : 'Reserved'}
+                                  </p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {selectedTokenNumber ? (
+                          <div className="p-4 rounded-[20px] border border-emerald-100 bg-emerald-50 text-center">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-emerald-600">
+                              Selected token #{selectedTokenNumber}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-4 rounded-[20px] border border-gray-100 bg-white text-center">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-gray-400">
+                              Select one available token card to continue
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {isReceptionist && (
                   <div className="grid md:grid-cols-2 gap-6 mb-2 border-b border-gray-100 pb-4" ref={patientSuggestionsRef}>
                     <div className="md:col-span-2 space-y-2">
@@ -2159,35 +2459,6 @@ export default function Booking() {
                   </div>
                 )}
 
-                <div className="grid md:grid-cols-2 gap-8">
-                  <CustomSelect
-                    label={t('booking.clinic_location')}
-                    options={(formData?.branches || [])
-                      .map(b => ({
-                        id: b.id,
-                        label: b.branch_name,
-                        description: b.address
-                      }))}
-                    value={appointmentLocation}
-                    onChange={(val) => {
-                      setAppointmentLocation(val);
-                      setTimeSlot(''); // Reset slot when branch changes
-                    }}
-                    icon={MapPin}
-                  />
-                  <CustomSelect
-                    label={t('booking.treatment_type')}
-                    options={formData?.treatments.map(t => ({
-                      id: t.id,
-                      label: t.treatment_name,
-                      description: t.description
-                    })) || []}
-                    value={treatmentType}
-                    onChange={setTreatmentType}
-                    icon={Stethoscope}
-                  />
-                </div>
-
                 {isFollowUpVisitSelected && (
                   <div className="space-y-3 bg-red-50/40 border border-red-100 rounded-[26px] p-5">
                     <CustomSelect
@@ -2212,222 +2483,6 @@ export default function Booking() {
                       </p>
                     )}
 
-                  </div>
-                )}
-
-                <div className="grid md:grid-cols-2 gap-8">
-                  <CustomDatePicker
-                    label={t('booking.appointment_date')}
-                    value={appointmentDate}
-                    onChange={(date) => {
-                      if (date && date !== 'all') {
-                        setAppointmentDate(date);
-                      }
-                    }}
-                    minDate={getLocalDateString()}
-                    allowClear={false}
-                  />
-                  <CustomSelect
-                    label={t('booking.time_slot_label')}
-                    options={
-                      !appointmentLocation
-                        ? []
-                        : formData?.slots
-                          .filter(s => Number(s.fk_branch_id) === Number(appointmentLocation))
-                          .map(s => {
-                            const activeOverride = bookingAvailability?.slot_time_overrides?.find(
-                              (o: any) => Number(o.fk_slot_id) === Number(s.id)
-                            );
-                            const plateSlot = tokenPlateMeta?.slot;
-                            const plateMatchesSlot =
-                              Number(plateSlot?.id || plateSlot?.slot_id) === Number(s.id);
-                            const hasOverride =
-                              !!activeOverride ||
-                              (plateMatchesSlot &&
-                                Boolean(plateSlot?.has_time_override || plateSlot?.has_override));
-
-                            const rawStart =
-                              activeOverride?.override_start_time ||
-                              (plateMatchesSlot &&
-                                (plateSlot?.effective_start_time || plateSlot?.start_time)) ||
-                              s.start_time;
-                            const rawEnd =
-                              activeOverride?.override_end_time ||
-                              (plateMatchesSlot &&
-                                (plateSlot?.effective_end_time || plateSlot?.end_time)) ||
-                              s.end_time;
-
-                            // Weekly rules are materialised as overrides by the backend, so the
-                            // override / plate timing already reflects them.
-                            const startLabel = formatTimeTo12Hour(String(rawStart || ''));
-                            const endLabel = formatTimeTo12Hour(String(rawEnd || ''));
-
-                            return {
-                              id: s.id,
-                              label: `${s.slot_name} (${startLabel} - ${endLabel})`,
-                            };
-                          }) || []
-                    }
-                    value={timeSlot}
-                    onChange={setTimeSlot}
-                    icon={Clock}
-                    disabled={!appointmentLocation || isDoctorUnavailable || isAvailabilityLoading}
-                    noOptionsMessage={!appointmentLocation ? "Select location first" : "No slots available"}
-                  />
-                </div>
-
-                <ScheduleRuleNotice
-                  branchId={appointmentLocation}
-                  appointmentDate={appointmentDate}
-                  className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-xl text-amber-800 text-sm"
-                />
-
-                {appointmentLocation && appointmentDate && (
-                  <div className={`p-4 rounded-[22px] border ${
-                    isAvailabilityLoading
-                      ? 'bg-amber-50 border-amber-100 text-amber-600'
-                      : isDoctorUnavailable
-                      ? 'bg-red-50 border-red-100 text-red-600'
-                      : 'bg-emerald-50 border-emerald-100 text-emerald-600'
-                  }`}>
-                    <p className="text-[11px] font-black uppercase tracking-widest">
-                      {isAvailabilityLoading
-                        ? t('booking.checking_doctor_availability', 'Checking doctor availability')
-                        : isDoctorUnavailable
-                          ? (bookingAvailability?.reason || t('booking.doctor_unavailable', 'Doctor is not available in clinic'))
-                          : t('booking.doctor_available', 'Doctor is available for the selected date')}
-                    </p>
-                    {!isAvailabilityLoading && bookingAvailability?.leave?.leave_reason && (
-                      <p className="text-sm mt-2 opacity-80">
-                        {bookingAvailability.leave.leave_reason}
-                      </p>
-                    )}
-                    {!isAvailabilityLoading &&
-                      tokenPlateMeta?.slot?.reason &&
-                      (tokenPlateMeta.slot.has_override || tokenPlateMeta.slot.has_time_override) && (
-                        <p className="text-sm mt-2 opacity-80">
-                          {tokenPlateMeta.slot.reason}
-                        </p>
-                      )}
-                  </div>
-                )}
-
-                {appointmentLocation && treatmentType && appointmentDate && timeSlot && !isDoctorUnavailable && selectedTreatmentVisitType && selectedTreatmentVisitType !== 'OTHER' && (
-                  <div className="space-y-4 bg-gray-50 border border-gray-100 rounded-[26px] p-5">
-                    <div className="flex flex-col gap-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-primary-teal">
-                        Booking Token Grid
-                      </p>
-                      <p className="text-sm font-medium text-gray-600">
-                        Select one token for <span className="font-black text-gray-800">{selectedTreatment?.treatment_name || tokenPlateMeta?.treatment_name || 'selected treatment'}</span>.
-                      </p>
-                      <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
-                        Only matching visit-type token cards are selectable.
-                      </p>
-                      {(tokenPlateMeta?.slot?.effective_start_time ||
-                        tokenPlateMeta?.slot?.start_time) && (
-                        <p className="text-[11px] font-bold text-gray-500">
-                          Session starts at{' '}
-                          <span className="font-black text-gray-800">
-                            {formatTimeTo12Hour(
-                              String(
-                                tokenPlateMeta.slot.effective_start_time ||
-                                  tokenPlateMeta.slot.start_time ||
-                                  '',
-                              ),
-                            )}
-                          </span>
-                          {(tokenPlateMeta.slot.effective_end_time ||
-                            tokenPlateMeta.slot.end_time) && (
-                            <>
-                              {' '}
-                              –{' '}
-                              {formatTimeTo12Hour(
-                                String(
-                                  tokenPlateMeta.slot.effective_end_time ||
-                                    tokenPlateMeta.slot.end_time ||
-                                    '',
-                                ),
-                              )}
-                            </>
-                          )}
-                        </p>
-                      )}
-                    </div>
-
-                    {isTokenPlateLoading && (
-                      <div className="p-4 rounded-[20px] border border-amber-100 bg-amber-50 text-[11px] font-black uppercase tracking-widest text-amber-600 text-center">
-                        Loading token grid...
-                      </div>
-                    )}
-
-                    {!isTokenPlateLoading && tokenPlateError && (
-                      <div className="p-4 rounded-[20px] border border-red-100 bg-red-50 text-[11px] font-black uppercase tracking-widest text-red-500 text-center">
-                        {tokenPlateError}
-                      </div>
-                    )}
-
-                    {!isTokenPlateLoading && !tokenPlateError && tokenPlate.length > 0 && (
-                      <>
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
-                          {tokenPlate.map((tokenCard) => {
-                            const isPastOrCurrentTimeSlot = isPastDate || (isToday && currentTimeStr >= tokenCard.estimated_start_at);
-                            const isSelected = Number(selectedTokenNumber) === Number(tokenCard.token_number);
-                            const isDisabled = !tokenCard.is_selectable || isSubmitting || isPastOrCurrentTimeSlot;
-                            return (
-                              <button
-                                key={tokenCard.token_number}
-                                type="button"
-                                disabled={isDisabled}
-                                onClick={() => setSelectedTokenNumber(tokenCard.token_number)}
-                                className={`text-center rounded-xl border p-2 transition-all ${
-                                  isDisabled ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer hover:-translate-y-0.5'
-                                } ${isSelected ? 'ring-2 ring-offset-2 ring-primary-teal shadow-md' : 'shadow-sm'}`}
-                                style={{
-                                  borderColor: tokenCard.color_code,
-                                  backgroundColor: isSelected ? `${tokenCard.color_code}20` : `${tokenCard.color_code}12`,
-                                }}
-                              >
-                                <div className="text-center">
-                                  <span className="text-base font-black text-gray-900">
-                                    #{tokenCard.token_number}
-                                  </span>
-                                </div>
-                                <div className="mt-1.5">
-                                  <p className="text-[9px] font-extrabold uppercase tracking-wider truncate" style={{ color: tokenCard.color_code }} title={tokenCard.visit_type_label}>
-                                    {tokenCard.short_label}
-                                  </p>
-                                  <p className="mt-0.5 text-xs font-black text-gray-800">
-                                    {formatTimeTo12Hour(tokenCard.estimated_start_at)}
-                                  </p>
-                                  <p className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-gray-400">
-                                    {(tokenCard.is_booked || isPastOrCurrentTimeSlot)
-                                      ? 'Booked'
-                                      : tokenCard.is_selectable
-                                        ? 'Available'
-                                        : 'Reserved'}
-                                  </p>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {selectedTokenNumber ? (
-                          <div className="p-4 rounded-[20px] border border-emerald-100 bg-emerald-50 text-center">
-                            <p className="text-[11px] font-black uppercase tracking-widest text-emerald-600">
-                              Selected token #{selectedTokenNumber}
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="p-4 rounded-[20px] border border-gray-100 bg-white text-center">
-                            <p className="text-[11px] font-black uppercase tracking-widest text-gray-400">
-                              Select one available token card to continue
-                            </p>
-                          </div>
-                        )}
-                      </>
-                    )}
                   </div>
                 )}
 
@@ -2508,7 +2563,14 @@ export default function Booking() {
                   </div>
                 )}
 
-                {errors.appointment && (
+                {dateAvailabilityPending && !dateAvailabilityError && (
+                  <p role="status" aria-live="polite" className="flex items-center justify-center gap-2 rounded-[20px] bg-slate-50 p-4 text-sm font-medium text-slate-600">
+                    <Clock size={16} />
+                    {i18n.language.startsWith('hi') ? 'बुकिंग की उपलब्धता जाँची जा रही है…' : 'Checking booking availability…'}
+                  </p>
+                )}
+
+                {errors.appointment && errors.appointment !== 'Please wait while booking availability is checked.' && (
                   <div className="p-4 bg-red-50 border border-red-100 rounded-[20px] text-center">
                     <p className="text-xs font-bold text-red-500 uppercase tracking-widest">{errors.appointment}</p>
                   </div>
@@ -2518,8 +2580,8 @@ export default function Booking() {
                   whileHover={{ scale: 1.02, y: -2 }}
                   whileTap={{ scale: 0.98 }}
                   type="submit"
-                  disabled={!appointmentLocation || !treatmentType || !appointmentDate || !timeSlot || isSubmitting || isDataLoading || isAvailabilityLoading || isDoctorUnavailable || isTokenPlateLoading || (shouldUseTokenPlate && !selectedTokenNumber)}
-                  className={`w-full py-5 bg-primary-teal text-white rounded-full font-black text-sm uppercase tracking-widest shadow-xl shadow-primary-teal/20 flex items-center justify-center gap-4 mt-8 transition-all ${(!appointmentLocation || !treatmentType || !appointmentDate || !timeSlot || isSubmitting || isDataLoading || isAvailabilityLoading || isDoctorUnavailable || isTokenPlateLoading || (shouldUseTokenPlate && !selectedTokenNumber)) ? 'opacity-40 grayscale cursor-not-allowed' : ''}`}
+                  disabled={dateAvailabilityPending || Boolean(dateAvailabilityError) || !appointmentLocation || !treatmentType || !appointmentDate || !timeSlot || isSubmitting || isDataLoading || isAvailabilityLoading || isDoctorUnavailable || isTokenPlateLoading || (shouldUseTokenPlate && !selectedTokenNumber)}
+                  className={`w-full py-5 bg-primary-teal text-white rounded-full font-black text-sm uppercase tracking-widest shadow-xl shadow-primary-teal/20 flex items-center justify-center gap-4 mt-8 transition-all ${(dateAvailabilityPending || Boolean(dateAvailabilityError) || !appointmentLocation || !treatmentType || !appointmentDate || !timeSlot || isSubmitting || isDataLoading || isAvailabilityLoading || isDoctorUnavailable || isTokenPlateLoading || (shouldUseTokenPlate && !selectedTokenNumber)) ? 'opacity-40 grayscale cursor-not-allowed' : ''}`}
                 >
                   <span>{isSubmitting ? t('booking.processing') : t('booking.confirm_appointment')}</span>
                   {isSubmitting ? (

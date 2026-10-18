@@ -343,10 +343,24 @@ export default function DoctorPortal() {
   const [error, setError] = useState<string | null>(null);
   const savedPortalView = readViewState<{
     patientSearch: string;
+    tokenSearch?: string;
     filterStatus: string;
     filterDate: string;
   }>('doctor-portal');
   const [patientSearch, setPatientSearch] = useState(savedPortalView?.patientSearch || '');
+  const [tokenSearch, setTokenSearch] = useState(savedPortalView?.tokenSearch || '');
+  const visibleAppointments = useMemo(() => {
+    const search = tokenSearch.trim().toUpperCase().replace(/[\s-]/g, '');
+    if (!search) return appointments;
+    return appointments.filter((appointment) => {
+      const displayed = String(appointment.display_token_display || appointment.token_number).toUpperCase().replace(/[\s-]/g, '');
+      if (/^\d+$/.test(search)) {
+        const number = displayed.match(/\d+$/)?.[0];
+        return number !== undefined && Number(number) === Number(search);
+      }
+      return displayed === search;
+    });
+  }, [appointments, tokenSearch]);
   const [filterStatus, setFilterStatus] = useState(savedPortalView?.filterStatus || 'all');
   const navigate = useNavigate();
   const listRef = useRef<HTMLDivElement>(null);
@@ -356,7 +370,7 @@ export default function DoctorPortal() {
     today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
     return today.toISOString().split('T')[0];
   });
-  usePersistViewState('doctor-portal', { patientSearch, filterStatus, filterDate });
+  usePersistViewState('doctor-portal', { patientSearch, tokenSearch, filterStatus, filterDate });
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [isCallingNext, setIsCallingNext] = useState(false);
@@ -1356,7 +1370,7 @@ export default function DoctorPortal() {
         </div>
 
         <div ref={listRef} className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-4 border-t border-gray-100 items-end scroll-mt-24">
-          <div className="md:col-span-6 space-y-1.5">
+          <div className="md:col-span-4 space-y-1.5">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               {t('doctor_portal.search_label', 'Search Patient')}
             </label>
@@ -1369,6 +1383,26 @@ export default function DoctorPortal() {
                 onChange={(e) => setPatientSearch(e.target.value)}
                 className="w-full bg-white border border-gray-200 py-2.5 pl-11 pr-4 text-xs font-bold text-gray-600 outline-none focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all placeholder:text-gray-300 rounded-xl"
               />
+            </div>
+          </div>
+          <div className="md:col-span-2 space-y-1.5">
+            <label htmlFor="doctor-token-search" className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              {t('doctor_portal.token_search_label', 'Token')}
+            </label>
+            <div className="relative">
+              <input
+                id="doctor-token-search"
+                type="text"
+                placeholder={t('doctor_portal.token_search_placeholder', 'e.g. 12 or E-12')}
+                value={tokenSearch}
+                onChange={(e) => setTokenSearch(e.target.value)}
+                className="w-full bg-white border border-gray-200 py-2.5 pl-3 pr-9 text-xs font-bold text-gray-600 outline-none focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all placeholder:text-gray-300 rounded-xl"
+              />
+              {tokenSearch && (
+                <button type="button" aria-label={t('doctor_portal.clear_token_search', 'Clear token filter')} onClick={() => setTokenSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#549E9E] cursor-pointer">
+                  <XCircle size={16} />
+                </button>
+              )}
             </div>
           </div>
           <div className="md:col-span-3">
@@ -1571,7 +1605,7 @@ export default function DoctorPortal() {
           <p className="text-sm font-medium text-red-500 mb-6">{error}</p>
           <button onClick={fetchAppointments} className="bg-red-600 text-white px-8 py-3 rounded-full font-black text-xs uppercase tracking-widest">Try Again</button>
         </div>
-      ) : appointments.length === 0 ? (
+      ) : visibleAppointments.length === 0 ? (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white shadow-sm border border-gray-100 p-16 text-center">
           <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-8">
             <Users className="text-gray-200" size={48} />
@@ -1585,7 +1619,7 @@ export default function DoctorPortal() {
           {/* === MOBILE CARD VIEW === */}
           <div className="sm:hidden divide-y divide-gray-100">
             <AnimatePresence mode="popLayout" initial={false}>
-            {appointments.map((app) => (
+            {visibleAppointments.map((app) => (
               <motion.div
                 key={app.appointment_id}
                 layout
@@ -1617,7 +1651,10 @@ export default function DoctorPortal() {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[10px] font-bold text-gray-400">{app.patient_mobile_no}</span>
-                      <span className="text-[10px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{app.auid}</span>
+                      <span className="inline-flex items-center gap-2 rounded-lg border border-[#549E9E]/25 bg-[#549E9E]/[0.08] px-3 py-1.5">
+                        <span className="text-xs font-semibold text-slate-600">{t('doctor_portal.table.reg_no', 'Reg no')}:</span>
+                        <span className="text-sm font-bold leading-5 tracking-normal tabular-nums text-[#174f51]">{app.patient_uuid || '—'}</span>
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
                       <StatusBadge status={app.status} />
@@ -1696,7 +1733,7 @@ export default function DoctorPortal() {
               <thead>
                 <tr className="bg-gray-50/50 text-nowrap">
                   <th className="px-4 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">{t('doctor_portal.table.token', 'Token')}</th>
-                  <th className="px-4 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">{t('doctor_portal.table.auid', 'AUID')}</th>
+                  <th className="px-4 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">{t('doctor_portal.table.reg_no', 'Reg no')}</th>
                   <th className="px-4 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">{t('doctor_portal.table.patient', 'Patient')}</th>
                   <th className="px-4 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">{t('doctor_portal.table.treatment', 'Treatment')}</th>
                   <th className="px-4 py-4 text-xs font-black text-gray-800 uppercase tracking-widest">{t('doctor_portal.table.queue', 'Queue')}</th>
@@ -1708,7 +1745,7 @@ export default function DoctorPortal() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 <AnimatePresence mode="popLayout" initial={false}>
-                {appointments.map((app) => (
+                {visibleAppointments.map((app) => (
                   <React.Fragment key={app.appointment_id}>
                     <motion.tr
                       layout
@@ -1749,10 +1786,10 @@ export default function DoctorPortal() {
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black text-gray-500 tracking-wider bg-gray-100 px-3 py-1.5 rounded-lg whitespace-nowrap">{app.auid}</span>
-                          <button onClick={(e) => { e.stopPropagation(); handleCopy(app.auid); }}
-                            className={`p-1.5 rounded-md transition-all cursor-pointer ${copiedId === app.auid ? 'bg-emerald-50 text-emerald-500' : 'bg-gray-50 text-gray-400 hover:bg-gray-200'}`}>
-                            {copiedId === app.auid ? <Check size={12} /> : <Copy size={12} />}
+                          <span className="text-base font-bold leading-6 tracking-normal tabular-nums text-[#174f51] bg-[#549E9E]/[0.08] border border-[#549E9E]/25 px-3 py-2 rounded-lg whitespace-nowrap">{app.patient_uuid || '—'}</span>
+                          <button disabled={!app.patient_uuid} aria-label={`Copy ${t('doctor_portal.table.reg_no', 'Reg no')}`} title={`Copy ${t('doctor_portal.table.reg_no', 'Reg no')}`} onClick={(e) => { e.stopPropagation(); handleCopy(app.patient_uuid); }}
+                            className={`p-2 rounded-lg transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-[#549E9E] disabled:opacity-40 disabled:cursor-default ${copiedId === app.patient_uuid ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-slate-600 hover:bg-gray-200'}`}>
+                            {copiedId === app.patient_uuid ? <Check size={16} /> : <Copy size={16} />}
                           </button>
                         </div>
                       </td>
@@ -1862,8 +1899,8 @@ export default function DoctorPortal() {
                                         <p className="text-sm font-bold text-gray-700 capitalize">{app.patient_gender || '—'}</p>
                                       </div>
                                       <div>
-                                        <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">UUID</span>
-                                        <p className="text-[11px] font-bold text-gray-500 break-all mt-0.5">{app.patient_uuid}</p>
+                                        <span className="text-xs font-semibold text-slate-500">{t('doctor_portal.table.reg_no', 'Reg no')}</span>
+                                        <p className="text-sm font-bold text-[#174f51] tabular-nums break-all mt-1">{app.patient_uuid}</p>
                                       </div>
                                     </div>
                                   </div>

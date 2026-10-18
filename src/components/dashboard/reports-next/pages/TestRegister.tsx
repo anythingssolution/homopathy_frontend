@@ -436,6 +436,11 @@ export default function TestRegisterPage() {
         0,
       );
       const age = formatAgeValue(group.first.patient_age, group.first.patient_age_display, group.first.patient_date_of_birth, i18n.language);
+      const activeReportTests = group.tests.filter((test) => rowStatus(test) !== 'REMOVED');
+      const sentReportCount = activeReportTests.filter((test) => test.report_send_status === 'SENT').length;
+      const reportButtonStatus = activeReportTests.some((test) => test.report_send_status === 'NOT_SENT')
+        ? 'NOT_SENT'
+        : activeReportTests.length > 0 && sentReportCount === activeReportTests.length ? 'SENT' : null;
       parts.push(
         <tr key={group.key} className={print ? 'break-inside-avoid' : 'align-top hover:bg-slate-50/80'}>
           <td className="px-4 py-3 text-xs font-black text-slate-500 tabular-nums">{group.sequence}</td>
@@ -517,15 +522,15 @@ export default function TestRegisterPage() {
                     </button>
                   </>
                 )}
-                <button
+                {activeReportTests.length > 0 && <button
                   type="button"
-                  onClick={() => openReportStatusModal(group)}
-                  title={t('reports_next.test_register.report_send')}
-                  className="inline-flex cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-slate-200 px-2 py-1.5 text-[9px] font-black uppercase tracking-wide text-slate-500 transition-colors hover:border-[#549E9E]/30 hover:bg-[#549E9E]/5 hover:text-[#2d8789]"
+                  onClick={() => openReportStatusModal({ ...group, tests: activeReportTests })}
+                  title={`${t('reports_next.test_register.report_send')} · ${reportStatusLabel(reportButtonStatus)} · ${t('reports_next.test_register.report_sent')}: ${sentReportCount}/${activeReportTests.length}`}
+                  className={`inline-flex cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-lg border px-2 py-1.5 text-[9px] font-black uppercase tracking-wide transition-colors hover:brightness-95 ${reportStatusClass(reportButtonStatus)}`}
                 >
                   <Send size={13} />
                   {t('reports_next.test_register.report_send_short')}
-                </button>
+                </button>}
               </div>
             </td>
           )}

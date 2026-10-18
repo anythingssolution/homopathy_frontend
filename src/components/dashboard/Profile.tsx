@@ -1,3 +1,4 @@
+import { profileAreaValue } from '../../utils/profileAddress';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
@@ -9,7 +10,9 @@ import { calculateAgeYearsFromDob } from '../../utils/ageDisplay';
 
 export default function Profile() {
   const { user, refreshProfile, isLoading } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isPatient = user?.role_code?.toUpperCase() === 'PAT' || user?.role === 'patient' || user?.role === 'PAT';
+  const addressLabel = (en: string, hi: string) => i18n.language.startsWith('hi') ? hi : en;
   const apiFetch = useApi();
   const { addToast } = useNotifications();
   const [isEditing, setIsEditing] = useState(false);
@@ -23,7 +26,10 @@ export default function Profile() {
     age: '',
     date_of_birth: '',
     gender: '',
-    address: ''
+    address: '',
+    area_name: '',
+    city: '',
+    pincode: ''
   });
 
   // Password Change State
@@ -42,7 +48,7 @@ export default function Profile() {
     }
   }, []);
 
-  useEffect(() => {
+  const resetProfileForm = () => {
     if (user) {
       setFormData({
         name: user.name || '',
@@ -50,13 +56,20 @@ export default function Profile() {
         age: user.age?.toString() || '',
         date_of_birth: user.date_of_birth ? String(user.date_of_birth).slice(0, 10) : '',
         gender: user.gender || '',
-        address: user.address || ''
+        address: user.address || '',
+        area_name: profileAreaValue(user),
+        city: user.city || '',
+        pincode: user.pincode || ''
       });
     }
-  }, [user]);
+  };
+
+  useEffect(() => { resetProfileForm(); }, [user]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isPatient && !formData.city.trim()) { addToast(addressLabel('City is required.', 'शहर आवश्यक है।'), 'error'); return; }
+    if (isPatient && formData.pincode && !/^\d{6}$/.test(formData.pincode)) { addToast(addressLabel('Pincode must contain 6 digits.', 'पिनकोड 6 अंकों का होना चाहिए।'), 'error'); return; }
     setIsSubmitting(true);
     
     try {
@@ -68,7 +81,7 @@ export default function Profile() {
           age: formData.date_of_birth ? calculateAgeYearsFromDob(formData.date_of_birth) : parseInt(formData.age),
           date_of_birth: formData.date_of_birth || null,
           gender: formData.gender.toLowerCase(),
-          address: formData.address
+          ...(isPatient ? { area_name: formData.area_name.trim(), city: formData.city.trim(), pincode: formData.pincode || null } : { address: formData.address })
         }
       });
       
@@ -404,6 +417,31 @@ export default function Profile() {
                     </div>
                   </div>
 
+                  {isPatient ? <>
+                    <div className="sm:col-span-2">
+                      <label htmlFor="profile-area" className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">{addressLabel('Area / Mohalla / Colony (Optional)', 'क्षेत्र / मोहल्ला / कॉलोनी (वैकल्पिक)')}</label>
+                      <div className="relative"><MapPin size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input id="profile-area" type="text" disabled={!isEditing || isSubmitting} value={formData.area_name} maxLength={150}
+                          onChange={event => setFormData(current => ({ ...current, area_name: event.target.value }))} className={inputClass(isEditing)} placeholder={addressLabel('Area, street, landmark or house number', 'क्षेत्र, गली, लैंडमार्क या मकान नंबर')} />
+                      </div>
+                      {isEditing && !user?.area_name && user?.address && <p className="mt-1.5 text-xs leading-relaxed text-gray-500">{addressLabel('Your saved address is retained here. Check the area and enter city / pincode separately.', 'पुराना पता यहाँ रखा है। क्षेत्र जाँचें और शहर / पिनकोड अलग भरें।')}</p>}
+                    </div>
+                    <div>
+                      <label htmlFor="profile-city" className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">{addressLabel('City', 'शहर')} <span className="text-red-500">*</span></label>
+                      <div className="relative"><MapPin size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input id="profile-city" type="text" required={isEditing} disabled={!isEditing || isSubmitting} value={formData.city} maxLength={100}
+                          onChange={event => setFormData(current => ({ ...current, city: event.target.value }))} className={inputClass(isEditing)} placeholder={addressLabel('Enter city', 'शहर भरें')} />
+                      </div>
+                    </div>
+                    <div>
+                      <label htmlFor="profile-pincode" className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">{addressLabel('Pincode (Optional)', 'पिनकोड (वैकल्पिक)')}</label>
+                      <div className="relative"><MapPin size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input id="profile-pincode" type="text" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} disabled={!isEditing || isSubmitting} value={formData.pincode}
+                          onChange={event => setFormData(current => ({ ...current, pincode: event.target.value.replace(/\D/g, '') }))} className={inputClass(isEditing)} placeholder={addressLabel('6 digit pincode', '6 अंकों का पिनकोड')} />
+                      </div>
+                    </div>
+                    {!isEditing && user?.address && <p className="sm:col-span-2 rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600"><span className="font-semibold">{addressLabel('Full Address: ', 'पूरा पता: ')}</span>{user.address}</p>}
+                  </> : (
                   <div>
                     <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">Address</label>
                     <div className="relative">
@@ -418,6 +456,7 @@ export default function Profile() {
                       />
                     </div>
                   </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -426,7 +465,7 @@ export default function Profile() {
               <div className="flex gap-3 pt-4 border-t border-gray-100">
                 <button
                   type="button"
-                  onClick={() => setIsEditing(false)}
+                  onClick={() => { resetProfileForm(); setIsEditing(false); }}
                   className="flex-1 h-11 px-4 border border-gray-200 rounded-xl font-bold text-xs uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
                 >
                   <X size={14} /> {t('profile.cancel')}

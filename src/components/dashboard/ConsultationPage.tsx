@@ -68,8 +68,8 @@ import {
   getDurationDaysFromKey,
   getDurationKeyFromDays,
   getDurationMultiplier,
-  getDrops30MlQuantity,
-  isDrops30MlSelection,
+  getOtherMedicineDurationQuantity,
+  isDurationQuantitySelection,
   MEDICATION_DURATION_DAY_OPTIONS,
   MEDICATION_DURATION_MONTH_OPTIONS,
   isMonthDuration,
@@ -82,6 +82,7 @@ import {
   resolveOtherMedicineUnitPrice,
 } from "../../utils/otherMedicinePricing";
 import { formatAgeValue } from "../../utils/ageDisplay";
+import { resolveQuickNumericDoses } from "../../utils/quickNumericDosage";
 
 type MedicationEntry = {
   name: string;
@@ -99,26 +100,6 @@ type MedicationEntry = {
     afternoon: number;
     night: number;
   };
-};
-
-type MedicationDoses = MedicationEntry["doses"];
-type DoseFrequency = "2" | "3";
-
-const getDurationDoseOverride = (
-  durationKey: string,
-  frequency: DoseFrequency,
-): MedicationDoses => {
-  const durationDays = getDurationDaysFromKey(durationKey);
-  if (durationDays === 7 || durationDays === 15) {
-    if (frequency === "2") {
-      return { morning: 8, afternoon: 0, night: 8 };
-    }
-    return { morning: 4, afternoon: 4, night: 4 };
-  }
-  if (frequency === "2") {
-    return { morning: 6, afternoon: 0, night: 6 };
-  }
-  return { morning: 3, afternoon: 3, night: 3 };
 };
 
 type TextMedicine = {
@@ -1061,12 +1042,13 @@ export default function ConsultationPage() {
     () =>
       quickFormulaPreview.entries.map((entry) => ({
         ...entry,
+        doses: resolveQuickNumericDoses(entry.doses, globalDuration, thirtyDaysDoseFrequency, entry.raw_token),
         finalAmount: scaleBaseAmountByDuration(
           entry.baseAmount,
           globalDuration,
         ),
       })),
-    [quickFormulaPreview.entries, globalDuration],
+    [quickFormulaPreview.entries, globalDuration, thirtyDaysDoseFrequency],
   );
 
   useEffect(() => {
@@ -1888,9 +1870,11 @@ export default function ConsultationPage() {
 
     setMedications(
       quickFormulaPreview.entries.map((entry) => {
-        const targetDoses = getDurationDoseOverride(
+        const targetDoses = resolveQuickNumericDoses(
+          entry.doses,
           globalDuration,
           thirtyDaysDoseFrequency,
+          entry.raw_token,
         );
 
         return {
@@ -1990,9 +1974,11 @@ export default function ConsultationPage() {
           hasChanges = true;
         }
 
-        const targetDoses = getDurationDoseOverride(
+        const targetDoses = resolveQuickNumericDoses(
+          med.originalDoses || med.doses,
           globalDuration,
           thirtyDaysDoseFrequency,
+          med.quickFormulaToken || med.name,
         );
 
         if (
@@ -2253,7 +2239,7 @@ export default function ConsultationPage() {
         )
       : null;
 
-    return withDropsDurationQuantity(
+    return withOtherMedicineDurationQuantity(
       {
         ...entry,
         amount: resolvedAmount ?? entry.amount,
@@ -2266,7 +2252,7 @@ export default function ConsultationPage() {
     medicineName: string,
     variant: VariantInfo | null | undefined,
   ) => {
-    if (!variant) return null;
+    if (!variant) return { medicine_name: medicineName };
 
     const fromVariant = {
       category: variant.category,
@@ -2276,7 +2262,7 @@ export default function ConsultationPage() {
       size_or_weight: variant.packing,
       label: variant.label,
     };
-    if (isDrops30MlSelection(fromVariant)) return fromVariant;
+    if (isDurationQuantitySelection(fromVariant)) return fromVariant;
 
     const medicine = textMedicines.find(
       (item) => String(item.medicine_value || '').toUpperCase() === String(medicineName || '').toUpperCase(),
@@ -2316,19 +2302,21 @@ export default function ConsultationPage() {
     };
   };
 
-  const withDropsDurationQuantity = (
+  const withOtherMedicineDurationQuantity = (
     entry: OtherMedEntry,
     variant: VariantInfo | null | undefined = entry.selectedVariant,
   ): OtherMedEntry => {
-    if (!isDrops30MlSelection(getOtherMedProductFields(entry.name, variant))) {
+    if (!isDurationQuantitySelection(getOtherMedProductFields(entry.name, variant))) {
       return {
         ...entry,
         selectedVariant: variant,
       };
     }
 
-    const quantity = getDrops30MlQuantity(globalDuration);
-    const unitPrice = entry.manualUnitPrice ?? (variant?.price ? Number(variant.price) : 0);
+    const quantity = getOtherMedicineDurationQuantity(globalDuration);
+    const unitPrice = entry.manualUnitPrice ?? (variant?.price
+      ? Number(variant.price)
+      : deriveManualUnitPrice(entry.amount, entry.quantity || 1) ?? 0);
     const calculatedAmount = calculateOtherMedicineAmount(unitPrice, quantity);
 
     return {
@@ -2384,7 +2372,7 @@ export default function ConsultationPage() {
         : Number(medicine?.default_manual_price || 0);
     const calculatedAmount = calculateOtherMedicineAmount(unitPrice, qtyNum);
 
-    return withDropsDurationQuantity(
+    return withOtherMedicineDurationQuantity(
       {
         ...current,
         name: trimmedName,
@@ -2667,9 +2655,11 @@ export default function ConsultationPage() {
       if (parsed.entries.length > 0) {
         setMedications(
           parsed.entries.map((entry) => {
-            const targetDoses = getDurationDoseOverride(
+            const targetDoses = resolveQuickNumericDoses(
+              entry.doses,
               globalDuration,
               thirtyDaysDoseFrequency,
+              entry.raw_token,
             );
 
             return {
@@ -5200,7 +5190,7 @@ export default function ConsultationPage() {
             )}
           </div>
 
-          {/* Numeric medicine frequency for every duration */}
+          {/* Frequency rules apply to plain numeric entries; alpha codes retain their master schedules. */}
           {!isReadOnly && (
             <div className="flex flex-wrap items-center gap-3 bg-gray-50/80 px-3 py-1.5 rounded-xl border border-[#549E9E]/20 text-[9px] font-black uppercase tracking-wider text-gray-600">
               <span className="text-[#549E9E]">Frequency:</span>
@@ -5222,6 +5212,9 @@ export default function ConsultationPage() {
                 />
                 2 times a day
               </label>
+              <span className="normal-case tracking-normal font-semibold text-gray-500">
+                {t('consultation_modal.master_dosage_preserved', 'Frequency applies to normal numeric medicines. Special codes retain Formula Master dosage.')}
+              </span>
             </div>
           )}
 
@@ -5889,7 +5882,7 @@ export default function ConsultationPage() {
                         );
 
                         const updated = [...otherMedications];
-                        updated[idx] = withDropsDurationQuantity(
+                        updated[idx] = withOtherMedicineDurationQuantity(
                           {
                             ...updated[idx],
                             remark: nextRemark || updated[idx].remark,

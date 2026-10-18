@@ -31,6 +31,11 @@ interface User {
   age_display?: string | null;
   gender?: string;
   address?: string;
+  area_name?: string | null;
+  city?: string | null;
+  pincode?: string | null;
+  ward_no?: string | null;
+  vidhan_sabha?: string | null;
   profile_image_url?: string | null;
   profile_image_key?: string | null;
   profile_image_mime_type?: string | null;
@@ -131,6 +136,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           age: result.data.age,
           gender: result.data.gender,
           address: result.data.address !== undefined ? result.data.address : existingUser.address,
+          area_name: result.data.area_name,
+          city: result.data.city,
+          pincode: result.data.pincode,
+          ward_no: result.data.ward_no,
+          vidhan_sabha: result.data.vidhan_sabha,
+          date_of_birth: result.data.date_of_birth,
+          age_display: result.data.age_display,
           profile_image_url: result.data.profile_image_url !== undefined ? result.data.profile_image_url : existingUser.profile_image_url,
           profile_image_key: result.data.profile_image_key !== undefined ? result.data.profile_image_key : existingUser.profile_image_key,
           profile_image_mime_type: result.data.profile_image_mime_type !== undefined ? result.data.profile_image_mime_type : existingUser.profile_image_mime_type,

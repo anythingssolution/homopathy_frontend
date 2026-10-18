@@ -321,9 +321,11 @@ export default function TokenLayoutManager({ token, addToast, branchId }: TokenL
 
   const handleExtraReset = () => {
     const codes = [
-      'ACUTE_TREATMENT', 'ACUTE_TREATMENT',
-      'FIRST_CONSULTATION', 'FIRST_CONSULTATION',
-      ...Array(8).fill('FOLLOW_UP_VISIT'),
+      ...Array(4).fill('FOLLOW_UP_VISIT'),
+      'ACUTE_TREATMENT', 'FIRST_CONSULTATION',
+      ...Array(3).fill('FOLLOW_UP_VISIT'),
+      'ACUTE_TREATMENT', 'FIRST_CONSULTATION',
+      'FOLLOW_UP_VISIT',
     ];
     setExtraLayout(codes.map((code, index) => ({
       sequence_number: index + 1,

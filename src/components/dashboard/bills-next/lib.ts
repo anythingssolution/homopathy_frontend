@@ -25,9 +25,10 @@ export const dailyBreakdown = (bills: any[], payments: any[]) => {
     const day = getDay(date);
     day.consults += visit.appointment_id ? 1 : 0;
     day.consultation += visit.consult_total;
-    day.medicine += visit.medicine_total;
+    const deliveryTotals = visitDeliveryTotals(visit);
+    day.medicine += deliveryTotals.medicine_total;
     day.tests += visit.test_total;
-    day.courier += visit.courier_total;
+    day.courier += deliveryTotals.courier_total;
     day.billed += visit.grand_total;
     day.paid += visit.grand_paid;
     day.pending += visit.grand_pending;
@@ -471,10 +472,23 @@ export const isOlderDuePayment = (payment: any) => {
 };
 
 // Filter the globally sorted visits before pagination; retain their original POS.
+export const BILL_SOURCE_FIELDS = {
+  source_consult: 'consult_total',
+  source_medicine: 'medicine_total',
+  source_tests: 'test_total',
+  source_courier: 'courier_total',
+} as const;
+
+export const visitSourceAmount = (row: VisitRow, category: string): number | null => {
+  const field = BILL_SOURCE_FIELDS[category as keyof typeof BILL_SOURCE_FIELDS];
+  if (field === 'medicine_total' || field === 'courier_total') return visitDeliveryTotals(row)[field];
+  return field ? Number(row[field] || 0) : null;
+};
+
 export const filterVisits = (visits: VisitRow[], category: string, search = '') => {
   const q = search.toLowerCase().trim();
   return visits.filter((row) =>
-    (category === 'all' || row.bills.some((bill) => {
+    (visitSourceAmount(row, category) !== null ? Number(visitSourceAmount(row, category)) > 0 : category === 'all' || row.bills.some((bill) => {
       const kind = billCategory(bill);
       if (category === 'consultation' && kind === 'follow_up') {
         return isVisibleFreeFollowUpVisit(row);
@@ -485,6 +499,18 @@ export const filterVisits = (visits: VisitRow[], category: string, search = '') 
     (!q || [row.patient_full_name, row.patient_mobile_no, row.auid, row.treatment_name]
       .join(' ').toLowerCase().includes(q)),
   );
+};
+
+// Match session reports without changing the item-category totals used in visit details.
+export const visitDeliveryTotals = (visit: VisitRow) => {
+  const courierMedicine = groupVisits(visit.bills.filter((bill) =>
+    String(bill.bill_type).toUpperCase() === 'MEDICATION'
+    && String(bill.delivery_mode || '').toUpperCase() === 'COURIER',
+  )).reduce((sum, row) => sum + row.medicine_total, 0);
+  return {
+    medicine_total: visit.medicine_total - courierMedicine,
+    courier_total: visit.courier_total + courierMedicine,
+  };
 };
 
 export const withPreviousPayments = (visits: VisitRow[], payments: any[]): VisitRow[] => {

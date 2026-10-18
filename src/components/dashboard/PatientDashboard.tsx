@@ -32,6 +32,8 @@ interface Appointment {
   template_start_time?: string;
 }
 
+const MotionLink = motion.create(Link);
+
 const StatusBadge = ({ status }: { status: string }) => {
   const { t } = useTranslation();
   const config: Record<string, { bg: string; text: string; icon: any; label: string }> = {
@@ -94,26 +96,36 @@ export default function PatientDashboard() {
   const { user, token } = useAuth();
   const { addToast } = useNotifications();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [summary, setSummary] = useState({ completed: 0, prescriptions: 0, total: 0 });
+  const [upcomingCount, setUpcomingCount] = useState(0);
+  const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
   const [pendingFollowUps, setPendingFollowUps] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchAppointments = async () => {
     setIsLoading(true);
     try {
-      const [appointmentsResponse, followUpsResponse] = await Promise.all([
+      const [appointmentsResponse, followUpsResponse, upcomingResponse] = await Promise.all([
         fetch('/api/v1/appointments/my', {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch('/api/v1/appointments/eligible-followups', {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
+        fetch('/api/v1/appointments/my?view=upcoming&page_size=1', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
       ]);
 
+      const upcomingResult = await upcomingResponse.json();
+      setUpcomingCount(upcomingResult.success ? Number(upcomingResult.meta?.total || 0) : 0);
+      setNextAppointment(upcomingResult.success ? upcomingResult.data?.[0] || null : null);
       const result = await appointmentsResponse.json();
       const followUpResult = await followUpsResponse.json();
 
       if (result.success) {
         setAppointments(result.data || []);
+        setSummary(result.meta?.summary || { completed: 0, prescriptions: 0, total: 0 });
       } else {
         addToast(result.message || 'Failed to load dashboard data', 'error');
       }
@@ -135,17 +147,9 @@ export default function PatientDashboard() {
   }, [token]);
 
   // Computed stats
-  const today = new Date().toISOString().split('T')[0];
-
-  const upcomingAppointments = appointments.filter(a => {
-    const aDate = a.appointment_date.split('T')[0];
-    return aDate >= today && ['confirmed', 'pending'].includes(a.status.toLowerCase());
-  }).sort((a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime());
-
-  const completedCount = appointments.filter(a => a.status.toLowerCase() === 'completed').length;
-  const prescriptionCount = appointments.filter(a => a.prescription && Object.keys(a.prescription).length > 0).length;
-  const totalCount = appointments.length;
-  const nextAppointment = upcomingAppointments[0] || null;
+  const completedCount = summary.completed;
+  const prescriptionCount = summary.prescriptions;
+  const totalCount = summary.total;
 
   // Recent activity: last 5 appointments sorted by date desc
   const recentActivity = [...appointments]
@@ -238,11 +242,12 @@ export default function PatientDashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Next Appointment */}
-        <motion.div
+        <MotionLink
+          to="/my-appointments?view=upcoming"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-white border border-gray-100 p-6 relative overflow-hidden group hover:border-[#549E9E]/20 transition-all"
+          className="bg-white border border-gray-100 p-6 relative overflow-hidden group focus-visible:outline-2 focus-visible:outline-[#549E9E] hover:border-[#549E9E]/20 transition-all"
         >
           <div className="absolute top-3 right-3">
             <Calendar size={48} className="text-[#549E9E]/[0.04] group-hover:text-[#549E9E]/[0.08] transition-colors" />
@@ -269,14 +274,16 @@ export default function PatientDashboard() {
               )}
             </div>
           )}
-        </motion.div>
+          <ChevronRight aria-hidden="true" size={18} className="absolute bottom-4 right-4 text-gray-400 group-hover:text-[#549E9E]" />
+        </MotionLink>
 
         {/* Completed Visits */}
-        <motion.div
+        <MotionLink
+          to="/my-appointments?view=completed"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="bg-white border border-gray-100 p-6 relative overflow-hidden group hover:border-[#E6C682]/30 transition-all"
+          className="bg-white border border-gray-100 p-6 relative overflow-hidden group focus-visible:outline-2 focus-visible:outline-[#549E9E] hover:border-[#E6C682]/30 transition-all"
         >
           <div className="absolute top-3 right-3">
             <CheckCircle2 size={48} className="text-[#E6C682]/[0.06] group-hover:text-[#E6C682]/[0.12] transition-colors" />
@@ -286,14 +293,16 @@ export default function PatientDashboard() {
           </div>
           <p className={`text-[10px] font-black text-gray-400 uppercase ${i18n.language === 'hi' ? 'tracking-normal' : 'tracking-[0.2em]'} mb-1`}>{t('dashboard.stats.past_visits')}</p>
           <p className="text-3xl font-black text-gray-800 tracking-tight">{completedCount}</p>
-        </motion.div>
+          <ChevronRight aria-hidden="true" size={18} className="absolute bottom-4 right-4 text-gray-400 group-hover:text-[#549E9E]" />
+        </MotionLink>
 
         {/* Prescriptions */}
-        <motion.div
+        <MotionLink
+          to="/prescriptions"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-white border border-gray-100 p-6 relative overflow-hidden group hover:border-emerald-100 transition-all"
+          className="bg-white border border-gray-100 p-6 relative overflow-hidden group focus-visible:outline-2 focus-visible:outline-[#549E9E] hover:border-emerald-100 transition-all"
         >
           <div className="absolute top-3 right-3">
             <FileText size={48} className="text-emerald-500/[0.04] group-hover:text-emerald-500/[0.08] transition-colors" />
@@ -303,14 +312,16 @@ export default function PatientDashboard() {
           </div>
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">{t('dashboard.stats.prescriptions')}</p>
           <p className="text-3xl font-black text-gray-800 tracking-tight">{prescriptionCount}</p>
-        </motion.div>
+          <ChevronRight aria-hidden="true" size={18} className="absolute bottom-4 right-4 text-gray-400 group-hover:text-[#549E9E]" />
+        </MotionLink>
 
         {/* Total Appointments */}
-        <motion.div
+        <MotionLink
+          to="/my-appointments"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
-          className="bg-white border border-gray-100 p-6 relative overflow-hidden group hover:border-indigo-100 transition-all"
+          className="bg-white border border-gray-100 p-6 relative overflow-hidden group focus-visible:outline-2 focus-visible:outline-[#549E9E] hover:border-indigo-100 transition-all"
         >
           <div className="absolute top-3 right-3">
             <Activity size={48} className="text-indigo-500/[0.04] group-hover:text-indigo-500/[0.08] transition-colors" />
@@ -320,7 +331,8 @@ export default function PatientDashboard() {
           </div>
           <p className={`text-[10px] font-black text-gray-400 uppercase ${i18n.language === 'hi' ? 'tracking-normal' : 'tracking-[0.2em]'} mb-1`}>{t('dashboard.total_appointments')}</p>
           <p className="text-3xl font-black text-gray-800 tracking-tight">{totalCount}</p>
-        </motion.div>
+          <ChevronRight aria-hidden="true" size={18} className="absolute bottom-4 right-4 text-gray-400 group-hover:text-[#549E9E]" />
+        </MotionLink>
       </div>
 
       {/* Upcoming Appointment Highlight */}
@@ -567,7 +579,7 @@ export default function PatientDashboard() {
           </motion.div>
 
           {/* Upcoming Count Pill */}
-          {upcomingAppointments.length > 1 && (
+          {upcomingCount > 1 && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -575,7 +587,7 @@ export default function PatientDashboard() {
               className="bg-[#F2D06B]/10 border border-[#F2D06B]/20 p-5 flex items-center gap-4"
             >
               <div className="w-10 h-10 bg-[#F2D06B] flex items-center justify-center text-white font-black text-sm">
-                {upcomingAppointments.length}
+                {upcomingCount}
               </div>
               <div>
                 <p className="text-[10px] font-black text-[#856404] uppercase tracking-widest">{t('dashboard.upcoming_label')}</p>

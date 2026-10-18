@@ -105,6 +105,7 @@ export default function DayWisePanel({ bills, payments }: { bills: any[]; paymen
       </section> : <section className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-50">
           <h3 className="text-sm font-black text-slate-800">{label('Day-wise billing breakdown', 'दिनवार बिल का विवरण')}{selectedDate ? ` · ${formatDate(selectedDate)}` : ''}</h3>
+          <p className="mt-1 text-xs font-medium text-slate-500">{label('Courier includes courier-delivered medicines and delivery charges after discounts. Tests are shown separately.', 'कूरियर में भेजी गई दवाएँ और डिलीवरी शुल्क, छूट के बाद शामिल हैं। टेस्ट अलग दिखाए गए हैं।')}</p>
           <p className="mt-1 text-[11px] font-semibold text-slate-400">{label('Based on visit date; direct/repeat medicine uses bill date. Category amounts are after discount. Paid/pending show the current balance on those bills.', 'विज़िट की तारीख के अनुसार; डायरेक्ट/रिपीट दवा में बिल की तारीख। श्रेणी की राशि छूट के बाद है। भुगतान/बकाया इन बिलों की वर्तमान स्थिति है।')}</p>
         </div>
         {table(billingColumns)}

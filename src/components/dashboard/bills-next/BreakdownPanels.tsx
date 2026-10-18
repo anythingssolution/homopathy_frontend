@@ -8,10 +8,12 @@ type MixBarProps = {
   label: string;
   value: number;
   max: number;
+  onClick?: () => void;
+  selected?: boolean;
   tone?: 'teal' | 'violet' | 'amber' | 'sky';
 };
 
-export const MixBar = ({ label, value, max, tone = 'teal' }: MixBarProps) => {
+export const MixBar = ({ label, value, max, tone = 'teal', onClick, selected = false }: MixBarProps) => {
   const colors = {
     teal: 'bg-[#549E9E]',
     violet: 'bg-violet-500',
@@ -19,16 +21,17 @@ export const MixBar = ({ label, value, max, tone = 'teal' }: MixBarProps) => {
     sky: 'bg-sky-500',
   };
   const width = Number(value || 0) <= 0 ? 0 : Math.max(4, Math.round((Number(value || 0) / Math.max(max, 1)) * 100));
+  const Container = onClick ? 'button' : 'div';
   return (
-    <div className="mb-3 last:mb-0">
+    <Container type={onClick ? 'button' : undefined} onClick={onClick} aria-pressed={onClick ? selected : undefined} className={`mb-3 last:mb-0 w-full text-left ${onClick ? 'cursor-pointer rounded-lg p-2 -mx-2 hover:bg-teal-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600' : ''} ${selected ? 'bg-teal-50 ring-1 ring-teal-200' : ''}`}>
       <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1">
         <span>{label}</span>
-        <span className="font-black text-slate-800">{money(value)}</span>
+        <span className="font-black text-slate-800">{money(value, onClick ? 2 : 0)}{onClick && <span className="ml-2 text-[#2d8789]" aria-hidden="true">→</span>}</span>
       </div>
       <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
         <div className={`h-full rounded-full ${colors[tone]}`} style={{ width: `${width}%` }} />
       </div>
-    </div>
+    </Container>
   );
 };
 

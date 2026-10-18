@@ -3,7 +3,7 @@ import DayWisePanel from './DayWisePanel';
 import useListPagination from './useListPagination';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 // import { Link } from 'react-router-dom';
-import { AlertCircle, Banknote, CreditCard, Phone, Printer, RefreshCcw, Search, Wallet } from 'lucide-react';
+import { AlertCircle, Banknote, CreditCard, Phone, Printer, RefreshCcw, Search, Wallet, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../context/AuthContext';
 import CustomDatePicker from '../../CustomDatePicker';
@@ -25,6 +25,7 @@ import {
   fetchBillRows,
   groupVisits,
   filterVisits,
+  visitSourceAmount,
   withPreviousPayments,
   money,
   moneyExact,
@@ -54,7 +55,24 @@ export default function BillsNext() {
   const [tab, setTab] = useState<WorkTab>('attention');
   const [ageing, setAgeing] = useState<AgeingFilter>('all');
   const [search, setSearch] = useState('');
+  const [tokenSearch, setTokenSearch] = useState('');
   const [category, setCategory] = useState('all');
+  const visitsListRef = useRef<HTMLDivElement>(null);
+  const sourceLabels: Record<string, string> = {
+    source_consult: t('bills_next.consult'),
+    source_medicine: t('bills_next.medicine'),
+    source_tests: t('bills_next.tests'),
+    source_courier: t('bills_next.courier'),
+  };
+  const sourceLabel = sourceLabels[category];
+  const openSourceVisits = (source: string) => {
+    setSearch('');
+    setTokenSearch('');
+    setCategory(source);
+    setVisitsPage(1);
+    setTab('visits');
+    requestAnimationFrame(() => visitsListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
   const [printList, setPrintList] = useState(false);
   const closeListPrint = useCallback(() => setPrintList(false), []);
   const [showRecovered, setShowRecovered] = useState(false);
@@ -140,7 +158,7 @@ export default function BillsNext() {
     const cash = receivedPayments.filter((p) => p.payment_mode === 'CASH').reduce((sum, p) => sum + Number(p.amount || 0), 0);
     const online = receivedPayments.filter((p) => p.payment_mode === 'ONLINE').reduce((sum, p) => sum + Number(p.amount || 0), 0);
     const consult = visits.reduce((sum, row) => sum + row.consult_total, 0);
-    const medicine = visits.reduce((sum, row) => sum + row.medicine_total, 0);
+    const medicine = visits.reduce((sum, row) => sum + Number(visitSourceAmount(row, 'source_medicine')), 0);
     const openDues = dueBills.reduce((sum, bill) => sum + Number(bill.pending_amount || 0), 0);
     const duePatients = new Set(dueBills.map((bill) => String(bill.patient_id || bill.bill_id))).size;
     const collectionPct = billed <= 0 ? 0 : Math.min(100, Math.round((paidOnBills / billed) * 100));
@@ -154,7 +172,7 @@ export default function BillsNext() {
       consult,
       medicine,
       tests: visits.reduce((sum, row) => sum + row.test_total, 0),
-      courier: visits.reduce((sum, row) => sum + row.courier_total, 0),
+      courier: visits.reduce((sum, row) => sum + Number(visitSourceAmount(row, 'source_courier')), 0),
       openDues,
       duePatients,
       dueCount: dueBills.length,
@@ -190,11 +208,21 @@ export default function BillsNext() {
 
   const filteredVisits = useMemo(
     () => {
-      if (category !== 'all' && category !== 'previous_pending') return filterVisits(visits, category, search);
-      const combined = withPreviousPayments(category === 'all' ? visits : [], previousPayments);
-      return filterVisits(combined, 'all', search);
+      const rows = category !== 'all' && category !== 'previous_pending'
+        ? filterVisits(visits, category, search)
+        : filterVisits(withPreviousPayments(category === 'all' ? visits : [], previousPayments), 'all', search);
+      const query = tokenSearch.trim().toUpperCase().replace(/[\s-]/g, '');
+      if (!query) return rows;
+      return rows.filter((row) => {
+        const displayed = String(row.display_token_display || row.token_number || '').toUpperCase().replace(/[\s-]/g, '');
+        if (/^\d+$/.test(query)) {
+          const number = displayed.match(/\d+$/)?.[0];
+          return number !== undefined && Number(number) === Number(query);
+        }
+        return displayed !== '' && displayed === query;
+      });
     },
-    [visits, previousPayments, search, category],
+    [visits, previousPayments, search, category, tokenSearch],
   );
 
   const visitsTotalPages = Math.max(1, Math.ceil(filteredVisits.length / VISITS_PAGE_SIZE));
@@ -206,7 +234,7 @@ export default function BillsNext() {
 
   useEffect(() => {
     setVisitsPage(1);
-  }, [search, category, range.from, range.to, branchScope?.selected_branch_id]);
+  }, [search, tokenSearch, category, range.from, range.to, branchScope?.selected_branch_id]);
 
   useEffect(() => {
     setVisitsPage((page) => Math.min(page, visitsTotalPages));
@@ -311,7 +339,7 @@ export default function BillsNext() {
   return (
     <div className="space-y-5 pb-10">
       {printList && <VisitListPrint rows={filteredVisits} branch={branchName} from={range.from} to={range.to}
-        category={category === 'consultation' ? t('bills_next.extra.consultations') : t(`bills_next.extra.${category}`)}
+        category={sourceLabel || (category === 'consultation' ? t('bills_next.extra.consultations') : t(`bills_next.extra.${category}`))}
         search={search} onClose={closeListPrint} />}
 
       {collectionReceipt && (
@@ -483,10 +511,11 @@ export default function BillsNext() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="rounded-xl border border-gray-100 bg-white p-4">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">{t('bills_next.mix')}</p>
-          <MixBar label={t('bills_next.consult')} value={cockpit.consult} max={mixMax} />
-          <MixBar label={t('bills_next.medicine')} value={cockpit.medicine} max={mixMax} tone="violet" />
-          <MixBar label={t('bills_next.tests')} value={cockpit.tests} max={mixMax} tone="amber" />
-          <MixBar label={t('bills_next.extra.courier_charge')} value={cockpit.courier} max={mixMax} tone="sky" />
+          <MixBar label={t('bills_next.consult')} value={cockpit.consult} max={mixMax} onClick={() => openSourceVisits('source_consult')} selected={tab === 'visits' && category === 'source_consult'} />
+          <MixBar label={t('bills_next.medicine')} value={cockpit.medicine} max={mixMax} onClick={() => openSourceVisits('source_medicine')} selected={tab === 'visits' && category === 'source_medicine'} tone="violet" />
+          <MixBar label={t('bills_next.tests')} value={cockpit.tests} max={mixMax} onClick={() => openSourceVisits('source_tests')} selected={tab === 'visits' && category === 'source_tests'} tone="amber" />
+          <MixBar label={t('bills_next.courier')} value={cockpit.courier} max={mixMax} onClick={() => openSourceVisits('source_courier')} selected={tab === 'visits' && category === 'source_courier'} tone="sky" />
+          <p className="mt-3 text-xs text-slate-500">{t('bills_next.courier_mix_note')}</p>
         </div>
         <div className="rounded-xl border border-gray-100 bg-white p-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -538,7 +567,8 @@ export default function BillsNext() {
       </div>
 
       {(tab === 'attention' || tab === 'visits') && (
-        <div className="relative max-w-md">
+        <div className="flex flex-wrap items-end gap-3">
+        <div className="relative w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
           <input
             value={search}
@@ -547,13 +577,23 @@ export default function BillsNext() {
             className="w-full pl-9 pr-4 py-2.5 border border-gray-100 rounded-xl text-sm font-semibold outline-none focus:border-[#549E9E] bg-white"
           />
         </div>
+        {tab === 'visits' && (
+          <div className="w-full sm:w-48 space-y-1">
+            <label htmlFor="bills-visits-token" className="text-xs font-bold text-slate-500">{t('bills_next.token_search_label', 'Token')}</label>
+            <div className="relative">
+              <input id="bills-visits-token" type="text" value={tokenSearch} onChange={(event) => setTokenSearch(event.target.value)} placeholder={t('bills_next.token_search_placeholder', 'e.g. 12 or E-12')} className="w-full pl-3 pr-9 py-2.5 border border-gray-100 rounded-xl text-sm font-semibold outline-none focus:border-[#549E9E] bg-white" />
+              {tokenSearch && <button type="button" aria-label={t('bills_next.clear_token_search', 'Clear token filter')} onClick={() => setTokenSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#549E9E] cursor-pointer"><XCircle size={16} /></button>}
+            </div>
+          </div>
+        )}
+        </div>
       )}
 
       {tab === 'visits' && (
         <div className="flex flex-wrap gap-2">
-          {['all', 'consultation', 'repeat', 'medical_only', 'courier', 'previous_pending'].map((kind) => (
+          {['all', 'consultation', 'repeat', 'medical_only', 'courier', 'previous_pending', ...(sourceLabel ? [category] : [])].map((kind) => (
             <button key={kind} onClick={() => setCategory(kind)} className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${category === kind ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-gray-200'}`}>
-              {kind === 'consultation' ? t('bills_next.extra.consultations', 'Consultations') : t(`bills_next.extra.${kind}`)}
+              {sourceLabels[kind] || (kind === 'consultation' ? t('bills_next.extra.consultations', 'Consultations') : t(`bills_next.extra.${kind}`))}
             </button>
           ))}
           <button type="button" disabled={loading || filteredVisits.length === 0} onClick={() => setPrintList(true)}
@@ -671,7 +711,11 @@ export default function BillsNext() {
           </div>
         </div>
       ) : tab === 'visits' ? (
-        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+        <div ref={visitsListRef} className="bg-white border border-gray-100 rounded-2xl overflow-hidden scroll-mt-4">
+          {sourceLabel && <div className="border-b border-teal-100 bg-teal-50 px-4 py-3">
+            <p className="text-sm font-black text-teal-800">{sourceLabel}: {moneyExact(filteredVisits.reduce((sum, row) => sum + Number(visitSourceAmount(row, category)), 0))} · {filteredVisits.length} {t('bills_next.tab_visits')}</p>
+            <p className="mt-1 text-xs text-teal-700">{t('bills_next.source_amount_note')}</p>
+          </div>}
           <p className="border-b border-gray-100 px-4 py-3 text-xs font-semibold text-slate-500">{t('bills_next.extra.sequence_note')}</p>
           {filteredVisits.length === 0 ? (
             <p className="py-14 text-center text-sm font-semibold text-slate-400">{t('bills_next.no_visits')}</p>
@@ -683,6 +727,7 @@ export default function BillsNext() {
                     <th className="px-4 py-3">{t('bills_next.extra.pos_token')}</th>
                     <th className="px-4 py-3">{t('bills_next.col_patient')}</th>
                     <th className="px-4 py-3">{t('bills_next.mix')}</th>
+                    {sourceLabel && <th className="px-4 py-3 text-right">{sourceLabel}</th>}
                     <th className="px-4 py-3 text-right">{t('bills_next.collected')}</th>
                     <th className="px-4 py-3 text-right">{t('bills_next.old_dues')}</th>
                     <th className="px-4 py-3 text-right">{t('bills_next.pending')}</th>
@@ -742,6 +787,7 @@ export default function BillsNext() {
                         {row.courier_total > 0 && <p>{t('bills_next.extra.courier_charge')} {money(row.courier_total)}</p>}
                         <p className="mt-1 text-[10px] text-[#2d8789]">{Array.from(new Set(row.bills.map(billCategory))).map((kind) => t(`bills_next.extra.${kind}`)).join(' · ')}</p>
                       </td>
+                      {sourceLabel && <td className="px-4 py-3 text-right text-sm font-black text-teal-700">{moneyExact(visitSourceAmount(row, category))}</td>}
                       <td className="px-4 py-3 text-right text-sm font-black text-emerald-600">{moneyExact(row.grand_paid)}</td>
                       <td className="px-4 py-3 text-right text-sm font-black text-[#2d8789]">
                         {row.paid_towards_previous_pending > 0 ? moneyExact(row.paid_towards_previous_pending) : '—'}

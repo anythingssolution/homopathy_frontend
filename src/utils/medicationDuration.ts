@@ -107,6 +107,26 @@ export function getDrops30MlQuantity(value: string | null | undefined): number {
   return Math.max(1, Math.ceil(days / 15));
 }
 
+export function isTabletSelection(fields: {
+  category?: string | null;
+  product_type?: string | null;
+  product_name?: string | null;
+  medicine_name?: string | null;
+  packing?: string | null;
+  size_or_weight?: string | null;
+  label?: string | null;
+} | null | undefined): boolean {
+  if (!fields) return false;
+  return Object.values(fields).some(value => /\b(?:TABLETS?|TABS?)\b/i.test(String(value || '')));
+}
+
+export function isDurationQuantitySelection(fields: Parameters<typeof isTabletSelection>[0]): boolean {
+  return isDrops30MlSelection(fields) || isTabletSelection(fields);
+}
+
+// Other Medicine tablets follow the same agreed 15-day quantity rule as 30 ml drops.
+export const getOtherMedicineDurationQuantity = getDrops30MlQuantity;
+
 export function isThirtyDayDuration(value: string | null | undefined): boolean {
   return getDurationDaysFromKey(value) === 30;
 }

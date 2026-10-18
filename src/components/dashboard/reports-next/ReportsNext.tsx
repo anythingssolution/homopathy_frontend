@@ -24,12 +24,12 @@ export default function ReportsNext() {
       const [clinicalUpcoming, billing, medical] = await Promise.all([
         fetchReportModule(token, 'clinical', upcomingFollowUps.from, upcomingFollowUps.to),
         fetchReportModule(token, 'billing', open.from, today),
-        fetchReportModule(token, 'medical', open.from, today),
+        fetchReportModule(token, 'dispensary', open.from, today),
       ]);
       setBadges({
         followUps: Array.isArray(clinicalUpcoming?.followup_due) ? clinicalUpcoming.followup_due.length : 0,
         collections: Array.isArray(billing?.pending_amount) ? billing.pending_amount.length : 0,
-        dispensary: Number(medical?.summary?.[0]?.ready_prescriptions_count || 0),
+        dispensary: Number(medical?.summary?.pending_count || 0),
       });
     } catch {
       setBadges(emptyBadges);

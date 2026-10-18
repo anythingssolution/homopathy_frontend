@@ -7,6 +7,7 @@ import {
   CalendarCheck,
   ClipboardList,
   Pill,
+  MapPin,
   UserPlus,
   Sun,
   TestTube2,
@@ -153,6 +154,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
               );
             }}
           </NavLink>
+          <NavLink to="/reports-next/not-returned" className={({ isActive }) => itemClass(isActive)}>
+            {({ isActive }) => <><Users size={18} className={isActive ? 'text-white' : 'text-gray-400'} /><span className="text-xs font-bold uppercase tracking-widest leading-tight flex-1">{t('reports_next.not_returned.title')}</span></>}
+          </NavLink>
           <NavLink to="/reports-next/first-consults" className={({ isActive }) => itemClass(isActive)}>
             {({ isActive }) => (
               <>
@@ -244,6 +248,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
                 </span>
               </>
             )}
+          </NavLink>
+          <NavLink to="/reports-next/location-patients" className={({ isActive }) => itemClass(isActive)}>
+            {({ isActive }) => <><MapPin size={18} className={isActive ? 'text-white' : 'text-gray-400'} /><span className="text-xs font-bold uppercase tracking-widest leading-tight">{t('reports_next.location.title')}</span></>}
           </NavLink>
           <NavLink to="/reports-next/diagnosis" className={({ isActive }) => itemClass(isActive)}>
             {({ isActive }) => (

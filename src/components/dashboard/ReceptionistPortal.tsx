@@ -1,3 +1,4 @@
+import SlotTimingWhatsApp from './SlotTimingWhatsApp';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -1662,6 +1663,7 @@ export default function ReceptionistPortal() {
                           <div className="flex items-center gap-2 flex-wrap mb-2">
                             <span className="text-[10px] font-bold text-gray-500">{app.patient_mobile_no}</span>
                             {renderPendingDuesBadge(app)}
+                            <SlotTimingWhatsApp appointment={app} token={token} branchId={selectedBranchId} onStale={() => { addToast("Timing update is no longer current. The list has been refreshed.", "info"); void fetchAppointments(); }} />
                           </div>
                           <div className="flex items-center gap-2 flex-wrap mb-2">
                             {app.queue_bucket ? (
@@ -1863,6 +1865,7 @@ export default function ReceptionistPortal() {
                                   )}
                               </span>
                               {renderPendingDuesBadge(app)}
+                            <SlotTimingWhatsApp appointment={app} token={token} branchId={selectedBranchId} onStale={() => { addToast("Timing update is no longer current. The list has been refreshed.", "info"); void fetchAppointments(); }} />
                             </div>
                           </td>
                           <td className="px-5 py-4">

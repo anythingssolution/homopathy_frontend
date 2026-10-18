@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, CalendarCheck, CheckCircle2, Clock, Percent, RefreshCcw, XCircle } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../../context/AuthContext';
 import { BookedVsConsultedView } from '../../doctor-reports/views/BookedVsConsultedView';
 import { SummaryMetricCard } from '../../doctor-reports/components/SummaryMetricCard';
@@ -17,6 +18,9 @@ import {
   type CustomRange,
 } from '../lib';
 import { useReportWindow } from '../useReportWindow';
+import type { AppointmentCardStatus } from '../appointmentList';
+
+const AppointmentCardList = React.lazy(() => import('../AppointmentCardList'));
 
 export default function AppointmentsPage() {
   const { t, i18n } = useTranslation();
@@ -29,10 +33,23 @@ export default function AppointmentsPage() {
   const [prevData, setPrevData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [params, setParams] = useSearchParams();
+  const selectedCard = ['all', 'completed', 'pending', 'cancelled'].includes(params.get('list') || '')
+    ? params.get('list') as AppointmentCardStatus : null;
+  const setSelectedCard = (value: AppointmentCardStatus | null) => setParams(previous => {
+    const next = new URLSearchParams(previous);
+    if (value) next.set('list', value); else next.delete('list');
+    return next;
+  }, { replace: true });
+  const listRef = useRef<HTMLDivElement>(null);
+  const loadSequence = useRef(0);
 
   const load = useCallback(async (force = false) => {
     if (!token || tab !== 'status') return;
+    const sequence = ++loadSequence.current;
     setLoading(true);
+    setData(null);
+    setPrevData(null);
     setError('');
     const range = rangeForFilter(dateFilter, customDateRange);
     const days = Math.max(
@@ -54,18 +71,25 @@ export default function AppointmentsPage() {
           branchId: branchScope?.selected_branch_id || undefined,
         }),
       ]);
+      if (sequence !== loadSequence.current) return;
       setData(current);
       setPrevData(previous);
     } catch (err) {
+      if (sequence !== loadSequence.current) return;
       setError(err instanceof Error ? err.message : t('reports_next.fetch_failed'));
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current) setLoading(false);
     }
   }, [token, branchScope?.selected_branch_id, dateFilter, customDateRange, tab, t]);
 
   useEffect(() => {
     void load(false);
+    return () => { loadSequence.current += 1; };
   }, [load]);
+
+  useEffect(() => {
+    if (selectedCard) listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selectedCard]);
 
   const completed = statusCount(data?.status_appointments, 'completed');
   const pending = statusCount(data?.status_appointments, 'pending');
@@ -142,34 +166,46 @@ export default function AppointmentsPage() {
           ) : (
             <>
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
-                <SummaryMetricCard
+                <button type="button" aria-pressed={selectedCard === 'all'} onClick={() => setSelectedCard('all')} className={`rounded-2xl text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#549E9E] ${selectedCard === 'all' ? 'ring-2 ring-[#549E9E]' : 'hover:ring-2 hover:ring-[#549E9E]/30'}`}>
+                  <SummaryMetricCard
                   title={t('reports_next.total')}
                   value={total}
                   icon={CalendarCheck}
                   theme="teal"
                   subtitle={windowLabel}
                 />
-                <SummaryMetricCard
+                  <span className="block px-4 py-1.5 text-[10px] font-bold text-[#2d8789]">{t('reports_next.appointment_list.view_list')}</span>
+                </button>
+                <button type="button" aria-pressed={selectedCard === 'completed'} onClick={() => setSelectedCard('completed')} className={`rounded-2xl text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#549E9E] ${selectedCard === 'completed' ? 'ring-2 ring-[#549E9E]' : 'hover:ring-2 hover:ring-[#549E9E]/30'}`}>
+                  <SummaryMetricCard
                   title={t('reports_next.completed')}
                   value={completed}
                   icon={CheckCircle2}
                   theme="green"
                   subtitle={windowLabel}
                 />
-                <SummaryMetricCard
+                  <span className="block px-4 py-1.5 text-[10px] font-bold text-[#2d8789]">{t('reports_next.appointment_list.view_list')}</span>
+                </button>
+                <button type="button" aria-pressed={selectedCard === 'pending'} onClick={() => setSelectedCard('pending')} className={`rounded-2xl text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#549E9E] ${selectedCard === 'pending' ? 'ring-2 ring-[#549E9E]' : 'hover:ring-2 hover:ring-[#549E9E]/30'}`}>
+                  <SummaryMetricCard
                   title={t('reports_next.pending')}
                   value={waiting}
                   icon={Clock}
                   theme="amber"
                   subtitle={windowLabel}
                 />
-                <SummaryMetricCard
+                  <span className="block px-4 py-1.5 text-[10px] font-bold text-[#2d8789]">{t('reports_next.appointment_list.view_list')}</span>
+                </button>
+                <button type="button" aria-pressed={selectedCard === 'cancelled'} onClick={() => setSelectedCard('cancelled')} className={`rounded-2xl text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#549E9E] ${selectedCard === 'cancelled' ? 'ring-2 ring-[#549E9E]' : 'hover:ring-2 hover:ring-[#549E9E]/30'}`}>
+                  <SummaryMetricCard
                   title={t('reports_next.cancelled')}
                   value={cancelled}
                   icon={XCircle}
                   theme="rose"
                   subtitle={windowLabel}
                 />
+                  <span className="block px-4 py-1.5 text-[10px] font-bold text-[#2d8789]">{t('reports_next.appointment_list.view_list')}</span>
+                </button>
                 <SummaryMetricCard
                   title={t('reports_next.consultation_rate')}
                   value={`${rate}%`}
@@ -187,6 +223,18 @@ export default function AppointmentsPage() {
                   }
                 />
               </div>
+              {selectedCard && token && <div ref={listRef} className="scroll-mt-28">
+                <React.Suspense fallback={<p className="p-8 text-center text-sm text-slate-400">{t('common.loading')}</p>}>
+                  <AppointmentCardList
+                    key={`${branchScope?.selected_branch_id}:${dateFilter}:${customDateRange.from}:${customDateRange.to}:${selectedCard}`}
+                    token={token} branchId={branchScope?.selected_branch_id || undefined} branchName={branchScope?.selected_branch?.branch_name || undefined}
+                    from={rangeForFilter(dateFilter, customDateRange).from} to={rangeForFilter(dateFilter, customDateRange).to}
+                    status={selectedCard}
+                    expectedCount={selectedCard === 'all' ? total : selectedCard === 'completed' ? completed : selectedCard === 'pending' ? waiting : cancelled}
+                    onClose={() => setSelectedCard(null)}
+                  />
+                </React.Suspense>
+              </div>}
               {chartData.length === 0 ? (
                 <p className="text-sm font-semibold text-slate-400 py-10 text-center">{t('reports_next.empty_try_week')}</p>
               ) : (

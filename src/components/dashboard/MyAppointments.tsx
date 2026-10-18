@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -29,6 +30,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import Pagination from '../Pagination';
 import PrescriptionPrint from '../PrescriptionPrint';
+import PrescriptionPreviewPaper from '../PrescriptionPreviewPaper';
 import AllVisitsPrint from '../AllVisitsPrint';
 
 interface Appointment {
@@ -214,8 +216,13 @@ const CustomSelect = ({
 };
 
 export default function MyAppointments({ prescriptionsOnly = false }: { prescriptionsOnly?: boolean }) {
-  const { t } = useTranslation();
-  const { token } = useAuth();
+  const { t, i18n } = useTranslation();
+  const [searchParams] = useSearchParams();
+  const listView = !prescriptionsOnly && ['upcoming', 'completed'].includes(searchParams.get('view') || '') ? searchParams.get('view')! : 'all';
+  const isHi = i18n.language.startsWith('hi');
+  const viewLabel = listView === 'upcoming' ? (isHi ? 'आगामी अपॉइंटमेंट' : 'Upcoming Appointments') : (isHi ? 'पूर्ण हो चुकी मुलाकातें' : 'Completed Visits');
+  const { token, user } = useAuth();
+  const registrationNo = (appointment: Appointment) => appointment.patient_uuid?.trim() || user?.uuid?.trim() || "";
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -261,6 +268,7 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
       if (filterTreatment !== 'all') params.set('treatment_name', filterTreatment);
       if (filterDate !== 'all') params.set('appointment_date', filterDate);
       if (prescriptionsOnly) params.set('prescriptions_only', 'true');
+      if (listView !== 'all') params.set('view', listView);
 
       const response = await fetch(`/api/v1/appointments/my?${params.toString()}`, {
         headers: {
@@ -292,11 +300,11 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
       void fetchAppointments();
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [token, currentPage, searchQuery, filterBranch, filterTreatment, filterDate, prescriptionsOnly]);
+  }, [token, currentPage, searchQuery, filterBranch, filterTreatment, filterDate, prescriptionsOnly, listView]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterBranch, filterTreatment, filterDate]);
+  }, [searchQuery, filterBranch, filterTreatment, filterDate, listView]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -451,6 +459,12 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
           View / Print All Prescriptions
         </button>
       </div>
+      {listView !== 'all' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#549E9E]/20 bg-[#549E9E]/10 px-4 py-3">
+          <span className="font-bold text-[#246e70]">{viewLabel}</span>
+          <Link to="/my-appointments" className="rounded-lg bg-white px-4 py-2 text-sm font-bold text-[#246e70] hover:underline">{isHi ? 'सभी अपॉइंटमेंट देखें' : 'All Appointments'}</Link>
+        </div>
+      )}
       {/* Search & Filter Header */}
       <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -522,11 +536,12 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
               <Stethoscope className="text-gray-200" size={48} />
             </div>
             <h3 className="text-2xl font-black text-gray-800 uppercase tracking-widest mb-4">
-              {prescriptionsOnly ? 'No prescriptions found' : t('my_appointments.no_data')}
+              {prescriptionsOnly ? 'No prescriptions found' : listView === 'upcoming' ? (isHi ? 'कोई आगामी अपॉइंटमेंट नहीं' : 'No upcoming appointments') : t('my_appointments.no_data')}
             </h3>
             <p className="text-sm font-medium text-gray-400 uppercase tracking-widest">
-              {prescriptionsOnly ? 'Completed consultation ke baad prescription yahan dikhegi.' : t('my_appointments.no_data_sub')}
+              {prescriptionsOnly ? 'Completed consultation ke baad prescription yahan dikhegi.' : listView === 'upcoming' ? (isHi ? 'नई अपॉइंटमेंट बुक कर सकते हैं।' : 'You can book a new appointment below.') : t('my_appointments.no_data_sub')}
             </p>
+            {listView === 'upcoming' && <Link to="/book-appointment" className="mt-5 inline-flex rounded-xl bg-[#549E9E] px-5 py-3 font-bold text-white">{isHi ? 'अपॉइंटमेंट बुक करें' : 'Book Appointment'}</Link>}
           </motion.div>
         ) : (
           <div className="bg-white border border-gray-200 shadow-sm overflow-hidden rounded-xl sm:rounded-none">
@@ -546,9 +561,9 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
                           {app.treatment_name}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] font-black text-gray-500 tracking-wider bg-gray-100 px-2 py-1 rounded-md">{app.auid}</span>
-                          <button onClick={(e) => { e.stopPropagation(); handleCopy(app.auid); }} className="text-gray-400 p-1">
-                            {copiedId === app.auid ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                          <span className="text-xs font-bold text-[#246e70] tracking-wide bg-[#549E9E]/10 px-2 py-1 rounded-md">{t('my_appointments.table.reg_no')}: {registrationNo(app) || '—'}</span>
+                          <button type="button" disabled={!registrationNo(app)} aria-label={t('my_appointments.copy_reg_no')} onClick={(e) => { e.stopPropagation(); handleCopy(registrationNo(app)); }} className="text-gray-400 p-1 disabled:opacity-30">
+                            {copiedId === registrationNo(app) ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
                           </button>
                         </div>
                       </div>
@@ -643,7 +658,7 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
                   <tr className="bg-gray-50/50 text-nowrap">
                     <th className={`${prescriptionsOnly ? 'w-12 px-3 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest`}>{t('my_appointments.table.sno')}</th>
                     <th className={`${prescriptionsOnly ? 'w-16 px-2 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest`}>{t('my_appointments.table.token')}</th>
-                    <th className={`${prescriptionsOnly ? 'w-[155px] px-3 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest text-nowrap`}>{t('my_appointments.table.unique_id')}</th>
+                    <th className={`${prescriptionsOnly ? 'w-[155px] px-3 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest text-nowrap`}>{t('my_appointments.table.reg_no')}</th>
                     <th className={`${prescriptionsOnly ? 'w-[180px] px-3 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest`}>{t('my_appointments.table.treatment')}</th>
                     <th className={`${prescriptionsOnly ? 'w-[170px] px-3 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest`}>{t('my_appointments.table.date_time')}</th>
                     <th className={`${prescriptionsOnly ? 'w-[130px] px-3 py-4' : 'px-6 py-6'} text-left text-xs font-black text-gray-800 uppercase tracking-widest`}>{t('my_appointments.table.location')}</th>
@@ -675,18 +690,21 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
                         </div>
                       </td>
 
-                      {/* AUID */}
+                      {/* Patient registration number */}
                       <td className={prescriptionsOnly ? 'px-3 py-4' : 'px-6 py-5'}>
-                        <div className="flex items-center gap-2 group/auid">
-                          <span className="text-[10px] font-black text-gray-500 tracking-wider bg-gray-100 px-3 py-1.5 rounded-lg whitespace-nowrap">
-                            {app.auid}
+                        <div className="flex items-center gap-2 group/registration">
+                          <span className="text-sm font-bold text-[#246e70] tracking-wide bg-[#549E9E]/10 px-3 py-1.5 rounded-lg whitespace-nowrap">
+                            {registrationNo(app) || '—'}
                           </span>
                           <button
-                            onClick={() => handleCopy(app.auid)}
-                            className={`p-1.5 rounded-md transition-all cursor-pointer ${copiedId === app.auid ? 'bg-emerald-50 text-emerald-500' : 'bg-gray-50 text-gray-400 hover:bg-gray-200'}`}
-                            title="Copy ID"
+                            type="button"
+                            disabled={!registrationNo(app)}
+                            aria-label={t('my_appointments.copy_reg_no')}
+                            onClick={() => handleCopy(registrationNo(app))}
+                            className={`p-1.5 rounded-md transition-all cursor-pointer ${copiedId === registrationNo(app) ? 'bg-emerald-50 text-emerald-500' : 'bg-gray-50 text-gray-400 hover:bg-gray-200'}`}
+                            title={t('my_appointments.copy_reg_no')}
                           >
-                            {copiedId === app.auid ? <Check size={12} /> : <Copy size={12} />}
+                            {copiedId === registrationNo(app) ? <Check size={12} /> : <Copy size={12} />}
                           </button>
                         </div>
                       </td>
@@ -899,15 +917,13 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
                 </div>
               </div>
 
-              <div className="flex flex-1 items-start justify-center overflow-auto bg-gray-200/60 p-3 md:p-8" data-lenis-prevent>
-                <div className="mx-auto flex min-h-[297mm] w-[210mm] shrink-0 flex-col border border-gray-100 bg-white p-0 shadow-xl md:p-8">
+              <PrescriptionPreviewPaper>
                   <PrescriptionPrint
                     consultation={selectedPrescription.prescription}
                     appointment={selectedPrescription}
                     lang={prescriptionLang}
                   />
-                </div>
-              </div>
+              </PrescriptionPreviewPaper>
             </motion.div>
           </motion.div>
         </AnimatePresence>,
@@ -975,15 +991,13 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
                 </button>
               </div>
             </div>
-            <div className="flex flex-1 items-start justify-center overflow-auto bg-gray-200/60 p-3 md:p-8" data-lenis-prevent>
-              <div className="mx-auto flex min-h-[297mm] w-[210mm] shrink-0 flex-col border border-gray-100 bg-white p-0 shadow-xl md:p-8">
+            <PrescriptionPreviewPaper>
                 <AllVisitsPrint
                   patient={allPrescriptionPreview.patient}
                   visits={allPrescriptionPreview.visits}
                   lang={prescriptionLang}
                 />
-              </div>
-            </div>
+            </PrescriptionPreviewPaper>
           </div>
         </div>,
         document.body,

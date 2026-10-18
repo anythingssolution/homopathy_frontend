@@ -33,14 +33,16 @@ import ConsultationPage from './components/dashboard/ConsultationPage';
 import DoctorReports from './components/dashboard/DoctorReports';
 import ReportsNext from './components/dashboard/reports-next/ReportsNext';
 import TodayPage from './components/dashboard/reports-next/pages/Today';
-import AppointmentsPage from './components/dashboard/reports-next/pages/Appointments';
+const AppointmentsPage = React.lazy(() => import('./components/dashboard/reports-next/pages/Appointments'));
 import FollowUpsPage from './components/dashboard/reports-next/pages/FollowUps';
 import FirstConsultationsPage from './components/dashboard/reports-next/pages/FirstConsultations';
 import TestRegisterPage from './components/dashboard/reports-next/pages/TestRegister';
 import CourierRegisterPage from './components/dashboard/reports-next/pages/CourierRegister';
-import DispensaryPage from './components/dashboard/reports-next/pages/Dispensary';
+const DispensaryPage = React.lazy(() => import('./components/dashboard/reports-next/pages/Dispensary'));
 import CollectionsPage from './components/dashboard/reports-next/pages/Collections';
 import PatientsPage from './components/dashboard/reports-next/pages/Patients';
+const LocationPatients = React.lazy(() => import('./components/dashboard/reports-next/pages/LocationPatients'));
+const NotReturnedPage = React.lazy(() => import('./components/dashboard/reports-next/pages/NotReturned'));
 import DiagnosisPage from './components/dashboard/reports-next/pages/Diagnosis';
 import ComparePage from './components/dashboard/reports-next/pages/Compare';
 import DoctorClinicHistory from './components/dashboard/DoctorClinicHistory';
@@ -53,7 +55,7 @@ import CrossRolePortal from './components/dashboard/CrossRolePortal';
 import StaffAccess from './components/dashboard/StaffAccess';
 import FamilyMembers from './components/dashboard/FamilyMembers';
 import BackendLogsModule from './components/BackendLogsModule';
-import DoctorLeaveCalendar from './components/dashboard/DoctorLeaveCalendar';
+const ClinicSchedule = React.lazy(() => import('./components/dashboard/ClinicSchedule'));
 import ManageCMS from './components/dashboard/ManageCMS';
 import DoctorFormulaMasterPage from './components/dashboard/DoctorFormulaMasterPage';
 import DoctorRemarkMasterPage from './components/dashboard/DoctorRemarkMasterPage';
@@ -251,19 +253,21 @@ function AnimatedRoutes() {
               <Route path="/doctor-remark-master" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorRemarkMasterPage /></ProtectedRoute>} />
               <Route path="/doctor-test-master" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><TestMaster /></ProtectedRoute>} />
               <Route path="/doctor-portal/cms" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><ManageCMS /></ProtectedRoute>} />
-              <Route path="/doctor-leave-calendar" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorLeaveCalendar /></ProtectedRoute>} />
+              <Route path="/doctor-leave-calendar" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><React.Suspense fallback={<div className="p-8 text-center text-slate-500">Loading schedule…</div>}><ClinicSchedule /></React.Suspense></ProtectedRoute>} />
               <Route path="/consult/:appointmentId" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><ConsultationPage /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DoctorReports /></ProtectedRoute>} />
               <Route path="/reports-next" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor', 'REC', 'rec', 'receptionist']}><ReportsNext /></ProtectedRoute>}>
                 <Route index element={<ReportsNextIndex />} />
-                <Route path="appointments" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><AppointmentsPage /></ProtectedRoute>} />
+                <Route path="appointments" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><React.Suspense fallback={<div className="py-16 text-center text-sm font-semibold text-slate-400">Loading report…</div>}><AppointmentsPage /></React.Suspense></ProtectedRoute>} />
                 <Route path="follow-ups" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><FollowUpsPage /></ProtectedRoute>} />
+                <Route path="not-returned" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><React.Suspense fallback={<div className="py-16 text-center text-sm font-semibold text-slate-400">Loading report…</div>}><NotReturnedPage /></React.Suspense></ProtectedRoute>} />
                 <Route path="first-consults" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><FirstConsultationsPage /></ProtectedRoute>} />
                 <Route path="test-register" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor', 'REC', 'rec', 'receptionist']}><TestRegisterPage /></ProtectedRoute>} />
                 <Route path="courier-register" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><CourierRegisterPage /></ProtectedRoute>} />
-                <Route path="dispensary" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DispensaryPage /></ProtectedRoute>} />
+                <Route path="dispensary" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><React.Suspense fallback={<div className="py-16 text-center text-sm font-semibold text-slate-400">Loading report…</div>}><DispensaryPage /></React.Suspense></ProtectedRoute>} />
                 <Route path="collections" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><CollectionsPage /></ProtectedRoute>} />
                 <Route path="patients" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><PatientsPage /></ProtectedRoute>} />
+                <Route path="location-patients" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><React.Suspense fallback={<div className="py-16 text-center text-sm font-semibold text-slate-400">Loading report…</div>}><LocationPatients /></React.Suspense></ProtectedRoute>} />
                 <Route path="diagnosis" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DiagnosisPage /></ProtectedRoute>} />
                 <Route path="compare" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><ComparePage /></ProtectedRoute>} />
               </Route>
