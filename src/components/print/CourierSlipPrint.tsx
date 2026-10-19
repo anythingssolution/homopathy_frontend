@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Facebook, Instagram, MessageCircle, Printer, Twitter, X, Youtube } from 'lucide-react';
+import { Facebook, Instagram, MessageCircle, Phone, Printer, Twitter, X, Youtube } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export type CourierSlipData = {
@@ -57,18 +57,18 @@ export default function CourierSlipPrint({ data, onClose }: { data: CourierSlipD
           .courier-slip-actions{display:flex;justify-content:flex-end;gap:10px;margin:0 0 14px}
           .courier-slip-actions button{display:inline-flex;align-items:center;gap:7px;border:0;border-radius:9px;padding:9px 14px;font-weight:700;cursor:pointer}
           .courier-slip-actions .print{background:#549e9e;color:#fff}.courier-slip-actions .close{background:#eef2f4;color:#536670}
-          .courier-slip-paper{position:relative;width:min(980px,calc(100vw - 36px));min-height:570px;margin:0 auto;background:#fffdf8;border-radius:4px;padding:28px 52px 34px;box-shadow:0 24px 70px #0f172a45;overflow:hidden}
+          .courier-slip-paper{position:relative;display:grid;grid-template-columns:minmax(0,390px) minmax(0,1fr);grid-template-rows:auto auto 1fr;column-gap:32px;width:min(980px,calc(100vw - 36px));min-height:570px;margin:0 auto;background:#fffdf8;border-radius:4px;padding:28px 52px 34px;box-shadow:0 24px 70px #0f172a45;overflow:hidden}
           .courier-slip-paper:before{content:"";position:absolute;inset:10px;border:1px solid #f1eee7;pointer-events:none}
-          .courier-slip-title{text-align:center;margin:0;color:#1b2f49;font:800 31px/1.15 Arial,Helvetica,sans-serif;letter-spacing:.01em}
-          .courier-slip-to-label{margin:24px 0 4px 48%;color:#1b2f49;font:800 23px/1.2 Arial,Helvetica,sans-serif}
-          .courier-slip-address{width:48%;margin-left:48%;color:#1b2f49;font:700 21px/1.5 Arial,Helvetica,sans-serif;letter-spacing:0;overflow-wrap:anywhere}
+          .courier-slip-title{grid-column:1/-1;text-align:center;margin:0;color:#1b2f49;font:800 31px/1.15 Arial,Helvetica,sans-serif;letter-spacing:.01em}
+          .courier-slip-to-label{grid-column:2;grid-row:2;margin:24px 0 4px;color:#1b2f49;font:800 23px/1.2 Arial,Helvetica,sans-serif}
+          .courier-slip-address{grid-column:2;grid-row:3;width:100%;color:#1b2f49;font:700 21px/1.5 Arial,Helvetica,sans-serif;letter-spacing:0;overflow-wrap:anywhere}
           .courier-slip-address p{margin:0}
           .courier-slip-address-row{display:grid;grid-template-columns:104px minmax(0,1fr);gap:8px;align-items:start}
           .courier-slip-address-label{font-weight:800;color:#31445f}
           .courier-slip-address-label:after{content:" -"}
           .courier-slip-address-value{min-width:0}
           .courier-slip-address-row.plain{display:block}
-          .courier-slip-from{position:absolute;left:52px;bottom:50px;width:390px;color:#1b2f49}
+          .courier-slip-from{grid-column:1;grid-row:2/4;align-self:end;min-width:0;margin-top:24px;color:#1b2f49}
           .courier-slip-from-title{margin:0 0 6px;font:800 20px/1.1 Arial,Helvetica,sans-serif;letter-spacing:.08em}
           .courier-slip-stamp{border:2px solid #216f78;background:#dff1ee;padding:7px 9px;color:#185f67;box-shadow:inset 0 0 0 1px #9dcac6}
           .courier-slip-stamp-head{display:flex;align-items:flex-start;gap:7px;margin-bottom:3px}
@@ -77,6 +77,12 @@ export default function CourierSlipPrint({ data, onClose }: { data: CourierSlipD
           .courier-slip-doctor small{display:block;font-size:11px}
           .courier-slip-clinic{margin:2px 0 4px!important;font-weight:900!important;font-size:18px!important;line-height:1.15!important;color:#216f78}
           .courier-slip-stamp p{margin:2px 0;font-weight:800;font-size:13px;line-height:1.25;overflow-wrap:anywhere}
+          .courier-slip-appointments{margin:7px 0 6px}
+          .courier-slip-appointment-title{display:flex;align-items:center;justify-content:center;gap:5px;margin-bottom:4px;font-size:12px;font-weight:700;color:#1b2f49}
+          .courier-slip-appointment-title:before,.courier-slip-appointment-title:after{content:"";flex:1;height:1px;background:#75a6a2}
+          .courier-slip-appointment-icon{width:12px;height:12px;flex:0 0 auto;color:#5c9d38;fill:currentColor;stroke-width:2}
+          .courier-slip-appointment-row{display:grid;grid-template-columns:12px minmax(0,1fr) auto;align-items:center;gap:6px;margin-top:4px;padding:4px 7px;border:1px solid #73a29b;border-radius:6px;background:#f7fcf9;color:#1b2f49;font-size:12px;line-height:1.3}
+          .courier-slip-appointment-row strong{color:#075e4f;font-size:14px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
           .courier-slip-stamp-note{border-top:1px solid #216f78;margin-top:5px!important;padding-top:4px;text-align:center;font-size:9px!important;line-height:1.25!important}
           .courier-slip-socials{display:grid;grid-template-columns:1fr;gap:3px;color:#185f67}
           .courier-slip-social-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:center;gap:4px}
@@ -91,17 +97,18 @@ export default function CourierSlipPrint({ data, onClose }: { data: CourierSlipD
             .courier-slip-overlay{position:static!important;display:block!important;padding:0!important;background:none!important;backdrop-filter:none!important}
             .courier-slip-document{page:courier-slip;width:auto!important;max-height:none!important;overflow:visible!important}
             .courier-slip-actions{display:none!important}
-            .courier-slip-paper{width:auto!important;min-height:128mm!important;margin:0!important;padding:8mm 11mm!important;box-shadow:none!important;border-radius:0!important}
+            .courier-slip-paper{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;column-gap:6mm!important;width:auto!important;min-height:128mm!important;margin:0!important;padding:8mm 11mm!important;box-shadow:none!important;border-radius:0!important}
             .courier-slip-title{font-size:30px!important}
-            .courier-slip-to-label{margin-top:16mm!important;margin-left:48%!important}
+            .courier-slip-to-label{margin-top:12mm!important;margin-left:0!important}
             .courier-slip-address{font-size:20px!important}
-            .courier-slip-from{left:11mm!important;bottom:16mm!important;width:96mm!important}
+            .courier-slip-from{width:auto!important}
+            .courier-slip-stamp{-webkit-print-color-adjust:exact;print-color-adjust:exact}
           }
-          @media(max-width:720px){
-            .courier-slip-paper{min-height:620px;padding:24px 24px 30px}
-            .courier-slip-to-label,.courier-slip-address{margin-left:34%;width:64%}
+          @media screen and (max-width:720px){
+            .courier-slip-paper{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto auto;min-height:620px;padding:24px 24px 30px}
+            .courier-slip-to-label,.courier-slip-address{grid-column:1;margin-left:0;width:100%}
             .courier-slip-address{font-size:20px}
-            .courier-slip-from{left:24px;width:min(390px,calc(100% - 48px))}
+            .courier-slip-from{grid-column:1;grid-row:4;width:100%}
           }
         `}</style>
         <div className="courier-slip-actions no-print">
@@ -129,6 +136,18 @@ export default function CourierSlipPrint({ data, onClose }: { data: CourierSlipD
               <p className="courier-slip-clinic">डॉ. त्रिवेदी होम्योपैथिक क्लिनिक</p>
               <p>लिल्ली चौक, बरई मंदिर रोड, पुरानी बस्ती, रायपुर (छ.ग.) 492001 /</p>
               <p>सेक्टर 5, मंडी गेट के पास, देवेंद्र नगर, रायपुर (छ.ग.) 492001</p>
+              <div className="courier-slip-appointments">
+                <div className="courier-slip-appointment-title"><Phone className="courier-slip-appointment-icon" aria-hidden="true" />For Appointment</div>
+                {[
+                  { branch: 'Purani Basti', phone: '7772043001' },
+                  { branch: 'Devendra Nagar', phone: '7773043001' },
+                ].map((item) => (
+                  <div key={item.phone} className="courier-slip-appointment-row">
+                    <Phone className="courier-slip-appointment-icon" aria-hidden="true" />
+                    <span>{item.branch}</span><strong>{item.phone}</strong>
+                  </div>
+                ))}
+              </div>
               <div className="courier-slip-stamp-note">
                 <div className="courier-slip-socials">
                   <div className="courier-slip-social-row">
