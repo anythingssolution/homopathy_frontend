@@ -1,5 +1,6 @@
 import AllVisitsPrint from '../AllVisitsPrint';
 import ClinicHistoryListPrint from './ClinicHistoryListPrint';
+import ClinicHistoryTiming from './ClinicHistoryTiming';
 import VisitDrawer from './bills-next/VisitDrawer';
 import { groupVisits, type VisitRow } from './bills-next/lib';
 import PaymentReceipt from '../PaymentReceipt';
@@ -90,7 +91,8 @@ const RepeatMedicineHistoryRow = ({ bill, actions }: { bill: any; actions: React
     <div>
       <p className={`text-[10px] font-black uppercase tracking-wide ${textColor}`}>{t(bill.is_direct_medicine ? 'clinic_history.direct_medicine' : 'clinic_history.repeat_medicine')}</p>
       <p className="mt-1 text-sm font-bold text-slate-800">{bill.patient_full_name}</p>
-      <p className="mt-1 text-xs text-slate-600">{new Date(bill.created_at).toLocaleString(locale)} · {bill.branch_name}</p>
+      <div className="mt-1"><ClinicHistoryTiming bill={bill} /></div>
+      <p className="mt-1 text-xs text-slate-600">{bill.branch_name}</p>
       <p className="mt-1 text-xs text-slate-500">{t('payment_receipt.bill_no', 'Bill no')}: {bill.bill_number}</p>
       <p className="mt-1 text-[10px] text-slate-500">{t(bill.is_direct_medicine ? 'clinic_history.direct_event_note' : 'clinic_history.repeat_event_note')}</p>
     </div>
@@ -726,14 +728,7 @@ export default function DoctorClinicHistory() {
 
                       <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-gray-50">
                         <div className="flex flex-wrap items-center justify-between text-[10px] font-bold text-gray-500 gap-2">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar size={12} className="text-primary-teal" />
-                            {new Date(appointment.appointment_date).toLocaleDateString()}
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <Clock size={12} className="text-gray-400" />
-                            {appointment.start_time} - {appointment.end_time}
-                          </div>
+                          <ClinicHistoryTiming appointment={appointment} consultation={consultation} />
                         </div>
                         <div className="flex flex-wrap items-center justify-between text-[10px] font-bold text-gray-500 gap-2">
                           <div className="flex items-center gap-1.5">
@@ -861,17 +856,7 @@ export default function DoctorClinicHistory() {
                           }}
                         >
                           <td className="px-5 py-4">
-                            <div className="flex flex-col">
-                              <span className="text-sm font-bold text-gray-800">
-                                {new Date(
-                                  appointment.appointment_date,
-                                ).toLocaleDateString()}
-                              </span>
-                              <span className="text-[10px] font-bold text-gray-400">
-                                {appointment.start_time} -{" "}
-                                {appointment.end_time}
-                              </span>
-                            </div>
+                            <ClinicHistoryTiming appointment={appointment} consultation={consultation} />
                           </td>
                           <td className="px-5 py-4">
                             <div className="flex flex-col items-center gap-1 w-fit">

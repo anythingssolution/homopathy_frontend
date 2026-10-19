@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import ClinicHistoryTiming from './ClinicHistoryTiming';
 
 export default function ClinicHistoryListPrint({ rows, filters, onClose }: {
   rows: any[]; filters: string; onClose: () => void;
@@ -51,7 +52,7 @@ export default function ClinicHistoryListPrint({ rows, filters, onClose }: {
             {a.history_queue_position != null && <span className="badge pos">Pos #{a.history_queue_position}</span>}
             <small>{a.display_token_display || a.token_number || ''}</small>
           </>}</td>
-          <td>{payment || repeat ? date(payment?.collected_at || repeat?.created_at) : a.appointment_date ? new Date(a.appointment_date).toLocaleDateString(locale) : ''}</td>
+          <td>{payment ? date(payment.collected_at) : <ClinicHistoryTiming appointment={a} consultation={item.consultation} bill={repeat} />}</td>
           <td><strong>{record.patient_full_name}</strong><small>{record.patient_mobile_no}</small></td>
           <td>{record.branch_name}</td>
           <td>{payment ? <>
