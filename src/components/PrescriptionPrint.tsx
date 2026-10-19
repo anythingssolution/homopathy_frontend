@@ -1,4 +1,5 @@
 import React from 'react';
+import { prescriptionPaperStyle } from '../utils/prescriptionPaperStyle';
 import PrescriptionBranchLocations from './PrescriptionBranchLocations';
 import { Mail, Phone, MapPin, Pill, Activity, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
 import { getMedicationRoleLabel, formatPrescriptionMedicineText, getRepeatSamePrintBlocks, getPrintedUniversalRemark, getPrintedNumericFormulaDisplay, getPrintedTestFinding } from '../utils/prescriptionFormat';
@@ -119,14 +120,14 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
   ].filter((item) => item.alwaysShow || hasVitalValue(item.value));
 
   return (
-    <div className="bg-white px-2 pt-2 pb-4 max-w-4xl mx-auto font-sans text-gray-800 printable-content leading-tight text-sm flex flex-col flex-1 min-h-full w-full">
+    <div className="bg-white px-2 pt-2 pb-4 max-w-4xl mx-auto font-sans text-gray-800 printable-content leading-tight text-sm flex flex-col flex-1 min-h-full w-full" style={prescriptionPaperStyle}>
       {/* Header */}
-      <table className="w-full print-table">
+      <table className="w-full h-full flex-1 print-table">
         <thead className="print:table-header-group hidden">
           <tr><td><div className="h-[2px]"></div></td></tr>
         </thead>
         <tbody>
-          <tr className="print-tbody-row">
+          <tr className="h-full print-tbody-row">
             <td className="align-top">
               <div className="flex flex-col w-full mb-2">
                 {/* Top Center Text */}
@@ -443,7 +444,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
           <tr>
             <td className="align-bottom">
               {/* Detailed Footer (Pushed to bottom of page by table height) */}
-              <div className="print-footer pt-2 border-t-[1.5px] border-gray-300 flex flex-col w-full bg-white mt-auto sticky bottom-0 z-50 print:relative">
+              <div className="print-footer pt-2 border-t-[1.5px] border-gray-300 flex flex-col w-full bg-transparent mt-auto sticky bottom-0 z-50 print:relative">
                 {/* Top section: Instructions and Appointments */}
                 <div className="flex justify-between items-stretch w-full mb-2">
                   {/* Instructions */}
@@ -481,34 +482,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
                   </div>
                 </div>
 
-                {/* Middle section: Clinic Name */}
-                <div className="border-t border-b border-gray-300 py-1.5 mb-2 flex items-center justify-center relative bg-gray-50/30">
-                  <img src="/logo.png.png" alt="Logo" className="h-8 absolute left-2 object-contain mix-blend-multiply" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                  <h2 className="text-[22px] font-black text-[#1a2b4c] tracking-wide text-center w-full">
-                    डॉ. त्रिवेदी होम्योपैथिक क्लिनिक
-                  </h2>
-                </div>
-
                 <PrescriptionBranchLocations />
-
-                {/* Social Media Links */}
-                <div className="flex justify-center items-center space-x-3 mt-1.5 mb-1">
-                  <div className="flex items-center text-[8px] text-gray-600 font-bold tracking-tight">
-                    <Facebook className="w-3 h-3 text-[#3b5998] mr-1" fill="currentColor" strokeWidth={0} /> dr.trivedishomeopathy
-                  </div>
-                  <div className="flex items-center text-[8px] text-gray-600 font-bold tracking-tight">
-                    <Instagram className="w-3 h-3 text-[#E1306C] mr-1" /> drtrivedishomeopathy
-                  </div>
-                  <div className="flex items-center text-[8px] text-gray-600 font-bold tracking-tight">
-                    <Twitter className="w-3 h-3 text-[#1DA1F2] mr-1" fill="currentColor" strokeWidth={0} /> drtrivedishomeo
-                  </div>
-                  <div className="flex items-center text-[8px] text-gray-600 font-bold tracking-tight">
-                    <Youtube className="w-3 h-3 text-[#FF0000] mr-1" /> drtrivedishomeopathy
-                  </div>
-                  <div className="flex items-center text-[8px] text-gray-600 font-bold tracking-tight">
-                    <Mail className="w-3 h-3 text-[#DB4437] mr-1" /> drtrivedishomeopathy@gmail.com
-                  </div>
-                </div>
               </div>
             </td>
           </tr>

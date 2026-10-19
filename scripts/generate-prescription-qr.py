@@ -24,8 +24,8 @@ for branch in json.loads((ROOT / 'src/data/prescriptionBranchLocations.json').re
             svg += f'<stop offset="{100 * index / (len(gradient)-1):g}%" stop-color="{color}"/>'
         svg += '</linearGradient></defs>'
     for kind, color in [('body', branch['qrColor']), ('finder', branch['qrFinderColor'])]:
-        if gradient:
-            color = 'url(#qr-mix)' 
+        if gradient and kind == 'body':
+            color = 'url(#qr-mix)'
         svg += f'<path fill="{color}" d="{"".join(paths[kind])}"/>'
     svg += '</svg>\n'
     (ROOT / 'public' / branch['qrImage'].lstrip('/')).write_text(svg)
