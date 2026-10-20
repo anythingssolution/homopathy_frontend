@@ -1,0 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Same base typography as the main app, without its dashboard/print CSS. */
+html{font-size:106%;background:#f5f5f0;scrollbar-width:thin}
+body{margin:0;padding:0;font-weight:900}
+p,span,div,li,td,th,input,select,button,textarea,a,h1,h2,h3,h4,h5,h6{font-weight:900}
+@media(max-width:639px){html{font-size:100%}button,a{min-height:40px}}
+.tv-sound-control{position:fixed;right:12px;bottom:12px;z-index:80;padding:8px 14px;border:1px solid #99d5cf;border-radius:10px;background:#fff;color:#0f766e;font:700 14px/1.4 Arial,sans-serif;box-shadow:0 2px 8px #172b3820;cursor:pointer}
+.tv-sound-control:focus{outline:3px solid #facc15;outline-offset:3px}
+.tv-sound-control:disabled{color:#64748b;cursor:default}
+
+/* Preserve transform-based Motion animations on engines without individual transforms. */
+@supports not (backdrop-filter:blur(1px)){
+  .backdrop-blur-md,.backdrop-blur-sm{background-color:rgba(240,247,247,.96)}
+}

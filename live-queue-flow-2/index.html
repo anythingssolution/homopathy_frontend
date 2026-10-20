@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#0f766e" />
+    <title>Clinic Live Queue — TV</title>
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="stylesheet" href="./styles.css" />
+    <style>
+      .tv-startup{padding:48px 24px;text-align:center;font:700 22px/1.6 Arial,sans-serif;color:#185f67;background:#f0f7f7;min-height:100vh}
+      #tv-load-error{position:fixed;inset:0;z-index:99999;overflow:auto;padding:48px 24px;background:#f0f7f7;text-align:center;font:20px/1.6 Arial,sans-serif;color:#17354b}
+      #tv-load-error[hidden]{display:none}
+      #tv-load-error button{padding:12px 24px;background:#0f766e;color:white;border:0;border-radius:10px;font:700 20px Arial,sans-serif}
+    </style>
+  </head>
+  <body>
+    <div id="root"><div class="tv-startup">Loading clinic live queue…</div></div>
+    <div id="tv-load-error" hidden>
+      <h1>Unable to open the live queue</h1>
+      <p>Check the internet connection, then retry. If this continues, share the browser details below with support.</p>
+      <p id="tv-browser-details" style="font-size:14px;overflow-wrap:break-word"></p>
+      <button type="button" onclick="window.location.reload()">Retry</button>
+    </div>
+    <noscript><div class="tv-startup">Please enable JavaScript in the TV browser to show the live queue.</div></noscript>
+    <script>
+      // Classic syntax runs even when an old browser cannot parse the app bundle.
+      window.showTvLoadError = function () {
+        document.getElementById('tv-load-error').hidden = false;
+        document.getElementById('tv-browser-details').textContent = navigator.userAgent;
+      };
+      window.addEventListener('error', function (event) {
+        // Modern-module probe failures are expected while the legacy fallback loads.
+        if (window.tvQueueMounted && (event.error || (event.target && event.target.tagName === 'SCRIPT'))) window.showTvLoadError();
+      }, true);
+      window.addEventListener('unhandledrejection', function () {
+        if (!window.tvQueueMounted) window.showTvLoadError();
+      });
+      window.setTimeout(function () {
+        if (!window.tvQueueMounted) window.showTvLoadError();
+      }, 30000);
+    </script>
+    <script type="module" src="../src/tv/main.tsx"></script>
+  </body>
+</html>
