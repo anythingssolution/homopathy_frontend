@@ -19,6 +19,8 @@ import CustomAlertDialog, { CustomAlertState } from './CustomAlertDialog';
 import { formatTimeTo12Hour } from '../utils/dateUtils';
 import WeeklyScheduleRules from './dashboard/WeeklyScheduleRules';
 import CallTuneSettings from './dashboard/CallTuneSettings';
+import { getLocalDateString } from '../utils/date';
+const DoctorSessionSlotControl = React.lazy(() => import('./DoctorSessionSlotControl'));
 
 function DoctorMastersMenu({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -383,6 +385,7 @@ export default function DoctorPortal() {
   const [activeSince, setActiveSince] = useState<string | null>(null);
   const [trackedDoctorId, setTrackedDoctorId] = useState<number | null>(null);
   const [activeSessionBranchId, setActiveSessionBranchId] = useState<number | null>(null);
+  const [activeSessionSlotId, setActiveSessionSlotId] = useState<number | null>(null);
   const [activeSessionBranchName, setActiveSessionBranchName] = useState<string | null>(null);
   const [sessionActionMessage, setSessionActionMessage] = useState<string | null>(null);
   const selectedBranchId = branchScope?.selected_branch_id ? Number(branchScope.selected_branch_id) : null;
@@ -537,6 +540,7 @@ export default function DoctorPortal() {
     setIsOnBreak(isBreakInSelectedBranch);
     setTrackedDoctorId(statusData.doctor_id ? Number(statusData.doctor_id) : null);
     setActiveSessionBranchId(normalizedBranchId);
+    setActiveSessionSlotId(statusData.slot_id ? Number(statusData.slot_id) : null);
     setActiveSessionBranchName(statusData.branch_name || null);
 
     if (statusData.break_started_at && isBreakInSelectedBranch) {
@@ -1426,6 +1430,13 @@ export default function DoctorPortal() {
             />
           </div>
         </div>
+
+        {filterDate === getLocalDateString() && selectedBranchId && dateSlotTimings.length > 0 && (
+          <React.Suspense fallback={<div className="p-4 text-sm text-gray-500">Loading session controls…</div>}><DoctorSessionSlotControl token={token} branchId={selectedBranchId} slots={dateSlotTimings}
+            activeSlotId={isActiveInAnotherBranch ? null : activeSessionSlotId}
+            hasOpenSession={isAtDesk || isOnBreak} blocked={isActiveInAnotherBranch}
+            onApplied={payload => { applyDoctorSessionStatus(payload); setSelectedTimingSlotId(payload.slot_id || null); fetchAppointments(); fetchDashboardStats(); }} /></React.Suspense>
+        )}
 
         <div className="border border-[#549E9E]/20 bg-[#549E9E]/[0.03] rounded-xl overflow-hidden transition-all shadow-sm">
           <button

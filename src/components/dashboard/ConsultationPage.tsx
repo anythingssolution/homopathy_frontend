@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
+const RepeatTreatmentPicker = React.lazy(() => import('./RepeatTreatmentPicker'));
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -770,6 +771,9 @@ export default function ConsultationPage() {
     number | null
   >(null);
   const [isLoadingRepeatDraft, setIsLoadingRepeatDraft] = useState(false);
+  const [isRepeatPickerOpen, setIsRepeatPickerOpen] = useState(false);
+  const repeatDraftRequestRef = useRef<AbortController | null>(null);
+  const repeatContextRef = useRef({ appointmentId: 0, token: '', editable: false });
   const [quickNumericInput, setQuickNumericInput] = useState("");
   const [isQuickPreviewOpen, setIsQuickPreviewOpen] = useState(false);
   const [isPrescriptionOpen, setIsPrescriptionOpen] = useState(true);
@@ -908,6 +912,16 @@ export default function ConsultationPage() {
       treatmentName === "followup visit"
     );
   }, [currentApp?.treatment_name, currentApp?.visit_type_code]);
+  repeatContextRef.current = {
+    appointmentId: Number(currentApp?.appointment_id || 0), token: token || '', editable: !isReadOnly && isFollowUpVisit,
+  };
+  useEffect(() => {
+    setIsRepeatPickerOpen(false);
+    setIsLoadingRepeatDraft(false);
+    repeatDraftRequestRef.current?.abort();
+    repeatDraftRequestRef.current = null;
+    return () => { repeatDraftRequestRef.current?.abort(); };
+  }, [currentApp?.appointment_id, token, isReadOnly, isFollowUpVisit]);
   const followUpAfterDays = getDurationDaysFromKey(globalDuration);
   const durationMonths = getDurationMonths(globalDuration);
 
@@ -2446,18 +2460,26 @@ export default function ConsultationPage() {
     );
   };
 
-  const executeLoadRepeatTreatmentDraft = async () => {
+  const executeLoadRepeatTreatmentDraft = async (sourceId: number, targetAppointmentId: number) => {
+    const context = repeatContextRef.current;
+    if (!context.editable || context.appointmentId !== targetAppointmentId) return;
+    repeatDraftRequestRef.current?.abort();
+    const controller = new AbortController();
+    repeatDraftRequestRef.current = controller;
     setIsLoadingRepeatDraft(true);
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
     try {
       const response = await fetch(
-        `/api/v1/doctors/consultations/${currentApp?.appointment_id}/repeat-draft`,
-        { headers: { Authorization: `Bearer ${token}` } },
+        `/api/v1/doctors/consultations/${targetAppointmentId}/repeat-draft?source_consultation_id=${sourceId}`,
+        { headers: { Authorization: `Bearer ${context.token}` }, signal: controller.signal, cache: 'no-store' },
       );
       const result = await response.json();
 
       if (!response.ok || !result.success) {
         throw new Error(result.message || "Unable to load previous treatment");
       }
+      if (controller.signal.aborted || repeatContextRef.current.appointmentId !== targetAppointmentId
+        || repeatContextRef.current.token !== context.token || !repeatContextRef.current.editable) return;
 
       const numericMedicines: MedicationEntry[] = [];
       const textMedicineDrafts: OtherMedEntry[] = [];
@@ -2537,19 +2559,26 @@ export default function ConsultationPage() {
         "success",
       );
     } catch (error) {
+      if (repeatDraftRequestRef.current !== controller) return;
       addToast(
-        error instanceof Error
+        error instanceof Error && error.name === 'AbortError' ? 'Request timed out. Please select the previous treatment again.' : error instanceof Error
           ? error.message
           : "Unable to load previous treatment",
         "error",
       );
     } finally {
-      setIsLoadingRepeatDraft(false);
+      clearTimeout(timeout);
+      if (repeatDraftRequestRef.current === controller) {
+        repeatDraftRequestRef.current = null;
+        setIsLoadingRepeatDraft(false);
+      }
     }
   };
 
-  const loadRepeatTreatmentDraft = () => {
+  const applySelectedRepeatTreatment = (sourceId: number) => {
     if (!currentApp?.appointment_id || !isFollowUpVisit || isReadOnly) return;
+    const targetAppointmentId = Number(currentApp.appointment_id);
+    setIsRepeatPickerOpen(false);
 
     const hasExistingDraft =
       medications.some((item) => item.name.trim()) ||
@@ -2568,11 +2597,11 @@ export default function ConsultationPage() {
           "Chief complaint, clinical findings, diagnosis, quick numeric entry, and medicines will be replaced with the previous treatment. Continue?",
         ),
         onConfirm: () => {
-          void executeLoadRepeatTreatmentDraft();
+          void executeLoadRepeatTreatmentDraft(sourceId, targetAppointmentId);
         },
       });
     } else {
-      void executeLoadRepeatTreatmentDraft();
+      void executeLoadRepeatTreatmentDraft(sourceId, targetAppointmentId);
     }
   };
 
@@ -3494,7 +3523,7 @@ export default function ConsultationPage() {
               <button
                 type="button"
                 onClick={() => {
-                  void loadRepeatTreatmentDraft();
+                  setIsRepeatPickerOpen(true);
                 }}
                 disabled={isLoadingRepeatDraft}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all text-[10.5px] font-black uppercase tracking-wider rounded-xl cursor-pointer disabled:opacity-60"
@@ -4132,6 +4161,12 @@ export default function ConsultationPage() {
         </div>
 
         {/* Confirmation Modal */}
+        {isRepeatPickerOpen && !isReadOnly && isFollowUpVisit && currentApp?.appointment_id && (
+          <React.Suspense fallback={null}>
+            <RepeatTreatmentPicker key={currentApp.appointment_id} appointmentId={Number(currentApp.appointment_id)} token={token}
+              onClose={() => setIsRepeatPickerOpen(false)} onSelect={applySelectedRepeatTreatment} />
+          </React.Suspense>
+        )}
         {confirmModal.isOpen &&
           createPortal(
             <AnimatePresence>

@@ -31,12 +31,12 @@ export default function Consultation() {
           <div className="text-center mb-16">
             <div className="inline-flex flex-col items-center mb-6">
               <div className="w-20 h-20 border border-primary-teal/20 rounded-full flex items-center justify-center mb-4 bg-white/50 backdrop-blur-sm">
-                 <div className="text-[8px] text-primary-teal font-black tracking-widest leading-tight flex flex-col items-center text-center px-2">
+                 <div className="text-[8px] text-public-heading font-black tracking-widest leading-tight flex flex-col items-center text-center px-2">
                    <span className="uppercase">{t('consultation.doctor')}<br/>{t('consultation.consultation')}</span>
-                   <Sparkles size={10} className="text-primary-teal mt-1" />
+                   <Sparkles size={10} className="text-public-heading mt-1" />
                  </div>
               </div>
-              <h2 className="text-3xl lg:text-4xl font-bold text-[#549E9E] tracking-[0.2em] mb-4">
+              <h2 className="text-3xl lg:text-4xl font-bold text-public-heading tracking-[0.2em] mb-4">
                 {t('consultation.common_consultations')}
               </h2>
               <div className="flex justify-center gap-1.5">
@@ -50,7 +50,7 @@ export default function Consultation() {
               <ScrollReveal direction="right" delay={0.2}>
                 <div className="relative">
                   <div className="w-48 h-48 rounded-full border-8 border-white shadow-2xl bg-white shrink-0 relative z-10 flex flex-col items-center justify-center text-center">
-                    <span className="text-[#549E9E] font-black text-sm lg:text-base leading-[1.2] uppercase tracking-[0.15em]">{t('consultation.doctor')}<br/>{t('consultation.consultation')}</span>
+                    <span className="text-public-heading font-black text-sm lg:text-base leading-[1.2] uppercase tracking-[0.15em]">{t('consultation.doctor')}<br/>{t('consultation.consultation')}</span>
                     <div className="w-10 h-1 bg-[#F2D06B] mt-4 rounded-full" />
                   </div>
                   <div className="absolute -top-4 -right-4 w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center text-yellow-500 z-20 shadow-sm font-bold text-xl">?</div>
@@ -60,13 +60,13 @@ export default function Consultation() {
               
               <ScrollReveal width="100%" direction="left" delay={0.4}>
                 <div className="text-left bg-white/40 backdrop-blur-md p-8 lg:p-10 rounded-[40px] border border-white/60 shadow-sm flex-1 relative">
-                  <p className="text-[#6A6A50] text-[15px] leading-[2.2] tracking-wider font-medium">
+                  <p className="text-public-body text-[15px] leading-[2.2] tracking-wider font-medium">
                     {t('consultation.description')}
                   </p>
                   
                   {/* Floating accents around the bubble */}
                   <div className="absolute -top-10 right-0 text-yellow-300 opacity-40">✨</div>
-                  <div className="absolute -bottom-6 left-[20%] text-primary-teal opacity-30">✦</div>
+                  <div className="absolute -bottom-6 left-[20%] text-public-heading opacity-30">✦</div>
                 </div>
               </ScrollReveal>
             </div>
@@ -90,7 +90,7 @@ export default function Consultation() {
                   <div className="w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform bg-[#F9FBFC] ring-1 ring-inset ring-black/5 text-6xl">
                     {item.icon}
                   </div>
-                  <span className="text-base font-bold text-[#549E9E] tracking-tight group-hover:text-[#F2D06B] transition-colors text-center whitespace-pre-line uppercase">
+                  <span className="text-base font-bold text-public-heading tracking-tight group-hover:text-[#F2D06B] transition-colors text-center whitespace-pre-line uppercase">
                     {item.label}
                   </span>
                 </motion.div>
@@ -102,7 +102,7 @@ export default function Consultation() {
 
       {/* Background Decor Shapes */}
       <div className="absolute top-[20%] left-[5%] text-yellow-300 opacity-20 rotate-12 scale-150">✦</div>
-      <div className="absolute bottom-[20%] right-[3%] text-primary-teal opacity-20 -rotate-12 scale-150">✧</div>
+      <div className="absolute bottom-[20%] right-[3%] text-public-heading opacity-20 -rotate-12 scale-150">✧</div>
     </section>
   );
 }

@@ -6,7 +6,8 @@ test('manual chat targets the patient number and carries saved bill text without
   const text = buildManualWhatsAppText(document);
   assert.match(text, /Medicine A \(2\): ₹ 100\.00/);
   assert.match(text, /CBC \(1\): ₹ 300\.00/);
-  assert.match(text, /Net bill: ₹ 380\.00/);
+  assert.match(text, /Approx\. total amount: ₹ 380\.00/);
+  assert.match(text, /Medicine \/ Test — Approx\. amount/);
   assert.doesNotMatch(text, /8462030001|blob:|localhost/);
   const url = new URL(buildManualWhatsAppLink('9827159733', text));
   assert.equal(url.origin, 'https://wa.me');
@@ -20,12 +21,20 @@ test('receipt and Hindi text use the selected document rather than assuming medi
   assert.match(text, /CASH/);
   assert.match(text, /₹ 50\.00/);
   assert.doesNotMatch(text, /Medicine A/);
+  assert.doesNotMatch(text, /Approx|अनुमानित/);
 });
 test('large bills keep chat text bounded while the full document remains in the PDF', () => {
   const text = buildManualWhatsAppText({ ...document, lines: Array.from({ length: 200 }, () => ({ name: 'Long medicine name '.repeat(8), quantity: 1, amount: 10 })) });
   assert.ok(text.length < 3000);
   assert.match(text, /Remaining items/);
-  assert.match(text, /Net bill: ₹ 380\.00/);
+  assert.match(text, /Approx\. total amount: ₹ 380\.00/);
+});
+test('Hindi bill summary uses approximate total wording while received and pending figures retain their saved labels', () => {
+  const text = buildManualWhatsAppText({ ...document, language: 'hi', totals: [['शुद्ध बिल', 380], ['इस बिल की प्राप्त राशि', 200], ['इस बिल की बकाया राशि', 180]] });
+  assert.match(text, /दवा \/ जाँच की अनुमानित राशि/);
+  assert.match(text, /अनुमानित कुल राशि: ₹ 380\.00/);
+  assert.match(text, /इस बिल की प्राप्त राशि: ₹ 200\.00/);
+  assert.match(text, /इस बिल की बकाया राशि: ₹ 180\.00/);
 });
 test('invalid recipient or blank message never creates a chat URL', () => {
   assert.equal(normalizeManualWhatsAppPhone('+91 98271 59733'), '919827159733');

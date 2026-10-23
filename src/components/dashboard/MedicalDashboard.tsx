@@ -24,8 +24,11 @@ import {
   Hash,
   Download,
   Printer,
-  Edit2
+  Edit2,
+  MessageCircle
 } from 'lucide-react';
+import { buildDispenseEstimate, type DispenseEstimate } from '../../utils/dispenseEstimate';
+const DispenseEstimateWhatsAppModal = React.lazy(() => import('../DispenseEstimateWhatsAppModal'));
 import { useNotifications } from '../../context/NotificationContext';
 import { dedupedFetch } from '../../utils/dedupedFetch';
 import CustomDatePicker from '../CustomDatePicker';
@@ -289,6 +292,7 @@ export default function MedicalDashboard() {
   }, [token]);
 
   const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
+  const [whatsAppEstimate, setWhatsAppEstimate] = useState<DispenseEstimate | null>(null);
   const [previewPrescription, setPreviewPrescription] = useState<any | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
@@ -508,6 +512,7 @@ export default function MedicalDashboard() {
   };
 
   const handleDispense = (p: any) => {
+    setWhatsAppEstimate(null);
     setSelectedPrescription(p);
     const pricing = p.prescription?.pricing || null;
     const baseMedications = (p.prescription?.medications || []).filter((m: any) => m.added_by_role !== 'MEDICAL');
@@ -975,6 +980,13 @@ export default function MedicalDashboard() {
   const currentDiscount = discountTotal(billingDiscounts);
   const currentNet = Math.max(0, Number((currentGross - currentDiscount).toFixed(2)));
 
+  const openWhatsAppEstimate = () => {
+    try {
+      setWhatsAppEstimate(buildDispenseEstimate({ prescription: selectedPrescription, medAmounts, medItemStates, testItemStates,
+        additionalMeds, discounts: billingDiscounts, courier: isCourierDelivery, courierCharge, gross: amount }));
+    } catch (error) { addToast(error instanceof Error ? error.message : 'Unable to prepare estimate', 'error'); }
+  };
+
   return (
     <div className="space-y-8 pb-12">
       {/* Clock + Filters Card (Uniform Style) */}
@@ -1315,8 +1327,8 @@ export default function MedicalDashboard() {
               className="relative flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-none border-2 border-gray-100 bg-white shadow-2xl lg:h-[min(90vh,820px)]"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-3">
-                <div className="min-w-0">
+              <div className="relative flex shrink-0 flex-col justify-between gap-3 border-b border-gray-100 px-5 py-3 sm:flex-row sm:items-center">
+                <div className="min-w-0 pr-10 sm:pr-0">
                   <h2 className="text-lg font-black uppercase tracking-tight text-gray-800">{t('dispense.title', 'Dispense Medicines')}</h2>
                   <p className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-widest text-gray-500">
                     {t('dispense.patient', 'Patient')}: {selectedPrescription.patient?.full_name}
@@ -1327,17 +1339,21 @@ export default function MedicalDashboard() {
                     )}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <button type="button" onClick={openWhatsAppEstimate} disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-[#549E9E]/30 bg-[#549E9E]/5 px-2.5 py-2 text-[10px] font-black uppercase tracking-wide sm:px-3 sm:tracking-widest text-[#2d8789] transition-all hover:bg-[#549E9E]/10 disabled:opacity-50">
+                    <MessageCircle size={14}/>{isHi ? 'WhatsApp अनुमान' : 'WhatsApp Estimate'}
+                  </button>
                   <button
                     onClick={() => openPrescriptionPreview(selectedPrescription.consultation_id)}
                     disabled={isPreviewLoading || !selectedPrescription.consultation_id}
-                    className="inline-flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
+                    className="inline-flex items-center gap-2 whitespace-nowrap px-2.5 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-[10px] font-black uppercase tracking-wide sm:px-3 sm:tracking-widest rounded-xl transition-all"
                   >
                     <FileText size={14} /> {t('medical_dashboard.table.view_prescription', 'View Prescription')}
                   </button>
                   <button
                     onClick={() => setSelectedPrescription(null)}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-50 text-gray-400 transition-colors hover:bg-gray-100"
+                    className="absolute right-3 top-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-50 text-gray-400 transition-colors hover:bg-gray-100 sm:static"
                   >
                     <X size={18} />
                   </button>
@@ -1838,6 +1854,9 @@ export default function MedicalDashboard() {
       document.body,
       )}
 
+      {whatsAppEstimate && selectedPrescription && <React.Suspense fallback={null}>
+        <DispenseEstimateWhatsAppModal estimate={whatsAppEstimate} initialLanguage={isHi ? 'hi' : 'en'} onClose={() => setWhatsAppEstimate(null)}/>
+      </React.Suspense>}
       {previewPrescription && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/80 p-4 backdrop-blur-md no-print">
           <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl">

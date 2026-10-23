@@ -11,14 +11,14 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
         {/* Logo Section */}
         <div className="mb-16 flex flex-col items-center">
-          <div className="text-primary-teal mb-4 group cursor-pointer">
-            <div className="w-16 h-16 bg-primary-teal/10 rounded-2xl flex items-center justify-center text-primary-teal group-hover:bg-primary-teal group-hover:text-white transition-all duration-500 shadow-sm group-hover:shadow-lg group-hover:-translate-y-1">
+          <div className="text-public-heading mb-4 group cursor-pointer">
+            <div className="w-16 h-16 bg-primary-teal/10 rounded-2xl flex items-center justify-center text-public-heading group-hover:bg-public-action group-hover:text-white transition-all duration-500 shadow-sm group-hover:shadow-lg group-hover:-translate-y-1">
               <Stethoscope size={32} strokeWidth={1.5} />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-[#549E9E] tracking-widest leading-tight uppercase">
+          <h2 className="text-2xl font-bold text-public-heading tracking-widest leading-tight uppercase">
             {t('footer.clinic_name_main')}<br />
-            <span className="text-sm opacity-80">{t('footer.clinic_name_sub')}</span>
+            <span className="text-sm">{t('footer.clinic_name_sub')}</span>
           </h2>
         </div>
 
@@ -28,15 +28,15 @@ export default function Footer() {
           <div className="flex flex-col overflow-hidden rounded-[50px] bg-[#FAFBFD] p-8 shadow-sm ring-1 ring-black/5 [content-visibility:auto] [contain-intrinsic-size:auto_520px]">
             <div className="flex items-start justify-between mb-6 text-left">
               <div className="flex items-center gap-3">
-                <MapPin size={20} className="text-primary-teal" />
+                <MapPin size={20} className="text-public-heading" />
                 <div>
-                  <h4 className="text-sm font-black text-primary-teal uppercase tracking-widest">{t('footer.purani_basti')}</h4>
-                  <p className="text-[10px] font-bold text-gray-400">{t('footer.address_pb')}</p>
+                  <h4 className="text-sm font-black text-public-heading uppercase tracking-widest">{t('footer.purani_basti')}</h4>
+                  <p className="text-[10px] font-bold text-public-muted">{t('footer.address_pb')}</p>
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-[8px] block opacity-40 font-black uppercase tracking-widest">{t('footer.phone')}</span>
-                <a href="tel:+917772043001" className="text-sm font-black text-primary-teal whitespace-nowrap">+91-7772043001</a>
+                <span className="text-[10px] block text-public-muted font-black uppercase tracking-widest">{t('footer.phone')}</span>
+                <a href="tel:+917772043001" className="text-sm font-black text-public-heading whitespace-nowrap">+91-7772043001</a>
               </div>
             </div>
 
@@ -57,13 +57,13 @@ export default function Footer() {
                 target="_blank" rel="noopener noreferrer"
                 className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
               >
-                <div className="rounded-full bg-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-primary-teal shadow-lg">{t('footer.view_map')}</div>
+                <div className="rounded-full bg-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-public-heading shadow-lg">{t('footer.view_map')}</div>
               </a>
             </div>
 
             {/* Timetable UI */}
             <div className="overflow-x-auto mb-6 text-left">
-              <table className="w-full text-[10px] font-bold text-primary-teal">
+              <table className="w-full text-[10px] font-bold text-public-heading">
                 <thead>
                   <tr className="border-b border-gray-100">
                     <th className="pb-3 text-left">{t('footer.time')} (P.B)</th>
@@ -76,7 +76,7 @@ export default function Footer() {
                     <th className="pb-3 text-red-500">{t('footer.days.sun')}</th>
                   </tr>
                 </thead>
-                <tbody className="text-[#6A6A50]">
+                <tbody className="text-public-body">
                   <tr className="border-b border-gray-50">
                     <td className="py-3 text-left border-r border-gray-50 pr-4">11:00-14:30</td>
                     <td className="py-3 text-center">●</td>
@@ -112,13 +112,13 @@ export default function Footer() {
               <div className="flex items-center gap-3">
                 <MapPin size={20} className="text-[#F2D06B]" />
                 <div>
-                  <h4 className="text-sm font-black text-primary-teal uppercase tracking-widest">{t('footer.pandri')}</h4>
-                  <p className="text-[10px] font-bold text-gray-400">{t('footer.address_pandri')}</p>
+                  <h4 className="text-sm font-black text-public-heading uppercase tracking-widest">{t('footer.pandri')}</h4>
+                  <p className="text-[10px] font-bold text-public-muted">{t('footer.address_pandri')}</p>
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-[8px] block opacity-40 font-black uppercase tracking-widest">{t('footer.phone')}</span>
-                <a href="tel:+917773043001" className="text-sm font-black text-primary-teal whitespace-nowrap">+91-7773043001</a>
+                <span className="text-[10px] block text-public-muted font-black uppercase tracking-widest">{t('footer.phone')}</span>
+                <a href="tel:+917773043001" className="text-sm font-black text-public-heading whitespace-nowrap">+91-7773043001</a>
               </div>
             </div>
 
@@ -139,13 +139,13 @@ export default function Footer() {
                 target="_blank" rel="noopener noreferrer"
                 className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
               >
-                <div className="rounded-full bg-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-primary-teal shadow-lg">{t('footer.view_map')}</div>
+                <div className="rounded-full bg-white px-6 py-2 text-[10px] font-bold uppercase tracking-widest text-public-heading shadow-lg">{t('footer.view_map')}</div>
               </a>
             </div>
 
             {/* Timetable UI */}
             <div className="overflow-x-auto mb-6 text-left">
-              <table className="w-full text-[10px] font-bold text-primary-teal">
+              <table className="w-full text-[10px] font-bold text-public-heading">
                 <thead>
                   <tr className="border-b border-gray-100">
                     <th className="pb-3 text-left">{t('footer.time')} (Pandri)</th>
@@ -158,7 +158,7 @@ export default function Footer() {
                     <th className="pb-3 text-red-500">{t('footer.days.sun')}</th>
                   </tr>
                 </thead>
-                <tbody className="text-[#6A6A50]">
+                <tbody className="text-public-body">
                   <tr>
                     <td className="py-3 text-left border-r border-gray-50 pr-4">11:00-18:00</td>
                     <td className="py-3 text-center opacity-20">/</td>
@@ -190,13 +190,13 @@ export default function Footer() {
         </div>
 
         {/* Global Contact Info Bar (Moved down) */}
-        <div className="flex flex-col md:flex-row justify-center items-center gap-8 mb-12 text-[#6A6A50]">
+        <div className="flex flex-col md:flex-row justify-center items-center gap-8 mb-12 text-public-body">
           <div className="flex items-center gap-3">
-            <Mail size={18} className="text-primary-teal" />
-            <a href="mailto:care@drtrivedishomeopathy.in" className="font-bold hover:text-primary-teal transition-colors">care@drtrivedishomeopathy.in</a>
+            <Mail size={18} className="text-public-heading" />
+            <a href="mailto:care@drtrivedishomeopathy.in" className="font-bold hover:text-public-heading transition-colors">care@drtrivedishomeopathy.in</a>
           </div>
           <div className="w-[1px] h-4 bg-gray-200 hidden md:block" />
-          <p className="font-bold tracking-widest uppercase text-xs opacity-60">{t('footer.leading_clinic')}</p>
+          <p className="font-bold tracking-widest uppercase text-xs">{t('footer.leading_clinic')}</p>
         </div>
 
         {/* Buttons (Moved down) */}
@@ -204,7 +204,7 @@ export default function Footer() {
           <Link to="/booking" className="flex-1">
             <motion.button
               whileHover={{ scale: 1.05, y: -2 }}
-              className="w-full bg-[#F5DE9B] text-[#549E9E] py-4 rounded-full font-bold shadow-[0_4px_0_#e5ce8b] flex items-center justify-center gap-4 group"
+              className="w-full bg-[#F5DE9B] text-public-heading py-4 rounded-full font-bold shadow-[0_4px_0_#e5ce8b] flex items-center justify-center gap-4 group"
             >
               <span>{t('footer.web_reservation')}</span>
               <Send size={18} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
@@ -214,7 +214,7 @@ export default function Footer() {
           <Link to="/contact" className="flex-1">
             <motion.button
               whileHover={{ scale: 1.05, y: -2 }}
-              className="w-full bg-[#B7CED6] text-white py-4 rounded-full font-bold shadow-[0_4px_0_#a5bcc4] flex items-center justify-center gap-4 group"
+              className="w-full bg-[#B7CED6] text-public-heading py-4 rounded-full font-bold shadow-[0_4px_0_#a5bcc4] flex items-center justify-center gap-4 group"
             >
               <span>{t('common.contact_us')}</span>
               <Mail size={18} className="group-hover:scale-110 transition-transform" />
@@ -223,11 +223,11 @@ export default function Footer() {
         </div>
 
         {/* Nav Links */}
-        <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 mb-20 text-xs font-bold text-[#549E9E] tracking-widest uppercase">
-          <Link to="/" className="hover:text-primary-teal transition-colors">{t('common.home')}</Link>
-          <Link to="/about" className="hover:text-primary-teal transition-colors">{t('common.about')}</Link>
-          <Link to="/treatments" className="hover:text-primary-teal transition-colors">{t('common.treatments')}</Link>
-          <Link to="/gallery" className="hover:text-primary-teal transition-colors">{t('common.gallery')}</Link>
+        <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 mb-20 text-xs font-bold text-public-heading tracking-widest uppercase">
+          <Link to="/" className="hover:text-public-heading transition-colors">{t('common.home')}</Link>
+          <Link to="/about" className="hover:text-public-heading transition-colors">{t('common.about')}</Link>
+          <Link to="/treatments" className="hover:text-public-heading transition-colors">{t('common.treatments')}</Link>
+          <Link to="/gallery" className="hover:text-public-heading transition-colors">{t('common.gallery')}</Link>
         </div>
 
         {/* Social Links */}
@@ -270,14 +270,14 @@ export default function Footer() {
         </div>
 
         {/* Copyright */}
-        <div className="text-xs text-gray-400 font-medium tracking-[0.2em]">
+        <div className="text-xs text-public-muted font-medium tracking-[0.2em]">
           &copy; 2026 DR. TRIVEDI'S HOMEOPATHY CLINIC. {t('footer.all_rights_reserved')}
         </div>
       </div>
 
       {/* Scattered decorations */}
       <div className="absolute bottom-10 left-[10%] text-yellow-200 opacity-20 pointer-events-none">✦</div>
-      <div className="absolute bottom-20 right-[15%] text-primary-teal opacity-20 pointer-events-none">✧</div>
+      <div className="absolute bottom-20 right-[15%] text-public-heading opacity-20 pointer-events-none">✧</div>
     </footer>
   );
 }

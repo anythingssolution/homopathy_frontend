@@ -1,0 +1,265 @@
+{
+  "cover_url": "/gallery/images/gallery-cover.webp",
+  "items": [
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 1",
+      "image_url": "/gallery/images/g_008.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 2",
+      "image_url": "/gallery/images/g_011.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 3",
+      "image_url": "/gallery/images/g_013.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 4",
+      "image_url": "/gallery/images/g_014.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 5",
+      "image_url": "/gallery/images/g_015.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 6",
+      "image_url": "/gallery/images/g_016.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 7",
+      "image_url": "/gallery/images/g_017.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 8",
+      "image_url": "/gallery/images/g_025.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 9",
+      "image_url": "/gallery/images/g_026.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 10",
+      "image_url": "/gallery/images/g_027.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 11",
+      "image_url": "/gallery/images/g_029.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 12",
+      "image_url": "/gallery/images/g_030.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 13",
+      "image_url": "/gallery/images/g_031.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 14",
+      "image_url": "/gallery/images/g_032.webp"
+    },
+    {
+      "category": "TREATMENT",
+      "title": "Treatment photo 15",
+      "image_url": "/gallery/images/g_033.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "2026 pic 10",
+      "image_url": "/gallery/images/c0279f73075a52e1a7dea35065bc8c80.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "2026 pic 9",
+      "image_url": "/gallery/images/29150bb2319c182c944841c74d2f8d75.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "2026 pic 8",
+      "image_url": "/gallery/images/ae2bac2e4b4da805d01b2952d7e35ba4.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "2026 Pic 7",
+      "image_url": "/gallery/images/fc1198178c3594bfdda3ca2996eb65cb.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "2026 Pic 6",
+      "image_url": "/gallery/images/dc5e819e186f11ef3f59e6c7d6830c35.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "2026 Pic 5",
+      "image_url": "/gallery/images/a13ee062eff9d7295bfc800a11f33704.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "2026 Pic 4",
+      "image_url": "/gallery/images/9e94b15ed312fa42232fd87a55db0d39.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "2026 Pic 3",
+      "image_url": "/gallery/images/568628e0d993b1973adc718237da6e93.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "2026 Pic 2",
+      "image_url": "/gallery/images/ce08becc73195df12d99d761bfbba68d.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "2026- Pic 1",
+      "image_url": "/gallery/images/11364907cf269dd2183b64287156072a.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 11",
+      "image_url": "/gallery/images/e88a49bccde359f0cabb40db83ba6080.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 12",
+      "image_url": "/gallery/images/g_034.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 13",
+      "image_url": "/gallery/images/g_022.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 14",
+      "image_url": "/gallery/images/g_021.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 15",
+      "image_url": "/gallery/images/g_020.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 16",
+      "image_url": "/gallery/images/g_019.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 17",
+      "image_url": "/gallery/images/g_018.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 18",
+      "image_url": "/gallery/images/g_012.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 19",
+      "image_url": "/gallery/images/g_007.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 20",
+      "image_url": "/gallery/images/g_006.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 21",
+      "image_url": "/gallery/images/g_005.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 22",
+      "image_url": "/gallery/images/g_004.webp"
+    },
+    {
+      "category": "MEDIA",
+      "title": "Media photo 23",
+      "image_url": "/gallery/images/g_001.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "All INDIA HOMEOPATHY RESEARCH SUMMIT – 5 GOA Dr.Uttkarsh Trivedi was honored by cricketer Brett Lee and MP shri Rajesh Verma ji",
+      "image_url": "/gallery/images/93dd4de5cddba2c733c65f233097f05a.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "एशियन न्यूज़ चैनल व न्यूज़ 21 द्वारा आयोजित आयुष्मान कॉनक्लेव सेशन 2 में बतौर पैनलिस्ट उपस्थित होकर सम्मान प्राप्त",
+      "image_url": "/gallery/images/dc5c7986daef50c1e02ab09b442ee34f.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "2024 - 'सर्वश्रेष्ठ स्किन केयर स्पेशलिस्ट' दुबई के बुर्ज अल अरब मे फेमस क्रिकेटर क्रिस गेल के द्वारा।",
+      "image_url": "/gallery/images/g_040.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "2023 'लीजेंड ऑफ यूथ आइकॉन अवार्ड' लखनऊ में कपिल देव व मदन लाल जी के द्वारा प्राप्त करा।",
+      "image_url": "/gallery/images/g_039.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "2022 - 'होमियोपैथी रत्न सम्मान' देहरादून में उत्तराखंड के मुख्यमंत्री जी के द्वारा में प्राप्त हुआ।",
+      "image_url": "/gallery/images/g_038.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "2022 - 'होमियोपैथी रत्न सम्मान' देहरादून में भारत के पूर्व स्वास्थ्य एवं परिवार कल्याण राज्य मंत्री जी के द्वारा सम्मान प्राप्त हुआ।",
+      "image_url": "/gallery/images/g_037.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "2022 - 'यूथ आइकॉन ऑफ होमियोपैथी अवार्ड' नागपुर में कैलाश खेर द्वारा प्राप्त हुआ।",
+      "image_url": "/gallery/images/g_036.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "Awards photo 8",
+      "image_url": "/gallery/images/g_035.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "Awards photo 9",
+      "image_url": "/gallery/images/g_024.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "Awards photo 10",
+      "image_url": "/gallery/images/g_023.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "Awards photo 11",
+      "image_url": "/gallery/images/g_010.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "Awards photo 12",
+      "image_url": "/gallery/images/g_009.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "Awards photo 13",
+      "image_url": "/gallery/images/g_003.webp"
+    },
+    {
+      "category": "AWARDS",
+      "title": "Awards photo 14",
+      "image_url": "/gallery/images/g_002.webp"
+    }
+  ]
+}

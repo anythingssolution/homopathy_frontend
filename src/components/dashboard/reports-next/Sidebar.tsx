@@ -48,7 +48,7 @@ const Badge = ({ count, active }: { count: number; active: boolean }) => {
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { pathname } = useLocation();
   const pathActive = (path: string) => pathname === path;
@@ -251,6 +251,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ badges }) => {
           </NavLink>
           <NavLink to="/reports-next/location-patients" className={({ isActive }) => itemClass(isActive)}>
             {({ isActive }) => <><MapPin size={18} className={isActive ? 'text-white' : 'text-gray-400'} /><span className="text-xs font-bold uppercase tracking-widest leading-tight">{t('reports_next.location.title')}</span></>}
+          </NavLink>
+          <NavLink to="/reports-next/patient-sources" className={({ isActive }) => itemClass(isActive)}>
+            {({ isActive }) => <><Users size={18} className={isActive ? 'text-white' : 'text-gray-400'} /><span className="text-xs font-bold uppercase tracking-widest leading-tight">{i18n.language.startsWith('hi') ? 'मरीजों की जानकारी का माध्यम' : 'Patient Sources'}</span></>}
           </NavLink>
           <NavLink to="/reports-next/diagnosis" className={({ isActive }) => itemClass(isActive)}>
             {({ isActive }) => (

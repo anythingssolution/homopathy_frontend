@@ -59,6 +59,12 @@ h1, h2, h3, h4, h5, h6 {
   
   --color-primary-teal: #78C2C4;
   --color-soft-bg: #F5F5F0;
+
+  /* Public website contrast palette; private portal colours stay unchanged. */
+  --color-public-heading: #245F62;
+  --color-public-body: #333B3D;
+  --color-public-muted: #53646A;
+  --color-public-action: #2D7477;
   
   --color-bg: #0a0a0a;
   --color-text: #f5f5f5;

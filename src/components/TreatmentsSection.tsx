@@ -79,15 +79,15 @@ export default function TreatmentsSection() {
         {/* Section Header */}
         <ScrollReveal width="100%" direction="up" distance={30}>
           <div className="text-center max-w-3xl mx-auto mb-16">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#549E9E]/10 border border-[#549E9E]/20 text-[#549E9E] text-xs font-black uppercase tracking-widest mb-4">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#549E9E]/10 border border-[#549E9E]/20 text-public-heading text-xs font-black uppercase tracking-widest mb-4">
               <Stethoscope size={16} />
               <span>{t('treatments_page.holistic_care') || "Holistic Care & Treatments"}</span>
             </div>
 
-            <h2 className="text-4xl lg:text-6xl font-black text-[#549E9E] tracking-tighter mb-4 leading-tight">
+            <h2 className="text-4xl lg:text-6xl font-black text-public-heading tracking-tighter mb-4 leading-tight">
               {t('about_page.treatments_title') || "Treatments We Provide"}
             </h2>
-            <p className="text-[#6A6A50] text-base lg:text-lg font-medium opacity-80 leading-relaxed max-w-2xl mx-auto">
+            <p className="text-public-body text-base lg:text-lg font-medium leading-relaxed max-w-2xl mx-auto">
               {t('about_page.treatments_subtitle') || "Effective, personalized, and root-cause homeopathic solutions for acute and chronic conditions."}
             </p>
             <div className="flex justify-center gap-1.5 mt-6">
@@ -102,18 +102,18 @@ export default function TreatmentsSection() {
         <div className="flex flex-col lg:flex-row items-center justify-between gap-6 mb-12 bg-white p-6 rounded-[35px] border border-gray-100 shadow-sm">
           {/* Search Box */}
           <div className="relative w-full lg:w-96">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-public-muted" size={18} />
             <input
               type="text"
               placeholder="Search treatment (e.g., Kidney Stones, गठिया, Acne)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-[25px] pl-14 pr-6 py-3.5 text-sm font-bold text-[#549E9E] placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-[#549E9E]/30 transition-all"
+              className="w-full bg-white border border-gray-200 rounded-[25px] pl-14 pr-6 py-3.5 text-sm font-bold text-public-heading placeholder:text-public-muted focus:outline-none focus:ring-2 focus:ring-[#549E9E]/30 transition-all"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-public-muted hover:text-gray-600"
               >
                 <X size={16} />
               </button>
@@ -122,7 +122,7 @@ export default function TreatmentsSection() {
 
           {/* Categories Horizontal Scroll */}
           <div className="flex items-center gap-2 overflow-x-auto w-full lg:w-auto pb-2 lg:pb-0 scrollbar-none">
-            <div className="flex items-center gap-2 text-gray-400 shrink-0 mr-2">
+            <div className="flex items-center gap-2 text-public-muted shrink-0 mr-2">
               <Filter size={14} />
               <span className="text-[10px] font-black uppercase tracking-widest">Filter:</span>
             </div>
@@ -132,8 +132,8 @@ export default function TreatmentsSection() {
                 onClick={() => setActiveCategory(cat.key)}
                 className={`px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all ${
                   activeCategory === cat.key
-                    ? 'bg-[#549E9E] text-white shadow-md shadow-[#549E9E]/20 scale-105'
-                    : 'bg-white text-gray-500 hover:bg-gray-100/80 border border-gray-100'
+                    ? 'bg-public-action text-white shadow-md shadow-[#549E9E]/20 scale-105'
+                    : 'bg-white text-public-muted hover:bg-gray-100/80 border border-gray-100'
                 }`}
               >
                 {cat.label}
@@ -169,10 +169,10 @@ export default function TreatmentsSection() {
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center text-center p-4">
-                        <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm text-[#549E9E] transition-transform duration-300 group-hover:scale-110">
-                          <HeartPulse size={28} className="text-[#549E9E]" />
+                        <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm text-public-heading transition-transform duration-300 group-hover:scale-110">
+                          <HeartPulse size={28} className="text-public-heading" />
                         </div>
-                        <span className="text-[10px] font-bold text-[#549E9E]/60 uppercase tracking-widest flex items-center gap-1 bg-white/60 px-3 py-1 rounded-full border border-[#549E9E]/10">
+                        <span className="text-[10px] font-bold text-public-heading/60 uppercase tracking-widest flex items-center gap-1 bg-white/60 px-3 py-1 rounded-full border border-[#549E9E]/10">
                           <ImageIcon size={12} /> Image Space
                         </span>
                       </div>
@@ -180,7 +180,7 @@ export default function TreatmentsSection() {
                     
                     {/* Category Badge overlay */}
                     <div className="absolute top-3 right-3 inline-flex h-6 min-w-[3.25rem] items-center justify-center rounded-full border border-gray-100 bg-white px-2.5 shadow-sm">
-                      <span className="translate-x-[0.07em] text-[9px] font-black uppercase leading-none tracking-[0.14em] text-[#549E9E]">
+                      <span className="translate-x-[0.07em] text-[9px] font-black uppercase leading-none tracking-[0.14em] text-public-heading">
                         {item.category}
                       </span>
                     </div>
@@ -188,16 +188,16 @@ export default function TreatmentsSection() {
 
                   {/* Header Titles */}
                   <div className="mb-3">
-                    <h3 className="text-xl font-black text-[#549E9E] uppercase tracking-tight transition-transform duration-300 group-hover:translate-x-1">
+                    <h3 className="text-xl font-black text-public-heading uppercase tracking-tight transition-transform duration-300 group-hover:translate-x-1">
                       {item.en}
                     </h3>
-                    <p className="text-base font-bold text-[#6A6A50]/70">
+                    <p className="text-base font-bold text-public-body/70">
                       {item.hi}
                     </p>
                   </div>
 
                   {/* Description Preview */}
-                  <p className="text-[#6A6A50] text-sm leading-relaxed line-clamp-3 mb-4 opacity-80">
+                  <p className="text-public-body text-sm leading-relaxed line-clamp-3 mb-4">
                     {item.description}
                   </p>
 
@@ -217,12 +217,12 @@ export default function TreatmentsSection() {
                 <div className="pt-4 border-t border-gray-100 flex items-center justify-between mt-2">
                   <button
                     onClick={() => setSelectedTreatment(item)}
-                    className="inline-flex items-center gap-2 text-xs font-black text-[#549E9E] uppercase tracking-widest transition-all duration-300 group-hover:gap-3 group-hover:text-[#3B7A7A]"
+                    className="inline-flex items-center gap-2 text-xs font-black text-public-heading uppercase tracking-widest transition-all duration-300 group-hover:gap-3 group-hover:text-public-heading"
                   >
                     <span>View Treatment Details</span>
                     <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5" />
                   </button>
-                  <Activity size={16} className="text-gray-200 transition-colors duration-300 group-hover:text-[#549E9E]/50" />
+                  <Activity size={16} className="text-gray-200 transition-colors duration-300 group-hover:text-public-heading/50" />
                 </div>
               </motion.div>
             ))}
@@ -233,7 +233,7 @@ export default function TreatmentsSection() {
           <div className="mt-12 flex justify-center">
             <Link
               to="/treatments"
-              className="inline-flex items-center justify-center gap-2 bg-[#549E9E] hover:bg-[#438383] text-white px-10 py-4 rounded-full font-black text-xs uppercase tracking-widest shadow-lg shadow-[#549E9E]/20 transition-all cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 bg-public-action hover:bg-[#438383] text-white px-10 py-4 rounded-full font-black text-xs uppercase tracking-widest shadow-lg shadow-[#549E9E]/20 transition-all cursor-pointer"
             >
               <span>Browse All Treatments</span>
               <ArrowRight size={16} />
@@ -247,13 +247,13 @@ export default function TreatmentsSection() {
             <div className="inline-block p-5 bg-gray-50 rounded-full mb-4">
               <Search size={32} className="text-gray-300" />
             </div>
-            <h3 className="text-xl font-black text-[#549E9E] uppercase tracking-tight mb-1">
+            <h3 className="text-xl font-black text-public-heading uppercase tracking-tight mb-1">
               No matching treatments found
             </h3>
-            <p className="text-gray-400 text-sm mb-6">Try clearing your search or category filter.</p>
+            <p className="text-public-muted text-sm mb-6">Try clearing your search or category filter.</p>
             <button
               onClick={() => { setSearchTerm(""); setActiveCategory("all"); }}
-              className="px-8 py-3 bg-[#549E9E] text-white rounded-full font-black text-xs uppercase tracking-widest hover:bg-[#438383] transition-colors"
+              className="px-8 py-3 bg-public-action text-white rounded-full font-black text-xs uppercase tracking-widest hover:bg-[#438383] transition-colors"
             >
               Clear All Filters
             </button>
@@ -277,7 +277,7 @@ export default function TreatmentsSection() {
             <div className="flex shrink-0 w-full md:w-auto">
               <Link
                 to="/booking"
-                className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#549E9E] hover:bg-gray-50 px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest shadow-lg shadow-black/10 transition-all text-center cursor-pointer"
+                className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-white text-public-heading hover:bg-gray-50 px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest shadow-lg shadow-black/10 transition-all text-center cursor-pointer"
               >
                 <Calendar size={16} />
                 <span>Book Appointment</span>
@@ -319,16 +319,16 @@ export default function TreatmentsSection() {
                 {/* Fixed Header */}
                 <div className="shrink-0 relative px-6 pt-6 pb-4 md:px-8 md:pt-7 md:pb-5 border-b border-gray-100 bg-gradient-to-r from-[#FDFDF7] via-white to-[#F9FCFC] flex items-start justify-between gap-4">
                   <div>
-                    <div className="flex items-center gap-2 text-[#549E9E] mb-1">
+                    <div className="flex items-center gap-2 text-public-heading mb-1">
                       <Stethoscope size={16} />
                       <span className="text-[10px] font-black uppercase tracking-[0.25em]">
                         {selectedTreatment.category} Specialist Care
                       </span>
                     </div>
-                    <h2 className="text-2xl md:text-3xl font-black text-[#549E9E] tracking-tight uppercase leading-tight">
+                    <h2 className="text-2xl md:text-3xl font-black text-public-heading tracking-tight uppercase leading-tight">
                       {selectedTreatment.en}
                     </h2>
-                    <p className="text-base md:text-lg font-bold text-[#6A6A50] opacity-80 mt-0.5">
+                    <p className="text-base md:text-lg font-bold text-public-body mt-0.5">
                       {selectedTreatment.hi}
                     </p>
                   </div>
@@ -336,7 +336,7 @@ export default function TreatmentsSection() {
                   {/* Close Button */}
                   <button
                     onClick={() => setSelectedTreatment(null)}
-                    className="w-10 h-10 bg-gray-100 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full flex items-center justify-center transition-all shrink-0 shadow-sm cursor-pointer"
+                    className="w-10 h-10 bg-gray-100 hover:bg-red-50 text-public-muted hover:text-red-500 rounded-full flex items-center justify-center transition-all shrink-0 shadow-sm cursor-pointer"
                   >
                     <X size={18} />
                   </button>
@@ -350,13 +350,13 @@ export default function TreatmentsSection() {
                   onWheel={(e) => e.stopPropagation()}
                 >
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-[#549E9E]">
+                    <div className="flex items-center gap-2 text-public-heading">
                       <Sparkles size={16} className="text-[#F2D06B]" />
                       <h3 className="text-xs font-black uppercase tracking-[0.2em]">
                         {t('treatments_page.about_treatment') || "About The Treatment"}
                       </h3>
                     </div>
-                    <p className="text-[#6A6A50] text-base md:text-lg leading-relaxed font-medium">
+                    <p className="text-public-body text-base md:text-lg leading-relaxed font-medium">
                       {selectedTreatment.description}
                     </p>
 
@@ -367,7 +367,7 @@ export default function TreatmentsSection() {
                         </h4>
                         <div className="flex flex-wrap gap-2">
                           {selectedTreatment.remedies.map((remedy, rIdx) => (
-                            <span key={rIdx} className="bg-white border border-[#F2D06B]/50 px-3 py-1 rounded-full text-xs font-bold text-[#6A6A50] shadow-xs">
+                            <span key={rIdx} className="bg-white border border-[#F2D06B]/50 px-3 py-1 rounded-full text-xs font-bold text-public-body shadow-xs">
                               {remedy}
                             </span>
                           ))}
@@ -377,12 +377,12 @@ export default function TreatmentsSection() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <div className="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-100/60 flex items-start gap-3">
-                        <ShieldCheck className="text-[#549E9E] shrink-0 mt-0.5" size={20} />
+                        <ShieldCheck className="text-public-heading shrink-0 mt-0.5" size={20} />
                         <div>
-                          <h4 className="text-[11px] font-black text-[#549E9E] uppercase tracking-wider">
+                          <h4 className="text-[11px] font-black text-public-heading uppercase tracking-wider">
                             {t('treatments_page.safety_first') || "Safe & Natural"}
                           </h4>
-                          <p className="text-[10px] text-gray-500 font-medium leading-snug">
+                          <p className="text-[10px] text-public-muted font-medium leading-snug">
                             {t('treatments_page.natural_side_effect_free') || "No side-effects or heavy painkillers."}
                           </p>
                         </div>
@@ -390,10 +390,10 @@ export default function TreatmentsSection() {
                       <div className="p-3.5 bg-amber-50/50 rounded-2xl border border-amber-100/60 flex items-start gap-3">
                         <Zap className="text-[#F2D06B] shrink-0 mt-0.5" size={20} />
                         <div>
-                          <h4 className="text-[11px] font-black text-[#549E9E] uppercase tracking-wider">
+                          <h4 className="text-[11px] font-black text-public-heading uppercase tracking-wider">
                             {t('treatments_page.deep_healing') || "Root Cause Care"}
                           </h4>
-                          <p className="text-[10px] text-gray-500 font-medium leading-snug">
+                          <p className="text-[10px] text-public-muted font-medium leading-snug">
                             {t('treatments_page.treating_root_causes') || "Prevents recurrence naturally."}
                           </p>
                         </div>
@@ -419,7 +419,7 @@ export default function TreatmentsSection() {
                         setSelectedTreatment(null);
                         navigate('/booking');
                       }}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#549E9E] hover:bg-emerald-50 px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-md transition-all cursor-pointer"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-public-heading hover:bg-emerald-50 px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-md transition-all cursor-pointer"
                     >
                       <Calendar size={15} />
                       <span>{t('hero.cta_book') || "Book Appointment"}</span>

@@ -56,25 +56,25 @@ export default function Contact() {
       <div className="max-w-6xl mx-auto px-6 pb-24 relative">
         {/* Title Section */}
         <div className="flex flex-col items-center mb-16">
-          <div className="flex items-center gap-4 text-primary-teal opacity-60 mb-6">
+          <div className="flex items-center gap-4 text-public-heading opacity-60 mb-6">
             <div className="w-8 h-[1px] bg-current" />
             <Phone size={16} />
             <div className="w-8 h-[1px] bg-current" />
           </div>
 
-          <h1 className="text-3xl lg:text-5xl font-bold text-[#549E9E] tracking-[0.2em] mb-4 text-center">
+          <h1 className="text-3xl lg:text-5xl font-bold text-public-heading tracking-[0.2em] mb-4 text-center">
             {t('contact_page.title')}
           </h1>
-          <span className="text-xs font-bold text-primary-teal/60 tracking-[0.4em] uppercase">{t('contact_page.subtitle')}</span>
+          <span className="text-xs font-bold text-public-muted tracking-[0.4em] uppercase">{t('contact_page.subtitle')}</span>
 
           <div className="w-12 h-1 bg-[#F2D06B] rounded-full mt-8" />
         </div>
 
         {/* Breadcrumb */}
-        <div className="text-base text-gray-400 mb-12 flex gap-2 font-medium justify-center">
-          <Link to="/" className="hover:text-primary-teal transition-colors">{t('common.home')}</Link>
+        <div className="text-base text-public-muted mb-12 flex gap-2 font-medium justify-center">
+          <Link to="/" className="hover:text-public-heading transition-colors">{t('common.home')}</Link>
           <span>&gt;</span>
-          <span className="text-primary-teal">{t('contact_page.title')}</span>
+          <span className="text-public-heading">{t('contact_page.title')}</span>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-12">
@@ -85,8 +85,8 @@ export default function Contact() {
           >
             {/* Header */}
             <div className="p-8 pb-0">
-              <h3 className="text-xl font-black text-[#549E9E] uppercase tracking-tight">{t('contact_page.purani_basti_title')}</h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('contact_page.main_branch')}</p>
+              <h3 className="text-xl font-black text-public-heading uppercase tracking-tight">{t('contact_page.purani_basti_title')}</h3>
+              <p className="text-[10px] font-bold text-public-muted uppercase tracking-widest mt-1">{t('contact_page.main_branch')}</p>
             </div>
 
             {/* Map Section */}
@@ -107,20 +107,20 @@ export default function Contact() {
             {/* Details Section */}
             <div className="p-10 space-y-8 flex-1">
               <div className="flex gap-4">
-                <MapPin className="text-primary-teal shrink-0" size={20} />
+                <MapPin className="text-public-heading shrink-0" size={20} />
                 <div>
-                  <h4 className="text-[10px] font-black text-primary-teal uppercase tracking-widest mb-1 opacity-50">{t('contact_page.address_label')}</h4>
-                  <p className="text-sm font-bold text-[#6A6A50] leading-relaxed">
+                  <h4 className="text-[10px] font-black text-public-heading uppercase tracking-widest mb-1">{t('contact_page.address_label')}</h4>
+                  <p className="text-sm font-bold text-public-body leading-relaxed">
                     {t('contact_page.pb_address')}
                   </p>
                 </div>
               </div>
 
               <div className="flex gap-4">
-                <Clock className="text-primary-teal shrink-0" size={20} />
+                <Clock className="text-public-heading shrink-0" size={20} />
                 <div>
-                  <h4 className="text-[10px] font-black text-primary-teal uppercase tracking-widest mb-1 opacity-50">{t('contact_page.timings_label')}</h4>
-                  <div className="space-y-1 text-sm font-bold text-[#6A6A50]">
+                  <h4 className="text-[10px] font-black text-public-heading uppercase tracking-widest mb-1">{t('contact_page.timings_label')}</h4>
+                  <div className="space-y-1 text-sm font-bold text-public-body">
                     <p>{t('contact_page.pb_timings_1')}</p>
                     <p>{t('contact_page.pb_timings_2')}</p>
                   </div>
@@ -128,10 +128,10 @@ export default function Contact() {
               </div>
 
               <div className="flex gap-4">
-                <Phone className="text-primary-teal shrink-0" size={20} />
+                <Phone className="text-public-heading shrink-0" size={20} />
                 <div>
-                  <h4 className="text-[10px] font-black text-primary-teal uppercase tracking-widest mb-1 opacity-50">{t('contact_page.contact_label')}</h4>
-                  <a href="tel:+917772043001" className="text-lg font-black text-[#549E9E] hover:opacity-70 transition-opacity">
+                  <h4 className="text-[10px] font-black text-public-heading uppercase tracking-widest mb-1">{t('contact_page.contact_label')}</h4>
+                  <a href="tel:+917772043001" className="text-lg font-black text-public-heading hover:opacity-70 transition-opacity">
                     +91-7772043001
                   </a>
                 </div>
@@ -142,7 +142,7 @@ export default function Contact() {
                   href="https://www.google.com/maps/search/?api=1&query=Dr.Trivedis+Homeopathy+Clinic+Purani+Basti+Raipur"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-3 bg-gray-50 text-primary-teal py-4 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-primary-teal hover:text-white transition-all shadow-sm"
+                  className="flex items-center justify-center gap-3 bg-gray-50 text-public-heading py-4 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-public-action hover:text-white transition-all shadow-sm"
                 >
                   <Globe size={16} /> {t('contact_page.view_on_map')}
                 </a>
@@ -157,8 +157,8 @@ export default function Contact() {
           >
             {/* Header */}
             <div className="p-8 pb-0">
-              <h3 className="text-xl font-black text-[#549E9E] uppercase tracking-tight">{t('contact_page.pandri_title')}</h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{t('contact_page.secondary_branch')}</p>
+              <h3 className="text-xl font-black text-public-heading uppercase tracking-tight">{t('contact_page.pandri_title')}</h3>
+              <p className="text-[10px] font-bold text-public-muted uppercase tracking-widest mt-1">{t('contact_page.secondary_branch')}</p>
             </div>
 
             {/* Map Section */}
@@ -179,20 +179,20 @@ export default function Contact() {
             {/* Details Section */}
             <div className="p-10 space-y-8 flex-1">
               <div className="flex gap-4">
-                <MapPin className="text-primary-teal shrink-0" size={20} />
+                <MapPin className="text-public-heading shrink-0" size={20} />
                 <div>
-                  <h4 className="text-[10px] font-black text-primary-teal uppercase tracking-widest mb-1 opacity-50">{t('contact_page.address_label')}</h4>
-                  <p className="text-sm font-bold text-[#6A6A50] leading-relaxed">
+                  <h4 className="text-[10px] font-black text-public-heading uppercase tracking-widest mb-1">{t('contact_page.address_label')}</h4>
+                  <p className="text-sm font-bold text-public-body leading-relaxed">
                     {t('contact_page.pandri_address')}
                   </p>
                 </div>
               </div>
 
               <div className="flex gap-4">
-                <Clock className="text-primary-teal shrink-0" size={20} />
+                <Clock className="text-public-heading shrink-0" size={20} />
                 <div>
-                  <h4 className="text-[10px] font-black text-primary-teal uppercase tracking-widest mb-1 opacity-50">{t('contact_page.timings_label')}</h4>
-                  <div className="space-y-1 text-sm font-bold text-[#6A6A50]">
+                  <h4 className="text-[10px] font-black text-public-heading uppercase tracking-widest mb-1">{t('contact_page.timings_label')}</h4>
+                  <div className="space-y-1 text-sm font-bold text-public-body">
                     <p>{t('contact_page.pandri_timings_day')}</p>
                     <p>{t('contact_page.pandri_timings_time')}</p>
                   </div>
@@ -200,10 +200,10 @@ export default function Contact() {
               </div>
 
               <div className="flex gap-4">
-                <Phone className="text-primary-teal shrink-0" size={20} />
+                <Phone className="text-public-heading shrink-0" size={20} />
                 <div>
-                  <h4 className="text-[10px] font-black text-primary-teal uppercase tracking-widest mb-1 opacity-50">{t('contact_page.contact_label')}</h4>
-                  <a href="tel:+917773043001" className="text-lg font-black text-[#549E9E] hover:opacity-70 transition-opacity">
+                  <h4 className="text-[10px] font-black text-public-heading uppercase tracking-widest mb-1">{t('contact_page.contact_label')}</h4>
+                  <a href="tel:+917773043001" className="text-lg font-black text-public-heading hover:opacity-70 transition-opacity">
                     +91-7773043001
                   </a>
                 </div>
@@ -214,7 +214,7 @@ export default function Contact() {
                   href="https://www.google.com/maps/place/Dr.Trivedis+Homeopathy+Clinic+:+Devendra+Nagar,+Pandri/@21.261514,81.653251,14z/data=!4m6!3m5!1s0x3a28ddd8a2add937:0x5417ef7682d680f1!8m2!3d21.2615138!4d81.6532511!16s%2Fg%2F11y07h6jxb"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-3 bg-gray-50 text-primary-teal py-4 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-primary-teal hover:text-white transition-all shadow-sm"
+                  className="flex items-center justify-center gap-3 bg-gray-50 text-public-heading py-4 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-public-action hover:text-white transition-all shadow-sm"
                 >
                   <Globe size={16} /> {t('contact_page.view_on_map')}
                 </a>
@@ -226,18 +226,18 @@ export default function Contact() {
         {/* Global Contact Info */}
         <div className="mt-16 flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16 p-8 bg-[#549E9E]/5 rounded-[40px] border border-[#549E9E]/10">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-primary-teal shadow-sm">
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-public-heading shadow-sm">
               <Mail size={18} />
             </div>
             <div>
-              <h4 className="text-[8px] font-black text-gray-400 uppercase tracking-[0.2em]">{t('contact_page.official_email')}</h4>
-              <p className="text-sm font-bold text-[#549E9E]">care@drtrivedishomeopathy.in</p>
+              <h4 className="text-[8px] font-black text-public-muted uppercase tracking-[0.2em]">{t('contact_page.official_email')}</h4>
+              <p className="text-sm font-bold text-public-heading">care@drtrivedishomeopathy.in</p>
             </div>
           </div>
           <div className="w-[1px] h-10 bg-gray-200 hidden md:block" />
           <div className="text-center md:text-left">
-            <h4 className="text-[8px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">{t('contact_page.central_helpline')}</h4>
-            <p className="text-lg font-black text-[#549E9E] tracking-tight">{t('contact_page.support_24_7')}</p>
+            <h4 className="text-[8px] font-black text-public-muted uppercase tracking-[0.2em] mb-1">{t('contact_page.central_helpline')}</h4>
+            <p className="text-lg font-black text-public-heading tracking-tight">{t('contact_page.support_24_7')}</p>
           </div>
         </div>
 
@@ -249,25 +249,25 @@ export default function Contact() {
 
             <div className="relative z-10">
               <div className="text-center mb-16">
-                <h2 className="text-3xl lg:text-5xl font-black text-[#549E9E] tracking-tighter uppercase mb-4">{t('contact_page.keep_in_touch')}</h2>
-                <p className="text-gray-400 font-medium">{t('contact_page.form_desc')}</p>
+                <h2 className="text-3xl lg:text-5xl font-black text-public-heading tracking-tighter uppercase mb-4">{t('contact_page.keep_in_touch')}</h2>
+                <p className="text-public-muted font-medium">{t('contact_page.form_desc')}</p>
               </div>
 
               <form className="space-y-8" onSubmit={handleSubmit}>
                 <div className="grid md:grid-cols-2 gap-8">
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-primary-teal uppercase tracking-[0.2em] ml-6">{t('contact_page.your_name')}</label>
+                    <label className="text-[10px] font-black text-public-heading uppercase tracking-[0.2em] ml-6">{t('contact_page.your_name')}</label>
                     <div className="relative">
                       <User className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                       <input
                         type="text"
                         placeholder={t('contact_page.your_name')}
-                        className="w-full bg-gray-50 border-none rounded-full py-5 pl-14 pr-8 focus:ring-2 focus:ring-primary-teal/20 transition-all outline-none text-[#6A6A50] font-bold"
+                        className="w-full bg-gray-50 border-none rounded-full py-5 pl-14 pr-8 focus:ring-2 focus:ring-primary-teal/20 transition-all outline-none text-public-body font-bold"
                       />
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-primary-teal uppercase tracking-[0.2em] ml-6">{t('contact_page.your_email')}</label>
+                    <label className="text-[10px] font-black text-public-heading uppercase tracking-[0.2em] ml-6">{t('contact_page.your_email')}</label>
                     <div className="relative">
                       <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                       <input
@@ -275,7 +275,7 @@ export default function Contact() {
                         placeholder={t('contact_page.your_email')}
                         value={email}
                         onChange={handleEmailChange}
-                        className={`w-full bg-gray-50 border-none rounded-full py-5 pl-14 pr-8 focus:ring-2 transition-all outline-none text-[#6A6A50] font-bold ${emailError ? 'focus:ring-red-200' : 'focus:ring-primary-teal/20'}`}
+                        className={`w-full bg-gray-50 border-none rounded-full py-5 pl-14 pr-8 focus:ring-2 transition-all outline-none text-public-body font-bold ${emailError ? 'focus:ring-red-200' : 'focus:ring-primary-teal/20'}`}
                       />
                       {emailError && (
                         <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-[10px] text-red-500 font-bold mt-2 ml-6 uppercase tracking-widest">{emailError}</motion.p>
@@ -285,7 +285,7 @@ export default function Contact() {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-primary-teal uppercase tracking-[0.2em] ml-6">{t('contact_page.contact_phone')}</label>
+                  <label className="text-[10px] font-black text-public-heading uppercase tracking-[0.2em] ml-6">{t('contact_page.contact_phone')}</label>
                   <div className="relative">
                     <Phone className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
                     <input
@@ -293,7 +293,7 @@ export default function Contact() {
                       placeholder={t('contact_page.contact_phone')}
                       value={phone}
                       onChange={handlePhoneChange}
-                      className={`w-full bg-gray-50 border-none rounded-full py-5 pl-14 pr-8 focus:ring-2 transition-all outline-none text-[#6A6A50] font-bold ${phoneError ? 'focus:ring-red-200' : 'focus:ring-primary-teal/20'}`}
+                      className={`w-full bg-gray-50 border-none rounded-full py-5 pl-14 pr-8 focus:ring-2 transition-all outline-none text-public-body font-bold ${phoneError ? 'focus:ring-red-200' : 'focus:ring-primary-teal/20'}`}
                     />
                     {phoneError && (
                       <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-[10px] text-red-500 font-bold mt-2 ml-6 uppercase tracking-widest">{phoneError}</motion.p>
@@ -302,11 +302,11 @@ export default function Contact() {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-primary-teal uppercase tracking-[0.2em] ml-6">{t('contact_page.comments_label')}</label>
+                  <label className="text-[10px] font-black text-public-heading uppercase tracking-[0.2em] ml-6">{t('contact_page.comments_label')}</label>
                   <textarea
                     rows={5}
                     placeholder={t('contact_page.comments_placeholder')}
-                    className="w-full bg-gray-50 border-none rounded-[30px] p-8 focus:ring-2 focus:ring-primary-teal/20 transition-all outline-none text-[#6A6A50] font-bold resize-none"
+                    className="w-full bg-gray-50 border-none rounded-[30px] p-8 focus:ring-2 focus:ring-primary-teal/20 transition-all outline-none text-public-body font-bold resize-none"
                   />
                 </div>
 
@@ -315,7 +315,7 @@ export default function Contact() {
                   whileTap={isFormValid ? { scale: 0.98 } : {}}
                   disabled={!isFormValid}
                   type="submit"
-                  className={`w-full py-6 rounded-full font-black text-sm uppercase tracking-[0.3em] shadow-xl flex items-center justify-center gap-4 group transition-all ${!isFormValid ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none' : 'bg-[#549E9E] text-white shadow-[#549E9E]/20'}`}
+                  className={`w-full py-6 rounded-full font-black text-sm uppercase tracking-[0.3em] shadow-xl flex items-center justify-center gap-4 group transition-all ${!isFormValid ? 'bg-gray-200 text-public-muted cursor-not-allowed shadow-none' : 'bg-public-action text-white shadow-[#549E9E]/20'}`}
                 >
                   <span>{t('contact_page.send_message')}</span>
                   <Send size={18} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
@@ -345,17 +345,17 @@ export default function Contact() {
             >
               <button
                 onClick={() => setShowSuccess(false)}
-                className="absolute top-6 right-6 p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400"
+                className="absolute top-6 right-6 p-2 hover:bg-gray-100 rounded-full transition-colors text-public-muted"
               >
                 <X size={20} />
               </button>
 
               <div className="w-24 h-24 bg-primary-teal/10 rounded-full flex items-center justify-center mx-auto mb-8">
-                <CheckCircle2 size={48} className="text-primary-teal" />
+                <CheckCircle2 size={48} className="text-public-heading" />
               </div>
 
-              <h3 className="text-2xl font-black text-[#549E9E] uppercase tracking-tight mb-4">{t('contact_page.success_title')}</h3>
-              <p className="text-gray-500 font-medium leading-relaxed mb-10">
+              <h3 className="text-2xl font-black text-public-heading uppercase tracking-tight mb-4">{t('contact_page.success_title')}</h3>
+              <p className="text-public-muted font-medium leading-relaxed mb-10">
                 {t('contact_page.success_desc')}
               </p>
 
@@ -363,7 +363,7 @@ export default function Contact() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowSuccess(false)}
-                className="w-full py-4 bg-[#549E9E] text-white rounded-full font-black text-xs uppercase tracking-widest shadow-xl shadow-primary-teal/20"
+                className="w-full py-4 bg-public-action text-white rounded-full font-black text-xs uppercase tracking-widest shadow-xl shadow-primary-teal/20"
               >
                 {t('contact_page.got_it')}
               </motion.button>

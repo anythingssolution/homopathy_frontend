@@ -14,6 +14,7 @@ export function normalizeManualWhatsAppPhone(value: string): string {
 
 export function buildManualWhatsAppText(document: ShareDocument): string {
   const hi = document.language === 'hi';
+  const isReceipt = document.kind === 'RECEIPT';
   const currency = (amount: number | string) => `₹ ${Number(amount || 0).toFixed(2)}`;
   const heading = [
     "*Dr. Trivedi's Homeopathy Clinic*",
@@ -22,7 +23,7 @@ export function buildManualWhatsAppText(document: ShareDocument): string {
     `${hi ? 'बिल' : 'Bill'}: ${document.bill_number}`,
     `${hi ? 'दिनांक' : 'Date'}: ${document.date}`,
     '',
-    hi ? (document.kind === 'RECEIPT' ? '*भुगतान रसीद*' : '*दवा / जाँच बिल*') : (document.kind === 'RECEIPT' ? '*Payment receipt*' : '*Medicine / Test bill*'),
+    hi ? (isReceipt ? '*भुगतान रसीद*' : '*दवा / जाँच की अनुमानित राशि*') : (isReceipt ? '*Payment receipt*' : '*Medicine / Test — Approx. amount*'),
   ];
   // Keep chat links usable for large bills. The PDF always includes every item.
   const lines: string[] = [];
@@ -34,7 +35,13 @@ export function buildManualWhatsAppText(document: ShareDocument): string {
     lines.push(line); length += line.length + 1;
   }
   if (lines.length < document.lines.length) lines.push(hi ? 'बाकी विवरण PDF में देखें।' : 'Remaining items are included in the PDF.');
-  return [...heading, ...lines, '', ...document.totals.map(([label, amount]) => `${label}: ${currency(amount)}`), '',
+  const totals = document.totals.map(([label, amount]) => {
+    const displayLabel = !isReceipt && ['Net bill', 'शुद्ध बिल'].includes(label)
+      ? (hi ? 'अनुमानित कुल राशि' : 'Approx. total amount') : label;
+    return `${displayLabel}: ${currency(amount)}`;
+  });
+  return [...heading, ...lines, '', ...totals, '',
+    ...(!isReceipt ? [hi ? 'यह अनुमानित राशि का सारांश है। बिल और भुगतान का दर्ज विवरण PDF में देखें।' : 'This is an approximate amount summary. Refer to the PDF for recorded bill and payment details.', ''] : []),
     `PDF: ${document.filename}`,
   ].join('\n');
 }

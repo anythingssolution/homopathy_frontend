@@ -7,7 +7,7 @@ import 'lenis/dist/lenis.css';
 import Navigation from './components/Navigation';
 import Hero from './components/Hero';
 import Consultation from './components/Consultation';
-import Gallery from './components/Gallery';
+const Gallery = React.lazy(() => import('./components/Gallery'));
 import AboutUs from './components/AboutUs';
 import Treatments from './components/Treatments';
 import TreatmentsSection from './components/TreatmentsSection';
@@ -42,6 +42,7 @@ const DispensaryPage = React.lazy(() => import('./components/dashboard/reports-n
 import CollectionsPage from './components/dashboard/reports-next/pages/Collections';
 import PatientsPage from './components/dashboard/reports-next/pages/Patients';
 const LocationPatients = React.lazy(() => import('./components/dashboard/reports-next/pages/LocationPatients'));
+const PatientSources = React.lazy(() => import('./components/dashboard/reports-next/pages/PatientSources'));
 const NotReturnedPage = React.lazy(() => import('./components/dashboard/reports-next/pages/NotReturned'));
 import DiagnosisPage from './components/dashboard/reports-next/pages/Diagnosis';
 import ComparePage from './components/dashboard/reports-next/pages/Compare';
@@ -202,7 +203,7 @@ function AnimatedRoutes() {
         >
           <Routes location={location}>
             <Route path="/" element={<HomePage />} />
-            <Route path="/gallery" element={<Gallery />} />
+            <Route path="/gallery" element={<React.Suspense fallback={<div role="status" className="min-h-[60vh] bg-[#FDFDF7] p-12 text-center text-[#549E9E]">Loading gallery…</div>}><Gallery /></React.Suspense>} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/treatments" element={<Treatments />} />
             <Route path="/login" element={<Booking />} />
@@ -268,6 +269,7 @@ function AnimatedRoutes() {
                 <Route path="collections" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><CollectionsPage /></ProtectedRoute>} />
                 <Route path="patients" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><PatientsPage /></ProtectedRoute>} />
                 <Route path="location-patients" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><React.Suspense fallback={<div className="py-16 text-center text-sm font-semibold text-slate-400">Loading report…</div>}><LocationPatients /></React.Suspense></ProtectedRoute>} />
+                <Route path="patient-sources" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><React.Suspense fallback={<div className="py-16 text-center text-sm font-semibold text-slate-400">Loading report…</div>}><PatientSources /></React.Suspense></ProtectedRoute>} />
                 <Route path="diagnosis" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><DiagnosisPage /></ProtectedRoute>} />
                 <Route path="compare" element={<ProtectedRoute allowedRoles={['doc', 'DOC', 'doctor']}><ComparePage /></ProtectedRoute>} />
               </Route>

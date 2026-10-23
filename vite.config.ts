@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
           // HTML must come from Nginx on every navigation. Hashed assets remain
           // safe to precache, but caching the app shell can show an old UI.
-          globIgnores: ['**/index.html'],
+          globIgnores: ['**/index.html', '**/gallery/originals/**', '**/site-images/originals/**'],
           navigateFallback: null,
         },
         manifest: {

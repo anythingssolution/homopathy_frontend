@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { getPublicGalleryCms } from '../modules/doctor-cms/api';
 import { CmsGalleryItem } from '../modules/doctor-cms/types';
 import Pagination from './Pagination';
+import localGallery from '../data/legacyGallery.json';
+import { getPublicVideoPoster, resolvePublicImage } from '../utils/publicImages';
 
 export function getYoutubeVideoId(url: string) {
   try {
@@ -48,61 +50,20 @@ interface GalleryItem {
 }
 
 const allGalleryItems: GalleryItem[] = [
-  // TREATMENTS Category
-  { id: 1, date: '2025.04.10', tag: 'TREATMENTS', title: 'Homeopathic Consultation', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_011.jpeg' },
-  { id: 2, date: '2025.04.09', tag: 'TREATMENTS', title: 'Clinical Examination', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_013.jpeg' },
-  { id: 3, date: '2025.04.08', tag: 'TREATMENTS', title: 'Holistic Care Session', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_014.jpeg' },
-  { id: 4, date: '2025.04.07', tag: 'TREATMENTS', title: 'Patient Wellness Check', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_015.jpeg' },
-  { id: 5, date: '2025.04.06', tag: 'TREATMENTS', title: 'Classical Homeopathy Practice', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_016.jpeg' },
-  { id: 6, date: '2025.04.05', tag: 'TREATMENTS', title: 'Clinic Diagnostics', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_017.jpeg' },
-  { id: 7, date: '2025.04.04', tag: 'TREATMENTS', title: 'Specialized Treatment', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_025.jpeg' },
-  { id: 8, date: '2025.04.03', tag: 'TREATMENTS', title: 'Healing from the Root', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_026.jpeg' },
-  { id: 9, date: '2025.04.02', tag: 'TREATMENTS', title: 'Natural Remedies Session', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_027.jpeg' },
-  { id: 10, date: '2025.04.01', tag: 'TREATMENTS', title: 'Clinical Success Story', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_029.jpeg' },
-  { id: 11, date: '2025.03.31', tag: 'TREATMENTS', title: 'Expert Guidance', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_030.jpeg' },
-  { id: 12, date: '2025.03.30', tag: 'TREATMENTS', title: 'Compassionate Care', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_031.jpeg' },
-  { id: 13, date: '2025.03.29', tag: 'TREATMENTS', title: 'Modern Homeopathic Facility', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_032.jpeg' },
-  { id: 14, date: '2025.03.28', tag: 'TREATMENTS', title: 'Restoring Balance', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_033.jpeg' },
+  ...localGallery.items.map((item, index) => ({
+    id: index + 1,
+    date: '',
+    tag: item.category,
+    title: item.title,
+    img: item.image_url,
+  })),
 
-  // MEDIA Category
-  { id: 15, date: '2025.03.25', tag: 'MEDIA', title: 'Newspaper Coverage', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/c0279f73075a52e1a7dea35065bc8c80.jpeg' },
-  { id: 16, date: '2025.03.24', tag: 'MEDIA', title: 'Medical Summit 2024', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/29150bb2319c182c944841c74d2f8d75.jpeg' },
-  { id: 17, date: '2025.03.23', tag: 'MEDIA', title: 'Community Outreach', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/ae2bac2e4b4da805d01b2952d7e35ba4.jpeg' },
-  { id: 18, date: '2025.03.22', tag: 'MEDIA', title: 'Public Awareness Event', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/fc1198178c3594bfdda3ca2996eb65cb.jpeg' },
-  { id: 19, date: '2025.03.21', tag: 'MEDIA', title: 'Clinic Interview', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/dc5e819e186f11ef3f59e6c7d6830c35.jpeg' },
-  { id: 20, date: '2025.03.20', tag: 'MEDIA', title: 'Health Awareness Seminar', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/a13ee062eff9d7295bfc800a11f33704.jpeg' },
-  { id: 21, date: '2025.03.19', tag: 'MEDIA', title: 'Clinical Recognition', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/9e94b15ed312fa42232fd87a55db0d39.jpeg' },
-  { id: 22, date: '2025.03.18', tag: 'MEDIA', title: 'Local News Feature', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/568628e0d993b1973adc718237da6e93.jpeg' },
-  { id: 23, date: '2025.03.17', tag: 'MEDIA', title: 'Global Homeopathy Forum', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/ce08becc73195df12d99d761bfbba68d.jpeg' },
-  { id: 24, date: '2025.03.16', tag: 'MEDIA', title: 'Expert Talk Session', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/11364907cf269dd2183b64287156072a.jpeg' },
-  { id: 25, date: '2025.03.15', tag: 'MEDIA', title: 'Press Release 2025', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/e88a49bccde359f0cabb40db83ba6080.jpeg' },
-  { id: 26, date: '2025.03.14', tag: 'MEDIA', title: 'Clinical Excellence Award', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_034.jpeg' },
-  { id: 27, date: '2025.03.13', tag: 'MEDIA', title: 'Healthcare Hero Feature', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_022.jpeg' },
-  { id: 28, date: '2025.03.12', tag: 'MEDIA', title: 'Raipur Clinic Highlights', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_021.jpeg' },
-
-  // AWARDS Category
-  { id: 29, date: '2025.03.10', tag: 'AWARDS', title: 'Internal Flame of Homeopathy', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/93dd4de5cddba2c733c65f233097f05a.jpeg' },
-  { id: 30, date: '2025.03.09', tag: 'AWARDS', title: 'Pride of Homeopathy (Dubai)', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/dc5c7986daef50c1e02ab09b442ee34f.jpeg' },
-  { id: 31, date: '2025.03.08', tag: 'AWARDS', title: 'Homeopathy Ratna Samman', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_040.jpeg' },
-  { id: 32, date: '2025.03.07', tag: 'AWARDS', title: 'Youth Icon Award', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_039.jpeg' },
-  { id: 33, date: '2025.03.06', tag: 'AWARDS', title: 'Legend of Youth Icon', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_038.jpeg' },
-  { id: 34, date: '2025.03.05', tag: 'AWARDS', title: 'Best Skin Care Specialist', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_037.jpeg' },
-  { id: 35, date: '2025.03.04', tag: 'AWARDS', title: 'Clinical Excellence Honor', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_036.jpeg' },
-  { id: 36, date: '2025.03.03', tag: 'AWARDS', title: 'Health Camp Contribution', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_035.jpeg' },
-  { id: 37, date: '2025.03.02', tag: 'AWARDS', title: 'Director Recognition', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_024.jpeg' },
-  { id: 38, date: '2025.03.01', tag: 'AWARDS', title: 'Community Service Award', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_023.jpeg' },
-  { id: 39, date: '2025.02.28', tag: 'AWARDS', title: 'Medical Excellence 2024', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_010.jpeg' },
-  { id: 40, date: '2025.02.27', tag: 'AWARDS', title: 'Outstanding Achievement', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_009.jpeg' },
-  { id: 41, date: '2025.02.26', tag: 'AWARDS', title: 'Global Recognition Forum', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_003.jpeg' },
-  { id: 42, date: '2025.02.25', tag: 'AWARDS', title: 'Excellence in Homeopathy', img: 'https://www.drtrivedishomeopathy.in/assets/files/gallery/g_002.jpeg' },
-
-  // VIDEO Category
   ...videoIds.map((vid, i) => ({
     id: 100 + i,
     date: '2025.02.20',
     tag: 'VIDEO',
     title: `Clinical Insight #${i + 1}`,
-    img: `https://img.youtube.com/vi/${vid}/hqdefault.jpg`,
+    img: getPublicVideoPoster(vid),
     videoId: vid
   }))
 ];
@@ -130,7 +91,7 @@ export default function Gallery() {
   ];
 
   const galleryItems = cmsGallery.length > 0
-    ? cmsGallery
+    ? [...cmsGallery]
         .sort((a: any, b: any) => a.sort_order - b.sort_order)
         .map((item: any) => ({
           id: item.id,
@@ -138,8 +99,8 @@ export default function Gallery() {
           tag: item.category,
           title: item.title,
           img: item.media_type === 'VIDEO'
-            ? item.poster_url || item.image_url || (item.video_key ? `https://img.youtube.com/vi/${item.video_key}/hqdefault.jpg` : '')
-            : item.thumb_url || item.image_url || '',
+            ? resolvePublicImage(item.poster_url || item.image_url || getPublicVideoPoster(item.video_key || getYoutubeVideoId(item.video_url || '')))
+            : resolvePublicImage(item.thumb_url || item.image_url),
           videoUrl: item.video_url || undefined,
           videoId: item.media_type === 'VIDEO'
             ? (item.video_key || (item.video_url ? getYoutubeVideoId(item.video_url) : null) || undefined)
@@ -177,7 +138,7 @@ export default function Gallery() {
       {/* Header Banner */}
       <div className="relative h-[300px] sm:h-[550px]">
         <div className="absolute inset-0">
-          <img src="https://www.drtrivedishomeopathy.in/assets/imgs/himg-2.jpeg" className="w-full h-full object-cover" alt="Gallery Cover" />
+          <img src={localGallery.cover_url} className="w-full h-full object-cover" alt="Gallery Cover" />
         </div>
         <div className="absolute inset-0 bg-primary-teal/5" />
       </div>
@@ -188,16 +149,16 @@ export default function Gallery() {
 
         <div className="relative z-10 flex flex-col items-center pt-12">
           <div className="flex flex-col items-center">
-            <div className="flex items-center gap-4 text-primary-teal opacity-60 mb-6">
+            <div className="flex items-center gap-4 text-public-heading opacity-60 mb-6">
               <div className="w-8 h-[1px] bg-current" />
               <Sparkles size={16} />
               <div className="w-8 h-[1px] bg-current" />
             </div>
 
-            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-[#549E9E] tracking-[0.15em] sm:tracking-[0.2em] mb-4">
+            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold text-public-heading tracking-[0.15em] sm:tracking-[0.2em] mb-4">
               {t('gallery_page.title')}
             </h1>
-            <span className="text-[10px] font-bold text-primary-teal/60 tracking-[0.4em] uppercase">{t('gallery_page.subtitle')}</span>
+            <span className="text-[10px] font-bold text-public-muted tracking-[0.4em] uppercase">{t('gallery_page.subtitle')}</span>
 
             <div className="w-12 h-1 bg-[#F2D06B] rounded-full mt-8" />
           </div>
@@ -206,12 +167,12 @@ export default function Gallery() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-24 relative">
         {/* Breadcrumb */}
-        <div className="text-sm sm:text-base text-gray-400 mb-8 sm:mb-16 flex gap-2 font-medium">
-          <Link to="/" className="hover:text-primary-teal transition-colors">{t('common.home')}</Link>
+        <div className="text-sm sm:text-base text-public-muted mb-8 sm:mb-16 flex gap-2 font-medium">
+          <Link to="/" className="hover:text-public-heading transition-colors">{t('common.home')}</Link>
           <span>&gt;</span>
-          <span className="text-primary-teal">{t('common.gallery')}</span>
+          <span className="text-public-heading">{t('common.gallery')}</span>
           <span>&gt;</span>
-          <span className="text-primary-teal/60 uppercase tracking-widest">{categories.find(c => c.key === activeCategory)?.label}</span>
+          <span className="text-public-muted uppercase tracking-widest">{categories.find(c => c.key === activeCategory)?.label}</span>
         </div>
 
         {/* Mobile Category Chips */}
@@ -223,7 +184,7 @@ export default function Gallery() {
                 onClick={() => changeCategory(cat.key)}
                 className={`px-5 py-2.5 text-[11px] font-black tracking-widest whitespace-nowrap rounded-full border transition-all active:scale-95 ${
                   activeCategory === cat.key
-                    ? 'bg-[#549E9E] text-white border-[#549E9E] shadow-md shadow-[#549E9E]/20'
+                    ? 'bg-public-action text-white border-[#549E9E] shadow-md shadow-[#549E9E]/20'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-[#549E9E]/30'
                 }`}
               >
@@ -262,7 +223,7 @@ export default function Gallery() {
                       />
                       {item.tag === 'VIDEO' && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/10 transition-colors">
-                          <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center text-primary-teal shadow-xl scale-90 group-hover:scale-100 transition-transform">
+                          <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center text-public-heading shadow-xl scale-90 group-hover:scale-100 transition-transform">
                             <Play size={20} fill="currentColor" />
                           </div>
                         </div>
@@ -271,10 +232,10 @@ export default function Gallery() {
                     </div>
                     <div className="px-2">
                       <div className="flex items-center gap-3 text-[10px] font-bold mb-2 tracking-wider">
-                        <span className="text-primary-teal/60">{item.date}</span>
-                        <span className="bg-primary-teal/10 text-primary-teal px-3 py-0.5 rounded-full">{getCategoryLabel(item.tag)}</span>
+                        <span className="text-public-muted">{item.date}</span>
+                        <span className="bg-primary-teal/10 text-public-heading px-3 py-0.5 rounded-full">{getCategoryLabel(item.tag)}</span>
                       </div>
-                      <h3 className="text-sm font-bold text-[#549E9E] leading-relaxed group-hover:text-primary-teal transition-colors">
+                      <h3 className="text-sm font-bold text-public-heading leading-relaxed group-hover:text-public-heading transition-colors">
                         {t(`gallery_items.${item.id}`, item.title) as string}
                       </h3>
                     </div>
@@ -285,7 +246,7 @@ export default function Gallery() {
 
             {filteredItems.length === 0 && (
               <div className="text-center py-20 bg-white rounded-[50px] border border-dashed border-gray-200">
-                <p className="text-[#6A6A50] font-medium italic">{t('gallery_page.no_items_found')}</p>
+                <p className="text-public-body font-medium italic">{t('gallery_page.no_items_found')}</p>
               </div>
             )}
 
@@ -305,7 +266,7 @@ export default function Gallery() {
             <div className="sticky top-40 space-y-16">
               {/* Categories */}
               <div>
-                <h4 className="text-lg font-bold text-[#549E9E] tracking-[0.2em] mb-6 flex items-center justify-between">
+                <h4 className="text-lg font-bold text-public-heading tracking-[0.2em] mb-6 flex items-center justify-between">
                   <span>{t('gallery_page.category')}</span>
                   <div className="w-12 h-[1px] bg-primary-teal/20" />
                 </h4>
@@ -316,7 +277,7 @@ export default function Gallery() {
                       onClick={() => changeCategory(cat.key)}
                       className={`w-full rounded-xl px-7 py-5 text-left text-sm font-bold tracking-widest transition-all border border-transparent ${
                         activeCategory === cat.key
-                          ? 'bg-gray-100 text-[#549E9E] border-[#549E9E]/20 shadow-sm'
+                          ? 'bg-gray-100 text-public-heading border-[#549E9E]/20 shadow-sm'
                           : 'text-gray-900 hover:bg-gray-50 hover:border-gray-100'
                       }`}
                     >
@@ -328,7 +289,7 @@ export default function Gallery() {
 
               {/* Clinical Trust Highlights */}
               <div>
-                <h4 className="text-lg font-bold text-[#549E9E] tracking-[0.2em] mb-6 flex items-center justify-between">
+                <h4 className="text-lg font-bold text-public-heading tracking-[0.2em] mb-6 flex items-center justify-between">
                   <span>{t('gallery_page.excellence')}</span>
                   <div className="w-12 h-[1px] bg-primary-teal/20" />
                 </h4>
@@ -341,9 +302,9 @@ export default function Gallery() {
                     <div key={i} className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-gray-50">
                       <div className="flex items-center gap-3">
                         <span className="text-lg">{stat.icon}</span>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.label}</span>
+                        <span className="text-[10px] font-bold text-public-muted uppercase tracking-widest">{stat.label}</span>
                       </div>
-                      <span className="text-sm font-black text-primary-teal">{stat.val}</span>
+                      <span className="text-sm font-black text-public-heading">{stat.val}</span>
                     </div>
                   ))}
                 </div>

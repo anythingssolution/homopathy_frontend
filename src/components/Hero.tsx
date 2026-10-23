@@ -6,6 +6,7 @@ import Testimonials from './Testimonials';
 import { ScrollReveal } from './ScrollReveal';
 import { getPublicHomepageCms } from '../modules/doctor-cms/api';
 import { HomepageCmsResponse } from '../modules/doctor-cms/types';
+import { resolvePublicImage } from '../utils/publicImages';
 
 export default function Hero() {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -35,7 +36,7 @@ export default function Hero() {
     : [];
 
   const images = heroItems.length > 0 
-    ? heroItems.map(item => item.image_url)
+    ? heroItems.map(item => resolvePublicImage(item.image_url))
     : fallbackImages;
 
   useEffect(() => {
@@ -101,7 +102,7 @@ export default function Hero() {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -10 }}
-                      className="absolute left-6 text-[10px] font-black text-primary-teal tracking-widest"
+                      className="absolute left-6 text-[10px] font-black text-public-heading tracking-widest"
                     >
                       0{idx + 1}
                     </motion.span>
@@ -144,7 +145,7 @@ export default function Hero() {
                 style={{ filter: 'drop-shadow(0 20px 50px rgba(0,0,0,0.1))' }}
               >
                 {/* Left Side Tab (Consistent with Hours) */}
-                <div className="bg-[#549E9E] w-12 flex flex-col items-center justify-center text-white gap-3 shrink-0">
+                <div className="bg-public-action w-12 flex flex-col items-center justify-center text-white gap-3 shrink-0">
                   <Share2 size={16} />
                   <span className="writing-vertical text-[8px] font-black tracking-[0.3em] uppercase">{t('hero.connect')}</span>
                 </div>
@@ -156,7 +157,7 @@ export default function Hero() {
                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-widest">{t('hero.connect_with_us')}</span>
                        <div className="w-8 h-[1px] bg-gray-50" />
                     </div>
-                    <button onClick={() => setShowSocials(false)} className="text-gray-200 hover:text-gray-400 transition-colors">
+                    <button onClick={() => setShowSocials(false)} className="text-gray-200 hover:text-public-muted transition-colors">
                       <X size={16} />
                     </button>
                   </div>
@@ -180,7 +181,7 @@ export default function Hero() {
 
                   <div className="pt-3 border-t border-gray-50 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary-teal animate-pulse" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-public-action animate-pulse" />
                       <p className="text-[8px] font-bold text-gray-300 uppercase tracking-widest">{t('hero.online_support')}</p>
                     </div>
                   </div>
@@ -196,8 +197,8 @@ export default function Hero() {
             }}
             className={`group bg-white px-4 py-8 rounded-l-3xl shadow-lg border border-r-0 border-gray-100 flex flex-col items-center gap-4 cursor-pointer pointer-events-auto transition-all z-10 h-full justify-center hover:shadow-2xl hover:border-primary-teal/30 ${showSocials ? 'bg-primary-teal/5 ring-1 ring-primary-teal/20' : ''}`}
           >
-            <Share2 className={`transition-colors ${showSocials ? 'text-primary-teal' : 'text-gray-400 group-hover:text-primary-teal'}`} size={20} />
-            <span className={`writing-vertical text-[9px] font-bold tracking-[0.2em] uppercase transition-colors ${showSocials ? 'text-primary-teal' : 'text-gray-400 group-hover:text-primary-teal'}`}>{t('hero.connect')}</span>
+            <Share2 className={`transition-colors ${showSocials ? 'text-public-heading' : 'text-public-muted group-hover:text-public-heading'}`} size={20} />
+            <span className={`writing-vertical text-[9px] font-bold tracking-[0.2em] uppercase transition-colors ${showSocials ? 'text-public-heading' : 'text-public-muted group-hover:text-public-heading'}`}>{t('hero.connect')}</span>
           </motion.div>
         </div>
 
@@ -225,7 +226,7 @@ export default function Hero() {
                        <span className="text-[8px] font-bold text-gray-300 uppercase tracking-widest">{t('hero.clinic_schedule')}</span>
                        <div className="w-8 h-[1px] bg-gray-50" />
                     </div>
-                    <button onClick={() => setShowSchedule(false)} className="text-gray-200 hover:text-gray-400 transition-colors">
+                    <button onClick={() => setShowSchedule(false)} className="text-gray-200 hover:text-public-muted transition-colors">
                       <X size={16} />
                     </button>
                   </div>
@@ -244,7 +245,7 @@ export default function Hero() {
                           <th className="pb-1.5 text-red-300">S</th>
                         </tr>
                       </thead>
-                      <tbody className="text-[#6A6A50]">
+                      <tbody className="text-public-body">
                         <tr className="border-b border-gray-50">
                           <td className="py-2.5 text-left border-r border-gray-50 pr-2 font-black">11:00-14:30</td>
                           <td className="py-2.5">●</td>
@@ -293,7 +294,7 @@ export default function Hero() {
             className={`group bg-white px-4 py-6 rounded-l-3xl shadow-lg border border-r-0 border-gray-100 flex flex-col items-center gap-3 cursor-pointer pointer-events-auto transition-all z-10 h-full justify-center hover:shadow-2xl hover:border-amber-500/30 ${showSchedule ? 'bg-amber-500/5 ring-1 ring-amber-500/20' : ''}`}
           >
             <Clock className={`transition-colors ${showSchedule ? 'text-amber-500' : 'text-gray-300 group-hover:text-amber-500'}`} size={20} />
-            <span className={`writing-vertical text-[9px] font-bold tracking-[0.2em] uppercase transition-colors ${showSchedule ? 'text-amber-500' : 'text-gray-400 group-hover:text-amber-500'}`}>{t('hero.hours')}</span>
+            <span className={`writing-vertical text-[9px] font-bold tracking-[0.2em] uppercase transition-colors ${showSchedule ? 'text-amber-500' : 'text-public-muted group-hover:text-amber-500'}`}>{t('hero.hours')}</span>
           </motion.div>
         </div>
       </div>
@@ -303,7 +304,7 @@ export default function Hero() {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => { setShowSocials(!showSocials); setShowSchedule(false); }}
-          className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all ${showSocials ? 'bg-[#549E9E] text-white' : 'bg-white text-[#549E9E] border border-gray-200'}`}
+          className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all ${showSocials ? 'bg-public-action text-white' : 'bg-white text-public-heading border border-gray-200'}`}
         >
           <Share2 size={18} />
         </motion.button>
@@ -327,8 +328,8 @@ export default function Hero() {
             className="fixed bottom-20 right-4 left-4 bg-white rounded-3xl shadow-2xl border border-gray-100 p-5 z-[99] sm:hidden"
           >
             <div className="flex items-center justify-between mb-4">
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('hero.connect_with_us')}</span>
-              <button onClick={() => setShowSocials(false)} className="text-gray-300 hover:text-gray-500">
+              <span className="text-[10px] font-black text-public-muted uppercase tracking-widest">{t('hero.connect_with_us')}</span>
+              <button onClick={() => setShowSocials(false)} className="text-gray-300 hover:text-public-muted">
                 <X size={16} />
               </button>
             </div>
@@ -363,14 +364,14 @@ export default function Hero() {
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">{t('hero.clinic_schedule')}</span>
-              <button onClick={() => setShowSchedule(false)} className="text-gray-300 hover:text-gray-500">
+              <button onClick={() => setShowSchedule(false)} className="text-gray-300 hover:text-public-muted">
                 <X size={16} />
               </button>
             </div>
             <table className="w-full text-[11px] font-bold text-center">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="pb-2 text-left font-medium text-gray-400 uppercase tracking-widest text-[8px]">Shift</th>
+                  <th className="pb-2 text-left font-medium text-public-muted uppercase tracking-widest text-[8px]">Shift</th>
                   <th className="pb-2 text-amber-500">M</th>
                   <th className="pb-2 text-amber-500">T</th>
                   <th className="pb-2 text-amber-500">W</th>
@@ -394,7 +395,7 @@ export default function Hero() {
             <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MapPin size={12} className="text-amber-400" />
-                <span className="text-[9px] font-bold text-gray-400 uppercase">Raipur, CG</span>
+                <span className="text-[9px] font-bold text-public-muted uppercase">Raipur, CG</span>
               </div>
               <button className="px-4 py-1.5 bg-amber-50 rounded-full font-black text-[8px] text-amber-600 uppercase tracking-widest active:scale-95 transition-transform">
                 {t('hero.view_map')}
@@ -415,11 +416,11 @@ export default function Hero() {
         <ScrollReveal width="100%" direction="up" distance={60}>
           <div className="max-w-4xl mx-auto px-6 text-center relative z-20 pt-20">
             <ScrollReveal direction="down" delay={0.2} className="mx-auto">
-              <div className="inline-block text-[12px] font-bold text-primary-teal tracking-[0.3em] mb-10 px-6 py-2 border border-primary-teal/20 rounded-full uppercase">{t('hero.story_label')}</div>
+              <div className="inline-block text-[12px] font-bold text-public-heading tracking-[0.3em] mb-10 px-6 py-2 border border-primary-teal/20 rounded-full uppercase">{t('hero.story_label')}</div>
             </ScrollReveal>
 
             <ScrollReveal direction="up" delay={0.3} className="mx-auto">
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#549E9E] leading-[1.5] sm:leading-[1.7] mb-8 sm:mb-12 tracking-[0.05em] sm:tracking-[0.1em]">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-public-heading leading-[1.5] sm:leading-[1.7] mb-8 sm:mb-12 tracking-[0.05em] sm:tracking-[0.1em]">
                 {t('hero.story_title')}<br />
                 {t('hero.story_subtitle')}
               </h2>
@@ -434,7 +435,7 @@ export default function Hero() {
             </ScrollReveal>
 
             <ScrollReveal direction="up" delay={0.5} className="mx-auto">
-              <div className="space-y-10 text-[#6A6A50] text-base lg:text-lg leading-[2.6] tracking-wider font-medium max-w-3xl mx-auto text-justify lg:text-center">
+              <div className="space-y-10 text-public-body text-base lg:text-lg leading-[2.6] tracking-wider font-medium max-w-3xl mx-auto text-justify lg:text-center">
                 <p>{t('hero.story_description_1')}</p>
                 <p>{t('hero.story_description_2')}<br />
                   {t('hero.story_description_3')}</p>
@@ -444,13 +445,13 @@ export default function Hero() {
             <ScrollReveal direction="up" delay={0.6} className="mx-auto w-full">
               <div className="flex flex-col gap-6 items-center mt-20 pb-0">
                 <div className="flex flex-col md:flex-row justify-center gap-6 w-full max-w-4xl">
-                  <motion.button whileHover={{ scale: 1.05, y: -2 }} className="bg-[#F5DE9B] text-[#549E9E] py-3 sm:py-4 px-8 sm:px-10 rounded-full font-bold text-sm sm:text-base shadow-[0_4px_0_#e5ce8b] w-fit mx-auto active:scale-95 transition-transform">
+                  <motion.button whileHover={{ scale: 1.05, y: -2 }} className="bg-[#F5DE9B] text-public-heading py-3 sm:py-4 px-8 sm:px-10 rounded-full font-bold text-sm sm:text-base shadow-[0_4px_0_#e5ce8b] w-fit mx-auto active:scale-95 transition-transform">
                     {t('hero.doctors')}
                   </motion.button>
-                  <motion.button whileHover={{ scale: 1.05, y: -2 }} className="bg-[#F5DE9B] text-[#549E9E] py-3 sm:py-4 px-8 sm:px-10 rounded-full font-bold text-sm sm:text-base shadow-[0_4px_0_#e5ce8b] w-fit mx-auto active:scale-95 transition-transform">
+                  <motion.button whileHover={{ scale: 1.05, y: -2 }} className="bg-[#F5DE9B] text-public-heading py-3 sm:py-4 px-8 sm:px-10 rounded-full font-bold text-sm sm:text-base shadow-[0_4px_0_#e5ce8b] w-fit mx-auto active:scale-95 transition-transform">
                     {t('hero.wellness_hub')}
                   </motion.button>
-                  <motion.button whileHover={{ scale: 1.05, y: -2 }} className="bg-[#F5DE9B] text-[#549E9E] py-3 sm:py-4 px-8 sm:px-10 rounded-full font-bold text-sm sm:text-base shadow-[0_4px_0_#e5ce8b] w-fit mx-auto active:scale-95 transition-transform">
+                  <motion.button whileHover={{ scale: 1.05, y: -2 }} className="bg-[#F5DE9B] text-public-heading py-3 sm:py-4 px-8 sm:px-10 rounded-full font-bold text-sm sm:text-base shadow-[0_4px_0_#e5ce8b] w-fit mx-auto active:scale-95 transition-transform">
                     {t('hero.consultation_room')}
                   </motion.button>
                 </div>

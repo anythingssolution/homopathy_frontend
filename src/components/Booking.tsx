@@ -14,6 +14,7 @@ import { formatTimeTo12Hour } from '../utils/dateUtils';
 import { calculateAgeYearsFromDob, formatAgeValue } from '../utils/ageDisplay';
 import ScheduleRuleNotice from './ScheduleRuleNotice';
 import ReceptionBookingAddress from './ReceptionBookingAddress';
+const BookingSourcePrompt = React.lazy(() => import('./BookingSourcePrompt'));
 const RECAPTCHA_SITE_KEY = String(import.meta.env.VITE_RECAPTCHA_SITE_KEY || '');
 
 if (!RECAPTCHA_SITE_KEY) {
@@ -406,6 +407,7 @@ export default function Booking() {
   const [symptoms, setSymptoms] = useState('');
   const [isAppointmentSuccess, setIsAppointmentSuccess] = useState(false);
   const [isHealthDetailsOpen, setIsHealthDetailsOpen] = useState(false);
+  const [sourceBookingId, setSourceBookingId] = useState<number | null>(null);
   const [healthDetailsTab, setHealthDetailsTab] = useState<'VITALS' | 'HISTORY'>('VITALS');
   const [healthDetails, setHealthDetails] = useState<OptionalHealthDetails>({
     oxygen_saturation: '',
@@ -505,9 +507,12 @@ export default function Booking() {
   const hasEligibleFollowUps = eligibleFollowUps.length > 0;
   const branchBookingStatus = bookingBranchStatus(dateAvailability, appointmentDate, appointmentLocation);
   const slotBookingStatus = branchBookingStatus?.slots.find(slot => Number(slot.slot_id) === Number(timeSlot));
-  const weekdayUnavailable = branchBookingStatus?.booking_enabled === false || slotBookingStatus?.booking_enabled === false;
+  const scheduleClosed = branchBookingStatus?.booking_enabled === false || slotBookingStatus?.booking_enabled === false;
+  const weekdayUnavailable = !isReceptionist && scheduleClosed;
   const dateAvailabilityPending = Boolean(isAuthenticated && dateAvailability?.appointment_date !== appointmentDate);
-  const isDoctorUnavailable = bookingAvailability?.booking_enabled === false || weekdayUnavailable;
+  const isDoctorUnavailable = !isReceptionist && (bookingAvailability?.booking_enabled === false || scheduleClosed);
+  const receptionScheduleException = isReceptionist && (scheduleClosed || bookingAvailability?.booking_enabled === false);
+  const receptionScheduleReason = slotBookingStatus?.reason || branchBookingStatus?.reason || bookingAvailability?.reason;
   const selectedTreatment = useMemo(
     () => (formData?.treatments || []).find((item: any) => Number(item.id) === Number(treatmentType)) || null,
     [formData?.treatments, treatmentType]
@@ -518,6 +523,8 @@ export default function Booking() {
     && !isReceptionist
     && (user.role_code?.toUpperCase() === 'PAT' || user.role?.toLowerCase() === 'patient')
   );
+  // Temporarily hide patient-entered health details during booking.
+  const showBookingHealthDetails = isPatientSelfBooking && false;
   const completedVitalsCount = [
     healthDetails.oxygen_saturation,
     healthDetails.blood_pressure,
@@ -725,7 +732,7 @@ export default function Booking() {
 
         if (result.success && result.data) {
           setBookingAvailability(result.data);
-          if (result.data.booking_enabled === false) {
+          if (!isReceptionist && result.data.booking_enabled === false) {
             setTimeSlot('');
           }
         } else {
@@ -744,7 +751,7 @@ export default function Booking() {
     fetchAvailability();
 
     return () => controller.abort();
-  }, [appointmentLocation, appointmentDate, dateAvailabilityReload]);
+  }, [appointmentLocation, appointmentDate, dateAvailabilityReload, isReceptionist]);
 
   useEffect(() => {
     if (!appointmentLocation || !treatmentType || !appointmentDate || !timeSlot || isDoctorUnavailable) {
@@ -1516,7 +1523,7 @@ export default function Booking() {
     if (dateAvailabilityPending || dateAvailabilityError) return;
     if (weekdayUnavailable) { setErrors({ appointment: slotBookingStatus?.reason || branchBookingStatus?.reason || 'Booking is closed for this session.' }); return; }
     if (appointmentLocation && treatmentType && appointmentDate && timeSlot) {
-      if (bookingAvailability && bookingAvailability.booking_enabled === false) {
+      if (!isReceptionist && bookingAvailability && bookingAvailability.booking_enabled === false) {
         setErrors({ appointment: bookingAvailability.reason || 'Doctor is not available in clinic' });
         return;
       }
@@ -1603,7 +1610,7 @@ export default function Booking() {
           symptoms: symptoms.trim() || null
         };
 
-        if (isPatientSelfBooking && hasOptionalHealthDetails) {
+        if (showBookingHealthDetails && hasOptionalHealthDetails) {
           payload.health_details = Object.fromEntries(
             Object.entries(healthDetails)
               .map(([key, value]) => [key, value.trim()])
@@ -1659,6 +1666,8 @@ export default function Booking() {
         if (result.success) {
           addToast(result.message || 'Appointment booked successfully', 'success');
           setIsAppointmentSuccess(true);
+          const askDiscoverySource = isPatientSelfBooking && Number(result.data?.appointment_id) > 0;
+          setSourceBookingId(askDiscoverySource ? Number(result.data.appointment_id) : null);
           setBookedForType('SELF');
           setSelectedFamilyMemberId('');
           setHealthDetails({
@@ -1676,7 +1685,7 @@ export default function Booking() {
             mental_mind_status: '',
           });
           const isCrossRoleRec = window.location.pathname.startsWith('/cross-role/receptionist');
-          setTimeout(() => {
+          if (!askDiscoverySource) setTimeout(() => {
             setIsAppointmentSuccess(false);
             if (isCrossRoleRec) {
               navigate('/cross-role/receptionist');
@@ -1830,7 +1839,7 @@ export default function Booking() {
                 <div className="space-y-2 text-sm">
                   <p className="font-semibold text-slate-600">{i18n.language.startsWith('hi') ? 'बुकिंग की उपलब्धता इस तारीख के लिए है: ' : 'Booking availability for: '}{appointmentDate.split('-').reverse().join('/')}<span className="ml-2 font-normal text-slate-500">{i18n.language.startsWith('hi') ? 'तारीख नीचे बदल सकते हैं।' : 'You can change the date below.'}</span></p>
                   {dateAvailabilityError && <div role="alert" className="rounded-xl bg-red-50 p-3 text-red-700">{dateAvailabilityError}<button type="button" onClick={() => setDateAvailabilityReload(value => value + 1)} className="ml-3 font-bold underline">Retry</button></div>}
-                  {branchBookingStatus?.booking_enabled === false && <p role="status" className="rounded-xl bg-amber-50 p-3 text-amber-800">{branchBookingStatus.reason}</p>}
+                  {!isReceptionist && branchBookingStatus?.booking_enabled === false && <p role="status" className="rounded-xl bg-amber-50 p-3 text-amber-800">{branchBookingStatus.reason}</p>}
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-8">
@@ -1840,8 +1849,9 @@ export default function Booking() {
                       .map(b => ({
                         id: b.id,
                         label: b.branch_name,
-                        description: bookingBranchStatus(dateAvailability, appointmentDate, b.id)?.reason || b.address,
-                        disabled: dateAvailabilityPending || !bookingBranchStatus(dateAvailability, appointmentDate, b.id)?.booking_enabled,
+                        description: bookingBranchStatus(dateAvailability, appointmentDate, b.id)?.reason
+                          ? `${bookingBranchStatus(dateAvailability, appointmentDate, b.id)?.reason}${isReceptionist ? ' Reception booking is allowed.' : ''}` : b.address,
+                        disabled: dateAvailabilityPending || (!isReceptionist && !bookingBranchStatus(dateAvailability, appointmentDate, b.id)?.booking_enabled),
                       }))}
                     value={appointmentLocation}
                     onChange={(val) => {
@@ -1913,8 +1923,9 @@ export default function Booking() {
                             return {
                               id: s.id,
                               label: `${s.slot_name} (${startLabel} - ${endLabel})`,
-                              disabled: dateAvailabilityPending || !branchBookingStatus?.slots.find(slot => Number(slot.slot_id) === Number(s.id))?.booking_enabled,
-                              description: branchBookingStatus?.slots.find(slot => Number(slot.slot_id) === Number(s.id))?.reason || undefined,
+                              disabled: dateAvailabilityPending || (!isReceptionist && !branchBookingStatus?.slots.find(slot => Number(slot.slot_id) === Number(s.id))?.booking_enabled),
+                              description: branchBookingStatus?.slots.find(slot => Number(slot.slot_id) === Number(s.id))?.reason
+                                ? `${branchBookingStatus.slots.find(slot => Number(slot.slot_id) === Number(s.id))?.reason}${isReceptionist ? ' Reception booking is allowed.' : ''}` : undefined,
                             };
                           }) || []
                     }
@@ -1936,6 +1947,8 @@ export default function Booking() {
                   <div className={`p-4 rounded-[22px] border ${
                     isAvailabilityLoading
                       ? 'bg-amber-50 border-amber-100 text-amber-600'
+                      : receptionScheduleException
+                      ? 'bg-amber-50 border-amber-200 text-amber-800'
                       : isDoctorUnavailable
                       ? 'bg-red-50 border-red-100 text-red-600'
                       : 'bg-emerald-50 border-emerald-100 text-emerald-600'
@@ -1943,10 +1956,17 @@ export default function Booking() {
                     <p className="text-[11px] font-black uppercase tracking-widest">
                       {isAvailabilityLoading
                         ? t('booking.checking_doctor_availability', 'Checking doctor availability')
+                        : receptionScheduleException
+                          ? (i18n.language.startsWith('hi')
+                            ? 'इस सत्र में सामान्य बुकिंग बंद है। रिसेप्शन से बुकिंग कर सकते हैं; डॉक्टर की उपलब्धता सुनिश्चित करें।'
+                            : 'Booking is normally closed for this session. Reception booking is allowed; please verify doctor availability.')
                         : isDoctorUnavailable
                           ? (branchBookingStatus?.reason || slotBookingStatus?.reason || bookingAvailability?.reason || t('booking.doctor_unavailable', 'Doctor is not available in clinic'))
                           : t('booking.doctor_available', 'Doctor is available for the selected date')}
                     </p>
+                    {!isAvailabilityLoading && receptionScheduleException && receptionScheduleReason && (
+                      <p className="mt-2 text-sm font-medium normal-case">{receptionScheduleReason}</p>
+                    )}
                     {!isAvailabilityLoading && bookingAvailability?.leave?.leave_reason && (
                       <p className="text-sm mt-2 opacity-80">
                         {bookingAvailability.leave.leave_reason}
@@ -2527,7 +2547,7 @@ export default function Booking() {
                   />
                 </div>
 
-                {isPatientSelfBooking && (
+                {showBookingHealthDetails && (
                   <div className="rounded-[30px] border-2 border-primary-teal/20 bg-gradient-to-br from-primary-teal/5 to-sky-50/70 p-5 sm:p-6 shadow-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
                       <div className="flex items-start gap-4">
@@ -3393,7 +3413,7 @@ export default function Booking() {
       )}
 
       <AnimatePresence>
-        {isPatientSelfBooking && isHealthDetailsOpen && (
+        {showBookingHealthDetails && isHealthDetailsOpen && (
           <div className="fixed inset-0 z-[210] flex items-center justify-center p-3 sm:p-5">
             <motion.div
               initial={{ opacity: 0 }}
@@ -3533,8 +3553,11 @@ export default function Booking() {
       </AnimatePresence>
 
       {/* Success Modal */}
+      {sourceBookingId && isAppointmentSuccess && <React.Suspense fallback={
+        <div role="status" className="fixed inset-0 z-[210] flex flex-col items-center justify-center gap-4 bg-white/95 text-teal-700"><p>Appointment confirmed!</p><button type="button" className="rounded-full border px-5 py-3" onClick={() => { setSourceBookingId(null); setIsAppointmentSuccess(false); navigate('/my-appointments'); }}>View Appointments</button></div>
+      }><BookingSourcePrompt appointmentId={sourceBookingId} token={token} onDone={() => { setSourceBookingId(null); setIsAppointmentSuccess(false); navigate('/my-appointments'); }}/></React.Suspense>}
       <AnimatePresence>
-        {(showSuccess || isAppointmentSuccess) && (
+        {(showSuccess || isAppointmentSuccess) && !sourceBookingId && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}

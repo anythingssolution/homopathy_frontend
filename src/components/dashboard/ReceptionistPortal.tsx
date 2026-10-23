@@ -193,6 +193,7 @@ export default function ReceptionistPortal() {
   const [isNotAvailableModalOpen, setIsNotAvailableModalOpen] = useState(false);
   const [notAvailableId, setNotAvailableId] = useState<number | null>(null);
   const [isMarkingNotAvailable, setIsMarkingNotAvailable] = useState(false);
+  const [patientLeftReason, setPatientLeftReason] = useState('Patient left before consultation');
   const [isCallingNext, setIsCallingNext] = useState(false);
 
   // Payment Modal State
@@ -960,6 +961,7 @@ export default function ReceptionistPortal() {
   };
 
   const handleNotAvailable = (appointmentId: number) => {
+    setPatientLeftReason('Patient left before consultation');
     setNotAvailableId(appointmentId);
     setIsNotAvailableModalOpen(true);
   };
@@ -969,19 +971,19 @@ export default function ReceptionistPortal() {
     setIsMarkingNotAvailable(true);
     try {
       const res = await fetch(
-        `/api/v1/receptionist/appointments/${notAvailableId}/not-available`,
+        `/api/v1/live-queue/appointments/${notAvailableId}/leave`,
         {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ reason: "Patient not present when called" }),
+          body: JSON.stringify({ reason: patientLeftReason.trim() }),
         },
       );
       const data = await res.json();
       if (data.success) {
-        addToast("Patient marked as not available", "success");
+        addToast("Patient marked left. Booking, fee and token number are unchanged.", "success");
         setIsNotAvailableModalOpen(false);
         setNotAvailableId(null);
         fetchAppointments();
@@ -990,6 +992,7 @@ export default function ReceptionistPortal() {
       }
     } catch (err) {
       console.error(err);
+      addToast('Unable to mark Patient left. Please try again.', 'error');
     } finally {
       setIsMarkingNotAvailable(false);
     }
@@ -1153,6 +1156,12 @@ export default function ReceptionistPortal() {
     app.reception_status === "APPROVED_BY_RECEPTION" &&
     app.consultation_payment_status === "PAID" &&
     ["BOOKED", "WAITING"].includes(app.queue_status);
+
+  const canMarkPatientLeft = (app: any) => Boolean(app.checked_in_at)
+    && !app.actual_started_at && !app.actual_completed_at && !app.consultation_id
+    && !["Cancelled", "Completed"].includes(app.status)
+    && ["BOOKED", "WAITING", "CHECKED_IN"].includes(app.queue_status)
+    && (app.notice_date || getLocalDateString(new Date(app.appointment_date))) === getLocalDateString();
 
   const isApprovedByReception = (app: any) =>
     app.reception_status === "APPROVED_BY_RECEPTION" &&
@@ -1712,13 +1721,14 @@ export default function ReceptionistPortal() {
                                   <ClipboardList size={12} /> History
                                 </button>
                                 <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg uppercase tracking-widest">
-                                  {app.checked_in_at ? `Checked In: ${new Date(app.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Approved"}
+                                  {app.checked_in_at ? `Checked In: ${new Date(app.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : app.not_available_at ? 'Patient left · Check-In on return' : 'Approved'}
                                 </span>
                                 {canShowCheckInButton(app) && (
                                   <button onClick={() => performCheckIn(app.appointment_id)} disabled={isCheckingIn} className="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white disabled:opacity-60 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-blue-100">
                                     Check-In
                                   </button>
                                 )}
+                                {canMarkPatientLeft(app) && <button type="button" onClick={() => handleNotAvailable(app.appointment_id)} className="flex items-center gap-1 rounded-lg border border-orange-100 bg-orange-50 px-3 py-1.5 text-[10px] font-black text-orange-700"><UserX size={12}/>Patient left</button>}
                                 {app.consultation_payment_status === "UNPAID" && (
                                   <button
                                     onClick={() => openConsultationPaymentModal(app)}
@@ -1995,6 +2005,7 @@ export default function ReceptionistPortal() {
                                       className: "bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white border-blue-100",
                                       icon: <UserCheck size={14} />,
                                     })}
+                                  {canMarkPatientLeft(app) && actionIcon({ title: 'Patient left', onClick: () => handleNotAvailable(app.appointment_id), className: 'bg-orange-50 text-orange-700 border-orange-100 group-hover:bg-orange-100', icon: <UserX size={14}/> })}
                                   {app.queue_bucket !== "IN_PROGRESS" &&
                                     app.queue_bucket !== "CALLED" && (
                                       <>
@@ -2017,7 +2028,7 @@ export default function ReceptionistPortal() {
                                 <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600">
                                   {app.checked_in_at
                                     ? `${t("receptionist.checked_in", "Checked in")} ${new Date(app.checked_in_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                                    : t("receptionist.approved", "Approved")}
+                                    : app.not_available_at ? 'Patient left · Check-In on return' : t("receptionist.approved", "Approved")}
                                 </span>
                               </div>
                             ) : app.reception_status ===
@@ -2831,11 +2842,12 @@ export default function ReceptionistPortal() {
                         <AlertCircle size={32} />
                       </div>
                       <h3 className="text-xl font-black text-gray-800 uppercase tracking-widest mb-2">
-                        Mark Not Available?
+                        Patient left before consultation?
                       </h3>
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">
-                        This patient's token will be shifted.
+                        Remove check-in only. Booking, paid fee and token number stay unchanged. Check-In again when the patient returns.
                       </p>
+                      <label className="mb-4 block text-left text-xs font-bold text-gray-600">Reason<textarea aria-label="Patient left reason" rows={2} maxLength={255} value={patientLeftReason} onChange={event => setPatientLeftReason(event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 p-3 text-sm font-normal outline-none focus:border-[#549e9e]"/></label>
 
                       <div className="flex gap-4 pt-2">
                         <button
@@ -2847,7 +2859,7 @@ export default function ReceptionistPortal() {
                         </button>
                         <button
                           onClick={confirmNotAvailable}
-                          disabled={isMarkingNotAvailable}
+                          disabled={isMarkingNotAvailable || !patientLeftReason.trim()}
                           className={`flex-1 py-4 px-6 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-xl transition-all flex items-center justify-center gap-2 ${isMarkingNotAvailable
                               ? "bg-gray-300 shadow-none"
                               : "bg-orange-500 shadow-orange-500/20 hover:bg-orange-600"
