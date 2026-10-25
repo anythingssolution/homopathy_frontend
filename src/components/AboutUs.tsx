@@ -1,15 +1,24 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Heart, Users, Microscope, Award, Target, Compass, ShieldCheck, CheckCircle2, History, Star } from 'lucide-react';
+import { Heart, Users, Microscope, Award, Target, Compass, ShieldCheck, CheckCircle2, History, Star, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { treatmentsData, treatmentPath } from '../data/treatmentsData';
+import { usePublicSeo } from '../hooks/usePublicSeo';
+import { ABOUT_SEO } from '../seo/publicPages';
 
 export default function AboutUs() {
   const { t } = useTranslation();
+  usePublicSeo({
+    title: ABOUT_SEO.title,
+    description: ABOUT_SEO.description,
+    path: ABOUT_SEO.path,
+    image: ABOUT_SEO.image,
+    jsonLd: ABOUT_SEO.jsonLd,
+  });
   
   const awards = t('about_page.awards', { returnObjects: true }) as Array<{ year: string, desc: string }>;
   const reasons = t('about_page.why_choose_reasons', { returnObjects: true }) as Array<{ title: string, desc: string }>;
-  const treatments = t('about_page.treatments_list', { returnObjects: true }) as string[];
   const uttkarshReasons = t('about_page.uttkarsh_reasons', { returnObjects: true }) as string[];
   const missionPoints = t('about_page.mission_points', { returnObjects: true }) as string[];
   return (
@@ -17,7 +26,7 @@ export default function AboutUs() {
       {/* Header Banner */}
       <div className="relative h-[550px]">
         <div className="absolute inset-0">
-           <img src="/site-images/images/about-cover.webp" className="w-full h-full object-cover" alt="Clinic Cover" />
+           <img src="/site-images/images/about-cover.webp" className="w-full h-full object-cover" alt="Dr. Trivedi's Homeopathy Clinic in Raipur" />
         </div>
         <div className="absolute inset-0 bg-primary-teal/5" />
       </div>
@@ -83,7 +92,7 @@ export default function AboutUs() {
           </motion.div>
           <div className="relative">
              <div className="aspect-square rounded-[60px] overflow-hidden shadow-2xl">
-                <img src="/site-images/images/about-doctor.webp" className="w-full h-full object-cover" alt="Dr. Uttkarsh Trivedi" />
+                <img src="/site-images/images/about-doctor.webp" className="w-full h-full object-cover" alt="Dr. Uttkarsh Trivedi, homeopathy doctor in Raipur" />
              </div>
              <div className="absolute -bottom-8 -left-8 w-48 h-48 bg-[#F2D06B] rounded-full blur-3xl opacity-20 -z-10" />
           </div>
@@ -94,7 +103,7 @@ export default function AboutUs() {
           <div className="flex flex-col lg:flex-row gap-16 items-center">
             <div className="lg:w-1/3">
               <div className="aspect-[3/4] rounded-[40px] overflow-hidden shadow-xl">
-                 <img src="/slide4.jpeg" className="w-full h-full object-cover" alt="Dr. Uttkarsh Trivedi" />
+                 <img src="/slide4.jpeg" className="w-full h-full object-cover" alt="Dr. Uttkarsh Trivedi at Dr. Trivedi's Homeopathy Clinic, Raipur" />
               </div>
             </div>
             <div className="lg:w-2/3 space-y-6">
@@ -190,11 +199,16 @@ export default function AboutUs() {
               <p className="text-public-body font-medium italic">{t('about_page.treatments_subtitle')}</p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-12">
-              {treatments.map((treatment, i) => (
-                <div key={i} className="flex items-center gap-3 text-public-body font-medium border-b border-primary-teal/10 pb-2">
+              {treatmentsData.map((treatment) => (
+                <Link
+                  key={treatment.id}
+                  to={treatmentPath(treatment)}
+                  className="flex items-center gap-3 text-public-body font-medium border-b border-primary-teal/10 pb-2 hover:text-public-heading hover:border-primary-teal/40 transition-colors group"
+                >
                   <div className="w-1.5 h-1.5 bg-[#F2D06B] rounded-full" />
-                  <span className="text-sm">{treatment}</span>
-                </div>
+                  <span className="text-sm">{treatment.en} | {treatment.hi}</span>
+                  <ArrowRight size={12} className="ml-auto opacity-0 group-hover:opacity-60 transition-opacity" />
+                </Link>
               ))}
             </div>
             <div className="text-center mt-16">

@@ -10,6 +10,7 @@ import Consultation from './components/Consultation';
 const Gallery = React.lazy(() => import('./components/Gallery'));
 import AboutUs from './components/AboutUs';
 import Treatments from './components/Treatments';
+import TreatmentDetail from './components/TreatmentDetail';
 import TreatmentsSection from './components/TreatmentsSection';
 import Booking from './components/Booking';
 import Contact from './components/Contact';
@@ -64,9 +65,20 @@ import TestMaster from './components/dashboard/TestMaster';
 import ReceptionPatientManagement from './components/dashboard/ReceptionPatientManagement';
 import PatientRegistration from './components/dashboard/PatientRegistration';
 import StaffCreatePatients from './components/dashboard/StaffCreatePatients';
+import { usePublicSeo } from './hooks/usePublicSeo';
+import { HOME_SEO } from './seo/publicPages';
+import { PUBLIC_PATHS, PUBLIC_REDIRECTS } from './seo/publicPaths';
 
 function HomePage() {
   const { isAuthenticated, user } = useAuth();
+  usePublicSeo({
+    enabled: !isAuthenticated,
+    title: HOME_SEO.title,
+    description: HOME_SEO.description,
+    path: HOME_SEO.path,
+    image: HOME_SEO.image,
+    jsonLd: HOME_SEO.jsonLd,
+  });
 
   if (isAuthenticated) {
     const isDoc = user?.role_code === 'DOC' || user?.role?.toLowerCase() === 'doctor' || user?.role?.toLowerCase() === 'doc';
@@ -202,13 +214,21 @@ function AnimatedRoutes() {
           transition={{ duration: 0.3 }}
         >
           <Routes location={location}>
+            {PUBLIC_REDIRECTS.map((redirect) => (
+              <Route key={redirect.from} path={redirect.from} element={<Navigate to={redirect.to} replace />} />
+            ))}
             <Route path="/" element={<HomePage />} />
             <Route path="/gallery" element={<React.Suspense fallback={<div role="status" className="min-h-[60vh] bg-[#FDFDF7] p-12 text-center text-[#549E9E]">Loading gallery…</div>}><Gallery /></React.Suspense>} />
-            <Route path="/about" element={<AboutUs />} />
+            <Route path="/gallery/:category" element={<React.Suspense fallback={<div role="status" className="min-h-[60vh] bg-[#FDFDF7] p-12 text-center text-[#549E9E]">Loading gallery…</div>}><Gallery /></React.Suspense>} />
+            <Route path="/media" element={<React.Suspense fallback={<div role="status" className="min-h-[60vh] bg-[#FDFDF7] p-12 text-center text-[#549E9E]">Loading gallery…</div>}><Gallery /></React.Suspense>} />
+            <Route path="/awards" element={<React.Suspense fallback={<div role="status" className="min-h-[60vh] bg-[#FDFDF7] p-12 text-center text-[#549E9E]">Loading gallery…</div>}><Gallery /></React.Suspense>} />
+            <Route path="/video" element={<React.Suspense fallback={<div role="status" className="min-h-[60vh] bg-[#FDFDF7] p-12 text-center text-[#549E9E]">Loading gallery…</div>}><Gallery /></React.Suspense>} />
+            <Route path={PUBLIC_PATHS.about} element={<AboutUs />} />
             <Route path="/treatments" element={<Treatments />} />
+            <Route path="/treatments/:slug" element={<TreatmentDetail />} />
             <Route path="/login" element={<Booking />} />
             <Route path="/booking" element={<Booking />} />
-            <Route path="/contact" element={<Contact />} />
+            <Route path={PUBLIC_PATHS.contact} element={<Contact />} />
             <Route
               path="/backend-logs"
               element={

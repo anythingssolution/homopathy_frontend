@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Play, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { usePublicSeo } from '../hooks/usePublicSeo';
+import { GALLERY_SEO } from '../seo/publicPages';
 import { getPublicGalleryCms } from '../modules/doctor-cms/api';
 import { CmsGalleryItem } from '../modules/doctor-cms/types';
 import Pagination from './Pagination';
@@ -39,6 +41,22 @@ const videoIds = [
 
 const ITEMS_PER_PAGE = 9;
 
+function categoryFromParam(param?: string): 'TREATMENT' | 'MEDIA' | 'AWARDS' | 'VIDEO' {
+  const normalized = (param || '').toLowerCase();
+  if (normalized === 'treatments' || normalized === 'treatment') return 'TREATMENT';
+  if (normalized === 'media') return 'MEDIA';
+  if (normalized === 'awards') return 'AWARDS';
+  if (normalized === 'video') return 'VIDEO';
+  return 'TREATMENT';
+}
+
+function pathForGalleryCategory(key: string) {
+  if (key === 'MEDIA') return '/media';
+  if (key === 'AWARDS') return '/awards';
+  if (key === 'VIDEO') return '/video';
+  return '/gallery';
+}
+
 interface GalleryItem {
   id: number;
   date: string;
@@ -49,17 +67,27 @@ interface GalleryItem {
   videoId?: string;
 }
 
+function normalizeGalleryTag(tag?: string) {
+  const value = String(tag || '').toUpperCase();
+  return value === 'TREATMENTS' ? 'TREATMENT' : value;
+}
+
+function galleryItemKey(item: GalleryItem) {
+  if (item.videoId) return `video:${item.videoId}`;
+  return `img:${item.img}`;
+}
+
 const allGalleryItems: GalleryItem[] = [
   ...localGallery.items.map((item, index) => ({
-    id: index + 1,
+    id: 10000 + index,
     date: '',
-    tag: item.category,
+    tag: normalizeGalleryTag(item.category),
     title: item.title,
     img: item.image_url,
   })),
 
   ...videoIds.map((vid, i) => ({
-    id: 100 + i,
+    id: 20000 + i,
     date: '2025.02.20',
     tag: 'VIDEO',
     title: `Clinical Insight #${i + 1}`,
@@ -68,12 +96,58 @@ const allGalleryItems: GalleryItem[] = [
   }))
 ];
 
+function mapCmsGalleryItem(item: CmsGalleryItem): GalleryItem {
+  const videoId = item.media_type === 'VIDEO'
+    ? (item.video_key || (item.video_url ? getYoutubeVideoId(item.video_url) : null) || undefined)
+    : undefined;
+  return {
+    id: item.id,
+    date: item.display_date || '',
+    tag: normalizeGalleryTag(item.category),
+    title: item.title,
+    img: item.media_type === 'VIDEO'
+      ? resolvePublicImage(item.poster_url || item.image_url || getPublicVideoPoster(videoId))
+      : resolvePublicImage(item.thumb_url || item.image_url),
+    videoUrl: item.video_url || undefined,
+    videoId,
+  };
+}
+
+function mergeGalleryItems(cmsItems: CmsGalleryItem[]): GalleryItem[] {
+  const cmsMapped = [...cmsItems]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(mapCmsGalleryItem);
+  const seen = new Set(cmsMapped.map(galleryItemKey));
+  return [
+    ...allGalleryItems.filter((item) => !seen.has(galleryItemKey(item))),
+    ...cmsMapped,
+  ];
+}
+
 export default function Gallery() {
   const { t } = useTranslation();
-  const [activeCategory, setActiveCategory] = useState('TREATMENT');
+  const location = useLocation();
+  const { category: categoryParam } = useParams<{ category?: string }>();
+  const pathTail = location.pathname.split('/').filter(Boolean).pop();
+  const activeCategory = categoryFromParam(categoryParam || pathTail);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItem, setSelectedItem] = useState<GalleryItem | null>(null);
   const [cmsGallery, setCmsGallery] = useState<CmsGalleryItem[]>([]);
+
+  const categoryLabel = t(
+    `gallery_page.${activeCategory === 'TREATMENT' ? 'treatments' : activeCategory.toLowerCase()}`
+  );
+  const gallerySeo = GALLERY_SEO[activeCategory];
+  usePublicSeo({
+    title: gallerySeo.title,
+    description: gallerySeo.description,
+    path: gallerySeo.path,
+    image: localGallery.cover_url || gallerySeo.image,
+  });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeCategory]);
 
   useEffect(() => {
     getPublicGalleryCms().then(res => {
@@ -90,43 +164,20 @@ export default function Gallery() {
     { key: 'VIDEO', label: t('gallery_page.video') }
   ];
 
-  const galleryItems = cmsGallery.length > 0
-    ? [...cmsGallery]
-        .sort((a: any, b: any) => a.sort_order - b.sort_order)
-        .map((item: any) => ({
-          id: item.id,
-          date: item.display_date || '',
-          tag: item.category,
-          title: item.title,
-          img: item.media_type === 'VIDEO'
-            ? resolvePublicImage(item.poster_url || item.image_url || getPublicVideoPoster(item.video_key || getYoutubeVideoId(item.video_url || '')))
-            : resolvePublicImage(item.thumb_url || item.image_url),
-          videoUrl: item.video_url || undefined,
-          videoId: item.media_type === 'VIDEO'
-            ? (item.video_key || (item.video_url ? getYoutubeVideoId(item.video_url) : null) || undefined)
-            : undefined
-        }))
-    : allGalleryItems;
+  const galleryItems = mergeGalleryItems(cmsGallery);
 
   const getCategoryLabel = (tag: string) => {
-    const normalizedTag = tag === 'TREATMENTS' ? 'TREATMENT' : tag;
+    const normalizedTag = normalizeGalleryTag(tag);
     const key = normalizedTag === 'TREATMENT' ? 'treatments' : normalizedTag.toLowerCase();
     return t(`gallery_page.${key}`);
   };
 
-  const filteredItems = galleryItems.filter(item => (
-    item.tag === activeCategory || (activeCategory === 'TREATMENT' && item.tag === 'TREATMENTS')
-  ));
+  const filteredItems = galleryItems.filter(item => normalizeGalleryTag(item.tag) === activeCategory);
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
   const paginatedItems = filteredItems.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
-
-  const changeCategory = (category: string) => {
-    setActiveCategory(category);
-    setCurrentPage(1);
-  };
 
   const changePage = (page: number) => {
     setCurrentPage(page);
@@ -138,7 +189,7 @@ export default function Gallery() {
       {/* Header Banner */}
       <div className="relative h-[300px] sm:h-[550px]">
         <div className="absolute inset-0">
-          <img src={localGallery.cover_url} className="w-full h-full object-cover" alt="Gallery Cover" />
+          <img src={localGallery.cover_url} className="w-full h-full object-cover" alt="Gallery of Dr. Trivedi's Homeopathy Clinic in Raipur" />
         </div>
         <div className="absolute inset-0 bg-primary-teal/5" />
       </div>
@@ -179,9 +230,9 @@ export default function Gallery() {
         <div className="lg:hidden mb-6 -mx-4 px-4 overflow-x-auto scrollbar-none">
           <div className="flex gap-2 pb-2">
             {categories.map((cat) => (
-              <button
+              <Link
                 key={cat.key}
-                onClick={() => changeCategory(cat.key)}
+                to={pathForGalleryCategory(cat.key)}
                 className={`px-5 py-2.5 text-[11px] font-black tracking-widest whitespace-nowrap rounded-full border transition-all active:scale-95 ${
                   activeCategory === cat.key
                     ? 'bg-public-action text-white border-[#549E9E] shadow-md shadow-[#549E9E]/20'
@@ -189,7 +240,7 @@ export default function Gallery() {
                 }`}
               >
                 {cat.label}
-              </button>
+              </Link>
             ))}
           </div>
         </div>
@@ -272,9 +323,9 @@ export default function Gallery() {
                 </h4>
                 <div className="flex flex-col bg-white rounded-2xl p-1 shadow-sm border border-gray-100 overflow-visible">
                   {categories.map((cat) => (
-                    <button
+                    <Link
                       key={cat.key}
-                      onClick={() => changeCategory(cat.key)}
+                      to={pathForGalleryCategory(cat.key)}
                       className={`w-full rounded-xl px-7 py-5 text-left text-sm font-bold tracking-widest transition-all border border-transparent ${
                         activeCategory === cat.key
                           ? 'bg-gray-100 text-public-heading border-[#549E9E]/20 shadow-sm'
@@ -282,7 +333,7 @@ export default function Gallery() {
                       }`}
                     >
                       {cat.label}
-                    </button>
+                    </Link>
                   ))}
                 </div>
               </div>

@@ -8,6 +8,36 @@ export interface TreatmentItem {
   remedies?: string[];
 }
 
+/** Old PHP slugs that Google already indexed. Internal ids stay short. */
+export const TREATMENT_PUBLIC_SLUG: Record<string, string> = {
+  acne: 'acne-pimples',
+  'bone-disorders': 'bone-related-disorders',
+  cervical: 'cervical-spondylitis',
+  'mental-health': 'mental-health-issues',
+  piles: 'piles-hemorrhoids',
+  prostate: 'prostate-issues',
+  'joint-muscular-pain': 'joint-and-muscular-pain',
+  thyroid: 'thyroid-disorders',
+  diarrhea: 'diarrhea-and-dysentery',
+  'sexual-health': 'sexual-health-problems',
+  anemia: 'anemia-blood-deficiency',
+  ent: 'ear-nose-throat-disorders-ent',
+  gynecology: 'gynecological-disorders-womens-health-issues',
+  pediatrics: 'pediatric-diseases-childrens-health-problems',
+  'skin-diseases': 'skin-diseases-dermatological-issues',
+  'chronic-diseases': 'chronic-complex-diseases',
+  obesity: 'obesity-weight-management',
+  'respiratory-issues': 'respiratory-issues-asthma-breathing-difficulty',
+};
+
+export function treatmentPublicSlug(item: TreatmentItem): string {
+  return TREATMENT_PUBLIC_SLUG[item.id] || item.id;
+}
+
+export function treatmentPath(item: TreatmentItem): string {
+  return `/treatments/${treatmentPublicSlug(item)}`;
+}
+
 export const treatmentsData: TreatmentItem[] = [
   {
     id: "kidney-stones",
@@ -346,3 +376,36 @@ export const treatmentsData: TreatmentItem[] = [
     image: "/assets/Respiratory Issues (Asthma, Breathing Difficulty).jpeg"
   }
 ];
+
+export function getTreatmentById(id: string): TreatmentItem | undefined {
+  const key = decodeURIComponent(id || '').toLowerCase();
+  return treatmentsData.find(
+    (item) => item.id === key || treatmentPublicSlug(item) === key
+  );
+}
+
+export function getRelatedTreatments(id: string, limit = 3): TreatmentItem[] {
+  const current = getTreatmentById(id);
+  if (!current) return treatmentsData.slice(0, limit);
+  const others = treatmentsData.filter((item) => item.id !== current.id);
+  const sameCategory = others.filter((item) => item.category === current.category);
+  if (sameCategory.length >= limit) return sameCategory.slice(0, limit);
+  const extras = others.filter((item) => item.category !== current.category);
+  return [...sameCategory, ...extras].slice(0, limit);
+}
+
+export const FOOTER_TREATMENT_IDS = [
+  "kidney-stones",
+  "arthritis",
+  "cervical",
+  "allergies",
+  "hair-fall",
+  "migraine",
+  "sciatica",
+  "acne",
+  "infertility",
+  "thyroid",
+  "obesity",
+  "paralysis",
+];
+

@@ -6,6 +6,8 @@ import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-do
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { useLenisNestedScroll } from '../hooks/useLenisNestedScroll';
+import { usePublicSeo } from '../hooks/usePublicSeo';
+import { BOOKING_SEO } from '../seo/publicPages';
 import { useNotifications } from '../context/NotificationContext';
 import { getSocket } from '../services/socket';
 import CustomDatePicker from './CustomDatePicker';
@@ -333,6 +335,13 @@ export default function Booking() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { login, isAuthenticated, isLoading, token, user, branchScope } = useAuth();
+  usePublicSeo({
+    enabled: !isAuthenticated && location.pathname !== '/login',
+    title: BOOKING_SEO.title,
+    description: BOOKING_SEO.description,
+    path: BOOKING_SEO.path,
+    image: BOOKING_SEO.image,
+  });
   const { t, i18n } = useTranslation();
   const { addToast } = useNotifications();
 

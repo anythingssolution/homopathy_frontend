@@ -1,52 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Stethoscope, Search, Filter, ArrowRight, HeartPulse,
-  Activity, Zap, Sparkles, X, ShieldCheck, Calendar, Image as ImageIcon
+  Activity, Zap, Sparkles, X, Image as ImageIcon
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ScrollReveal } from './ScrollReveal';
-import { treatmentsData, TreatmentItem } from '../data/treatmentsData';
+import { treatmentsData, treatmentPath, TreatmentItem } from '../data/treatmentsData';
 import TreatmentCardBackdrop from './TreatmentCardBackdrop';
+import { usePublicSeo } from '../hooks/usePublicSeo';
+import { TREATMENTS_SEO, treatmentsIndexJsonLd } from '../seo/publicPages';
 
 export { treatmentsData as treatments };
 export type { TreatmentItem };
 
 export default function Treatments() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
-  const [selectedTreatment, setSelectedTreatment] = useState<TreatmentItem | null>(null);
 
-  useEffect(() => {
-    if (!selectedTreatment) return;
-
-    const scrollY = window.scrollY;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.left = '0';
-    document.body.style.right = '0';
-    document.body.style.width = '100%';
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    window.dispatchEvent(new Event('lenis:stop'));
-
-    return () => {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.left = '';
-      document.body.style.right = '';
-      document.body.style.width = '';
-      document.body.style.overflow = '';
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      window.dispatchEvent(new Event('lenis:start'));
-      window.scrollTo(0, scrollY);
-    };
-  }, [selectedTreatment]);
+  usePublicSeo({
+    title: TREATMENTS_SEO.title,
+    description: TREATMENTS_SEO.description,
+    path: TREATMENTS_SEO.path,
+    image: TREATMENTS_SEO.image,
+    jsonLd: treatmentsIndexJsonLd(treatmentsData),
+  });
 
   const categoriesList = [
     { key: "all", label: t('treatments_page.categories.all') || "All" },
@@ -77,7 +57,7 @@ export default function Treatments() {
       {/* Header Banner */}
       <div className="relative h-[480px]">
         <div className="absolute inset-0">
-          <img src="/site-images/images/treatments-cover.webp" className="w-full h-full object-cover" alt="Treatments Cover" />
+          <img src="/site-images/images/treatments-cover.webp" className="w-full h-full object-cover" alt="Homeopathic treatments at Dr. Trivedi's Homeopathy Clinic in Raipur" />
         </div>
         <div className="absolute inset-0 bg-[#549E9E]/20 backdrop-brightness-75" />
       </div>
@@ -171,6 +151,11 @@ export default function Treatments() {
                 transition={{ duration: 0.2, delay: Math.min(idx, 8) * 0.03 }}
                 className="group relative isolate flex [content-visibility:auto] [contain-intrinsic-size:auto_420px] flex-col justify-between rounded-[40px] border border-gray-100 bg-white p-7 shadow-sm transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-1 hover:border-[#549E9E]/30 hover:shadow-lg hover:shadow-[#549E9E]/10"
               >
+                <Link
+                  to={treatmentPath(item)}
+                  className="absolute inset-0 z-10 rounded-[40px] cursor-pointer"
+                  aria-label={`${item.en} treatment details`}
+                />
                 <TreatmentCardBackdrop image={item.image}/>
                 <div>
                   {/* Image Space Frame */}
@@ -178,7 +163,7 @@ export default function Treatments() {
                     {item.image ? (
                       <img
                         src={encodeURI(item.image)}
-                        alt={item.en}
+                        alt={`${item.en} homeopathic treatment in Raipur`}
                         loading="lazy"
                         decoding="async"
                         width={480}
@@ -227,13 +212,10 @@ export default function Treatments() {
                 </div>
 
                 <div className="flex items-center justify-between pt-5 border-t border-gray-50">
-                  <button
-                    onClick={() => setSelectedTreatment(item)}
-                    className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-public-heading transition-all duration-300 group-hover:gap-3"
-                  >
+                  <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-public-heading transition-all duration-300 group-hover:gap-3">
                     {t('treatments_page.i_want_details')}
                     <ArrowRight size={14} className="transition-transform duration-300 group-hover:translate-x-0.5" />
-                  </button>
+                  </span>
                   <Activity size={16} className="text-gray-200 transition-colors duration-300 group-hover:text-public-heading/50" />
                 </div>
               </motion.div>
@@ -280,151 +262,6 @@ export default function Treatments() {
           </div>
         </ScrollReveal>
       </div>
-
-      {/* Details Modal via Portal */}
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {selectedTreatment && (
-            <div
-              className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden p-4 sm:p-6 lg:p-10 overscroll-none"
-              data-lenis-prevent
-              onWheel={(e) => e.stopPropagation()}
-              onTouchMove={(e) => e.stopPropagation()}
-            >
-              {/* Backdrop */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setSelectedTreatment(null)}
-                className="absolute inset-0 bg-[#549E9E]/35 backdrop-blur-md"
-              />
-
-              {/* Modal Card */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                onClick={(e) => e.stopPropagation()}
-                data-lenis-prevent
-                className="relative z-10 flex max-h-[min(85vh,820px)] w-full max-w-3xl flex-col overflow-hidden rounded-[36px] border border-gray-100 bg-white text-left shadow-2xl"
-              >
-                {/* Fixed Header */}
-                <div className="shrink-0 relative px-6 pt-6 pb-4 md:px-8 md:pt-7 md:pb-5 border-b border-gray-100 bg-gradient-to-r from-[#FDFDF7] via-white to-[#F9FCFC] flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 text-public-heading mb-1">
-                      <Stethoscope size={16} />
-                      <span className="text-[10px] font-black uppercase tracking-[0.25em]">
-                        {selectedTreatment.category} Specialist Care
-                      </span>
-                    </div>
-                    <h2 className="text-2xl md:text-3xl font-black text-public-heading tracking-tight uppercase leading-tight">
-                      {selectedTreatment.en}
-                    </h2>
-                    <p className="text-base md:text-lg font-bold text-public-body mt-0.5">
-                      {selectedTreatment.hi}
-                    </p>
-                  </div>
-
-                  {/* Close Button */}
-                  <button
-                    onClick={() => setSelectedTreatment(null)}
-                    className="w-10 h-10 bg-gray-100 hover:bg-red-50 text-public-muted hover:text-red-500 rounded-full flex items-center justify-center transition-all shrink-0 shadow-sm cursor-pointer"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-
-                {/* Scrollable body only */}
-                <div
-                  id="treatment-modal-scroll-area"
-                  data-lenis-prevent
-                  className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-6 md:p-8"
-                  onWheel={(e) => e.stopPropagation()}
-                >
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-public-heading">
-                      <Sparkles size={16} className="text-[#F2D06B]" />
-                      <h3 className="text-xs font-black uppercase tracking-[0.2em]">
-                        {t('treatments_page.about_treatment') || "About The Treatment"}
-                      </h3>
-                    </div>
-                    <p className="text-public-body text-base md:text-lg leading-relaxed font-medium">
-                      {selectedTreatment.description}
-                    </p>
-
-                    {selectedTreatment.remedies && selectedTreatment.remedies.length > 0 && (
-                      <div className="p-4 bg-[#FDFDF7] rounded-2xl border border-[#F2D06B]/30">
-                        <h4 className="text-[11px] font-black text-[#8A6D1B] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                          <span>✨ Homeopathic Remedies Mentioned</span>
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedTreatment.remedies.map((remedy, rIdx) => (
-                            <span key={rIdx} className="bg-white border border-[#F2D06B]/50 px-3 py-1 rounded-full text-xs font-bold text-public-body shadow-xs">
-                              {remedy}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                      <div className="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-100/60 flex items-start gap-3">
-                        <ShieldCheck className="text-public-heading shrink-0 mt-0.5" size={20} />
-                        <div>
-                          <h4 className="text-[11px] font-black text-public-heading uppercase tracking-wider">
-                            {t('treatments_page.safety_first') || "Safe & Natural"}
-                          </h4>
-                          <p className="text-[10px] text-public-muted font-medium leading-snug">
-                            {t('treatments_page.natural_side_effect_free') || "No side-effects or heavy painkillers."}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="p-3.5 bg-amber-50/50 rounded-2xl border border-amber-100/60 flex items-start gap-3">
-                        <Zap className="text-[#F2D06B] shrink-0 mt-0.5" size={20} />
-                        <div>
-                          <h4 className="text-[11px] font-black text-public-heading uppercase tracking-wider">
-                            {t('treatments_page.deep_healing') || "Root Cause Care"}
-                          </h4>
-                          <p className="text-[10px] text-public-muted font-medium leading-snug">
-                            {t('treatments_page.treating_root_causes') || "Prevents recurrence naturally."}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Fixed footer CTA — always fully visible */}
-                <div className="shrink-0 border-t border-gray-100 bg-gradient-to-r from-[#549E9E] to-[#3E7A7A] p-4 md:p-5 text-white">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="space-y-1 text-center sm:text-left">
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-[#F2D06B] text-[9px] font-black uppercase tracking-widest">
-                        <Sparkles size={11} />
-                        <span>{t('treatments_page.ready_to_recover') || "Ready to recover?"}</span>
-                      </div>
-                      <h4 className="text-base md:text-lg font-black tracking-tight leading-snug">
-                        {t('treatments_page.book_expert_consultation') || "Book your expert consultation"}
-                      </h4>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setSelectedTreatment(null);
-                        navigate('/booking');
-                      }}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-public-heading hover:bg-emerald-50 px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-md transition-all cursor-pointer"
-                    >
-                      <Calendar size={15} />
-                      <span>{t('hero.cta_book') || "Book Appointment"}</span>
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
     </div>
   );
 }

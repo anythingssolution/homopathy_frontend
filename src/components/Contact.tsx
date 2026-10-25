@@ -3,9 +3,18 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Phone, Mail, MapPin, Globe, User, Send, Clock, CheckCircle2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { usePublicSeo } from '../hooks/usePublicSeo';
+import { CONTACT_SEO } from '../seo/publicPages';
 
 export default function Contact() {
   const { t } = useTranslation();
+  usePublicSeo({
+    title: CONTACT_SEO.title,
+    description: CONTACT_SEO.description,
+    path: CONTACT_SEO.path,
+    image: CONTACT_SEO.image,
+    jsonLd: CONTACT_SEO.jsonLd,
+  });
   const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
 

@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Instagram, Clock, X, MapPin, Share2 } from 'lucide-react';
+import { Clock, X, MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import Testimonials from './Testimonials';
 import { ScrollReveal } from './ScrollReveal';
 import { getPublicHomepageCms } from '../modules/doctor-cms/api';
 import { HomepageCmsResponse } from '../modules/doctor-cms/types';
 import { resolvePublicImage } from '../utils/publicImages';
+import { FacebookLogo, GoogleLogo, InstagramLogo, WhatsAppLogo, YouTubeLogo } from './SocialBrandIcons';
 
 export default function Hero() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showSchedule, setShowSchedule] = useState(false);
-  const [showSocials, setShowSocials] = useState(false);
   const { t } = useTranslation();
   
   const [cmsData, setCmsData] = useState<HomepageCmsResponse | null>(null);
@@ -46,16 +46,17 @@ export default function Hero() {
     return () => clearInterval(timer);
   }, [images.length]);
 
-  const socials = [
-    { name: 'WhatsApp', icon: (props: any) => <svg viewBox="0 0 24 24" {...props} className="fill-current"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>, url: 'https://wa.me/+918462030001', color: 'text-[#25D366]', bg: 'bg-[#25D366]/10', hover: 'hover:bg-[#25D366]' },
-    { name: 'Instagram', icon: (props: any) => <svg viewBox="0 0 24 24" {...props} className="fill-none stroke-current" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>, url: 'https://www.instagram.com/drtrivedishomeopathy/', color: 'text-pink-600', bg: 'bg-pink-600/10', hover: 'hover:bg-pink-600' },
-    { name: 'YouTube', icon: (props: any) => <svg viewBox="0 0 24 24" {...props} className="fill-current"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505a3.017 3.017 0 0 0-2.122 2.136C0 8.055 0 12 0 12s0 3.945.501 5.814a3.017 3.017 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.945 24 12 24 12s0-3.945-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>, url: 'https://www.youtube.com/@drtrivedishomeopathy', color: 'text-red-600', bg: 'bg-red-600/10', hover: 'hover:bg-red-600' },
-    { name: 'Facebook', icon: (props: any) => <svg viewBox="0 0 24 24" {...props} className="fill-current"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>, url: 'https://www.facebook.com/drtrivedishomeopathy/', color: 'text-blue-600', bg: 'bg-blue-600/10', hover: 'hover:bg-blue-600' },
-    { name: 'Google', icon: (props: any) => <svg viewBox="0 0 24 24" {...props} className="fill-current"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>, url: 'https://share.google/N1aVVTJeKghuz1qmu', color: 'text-[#4285F4]', bg: 'bg-[#4285F4]/10', hover: 'hover:bg-[#4285F4]' },
+  const socialCards = [
+    { name: 'WhatsApp', icon: WhatsAppLogo, url: 'https://wa.me/+918462030001', blurb: 'Chat with the clinic instantly.', cta: 'Chat', card: 'bg-[#E7F6F1]', button: 'bg-public-action text-white' },
+    { name: 'Instagram', icon: InstagramLogo, url: 'https://www.instagram.com/drtrivedishomeopathy/', blurb: 'Daily care notes and clinic life.', cta: 'Follow', card: 'bg-[#F8F1E4]', button: 'bg-public-action text-white' },
+    { name: 'YouTube', icon: YouTubeLogo, url: 'https://www.youtube.com/@drtrivedishomeopathy', blurb: 'Health talks and patient stories.', cta: 'Watch', card: 'bg-[#F6EEE8]', button: 'bg-public-action text-white' },
+    { name: 'Facebook', icon: FacebookLogo, url: 'https://www.facebook.com/drtrivedishomeopathy/', blurb: 'News, events and community posts.', cta: 'Follow', card: 'bg-[#EAF5F7]', button: 'bg-public-action text-white' },
+    { name: 'Google', icon: GoogleLogo, url: 'https://share.google/N1aVVTJeKghuz1qmu', blurb: 'Read and share clinic reviews.', cta: 'Review', card: 'bg-[#F3F6EA]', button: 'bg-public-action text-white' },
   ];
 
   return (
     <div className="relative w-full overflow-x-hidden">
+      <h1 className="sr-only">{t('hero.story_title')} — {t('hero.story_subtitle')}</h1>
       {/* Hero Visual Section */}
       <div className="relative w-full h-screen pt-36 overflow-hidden bg-white">
         {/* Background Container */}
@@ -66,7 +67,7 @@ export default function Hero() {
               <motion.img
                 key={currentIndex}
                 src={images[currentIndex]}
-                alt={`${t('hero.slide')} ${currentIndex + 1}`}
+                alt={`Dr. Trivedi's Homeopathy Clinic in Raipur – ${t('hero.slide')} ${currentIndex + 1}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -133,74 +134,7 @@ export default function Hero() {
 
       {/* Side Floating Bar (Right Side) — Desktop only */}
       <div className="fixed right-0 top-1/4 hidden sm:flex flex-col items-end gap-3 z-[100]">
-        {/* Socials Tab */}
-        <div className="relative flex items-center h-[160px]">
-          <AnimatePresence>
-            {showSocials && (
-              <motion.div 
-                initial={{ x: 100, opacity: 0, scale: 0.9 }}
-                animate={{ x: 0, opacity: 1, scale: 1 }}
-                exit={{ x: 100, opacity: 0, scale: 0.9 }}
-                className="absolute right-full mr-4 bg-white rounded-[40px] shadow-2xl overflow-hidden flex h-full w-[85vw] max-w-[380px] border border-gray-100"
-                style={{ filter: 'drop-shadow(0 20px 50px rgba(0,0,0,0.1))' }}
-              >
-                {/* Left Side Tab (Consistent with Hours) */}
-                <div className="bg-public-action w-12 flex flex-col items-center justify-center text-white gap-3 shrink-0">
-                  <Share2 size={16} />
-                  <span className="writing-vertical text-[8px] font-black tracking-[0.3em] uppercase">{t('hero.connect')}</span>
-                </div>
- 
-                {/* Main Content (Horizontal Icons) */}
-                <div className="flex-1 p-6 flex flex-col justify-between">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="flex items-center gap-2">
-                       <span className="text-[8px] font-bold text-gray-300 uppercase tracking-widest">{t('hero.connect_with_us')}</span>
-                       <div className="w-8 h-[1px] bg-gray-50" />
-                    </div>
-                    <button onClick={() => setShowSocials(false)} className="text-gray-200 hover:text-public-muted transition-colors">
-                      <X size={16} />
-                    </button>
-                  </div>
-
-                  <div className="flex-1 flex items-center justify-around px-2">
-                    {socials.map((social) => (
-                      <a 
-                        key={social.name}
-                        href={social.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group transition-all"
-                        title={social.name}
-                      >
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${social.bg} ${social.color} transition-all group-hover:scale-110 active:scale-95 ${social.hover} hover:text-white shadow-sm ring-1 ring-black/5`}>
-                          <social.icon size={20} />
-                        </div>
-                      </a>
-                    ))}
-                  </div>
-
-                  <div className="pt-3 border-t border-gray-50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-public-action animate-pulse" />
-                      <p className="text-[8px] font-bold text-gray-300 uppercase tracking-widest">{t('hero.online_support')}</p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <motion.div
-            whileHover={{ x: -10 }}
-            onClick={() => {
-              setShowSocials(!showSocials);
-              setShowSchedule(false);
-            }}
-            className={`group bg-white px-4 py-8 rounded-l-3xl shadow-lg border border-r-0 border-gray-100 flex flex-col items-center gap-4 cursor-pointer pointer-events-auto transition-all z-10 h-full justify-center hover:shadow-2xl hover:border-primary-teal/30 ${showSocials ? 'bg-primary-teal/5 ring-1 ring-primary-teal/20' : ''}`}
-          >
-            <Share2 className={`transition-colors ${showSocials ? 'text-public-heading' : 'text-public-muted group-hover:text-public-heading'}`} size={20} />
-            <span className={`writing-vertical text-[9px] font-bold tracking-[0.2em] uppercase transition-colors ${showSocials ? 'text-public-heading' : 'text-public-muted group-hover:text-public-heading'}`}>{t('hero.connect')}</span>
-          </motion.div>
-        </div>
+        {/* Side Connect tab moved to the compact strip under the hero carousel. */}
 
         {/* Schedule Trigger */}
         <div className="relative flex items-center h-[160px]">
@@ -289,7 +223,6 @@ export default function Hero() {
             whileHover={{ x: -10 }}
             onClick={() => {
               setShowSchedule(!showSchedule);
-              setShowSocials(false);
             }}
             className={`group bg-white px-4 py-6 rounded-l-3xl shadow-lg border border-r-0 border-gray-100 flex flex-col items-center gap-3 cursor-pointer pointer-events-auto transition-all z-10 h-full justify-center hover:shadow-2xl hover:border-amber-500/30 ${showSchedule ? 'bg-amber-500/5 ring-1 ring-amber-500/20' : ''}`}
           >
@@ -303,54 +236,12 @@ export default function Hero() {
       <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-[100] sm:hidden">
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => { setShowSocials(!showSocials); setShowSchedule(false); }}
-          className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all ${showSocials ? 'bg-public-action text-white' : 'bg-white text-public-heading border border-gray-200'}`}
-        >
-          <Share2 size={18} />
-        </motion.button>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => { setShowSchedule(!showSchedule); setShowSocials(false); }}
+          onClick={() => { setShowSchedule(!showSchedule); }}
           className={`w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all ${showSchedule ? 'bg-amber-500 text-white' : 'bg-white text-amber-500 border border-gray-200'}`}
         >
           <Clock size={18} />
         </motion.button>
       </div>
-
-      {/* Mobile Socials Bottom Sheet */}
-      <AnimatePresence>
-        {showSocials && (
-          <motion.div
-            initial={{ y: 200, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 200, opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed bottom-20 right-4 left-4 bg-white rounded-3xl shadow-2xl border border-gray-100 p-5 z-[99] sm:hidden"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-[10px] font-black text-public-muted uppercase tracking-widest">{t('hero.connect_with_us')}</span>
-              <button onClick={() => setShowSocials(false)} className="text-gray-300 hover:text-public-muted">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="flex items-center justify-around">
-              {socials.map((social) => (
-                <a
-                  key={social.name}
-                  href={social.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group"
-                >
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${social.bg} ${social.color} transition-all active:scale-90 shadow-sm ring-1 ring-black/5`}>
-                    <social.icon size={20} />
-                  </div>
-                </a>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Mobile Schedule Bottom Sheet */}
       <AnimatePresence>
@@ -405,8 +296,41 @@ export default function Hero() {
         )}
       </AnimatePresence>
 
+      <section className="relative z-40 bg-white px-4 sm:px-8 pt-10 pb-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-end gap-2 mb-6 px-1">
+            <h2 className="text-xl sm:text-2xl font-black text-public-heading tracking-tight">
+              {t('hero.connect')}
+            </h2>
+            <span className="text-xl sm:text-2xl font-black text-[#C9A227] tracking-tight">with us</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+            {socialCards.map((social) => (
+              <a
+                key={social.name}
+                href={social.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`group rounded-[28px] p-4 sm:p-5 text-left transition-transform duration-300 hover:-translate-y-1 ${social.card}`}
+              >
+                <div className="mb-4 flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm">
+                  <social.icon className="h-10 w-10" />
+                </div>
+                <h3 className="text-sm font-black text-public-heading">{social.name}</h3>
+                <p className="mt-1 mb-4 min-h-[2.4rem] text-[11px] leading-snug text-public-muted font-medium">
+                  {social.blurb}
+                </p>
+                <span className={`inline-flex items-center rounded-full px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest ${social.button}`}>
+                  + {social.cta}
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <ScrollReveal width="100%" direction="up" distance={50}>
-        <div className="relative z-30 bg-white px-8 pb-32 text-center pt-10">
+        <div className="relative z-30 bg-white px-8 pb-32 text-center pt-14">
           <Testimonials cmsData={cmsData?.testimonials} />
         </div>
       </ScrollReveal>

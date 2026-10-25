@@ -95,10 +95,14 @@ export default function Navigation() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout, isLoggingOut, branchScope } = useAuth();
-  const isNavActive = (to: string) =>
-    to === '/reports-next'
-      ? location.pathname.startsWith('/reports-next')
-      : location.pathname === to;
+  const isNavActive = (to: string) => {
+    if (to === '/reports-next') return location.pathname.startsWith('/reports-next');
+    if (to === '/gallery') return ['/gallery', '/media', '/awards', '/video'].includes(location.pathname);
+    if (to === '/about-us') return location.pathname === '/about-us' || location.pathname === '/about';
+    if (to === '/contact-us') return location.pathname === '/contact-us' || location.pathname === '/contact';
+    if (to === '/treatments') return location.pathname === '/treatments' || location.pathname.startsWith('/treatments/');
+    return location.pathname === to;
+  };
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -229,11 +233,11 @@ export default function Navigation() {
 
   const publicLinks = [
     { to: '/', icon: Home, label: t('common.home'), subLabel: t('common.nav_sub.welcome') },
-    { to: '/about', icon: MousePointer2, label: t('common.about'), subLabel: t('common.nav_sub.habitown') },
+    { to: '/about-us', icon: MousePointer2, label: t('common.about'), subLabel: t('common.nav_sub.habitown') },
     { to: '/treatments', icon: Stethoscope, label: t('common.treatments'), subLabel: t('common.nav_sub.services') },
     { to: '/gallery', icon: ImageIcon, label: t('common.gallery'), subLabel: t('common.nav_sub.photos') },
     { to: '/booking', icon: Calendar, label: t('common.booking'), subLabel: t('common.nav_sub.reservation') },
-    { to: '/contact', icon: Phone, label: t('common.contact_us'), subLabel: t('common.nav_sub.support') },
+    { to: '/contact-us', icon: Phone, label: t('common.contact_us'), subLabel: t('common.nav_sub.support') },
   ];
 
   const authLinks = [

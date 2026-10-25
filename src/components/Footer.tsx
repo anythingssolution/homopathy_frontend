@@ -3,6 +3,8 @@ import { motion } from 'motion/react';
 import { Send, Mail, Map as MapIcon, ExternalLink, Phone, MapPin, Stethoscope } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { FOOTER_TREATMENT_IDS, getTreatmentById, treatmentPath } from '../data/treatmentsData';
+import { PUBLIC_PATHS } from '../seo/publicPaths';
 
 export default function Footer() {
   const { t } = useTranslation();
@@ -44,7 +46,7 @@ export default function Footer() {
             <div className="relative mb-8 h-[200px] overflow-hidden rounded-3xl group">
               <img
                 src="/map.png"
-                alt="Purani Basti Clinic"
+                alt="Dr. Trivedi's Homeopathy Clinic, Lily Chowk, Purani Basti, Raipur"
                 loading="lazy"
                 decoding="async"
                 width={640}
@@ -126,7 +128,7 @@ export default function Footer() {
             <div className="relative mb-8 h-[200px] overflow-hidden rounded-3xl group">
               <img
                 src="/pandri-clinic.png"
-                alt="Pandri Clinic"
+                alt="Dr. Trivedi's Homeopathy Clinic, Devendra Nagar, Pandri, Raipur"
                 loading="lazy"
                 decoding="async"
                 width={640}
@@ -211,7 +213,7 @@ export default function Footer() {
             </motion.button>
           </Link>
 
-          <Link to="/contact" className="flex-1">
+          <Link to={PUBLIC_PATHS.contact} className="flex-1">
             <motion.button
               whileHover={{ scale: 1.05, y: -2 }}
               className="w-full bg-[#B7CED6] text-public-heading py-4 rounded-full font-bold shadow-[0_4px_0_#a5bcc4] flex items-center justify-center gap-4 group"
@@ -225,9 +227,21 @@ export default function Footer() {
         {/* Nav Links */}
         <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 mb-20 text-xs font-bold text-public-heading tracking-widest uppercase">
           <Link to="/" className="hover:text-public-heading transition-colors">{t('common.home')}</Link>
-          <Link to="/about" className="hover:text-public-heading transition-colors">{t('common.about')}</Link>
+          <Link to={PUBLIC_PATHS.about} className="hover:text-public-heading transition-colors">{t('common.about')}</Link>
           <Link to="/treatments" className="hover:text-public-heading transition-colors">{t('common.treatments')}</Link>
           <Link to="/gallery" className="hover:text-public-heading transition-colors">{t('common.gallery')}</Link>
+        </div>
+
+        <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mb-16 text-[10px] font-bold text-public-muted tracking-widest uppercase max-w-3xl mx-auto">
+          {FOOTER_TREATMENT_IDS.map((id) => {
+            const item = getTreatmentById(id);
+            if (!item) return null;
+            return (
+              <Link key={id} to={treatmentPath(item)} className="hover:text-public-heading transition-colors">
+                {item.en}
+              </Link>
+            );
+          })}
         </div>
 
         {/* Social Links */}
