@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { 
   ArrowLeft, 
   Layout, 
-  Stethoscope,
   Image as ImageIcon,
   MessageSquare
 } from 'lucide-react';
@@ -13,18 +12,16 @@ import {
 // import HeroCmsTab from '../../modules/doctor-cms/components/HeroCmsTab';
 import TestimonialsCmsTab from '../../modules/doctor-cms/components/TestimonialsCmsTab';
 import GalleryCmsTab from '../../modules/doctor-cms/components/GalleryCmsTab';
-import TreatmentsCmsTab from '../../modules/doctor-cms/components/TreatmentsCmsTab';
 
 export default function ManageCMS() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('treatments');
+  const [activeTab, setActiveTab] = useState('gallery');
 
   const tabs = [
     // { id: 'hero', label: 'Hero Slides', icon: ImageIcon },
-    { id: 'treatments', label: 'Treatments', icon: Stethoscope },
-    { id: 'testimonials', label: 'Testimonials', icon: MessageSquare },
     { id: 'gallery', label: 'Gallery', icon: ImageIcon },
+    { id: 'testimonials', label: 'Testimonials', icon: MessageSquare },
   ];
 
   const renderActiveTab = () => {
@@ -35,10 +32,8 @@ export default function ManageCMS() {
         return <TestimonialsCmsTab />;
       case 'gallery':
         return <GalleryCmsTab />;
-      case 'treatments':
-        return <TreatmentsCmsTab />;
       default:
-        return <TreatmentsCmsTab />;
+        return <GalleryCmsTab />;
     }
   };
 
