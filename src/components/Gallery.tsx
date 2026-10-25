@@ -103,7 +103,7 @@ function mapCmsGalleryItem(item: CmsGalleryItem): GalleryItem {
   return {
     id: item.id,
     date: item.display_date || '',
-    tag: normalizeGalleryTag(item.category),
+    tag: item.media_type === 'VIDEO' ? 'VIDEO' : normalizeGalleryTag(item.category),
     title: item.title,
     img: item.media_type === 'VIDEO'
       ? resolvePublicImage(item.poster_url || item.image_url || getPublicVideoPoster(videoId))

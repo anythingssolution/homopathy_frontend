@@ -331,7 +331,7 @@ export default function Hero() {
 
       <ScrollReveal width="100%" direction="up" distance={50}>
         <div className="relative z-30 bg-white px-8 pb-32 text-center pt-14">
-          <Testimonials cmsData={cmsData?.testimonials} />
+          <Testimonials cmsData={cmsData?.testimonials} cmsReady={cmsData !== null} />
         </div>
       </ScrollReveal>
 

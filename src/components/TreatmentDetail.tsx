@@ -6,16 +6,18 @@ import {
   Calendar, ArrowLeft
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { getTreatmentById, getRelatedTreatments, treatmentPath, treatmentPublicSlug } from '../data/treatmentsData';
+import { getRelatedTreatments, treatmentMatchesKey, treatmentPath, treatmentPublicSlug } from '../data/treatmentsData';
 import { usePublicSeo } from '../hooks/usePublicSeo';
+import { usePublicTreatments } from '../hooks/usePublicTreatments';
 import { treatmentSeo } from '../seo/publicPages';
 import TreatmentCardBackdrop from './TreatmentCardBackdrop';
 
 export default function TreatmentDetail() {
   const { slug = '' } = useParams<{ slug: string }>();
   const { t } = useTranslation();
-  const treatment = getTreatmentById(slug);
-  const related = treatment ? getRelatedTreatments(treatment.id, 3) : [];
+  const { treatments, isLoading } = usePublicTreatments();
+  const treatment = treatments.find((item) => treatmentMatchesKey(item, slug));
+  const related = treatment ? getRelatedTreatments(treatment.id, 3, treatments) : [];
 
   const pageSeo = useMemo(
     () =>
@@ -41,6 +43,14 @@ export default function TreatmentDetail() {
 
   if (treatment && slug !== treatmentPublicSlug(treatment)) {
     return <Navigate to={treatmentPath(treatment)} replace />;
+  }
+
+  if (!treatment && isLoading) {
+    return (
+      <div className="min-h-screen bg-[#FDFDF7] flex items-center justify-center px-6 py-32 text-public-heading font-bold">
+        Loading treatment…
+      </div>
+    );
   }
 
   if (!treatment) {

@@ -10,6 +10,7 @@ import { ScrollReveal } from './ScrollReveal';
 import { treatmentsData, treatmentPath, TreatmentItem } from '../data/treatmentsData';
 import TreatmentCardBackdrop from './TreatmentCardBackdrop';
 import { usePublicSeo } from '../hooks/usePublicSeo';
+import { usePublicTreatments } from '../hooks/usePublicTreatments';
 import { TREATMENTS_SEO, treatmentsIndexJsonLd } from '../seo/publicPages';
 
 export { treatmentsData as treatments };
@@ -17,6 +18,7 @@ export type { TreatmentItem };
 
 export default function Treatments() {
   const { t } = useTranslation();
+  const { treatments } = usePublicTreatments();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
 
@@ -25,7 +27,7 @@ export default function Treatments() {
     description: TREATMENTS_SEO.description,
     path: TREATMENTS_SEO.path,
     image: TREATMENTS_SEO.image,
-    jsonLd: treatmentsIndexJsonLd(treatmentsData),
+    jsonLd: treatmentsIndexJsonLd(treatments),
   });
 
   const categoriesList = [
@@ -44,7 +46,7 @@ export default function Treatments() {
     { key: "Specialty", label: t('treatments_page.categories.specialty') || "Specialty" }
   ];
 
-  const filteredTreatments = treatmentsData.filter(item => {
+  const filteredTreatments = treatments.filter(item => {
     const matchesSearch = item.en.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.hi.includes(searchTerm) ||
       item.description.toLowerCase().includes(searchTerm.toLowerCase());

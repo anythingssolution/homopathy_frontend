@@ -8,9 +8,10 @@ import { resolvePublicImage } from '../utils/publicImages';
 
 interface TestimonialsProps {
   cmsData?: CmsTestimonialItem[];
+  cmsReady?: boolean;
 }
 
-export default function Testimonials({ cmsData }: TestimonialsProps = {}) {
+export default function Testimonials({ cmsData, cmsReady = false }: TestimonialsProps = {}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { t } = useTranslation();
 
@@ -19,13 +20,13 @@ export default function Testimonials({ cmsData }: TestimonialsProps = {}) {
     img: resolvePublicImage(`/assets/imgs/testimonial/c${item.id}.jpeg`)
   }));
 
-  const testimonials = cmsData && cmsData.length > 0
-    ? [...cmsData]
-        .sort((a, b) => a.sort_order - b.sort_order)
+  const testimonials = cmsReady
+    ? [...(cmsData || [])]
+        .sort((a, b) => a.sort_order - b.sort_order || b.id - a.id)
         .map(item => ({
           id: item.id,
           title: item.testimonial_text,
-          date: item.display_date || '',
+          date: item.display_date ? String(item.display_date).slice(0, 10).replace(/-/g, '.') : '',
           tags: item.tags || [],
           img: resolvePublicImage(item.image_url),
           name: item.person_name,

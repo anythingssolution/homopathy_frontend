@@ -205,8 +205,8 @@ export function treatmentSeo(item: TreatmentItem): PublicSeoPage {
   const path = treatmentPath(item);
   return {
     path,
-    title: `${item.en} Treatment in Raipur | Dr. Trivedi's Homeopathy`,
-    description: clipDescription(
+    title: item.seoTitle || `${item.en} Treatment in Raipur | Dr. Trivedi's Homeopathy`,
+    description: item.seoDescription || clipDescription(
       `Homeopathic ${item.en.toLowerCase()} treatment in Raipur at Dr. Trivedi's Homeopathy Clinic. ${item.description}`
     ),
     image: item.image || DEFAULT_OG_IMAGE,

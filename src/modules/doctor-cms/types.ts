@@ -17,6 +17,7 @@ export interface CmsTestimonialItem {
   person_title: string | null;
   testimonial_text: string;
   image_url: string | null;
+  image_key?: string | null;
   tags_json?: string | null;
   tags?: string[];
   display_date: string | null;
@@ -38,6 +39,25 @@ export interface CmsGalleryItem {
   video_key?: string | null;
   poster_url?: string | null;
   display_date: string | null;
+  sort_order: number;
+  is_active: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CmsTreatmentItem {
+  id: number;
+  slug: string;
+  title_en: string;
+  title_hi: string | null;
+  category: string;
+  description: string;
+  image_url: string | null;
+  image_key?: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  remedies?: string[];
+  public_path?: string;
   sort_order: number;
   is_active: number;
   created_at?: string;

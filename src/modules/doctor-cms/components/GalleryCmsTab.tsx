@@ -4,11 +4,14 @@ import {
   getDoctorGalleryCms, 
   createDoctorGalleryCms, 
   updateDoctorGalleryCms, 
-  deleteDoctorGalleryCms 
+  deleteDoctorGalleryCms,
+  uploadDoctorCmsImage,
 } from '../api';
 import { CmsGalleryItem } from '../types';
-import { Edit2, Trash2, Plus, X, Check, XCircle, Image as ImageIcon, Video, Eye } from 'lucide-react';
+import { Edit2, Trash2, Plus, X, Check, XCircle, Image as ImageIcon, Video, Eye, Upload } from 'lucide-react';
 import Pagination from '../../../components/Pagination';
+import CustomDatePicker from '../../../components/CustomDatePicker';
+import CmsSelect from './CmsSelect';
 
 const CATEGORIES = ['TREATMENT', 'MEDIA', 'AWARDS', 'VIDEO'];
 const FILTER_TABS = ['ALL', ...CATEGORIES];
@@ -57,6 +60,11 @@ export default function GalleryCmsTab() {
   });
   
   const [formError, setFormError] = useState('');
+  const [uploading, setUploading] = useState(false);
+
+  const mediaTypeForCategory = (category: string): 'IMAGE' | 'VIDEO' => (
+    category === 'VIDEO' ? 'VIDEO' : 'IMAGE'
+  );
 
   const fetchItems = async () => {
     if (!token) return;
@@ -87,7 +95,7 @@ export default function GalleryCmsTab() {
       description: item.description || '',
       image_url: item.image_url || '',
       video_url: item.video_url || '',
-      display_date: item.display_date || '',
+      display_date: item.display_date ? String(item.display_date).slice(0, 10) : '',
       sort_order: item.sort_order,
       is_active: item.is_active
     });
@@ -97,9 +105,10 @@ export default function GalleryCmsTab() {
   };
 
   const handleAddNew = () => {
+    const category = activeFilter === 'ALL' ? 'TREATMENT' : activeFilter;
     setForm({
-      category: 'TREATMENT',
-      media_type: 'IMAGE',
+      category,
+      media_type: mediaTypeForCategory(category),
       title: '',
       description: '',
       image_url: '',
@@ -132,12 +141,12 @@ export default function GalleryCmsTab() {
       setFormError('Title is required');
       return false;
     }
-    if (form.media_type === 'IMAGE' && !form.image_url.trim()) {
-      setFormError('Image URL is required for IMAGE media type');
+    if (form.category !== 'VIDEO' && !form.image_url.trim()) {
+      setFormError('Choose a photo from your computer');
       return false;
     }
-    if (form.media_type === 'VIDEO' && !form.video_url.trim()) {
-      setFormError('Video URL is required for VIDEO media type');
+    if (form.category === 'VIDEO' && !form.video_url.trim()) {
+      setFormError('Paste a YouTube link for Video');
       return false;
     }
     return true;
@@ -149,13 +158,14 @@ export default function GalleryCmsTab() {
     
     setFormError('');
     try {
+      const mediaType = mediaTypeForCategory(form.category);
       const payload = {
         category: form.category,
-        media_type: form.media_type,
+        media_type: mediaType,
         title: form.title,
         description: form.description || null,
-        image_url: form.media_type === 'IMAGE' ? form.image_url : null,
-        video_url: form.media_type === 'VIDEO' ? form.video_url : null,
+        image_url: mediaType === 'IMAGE' ? form.image_url : null,
+        video_url: mediaType === 'VIDEO' ? form.video_url : null,
         display_date: form.display_date || null,
         sort_order: Number(form.sort_order),
         is_active: form.is_active ? 1 : 0
@@ -213,13 +223,18 @@ export default function GalleryCmsTab() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold text-gray-800">Gallery</h2>
+        <div>
+          <h2 className="text-xl font-bold text-gray-800">Gallery</h2>
+          <p className="text-xs text-gray-500 font-medium max-w-xl">
+            Photos here appear on the public Gallery page (Treatment / Media / Awards albums). To add a treatment card on Holistic Care / Specialized Treatments in Raipur, use the Treatments tab.
+          </p>
+        </div>
         {!isFormOpen && (
           <button 
             onClick={handleAddNew}
             className="bg-[#549E9E] hover:bg-[#438787] text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"
           >
-            <Plus size={16} /> Add Media
+            <Plus size={16} /> {activeFilter === 'VIDEO' ? 'Add Video Link' : 'Add Photo'}
           </button>
         )}
       </div>
@@ -250,7 +265,7 @@ export default function GalleryCmsTab() {
       {isFormOpen ? (
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-gray-800">{editingId ? 'Edit Media' : 'Add New Media'}</h3>
+            <h3 className="font-bold text-gray-800">{editingId ? 'Edit item' : form.category === 'VIDEO' ? 'Add YouTube video' : 'Add photo'}</h3>
             <button onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:text-gray-600">
               <X size={20} />
             </button>
@@ -264,26 +279,25 @@ export default function GalleryCmsTab() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+              <div className="col-span-1 md:col-span-2">
                 <label className="block text-xs font-bold text-gray-600 mb-1">Category *</label>
-                <select 
-                  value={form.category} 
-                  onChange={e => setForm({...form, category: e.target.value})}
-                  className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:border-[#549E9E] focus:ring-1 focus:ring-[#549E9E]"
-                >
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Media Type *</label>
-                <select 
-                  value={form.media_type} 
-                  onChange={e => setForm({...form, media_type: e.target.value as 'IMAGE' | 'VIDEO'})}
-                  className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:border-[#549E9E] focus:ring-1 focus:ring-[#549E9E]"
-                >
-                  <option value="IMAGE">Image</option>
-                  <option value="VIDEO">Video</option>
-                </select>
+                <CmsSelect
+                  value={form.category}
+                  options={CATEGORIES.map((category) => ({
+                    id: category,
+                    label: category === 'VIDEO' ? 'VIDEO (YouTube link)' : `${category} (photo)`,
+                  }))}
+                  onChange={(category) => {
+                    setForm({
+                      ...form,
+                      category,
+                      media_type: mediaTypeForCategory(category),
+                      image_url: category === 'VIDEO' ? '' : form.image_url,
+                      video_url: category === 'VIDEO' ? form.video_url : '',
+                    });
+                  }}
+                />
+                <p className="mt-1 text-[11px] text-gray-400">Treatment, Media, and Awards take a photo from your computer. Video takes a YouTube link only.</p>
               </div>
               <div className="col-span-1 md:col-span-2">
                 <label className="block text-xs font-bold text-gray-600 mb-1">Title *</label>
@@ -304,40 +318,66 @@ export default function GalleryCmsTab() {
                 />
               </div>
 
-              {form.media_type === 'IMAGE' ? (
+              {form.category === 'VIDEO' ? (
                 <div className="col-span-1 md:col-span-2">
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Image URL *</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">YouTube link *</label>
                   <input 
-                    type="text" 
-                    value={form.image_url} 
-                    onChange={e => setForm({...form, image_url: e.target.value})}
+                    type="url" 
+                    value={form.video_url} 
+                    onChange={e => setForm({...form, video_url: e.target.value})}
+                    placeholder="https://www.youtube.com/watch?v=..."
                     className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:border-[#549E9E] focus:ring-1 focus:ring-[#549E9E]"
-                    required={form.media_type === 'IMAGE'}
+                    required
                   />
-                  {form.image_url && (
-                    <img src={form.image_url} alt="Preview" className="mt-2 h-20 object-cover rounded border border-gray-200" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  )}
                 </div>
               ) : (
                 <div className="col-span-1 md:col-span-2">
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Video URL (e.g. YouTube URL) *</label>
-                  <input 
-                    type="text" 
-                    value={form.video_url} 
-                    onChange={e => setForm({...form, video_url: e.target.value})}
-                    className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:border-[#549E9E] focus:ring-1 focus:ring-[#549E9E]"
-                    required={form.media_type === 'VIDEO'}
-                  />
+                  <label className="block text-xs font-bold text-gray-600 mb-1">Photo from computer *</label>
+                  <label className="flex items-center gap-3 w-full border border-dashed border-gray-300 rounded-lg p-3 text-sm cursor-pointer hover:border-[#549E9E]">
+                    <Upload size={16} className="text-[#549E9E]" />
+                    <span>{uploading ? 'Uploading…' : 'Choose a photo from your folder'}</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!token || !file) return;
+                        setUploading(true);
+                        setFormError('');
+                        try {
+                          const res = await uploadDoctorCmsImage(token, file, 'gallery');
+                          if (res.success && res.data?.cms_fields?.image_url) {
+                            setForm((current) => ({
+                              ...current,
+                              image_url: res.data.cms_fields.image_url,
+                            }));
+                          } else {
+                            setFormError(res.message || 'Photo upload failed');
+                          }
+                        } catch {
+                          setFormError('Photo upload failed');
+                        } finally {
+                          setUploading(false);
+                        }
+                      }}
+                    />
+                  </label>
+                  {form.image_url && (
+                    <img src={form.image_url} alt="Preview" className="mt-2 h-24 object-cover rounded border border-gray-200" />
+                  )}
                 </div>
               )}
 
               <div>
                 <label className="block text-xs font-bold text-gray-600 mb-1">Display Date</label>
-                <input 
-                  type="date" 
-                  value={form.display_date} 
-                  onChange={e => setForm({...form, display_date: e.target.value})}
-                  className="w-full border border-gray-300 rounded-lg p-2 text-sm focus:border-[#549E9E] focus:ring-1 focus:ring-[#549E9E]"
+                <CustomDatePicker
+                  label=""
+                  value={form.display_date}
+                  onChange={(date) => setForm({ ...form, display_date: date === 'all' ? '' : date })}
+                  placeholder="Pick a date"
+                  allowClear
+                  className="!w-full"
                 />
               </div>
               <div>

@@ -12,6 +12,7 @@ const CustomDatePicker = ({
   maxDate,
   allowClear = true,
   placeholder,
+  className = '',
 }: {
   value: string;
   onChange: (date: string) => void;
@@ -21,6 +22,7 @@ const CustomDatePicker = ({
   maxDate?: string;
   allowClear?: boolean;
   placeholder?: string;
+  className?: string;
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -82,7 +84,7 @@ const CustomDatePicker = ({
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
   return (
-    <div className={`${label ? 'space-y-1.5' : ''} relative w-full md:w-auto ${open ? 'z-30' : 'z-10'}`} ref={ref}>
+    <div className={`${label ? 'space-y-1.5' : ''} relative w-full md:w-auto ${open ? 'z-30' : 'z-10'} ${className}`} ref={ref}>
       {label && <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{label}</label>}
       <div
         onClick={() => !readOnly && setOpen(!open)}
@@ -106,11 +108,11 @@ const CustomDatePicker = ({
             className="absolute top-full left-0 mt-1 w-[260px] bg-white border border-gray-200 shadow-2xl z-[100] p-3 rounded-xl"
           >
             <div className="flex items-center justify-between mb-4">
-              <button onClick={prevMonth} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-[#549E9E]/10 hover:text-[#549E9E] transition-all">
+              <button type="button" onClick={prevMonth} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-[#549E9E]/10 hover:text-[#549E9E] transition-all">
                 <ChevronLeft size={18} />
               </button>
               <span className="text-sm font-black text-gray-700 uppercase tracking-wider">{monthName} {viewYear}</span>
-              <button onClick={nextMonth} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-[#549E9E]/10 hover:text-[#549E9E] transition-all">
+              <button type="button" onClick={nextMonth} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-[#549E9E]/10 hover:text-[#549E9E] transition-all">
                 <ChevronRight size={18} />
               </button>
             </div>
@@ -130,6 +132,7 @@ const CustomDatePicker = ({
                 const isDisabled = Boolean((minDate && dateStr < minDate) || (maxDate && dateStr > maxDate));
                 return (
                   <button
+                    type="button"
                     key={day}
                     onClick={() => selectDay(day)}
                     disabled={isDisabled}
@@ -152,6 +155,7 @@ const CustomDatePicker = ({
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
               {allowClear ? (
                 <button
+                  type="button"
                   onClick={() => { onChange('all'); setOpen(false); }}
                   className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-red-500 transition-colors flex items-center gap-1"
                 >
@@ -163,6 +167,7 @@ const CustomDatePicker = ({
                 </span>
               )}
               <button
+                type="button"
                 onClick={() => {
                   if (minDate && todayStr < minDate) return;
                   if (maxDate && todayStr > maxDate) return;

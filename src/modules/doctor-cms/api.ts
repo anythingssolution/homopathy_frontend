@@ -1,7 +1,8 @@
 import { 
   CmsHeroItem, 
   CmsTestimonialItem, 
-  CmsGalleryItem, 
+  CmsGalleryItem,
+  CmsTreatmentItem,
   HomepageCmsResponse 
 } from './types';
 
@@ -15,13 +16,16 @@ const authHeaders = (token: string) => ({
 
 // Helper for testimonials tags
 export function normalizeTestimonial(item: any): CmsTestimonialItem {
-  return {
-    ...item,
-    tags: Array.isArray(item.tags)
-      ? item.tags
+  const parsedTags = Array.isArray(item.tags)
+    ? item.tags
+    : Array.isArray(item.tags_json)
+      ? item.tags_json
       : item.tags_json
         ? JSON.parse(item.tags_json)
-        : [],
+        : [];
+  return {
+    ...item,
+    tags: parsedTags,
   };
 }
 
@@ -164,6 +168,58 @@ export async function updateDoctorGalleryCms(token: string, id: number, payload:
 
 export async function deleteDoctorGalleryCms(token: string, id: number) {
   const res = await fetch(`${API_BASE_DOCTOR}/gallery/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  return res.json();
+}
+
+export async function uploadDoctorCmsImage(token: string, file: File, section: 'gallery' | 'treatments' | 'hero' | 'testimonials') {
+  const body = new FormData();
+  body.append('file', file);
+  const res = await fetch(`${API_BASE_DOCTOR}/uploads/image?section=${section}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+  return res.json();
+}
+
+export async function getPublicTreatmentsCms(): Promise<{ success: boolean; data?: CmsTreatmentItem[] }> {
+  try {
+    const res = await fetch(`${API_BASE_PUBLIC}/treatments`);
+    return await res.json();
+  } catch (error) {
+    console.error('Failed to fetch public treatments CMS', error);
+    return { success: false };
+  }
+}
+
+export async function getDoctorTreatmentsCms(token: string) {
+  const res = await fetch(`${API_BASE_DOCTOR}/treatments`, { headers: authHeaders(token) });
+  return res.json();
+}
+
+export async function createDoctorTreatmentsCms(token: string, payload: Partial<CmsTreatmentItem> & { slug?: string; remedies?: string[] }) {
+  const res = await fetch(`${API_BASE_DOCTOR}/treatments`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+export async function updateDoctorTreatmentsCms(token: string, id: number, payload: Partial<CmsTreatmentItem> & { slug?: string; remedies?: string[] }) {
+  const res = await fetch(`${API_BASE_DOCTOR}/treatments/${id}`, {
+    method: 'PUT',
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+export async function deleteDoctorTreatmentsCms(token: string, id: number) {
+  const res = await fetch(`${API_BASE_DOCTOR}/treatments/${id}`, {
     method: 'DELETE',
     headers: authHeaders(token),
   });

@@ -6,6 +6,21 @@ export interface TreatmentItem {
   description: string;
   image?: string | null;
   remedies?: string[];
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  source?: 'static' | 'cms';
+}
+
+export function slugifyTreatment(value: string) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120);
 }
 
 /** Old PHP slugs that Google already indexed. Internal ids stay short. */
@@ -32,6 +47,17 @@ export const TREATMENT_PUBLIC_SLUG: Record<string, string> = {
 
 export function treatmentPublicSlug(item: TreatmentItem): string {
   return TREATMENT_PUBLIC_SLUG[item.id] || item.id;
+}
+
+export function treatmentMatchesKey(item: TreatmentItem, key: string): boolean {
+  const k = decodeURIComponent(key || '').toLowerCase();
+  if (!k) return false;
+  if (item.id === k || treatmentPublicSlug(item) === k) return true;
+  const aliased = TREATMENT_PUBLIC_SLUG[k];
+  if (aliased && (item.id === aliased || treatmentPublicSlug(item) === aliased)) return true;
+  return Object.entries(TREATMENT_PUBLIC_SLUG).some(([shortId, publicSlug]) => (
+    (item.id === shortId || item.id === publicSlug) && (k === shortId || k === publicSlug)
+  ));
 }
 
 export function treatmentPath(item: TreatmentItem): string {
@@ -377,17 +403,16 @@ export const treatmentsData: TreatmentItem[] = [
   }
 ];
 
-export function getTreatmentById(id: string): TreatmentItem | undefined {
-  const key = decodeURIComponent(id || '').toLowerCase();
-  return treatmentsData.find(
-    (item) => item.id === key || treatmentPublicSlug(item) === key
-  );
+export function getTreatmentById(id: string, pool: TreatmentItem[] = treatmentsData): TreatmentItem | undefined {
+  const source = pool.length ? pool : treatmentsData;
+  return source.find((item) => treatmentMatchesKey(item, id));
 }
 
-export function getRelatedTreatments(id: string, limit = 3): TreatmentItem[] {
-  const current = getTreatmentById(id);
-  if (!current) return treatmentsData.slice(0, limit);
-  const others = treatmentsData.filter((item) => item.id !== current.id);
+export function getRelatedTreatments(id: string, limit = 3, pool: TreatmentItem[] = treatmentsData): TreatmentItem[] {
+  const current = getTreatmentById(id, pool);
+  const source = pool.length ? pool : treatmentsData;
+  if (!current) return source.slice(0, limit);
+  const others = source.filter((item) => item.id !== current.id);
   const sameCategory = others.filter((item) => item.category === current.category);
   if (sameCategory.length >= limit) return sameCategory.slice(0, limit);
   const extras = others.filter((item) => item.category !== current.category);

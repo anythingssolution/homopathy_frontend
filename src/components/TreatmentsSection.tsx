@@ -7,10 +7,12 @@ import {
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ScrollReveal } from './ScrollReveal';
-import { treatmentsData, treatmentPath } from '../data/treatmentsData';
+import { treatmentPath } from '../data/treatmentsData';
+import { usePublicTreatments } from '../hooks/usePublicTreatments';
 
 export default function TreatmentsSection() {
   const { t } = useTranslation();
+  const { treatments } = usePublicTreatments();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
 
@@ -30,7 +32,7 @@ export default function TreatmentsSection() {
     { key: "Specialty", label: t('treatments_page.categories.specialty') || "Specialty" }
   ];
 
-  const filteredTreatments = treatmentsData.filter(item => {
+  const filteredTreatments = treatments.filter(item => {
     const matchesSearch = item.en.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.hi.includes(searchTerm) ||
       item.description.toLowerCase().includes(searchTerm.toLowerCase());

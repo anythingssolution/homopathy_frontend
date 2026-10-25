@@ -4,10 +4,12 @@ import { Send, Mail, Map as MapIcon, ExternalLink, Phone, MapPin, Stethoscope } 
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { FOOTER_TREATMENT_IDS, getTreatmentById, treatmentPath } from '../data/treatmentsData';
+import { usePublicTreatments } from '../hooks/usePublicTreatments';
 import { PUBLIC_PATHS } from '../seo/publicPaths';
 
 export default function Footer() {
   const { t } = useTranslation();
+  const { treatments } = usePublicTreatments();
   return (
     <footer className="relative bg-white pt-32 pb-12">
       <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
@@ -234,7 +236,7 @@ export default function Footer() {
 
         <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 mb-16 text-[10px] font-bold text-public-muted tracking-widest uppercase max-w-3xl mx-auto">
           {FOOTER_TREATMENT_IDS.map((id) => {
-            const item = getTreatmentById(id);
+            const item = getTreatmentById(id, treatments);
             if (!item) return null;
             return (
               <Link key={id} to={treatmentPath(item)} className="hover:text-public-heading transition-colors">

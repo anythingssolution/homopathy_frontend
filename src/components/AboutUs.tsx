@@ -3,7 +3,8 @@ import { motion } from 'motion/react';
 import { Heart, Users, Microscope, Award, Target, Compass, ShieldCheck, CheckCircle2, History, Star, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { treatmentsData, treatmentPath } from '../data/treatmentsData';
+import { treatmentPath } from '../data/treatmentsData';
+import { usePublicTreatments } from '../hooks/usePublicTreatments';
 import { usePublicSeo } from '../hooks/usePublicSeo';
 import { ABOUT_SEO } from '../seo/publicPages';
 
@@ -21,6 +22,7 @@ export default function AboutUs() {
   const reasons = t('about_page.why_choose_reasons', { returnObjects: true }) as Array<{ title: string, desc: string }>;
   const uttkarshReasons = t('about_page.uttkarsh_reasons', { returnObjects: true }) as string[];
   const missionPoints = t('about_page.mission_points', { returnObjects: true }) as string[];
+  const { treatments } = usePublicTreatments();
   return (
     <div className="min-h-screen bg-[#FDFDF7] overflow-x-hidden">
       {/* Header Banner */}
@@ -199,7 +201,7 @@ export default function AboutUs() {
               <p className="text-public-body font-medium italic">{t('about_page.treatments_subtitle')}</p>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-12">
-              {treatmentsData.map((treatment) => (
+              {treatments.map((treatment) => (
                 <Link
                   key={treatment.id}
                   to={treatmentPath(treatment)}
