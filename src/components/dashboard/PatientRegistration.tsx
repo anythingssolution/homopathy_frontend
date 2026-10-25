@@ -526,7 +526,7 @@ export default function PatientRegistration() {
             <div className="grid gap-3 px-5 py-4 sm:grid-cols-6 sm:gap-4 sm:px-7 sm:py-5">
               <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('patient_registration.full_name')}
+                  {t('patient_registration.full_name')} <span className="text-red-500">*</span>
                 </span>
                 <input
                   required
@@ -559,7 +559,7 @@ export default function PatientRegistration() {
 
               <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('patient_registration.mobile')}
+                  {t('patient_registration.mobile')} <span className="text-red-500">*</span>
                 </span>
                 <input
                   required
@@ -581,7 +581,7 @@ export default function PatientRegistration() {
 
               <label className="block sm:col-span-1">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('patient_registration.age')}
+                  {t('patient_registration.age')} {!form.date_of_birth && <span className="text-red-500">*</span>}
                 </span>
                 <input
                   required
@@ -624,7 +624,7 @@ export default function PatientRegistration() {
 
               <label className="block sm:col-span-1">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('patient_registration.gender')}
+                  {t('patient_registration.gender')} <span className="text-red-500">*</span>
                 </span>
                 <div className="mt-1.5">
                   <ThemeSelect

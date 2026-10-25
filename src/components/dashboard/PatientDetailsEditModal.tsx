@@ -1,3 +1,4 @@
+import PatientAddressExtraFields from '../PatientAddressExtraFields';
 import React, { useState, useEffect } from "react";
 import { X, Save, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -13,6 +14,8 @@ interface PatientDetailsEditModalProps {
     gender: string;
     mobile_no: string;
     area_name: string;
+    ward_no: string;
+    vidhan_sabha: string;
     pincode: string;
     city: string;
   };
@@ -24,6 +27,8 @@ interface PatientDetailsEditModalProps {
     gender: string;
     mobile_no: string;
     area_name: string;
+    ward_no: string;
+    vidhan_sabha: string;
     pincode: string;
     city: string;
   }) => Promise<void>;
@@ -42,6 +47,7 @@ export default function PatientDetailsEditModal({
   const [gender, setGender] = useState("");
   const [mobileNo, setMobileNo] = useState("");
   const [areaName, setAreaName] = useState("");
+  const [extraAddress, setExtraAddress] = useState({ ward_no: "", vidhan_sabha: "" });
   const [pincode, setPincode] = useState("");
   const [city, setCity] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -55,6 +61,7 @@ export default function PatientDetailsEditModal({
       setGender(patientData.gender || "");
       setMobileNo(patientData.mobile_no || "");
       setAreaName(patientData.area_name || "");
+      setExtraAddress({ ward_no: patientData.ward_no || "", vidhan_sabha: patientData.vidhan_sabha || "" });
       setPincode(patientData.pincode || "");
       setCity(patientData.city || "");
       setErrors({});
@@ -106,6 +113,8 @@ export default function PatientDetailsEditModal({
         gender: gender.toLowerCase(),
         mobile_no: mobileNo.trim(),
         area_name: areaName.trim(),
+        ward_no: extraAddress.ward_no.trim(),
+        vidhan_sabha: extraAddress.vidhan_sabha.trim(),
         pincode: pincode.trim(),
         city: city.trim(),
       });
@@ -117,7 +126,7 @@ export default function PatientDetailsEditModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto p-4">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
@@ -138,7 +147,7 @@ export default function PatientDetailsEditModal({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
-              {t("patient_edit.full_name", "Full Name")}
+              {t("patient_edit.full_name", "Full Name")} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -167,7 +176,7 @@ export default function PatientDetailsEditModal({
             {errors.area_name && <p className="text-red-500 text-xs mt-1">{errors.area_name}</p>}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
                 Pincode
@@ -184,7 +193,7 @@ export default function PatientDetailsEditModal({
             </div>
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
-                City
+                City <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -198,10 +207,16 @@ export default function PatientDetailsEditModal({
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <PatientAddressExtraFields values={extraAddress} disabled={isSaving}
+              onChange={(field, value) => setExtraAddress(current => ({ ...current, [field]: value }))}
+              inputClassName="mt-1.5 w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-bold text-gray-800 focus:outline-none focus:ring-4 focus:ring-[#549E9E]/10 focus:border-[#549E9E]" />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
-                {t("patient_edit.age", "Age")}
+                {t("patient_edit.age", "Age")} {!dateOfBirth && <span className="text-red-500">*</span>}
               </label>
               <input
                 type="number"
@@ -235,7 +250,7 @@ export default function PatientDetailsEditModal({
             </div>
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
-                {t("patient_edit.gender", "Gender")}
+                {t("patient_edit.gender", "Gender")} <span className="text-red-500">*</span>
               </label>
               <select
                 value={gender.toLowerCase()}
@@ -255,7 +270,7 @@ export default function PatientDetailsEditModal({
 
           <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1.5">
-              {t("patient_edit.mobile", "Mobile Number")}
+              {t("patient_edit.mobile", "Mobile Number")} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"

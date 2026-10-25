@@ -1,3 +1,4 @@
+import PatientAddressExtraFields from '../PatientAddressExtraFields';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Check,
@@ -44,6 +45,8 @@ type Patient = {
   gender: 'male' | 'female' | 'other';
   mobile_no: string;
   area_name?: string | null;
+  ward_no?: string | null;
+  vidhan_sabha?: string | null;
   pincode?: string | null;
   city?: string | null;
   total_appointments: number;
@@ -196,6 +199,8 @@ export default function ReceptionPatientManagement() {
     relationship: '',
     patient_uuid: '',
     area_name: '',
+    ward_no: '',
+    vidhan_sabha: '',
     pincode: '',
     city: '',
   });
@@ -278,6 +283,8 @@ export default function ReceptionPatientManagement() {
       relationship: '',
       patient_uuid: patient.patient_uuid || '',
       area_name: patient.area_name || '',
+      ward_no: patient.ward_no || '',
+      vidhan_sabha: patient.vidhan_sabha || '',
       pincode: patient.pincode || '',
       city: patient.city || '',
     });
@@ -295,6 +302,8 @@ export default function ReceptionPatientManagement() {
       relationship: member.relationship || '',
       patient_uuid: '',
       area_name: '',
+    ward_no: '',
+    vidhan_sabha: '',
       pincode: '',
       city: '',
     });
@@ -338,6 +347,8 @@ export default function ReceptionPatientManagement() {
         payload.mobile_no = editForm.mobile_no;
         payload.patient_uuid = editForm.patient_uuid.replace(/\s+/g, '').toUpperCase();
         payload.area_name = editForm.area_name.trim() || null;
+        payload.ward_no = editForm.ward_no.trim() || null;
+        payload.vidhan_sabha = editForm.vidhan_sabha.trim() || null;
         payload.pincode = editForm.pincode.trim() || null;
         payload.city = editForm.city.trim();
       }
@@ -813,7 +824,7 @@ export default function ReceptionPatientManagement() {
             <div className="mt-7 grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  Full Name
+                  Full Name <span className="text-red-500">*</span>
                 </span>
                 <input
                   required
@@ -828,7 +839,7 @@ export default function ReceptionPatientManagement() {
 
               <label className="block">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  Mobile Number
+                  Mobile Number {!isEditingFamily && <span className="text-red-500">*</span>}
                 </span>
                 <input
                   required={!isEditingFamily}
@@ -854,7 +865,7 @@ export default function ReceptionPatientManagement() {
               {!isEditingFamily && (
                 <label className="block">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                    Registration No.
+                    Registration No. <span className="text-red-500">*</span>
                   </span>
                   <input
                     maxLength={36}
@@ -913,7 +924,7 @@ export default function ReceptionPatientManagement() {
               {!isEditingFamily && (
                 <label className="block">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                    City
+                    City <span className="text-red-500">*</span>
                   </span>
                   <input
                     required
@@ -927,10 +938,15 @@ export default function ReceptionPatientManagement() {
                 </label>
               )}
 
+              {!isEditingFamily && <PatientAddressExtraFields values={editForm} disabled={isSaving}
+                onChange={(field, value) => setEditForm(current => ({ ...current, [field]: value }))}
+                labelClassName="block text-[10px] font-black uppercase tracking-widest text-slate-500"
+                inputClassName="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]" />}
+
               {isEditingFamily && (
                 <label className="block">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                    Relationship
+                    Relationship <span className="text-red-500">*</span>
                   </span>
                   <input
                     required
@@ -949,7 +965,7 @@ export default function ReceptionPatientManagement() {
 
                 <label className="block">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                    Age
+                    Age {!editForm.date_of_birth && <span className="text-red-500">*</span>}
                   </span>
                   <input
                     required
@@ -992,7 +1008,7 @@ export default function ReceptionPatientManagement() {
 
               <label className="block">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  Gender
+                  Gender <span className="text-red-500">*</span>
                 </span>
                 <div className="mt-2">
                   <ThemeSelect

@@ -261,6 +261,8 @@ export default function Booking() {
     mobile_no: string;
     address?: string | null;
     area_name?: string | null;
+    ward_no?: string | null;
+    vidhan_sabha?: string | null;
     city?: string | null;
     pincode?: string | null;
     description?: string;

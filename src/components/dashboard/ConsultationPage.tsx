@@ -3053,6 +3053,8 @@ export default function ConsultationPage() {
     gender: string;
     mobile_no: string;
     area_name: string;
+    ward_no: string;
+    vidhan_sabha: string;
     pincode: string;
     city: string;
   }) => {
@@ -3086,6 +3088,8 @@ export default function ConsultationPage() {
               patient_gender: updatedData.gender,
               patient_mobile_no: updatedData.mobile_no,
               patient_area_name: updatedData.area_name,
+              patient_ward_no: updatedData.ward_no,
+              patient_vidhan_sabha: updatedData.vidhan_sabha,
               patient_pincode: updatedData.pincode,
               patient_city: updatedData.city,
             }
@@ -3297,6 +3301,8 @@ export default function ConsultationPage() {
             gender: currentApp.patient_gender || "",
             mobile_no: currentApp.patient_mobile_no || "",
             area_name: currentApp.patient_area_name || "",
+            ward_no: currentApp.patient_ward_no || "",
+            vidhan_sabha: currentApp.patient_vidhan_sabha || "",
             pincode: currentApp.patient_pincode || "",
             city: currentApp.patient_city || "",
           }}
@@ -3367,12 +3373,14 @@ export default function ConsultationPage() {
                 <span className="truncate">{occupation.trim()}</span>
               </span>
             )}
-            {currentApp.patient_city?.trim() && (
-              <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-xs font-black tracking-wide text-[#174f51] shadow-sm">
-                <span className="shrink-0 text-[10px] uppercase tracking-wider text-[#557879]">
-                  {t("patient_registration.city", "City")}:
+            {(currentApp.patient_area_name?.trim() || currentApp.patient_city?.trim()) && (
+              <span className="inline-flex min-w-0 items-start gap-1.5 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-xs font-black tracking-wide text-[#174f51] shadow-sm">
+                <span className="mt-0.5 shrink-0 text-[10px] uppercase tracking-wider text-[#557879]">
+                  {t("contact_page.address_label", "Address")}:
                 </span>
-                <span className="truncate">{currentApp.patient_city.trim()}</span>
+                <span className="min-w-0 break-words leading-relaxed uppercase">
+                  {[currentApp.patient_area_name?.trim(), currentApp.patient_city?.trim()].filter(Boolean).join(", ")}
+                </span>
               </span>
             )}
             <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-100 px-3 py-2 text-xs font-black uppercase tracking-wider text-amber-900 shadow-sm">

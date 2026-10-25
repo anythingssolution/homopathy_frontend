@@ -1,3 +1,4 @@
+import PatientAddressExtraFields from '../PatientAddressExtraFields';
 import { profileAreaValue } from '../../utils/profileAddress';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -28,6 +29,8 @@ export default function Profile() {
     gender: '',
     address: '',
     area_name: '',
+    ward_no: '',
+    vidhan_sabha: '',
     city: '',
     pincode: ''
   });
@@ -58,6 +61,8 @@ export default function Profile() {
         gender: user.gender || '',
         address: user.address || '',
         area_name: profileAreaValue(user),
+        ward_no: user.ward_no || '',
+        vidhan_sabha: user.vidhan_sabha || '',
         city: user.city || '',
         pincode: user.pincode || ''
       });
@@ -81,7 +86,7 @@ export default function Profile() {
           age: formData.date_of_birth ? calculateAgeYearsFromDob(formData.date_of_birth) : parseInt(formData.age),
           date_of_birth: formData.date_of_birth || null,
           gender: formData.gender.toLowerCase(),
-          ...(isPatient ? { area_name: formData.area_name.trim(), city: formData.city.trim(), pincode: formData.pincode || null } : { address: formData.address })
+          ...(isPatient ? { area_name: formData.area_name.trim(), ward_no: formData.ward_no.trim(), vidhan_sabha: formData.vidhan_sabha.trim(), city: formData.city.trim(), pincode: formData.pincode || null } : { address: formData.address })
         }
       });
       
@@ -308,7 +313,7 @@ export default function Profile() {
 
                 <div className="space-y-3">
                   <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">{t('profile.full_name')}</label>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">{t('profile.full_name')} <span className="text-red-500">*</span></label>
                     <div className="relative">
                       <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input
@@ -360,7 +365,7 @@ export default function Profile() {
 
                 <div className="space-y-3">
                   <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">{t('profile.age_years')}</label>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">{t('profile.age_years')} {!formData.date_of_birth && <span className="text-red-500">*</span>}</label>
                     <div className="relative">
                       <Calendar size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input
@@ -396,7 +401,7 @@ export default function Profile() {
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">{t('profile.gender')}</label>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">{t('profile.gender')} <span className="text-red-500">*</span></label>
                     <div className="relative">
                       <select
                         disabled={!isEditing}
@@ -426,6 +431,10 @@ export default function Profile() {
                       </div>
                       {isEditing && !user?.area_name && user?.address && <p className="mt-1.5 text-xs leading-relaxed text-gray-500">{addressLabel('Your saved address is retained here. Check the area and enter city / pincode separately.', 'पुराना पता यहाँ रखा है। क्षेत्र जाँचें और शहर / पिनकोड अलग भरें।')}</p>}
                     </div>
+                    <PatientAddressExtraFields values={formData} disabled={!isEditing || isSubmitting}
+                      onChange={(field, value) => setFormData(current => ({ ...current, [field]: value }))}
+                      labelClassName="block text-[10px] font-bold text-gray-500 uppercase tracking-widest"
+                      inputClassName={inputClass(isEditing)} />
                     <div>
                       <label htmlFor="profile-city" className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">{addressLabel('City', 'शहर')} <span className="text-red-500">*</span></label>
                       <div className="relative"><MapPin size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
