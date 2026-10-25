@@ -15,7 +15,9 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
-          maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+          // The production entry bundle exceeds 3 MiB. Keep a bounded 4 MiB
+          // allowance so Workbox includes it instead of failing deployment.
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           // HTML must come from Nginx on every navigation. Hashed assets remain
           // safe to precache, but caching the app shell can show an old UI.
           globIgnores: ['**/index.html', '**/gallery/originals/**', '**/site-images/originals/**'],
