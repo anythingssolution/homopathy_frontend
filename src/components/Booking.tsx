@@ -1876,7 +1876,11 @@ export default function Booking() {
                     options={formData?.treatments.map(t => ({
                       id: t.id,
                       label: t.treatment_name,
-                      description: t.description
+                      // The renamed treatment may still carry its old master description.
+                      description: t.treatment_name?.trim().toLowerCase() === 'online consultation'
+                        && t.description === 'In-depth analysis and long-term planning for persistent health conditions.'
+                        ? undefined
+                        : t.description
                     })) || []}
                     value={treatmentType}
                     onChange={setTreatmentType}

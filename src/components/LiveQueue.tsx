@@ -31,7 +31,8 @@ const getTreatmentColor = (treatmentName?: string) => {
   const name = treatmentName.toLowerCase();
   if (name.includes("acute"))
     return "bg-rose-100 text-rose-700 border-rose-200";
-  if (name.includes("chronic"))
+  // Treatment 4 was renamed; retain its existing queue colour for both names.
+  if (name.includes("chronic") || name === "online consultation")
     return "bg-amber-100 text-amber-700 border-amber-200";
   if (name.includes("first"))
     return "bg-emerald-100 text-emerald-700 border-emerald-200";

@@ -54,8 +54,8 @@ const VISIT_TYPE_DETAILS: Record<string, { label: string; short: string; color: 
     text: 'text-blue-700',
   },
   CHRONIC_CASE_DISCUSSION: {
-    label: 'Chronic Case Discussion',
-    short: 'Chronic',
+    label: 'Online Consultation',
+    short: 'Online',
     color: '#7C3AED',
     bg: 'bg-purple-50 hover:bg-purple-100/70',
     border: 'border-purple-200 hover:border-purple-300',
