@@ -20,6 +20,7 @@ import { formatTimeTo12Hour } from '../utils/dateUtils';
 import WeeklyScheduleRules from './dashboard/WeeklyScheduleRules';
 import CallTuneSettings from './dashboard/CallTuneSettings';
 import { getLocalDateString } from '../utils/date';
+import { canConsultFromSessionList } from '../utils/doctorListSession';
 const DoctorSessionSlotControl = React.lazy(() => import('./DoctorSessionSlotControl'));
 
 function DoctorMastersMenu({ compact = false }: { compact?: boolean }) {
@@ -364,6 +365,7 @@ export default function DoctorPortal() {
     });
   }, [appointments, tokenSearch]);
   const [filterStatus, setFilterStatus] = useState(savedPortalView?.filterStatus || 'all');
+  const [listSession, setListSession] = useState('current');
   const navigate = useNavigate();
   const listRef = useRef<HTMLDivElement>(null);
   const [filterDate, setFilterDate] = useState<string>(() => {
@@ -389,6 +391,7 @@ export default function DoctorPortal() {
   const [activeSessionBranchName, setActiveSessionBranchName] = useState<string | null>(null);
   const [sessionActionMessage, setSessionActionMessage] = useState<string | null>(null);
   const selectedBranchId = branchScope?.selected_branch_id ? Number(branchScope.selected_branch_id) : null;
+  useEffect(() => { setListSession('current'); }, [selectedBranchId, filterDate]);
   const [dateSlotTimings, setDateSlotTimings] = useState<DateSlotTiming[]>([]);
   const [selectedTimingSlotId, setSelectedTimingSlotId] = useState<number | null>(null);
   const [overrideStartTime, setOverrideStartTime] = useState('');
@@ -696,6 +699,10 @@ export default function DoctorPortal() {
       if (filterDate && filterDate !== 'all') params.append('appointment_date', filterDate);
       if (filterStatus && filterStatus !== 'all') params.append('status', filterStatus);
       if (patientSearch.trim()) params.append('patient_search', patientSearch.trim());
+      if (listSession !== 'current') {
+        params.append('session_scope', listSession === 'all' ? 'all' : 'slot');
+        if (listSession !== 'all') params.append('slot_id', listSession);
+      }
 
       const url = `/api/v1/doctors/appointments${params.toString() ? '?' + params.toString() : ''}`;
       const response = await dedupedFetch(url, {
@@ -730,7 +737,7 @@ export default function DoctorPortal() {
         setIsLoading(false);
       }
     }
-  }, [filterDate, filterStatus, patientSearch, selectedBranchId, token]);
+  }, [filterDate, filterStatus, patientSearch, selectedBranchId, token, listSession]);
 
   const [dashboardStats, setDashboardStats] = useState<any>(null);
 
@@ -885,7 +892,16 @@ export default function DoctorPortal() {
   };
 
   // Consultation helpers
+  const canConsultListedAppointment = (app: DoctorAppointment) => canConsultFromSessionList(listSession, app, {
+    slotId: activeSessionSlotId, branchId: activeSessionBranchId,
+    hasOpenSession: isAtDesk || isOnBreak, today: getLocalDateString(),
+  });
+
   const openConsultation = async (app: DoctorAppointment) => {
+    if (app.status.toLowerCase() !== 'completed' && !canConsultListedAppointment(app)) {
+      triggerCustomAlert('Switch the consultation session below before consulting this patient. The list filter only changes what you see.', 'info');
+      return;
+    }
     const appointmentStatus = app.status.toLowerCase();
     const queueStatus = String(app.queue_status || '').toUpperCase();
     const queueBucket = String(app.queue_bucket || '').toUpperCase();
@@ -970,6 +986,7 @@ export default function DoctorPortal() {
 
     const isCompleted = app.status.toLowerCase() === 'completed';
     const isStarting = startingConsultationId === app.appointment_id;
+    const sessionBlocked = !isCompleted && !canConsultListedAppointment(app);
     const primaryLabel = isStarting
       ? t('doctor_portal.actions.starting', 'Wait')
       : t('doctor_portal.actions.consult', 'Consult');
@@ -991,9 +1008,9 @@ export default function DoctorPortal() {
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); openConsultation(app); }}
-            disabled={isStarting}
-            className={`${stackedActionClass} text-white ${isStarting ? 'opacity-60 cursor-wait' : 'cursor-pointer'} bg-[#549E9E] hover:bg-[#438787] shadow-sm shadow-[#549E9E]/20`}
-            title={primaryLabel}
+            disabled={isStarting || sessionBlocked}
+            className={`${stackedActionClass} text-white ${sessionBlocked ? 'opacity-40 cursor-not-allowed' : isStarting ? 'opacity-60 cursor-wait' : 'cursor-pointer'} bg-[#549E9E] hover:bg-[#438787] shadow-sm shadow-[#549E9E]/20`}
+            title={sessionBlocked ? 'Switch consultation session to consult this patient' : primaryLabel}
           >
             <Stethoscope size={12} />
             <span>{primaryLabel}</span>
@@ -1022,7 +1039,9 @@ export default function DoctorPortal() {
     setIsCallingNext(true);
     try {
       // We need a slot_id. Get it from first appointment of the day
-      const todayAppts = appointments.filter(a => a.appointment_date === filterDate);
+      const todayAppts = appointments.filter(a => listSession === 'current'
+        ? a.appointment_date === filterDate
+        : canConsultListedAppointment(a));
       if (todayAppts.length === 0) {
         triggerCustomAlert('No appointments found for today to call next.', 'info');
         return;
@@ -1373,8 +1392,8 @@ export default function DoctorPortal() {
           </div>
         </div>
 
-        <div ref={listRef} className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-4 border-t border-gray-100 items-end scroll-mt-24">
-          <div className="md:col-span-4 space-y-1.5">
+        <div ref={listRef} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-4 pt-4 border-t border-gray-100 items-end scroll-mt-24">
+          <div className="md:col-span-2 xl:col-span-4 space-y-1.5">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               {t('doctor_portal.search_label', 'Search Patient')}
             </label>
@@ -1389,7 +1408,7 @@ export default function DoctorPortal() {
               />
             </div>
           </div>
-          <div className="md:col-span-2 space-y-1.5">
+          <div className="xl:col-span-2 space-y-1.5">
             <label htmlFor="doctor-token-search" className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
               {t('doctor_portal.token_search_label', 'Token')}
             </label>
@@ -1409,14 +1428,14 @@ export default function DoctorPortal() {
               )}
             </div>
           </div>
-          <div className="md:col-span-3">
+          <div className="xl:col-span-2">
             <CustomDatePicker
               label={t('doctor_portal.today_appointment_date')}
               value={filterDate}
               onChange={setFilterDate}
             />
           </div>
-          <div className="md:col-span-3">
+          <div className="xl:col-span-2">
             <FilterDropdown
               label={t('doctor_portal.status')}
               icon={Tag}
@@ -1429,7 +1448,27 @@ export default function DoctorPortal() {
               ]}
             />
           </div>
+          <div className="xl:col-span-2">
+            <FilterDropdown
+              label={t('doctor_portal.list_session', 'Session')}
+              icon={Clock}
+              value={listSession}
+              onChange={setListSession}
+              options={[
+                { id: 'current', label: t('doctor_portal.list_current_session', 'Current Session') },
+                { id: 'all', label: t('doctor_portal.list_all_sessions', 'All Sessions') },
+                ...dateSlotTimings.map(slot => ({ id: String(slot.slot_id), label: getLocalizedSlotName(slot.slot_name) })),
+              ]}
+            />
+          </div>
         </div>
+
+        {listSession !== 'current' && (
+          <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-[#438787]" role="status">
+            <Clock size={14} className="shrink-0" />
+            {t('doctor_portal.list_session_notice', 'List view only. Calling and consultation follow the current consultation session. Summary cards show the current session.')}
+          </p>
+        )}
 
         {filterDate === getLocalDateString() && selectedBranchId && dateSlotTimings.length > 0 && (
           <React.Suspense fallback={<div className="p-4 text-sm text-gray-500">Loading session controls…</div>}><DoctorSessionSlotControl token={token} branchId={selectedBranchId} slots={dateSlotTimings}
@@ -1756,9 +1795,9 @@ export default function DoctorPortal() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 <AnimatePresence mode="popLayout" initial={false}>
-                {visibleAppointments.map((app) => (
-                  <React.Fragment key={app.appointment_id}>
+                {visibleAppointments.flatMap((app) => [
                     <motion.tr
+                      key={app.appointment_id}
                       layout
                       layoutId={`doctor-queue-row-${app.appointment_id}`}
                       initial={{ opacity: 0, y: 28 }}
@@ -1868,12 +1907,10 @@ export default function DoctorPortal() {
                         {renderAppointmentActions(app)}
                       </td>
 
-                    </motion.tr>
+                    </motion.tr>,
 
-                    {/* Expanded Patient Details */}
-                    <AnimatePresence>
-                      {expandedId === app.appointment_id && (
-                        <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                      expandedId === app.appointment_id && (
+                        <motion.tr key={`details-${app.appointment_id}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                           <td colSpan={9} className="p-0">
                             <motion.div
                               initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
@@ -1972,10 +2009,8 @@ export default function DoctorPortal() {
                             </motion.div>
                           </td>
                         </motion.tr>
-                      )}
-                    </AnimatePresence>
-                  </React.Fragment>
-                ))}
+                      )
+                ])}
                 </AnimatePresence>
               </tbody>
             </table>

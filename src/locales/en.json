@@ -722,6 +722,10 @@
     "loading": "Loading Appointments..."
   },
   "doctor_portal": {
+    "list_session": "Session",
+    "list_current_session": "Current Session",
+    "list_all_sessions": "All Sessions",
+    "list_session_notice": "List view only. Calling and consultation follow the current consultation session. Summary cards show the current session.",
     "token_search_label": "Token",
     "token_search_placeholder": "e.g. 12 or E-12",
     "clear_token_search": "Clear token filter",

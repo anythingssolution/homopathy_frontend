@@ -722,6 +722,10 @@
     "loading": "अपॉइंटमेंट लोड हो रहा है..."
   },
   "doctor_portal": {
+    "list_session": "सत्र",
+    "list_current_session": "वर्तमान सत्र",
+    "list_all_sessions": "सभी सत्र",
+    "list_session_notice": "यह केवल सूची का फ़िल्टर है। कॉल और परामर्श वर्तमान सत्र के अनुसार होंगे। ऊपर के कार्ड वर्तमान सत्र का सारांश दिखाते हैं।",
     "token_search_label": "टोकन",
     "token_search_placeholder": "जैसे 12 या E-12",
     "clear_token_search": "टोकन फ़िल्टर हटाएँ",
