@@ -89,6 +89,7 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                           होम्योपैथिक चिकित्सक
                         </p>
                         <p className="text-[12.5px] font-bold text-gray-800 leading-tight mt-0.5">बी.एच.एम.एस.</p>
+                        <p className="text-[10.5px] font-bold text-[#1a2b4c] leading-tight mt-0.5">रजि. नं.: 1836</p>
                         <p className="text-[10.5px] font-black text-[#1a2b4c] leading-tight mt-1">मो. 8462030001</p>
                       </div>
                     </div>
