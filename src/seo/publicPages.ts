@@ -126,7 +126,7 @@ export const CONTACT_SEO: PublicSeoPage = {
   path: PUBLIC_PATHS.contact,
   title: "Contact Natural Homeopathic Healing in Raipur | Since 1983 | Dr. Trivedi's Clinic",
   description:
-    'Visit Dr. Trivedi’s Homeopathy Clinic in Raipur at Lily Chowk, Purani Basti and Devendra Nagar, Pandri. Call +91-7772043001 or book a homeopathic appointment.',
+    'Visit Dr. Trivedi’s Homeopathy Clinic in Raipur at Lily Chowk, Purani Basti and Devendra Nagar. Call +91-7772043001 or book a homeopathic appointment.',
   image: '/slide1.jpeg',
   jsonLd: CLINIC_JSON_LD,
 };
@@ -135,7 +135,7 @@ export const BOOKING_SEO: PublicSeoPage = {
   path: PUBLIC_PATHS.booking,
   title: "Book Homeopathy Appointment in Raipur | Dr. Trivedi's Homeopathy",
   description:
-    'Book a homeopathic consultation with Dr. Uttkarsh Trivedi in Raipur. Morning and evening clinic hours at Lily Chowk and Pandri.',
+    'Book a homeopathic consultation with Dr. Uttkarsh Trivedi in Raipur. Morning and evening clinic hours at Lily Chowk and Devendra Nagar.',
   image: '/slide1.jpeg',
 };
 
@@ -144,7 +144,7 @@ export const GALLERY_SEO: Record<'TREATMENT' | 'MEDIA' | 'AWARDS' | 'VIDEO', Pub
     path: PUBLIC_PATHS.gallery,
     title: "Homeopathy Clinic Gallery in Raipur | Dr. Trivedi's Homeopathy",
     description:
-      "Photos from Dr. Trivedi's Homeopathy Clinic in Raipur — treatment rooms, patients, and clinic life at Lily Chowk and Pandri.",
+      "Photos from Dr. Trivedi's Homeopathy Clinic in Raipur — treatment rooms, patients, and clinic life at Lily Chowk and Devendra Nagar.",
     image: '/gallery/images/gallery-cover.webp',
   },
   MEDIA: {

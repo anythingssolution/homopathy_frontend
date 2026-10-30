@@ -110,7 +110,7 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Card 2: Pandri Clinic */}
+          {/* Card 2: Devendra Nagar Clinic */}
           <div className="flex flex-col overflow-hidden rounded-[50px] bg-[#FAFBFD] p-8 shadow-sm ring-1 ring-black/5 [content-visibility:auto] [contain-intrinsic-size:auto_520px]">
             <div className="flex items-start justify-between mb-6 text-left">
               <div className="flex items-center gap-3">
@@ -130,7 +130,7 @@ export default function Footer() {
             <div className="relative mb-8 h-[200px] overflow-hidden rounded-3xl group">
               <img
                 src="/pandri-clinic.png"
-                alt="Dr. Trivedi's Homeopathy Clinic, Devendra Nagar, Pandri, Raipur"
+                alt="Dr. Trivedi's Homeopathy Clinic, Devendra Nagar, Raipur"
                 loading="lazy"
                 decoding="async"
                 width={640}
@@ -139,7 +139,7 @@ export default function Footer() {
               />
               <div className="pointer-events-none absolute inset-0 bg-black/5" />
               <a
-                href="https://www.google.com/maps/place/Dr.Trivedis+Homeopathy+Clinic+:+Devendra+Nagar,+Pandri/@21.261514,81.653251,14z/data=!4m6!3m5!1s0x3a28ddd8a2add937:0x5417ef7682d680f1!8m2!3d21.2615138!4d81.6532511!16s%2Fg%2F11y07h6jxb"
+                href="https://maps.google.com/maps?cid=6059575115930566897"
                 target="_blank" rel="noopener noreferrer"
                 className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
               >
@@ -152,7 +152,7 @@ export default function Footer() {
               <table className="w-full text-[10px] font-bold text-public-heading">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="pb-3 text-left">{t('footer.time')} (Pandri)</th>
+                    <th className="pb-3 text-left">{t('footer.time')} (Devendra Nagar)</th>
                     <th className="pb-3">{t('footer.days.mon')}</th>
                     <th className="pb-3">{t('footer.days.tue')}</th>
                     <th className="pb-3">{t('footer.days.wed')}</th>

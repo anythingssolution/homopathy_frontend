@@ -159,7 +159,7 @@ export default function Contact() {
             </div>
           </motion.div>
 
-          {/* Clinic 2: Pandri */}
+          {/* Clinic 2: Devendra Nagar */}
           <motion.div
             whileHover={{ y: -5 }}
             className="bg-white rounded-[40px] shadow-sm border border-gray-100 flex flex-col h-full overflow-hidden"
@@ -174,13 +174,13 @@ export default function Contact() {
             <div className="mt-6 px-8">
               <div className="rounded-3xl overflow-hidden shadow-inner border border-gray-50 h-[300px]">
                 <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3718.599925206338!2d81.65106241493514!3d21.2615138!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3a28ddd8a2add937%3A0x5417ef7682d680f1!2sDr.Trivedis%20Homeopathy%20Clinic%20%3A%20Devendra%20Nagar%2C%20Pandri!5e0!3m2!1sen!2sin!4v1624860000000!5m2!1sen!2sin"
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3718.599925206338!2d81.65106241493514!3d21.2615138!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3a28ddd8a2add937%3A0x5417ef7682d680f1!2sDr.Trivedis%20Homeopathy%20Clinic%20%3A%20Devendra%20Nagar!5e0!3m2!1sen!2sin!4v1624860000000!5m2!1sen!2sin"
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}
                   allowFullScreen={true}
                   loading="lazy"
-                  title="Pandri Clinic Map"
+                  title="Devendra Nagar Clinic Map"
                 ></iframe>
               </div>
             </div>
@@ -220,7 +220,7 @@ export default function Contact() {
 
               <div className="pt-6 border-t border-gray-50">
                 <a
-                  href="https://www.google.com/maps/place/Dr.Trivedis+Homeopathy+Clinic+:+Devendra+Nagar,+Pandri/@21.261514,81.653251,14z/data=!4m6!3m5!1s0x3a28ddd8a2add937:0x5417ef7682d680f1!8m2!3d21.2615138!4d81.6532511!16s%2Fg%2F11y07h6jxb"
+                  href="https://maps.google.com/maps?cid=6059575115930566897"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-3 bg-gray-50 text-public-heading py-4 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-public-action hover:text-white transition-all shadow-sm"

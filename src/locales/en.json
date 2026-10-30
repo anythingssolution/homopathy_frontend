@@ -74,7 +74,7 @@
     "change": "Change",
     "locations": [
       "Purani Basti Clinic (Lily Chowk)",
-      "Raipur Main Branch"
+      "Devendra Nagar Branch"
     ],
     "treatment_types": [
       "First Consultation",
@@ -374,9 +374,9 @@
   },
   "contact_page": {
     "title": "Contact Us",
-    "subtitle": "Lily Chowk & Pandri, Raipur",
+    "subtitle": "Lily Chowk & Devendra Nagar, Raipur",
     "purani_basti_title": "Lily Chowk, Purani Basti Clinic",
-    "pandri_title": "Devendra Nagar, Pandri Clinic",
+    "pandri_title": "Devendra Nagar Clinic",
     "main_branch": "Main Branch",
     "secondary_branch": "Secondary Branch",
     "address_label": "Address",
@@ -386,7 +386,7 @@
     "pb_address": "Trivedi Homeopathy clinic, Lily Chowk, Barai Mandir Gali, Purani Basti, Raipur, Chhattisgarh 492001",
     "pb_timings_1": "Morning: 11:00 AM to 02:30 PM",
     "pb_timings_2": "Evening: 06:00 PM to 09:00 PM",
-    "pandri_address": "Trivedi Homeopathy clinic Pandri, Sec-5, Near Mandi Gate, In front of St. Mary's School, Devendra Nagar, Raipur (C.G)",
+    "pandri_address": "Trivedi Homeopathy clinic, Sec-5, Near Mandi Gate, In front of St. Mary's School, Devendra Nagar, Raipur (C.G)",
     "pandri_timings_day": "Every Tuesday",
     "pandri_timings_time": "Morning: 11:00 AM to 06:00 PM",
     "official_email": "Official Email",
@@ -414,7 +414,7 @@
     "web_reservation": "WEB Reservation",
     "all_rights_reserved": "ALL RIGHTS RESERVED.",
     "purani_basti": "Purani Basti Clinic",
-    "pandri": "Pandri Clinic",
+    "pandri": "Devendra Nagar Clinic",
     "address_pb": "Lily Chowk, Raipur",
     "address_pandri": "Devendra Nagar, Raipur",
     "clinic_name_main": "Dr. Trivedi's",
