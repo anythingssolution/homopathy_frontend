@@ -5233,7 +5233,7 @@ export default function ConsultationPage() {
             )}
           </div>
 
-          {/* Frequency rules apply to plain numeric entries; alpha codes retain their master schedules. */}
+          {/* Q has a twice-daily override; other alpha codes retain their master schedules. */}
           {!isReadOnly && (
             <div className="flex flex-wrap items-center gap-3 bg-gray-50/80 px-3 py-1.5 rounded-xl border border-[#549E9E]/20 text-[9px] font-black uppercase tracking-wider text-gray-600">
               <span className="text-[#549E9E]">Frequency:</span>
@@ -5256,7 +5256,7 @@ export default function ConsultationPage() {
                 2 times a day
               </label>
               <span className="normal-case tracking-normal font-semibold text-gray-500">
-                {t('consultation_modal.master_dosage_preserved', 'Frequency applies to normal numeric medicines. Special codes retain Formula Master dosage.')}
+                {t('consultation_modal.master_dosage_preserved', 'Frequency applies to normal numeric medicines. Q codes use 8/0/8 at 2 times/day; otherwise special codes retain Formula Master dosage.')}
               </span>
             </div>
           )}

@@ -1131,7 +1131,7 @@
     }
   },
   "consultation_modal": {
-    "master_dosage_preserved": "फ़्रीक्वेंसी सामान्य numeric दवाओं पर लागू होती है। विशेष codes की Formula Master खुराक वही रहती है।",
+    "master_dosage_preserved": "फ़्रीक्वेंसी सामान्य numeric दवाओं पर लागू होती है। Q codes में 2 बार/दिन पर 8/0/8 होगा; बाकी विशेष codes की Formula Master खुराक वही रहती है।",
     "reg_number": "रजिस्ट्रेशन नं.",
     "title": "रोगी परामर्श (पूर्ण)",
     "token": "टोकन",

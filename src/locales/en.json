@@ -181,7 +181,7 @@
     "online_support": "Online Support",
     "story_title": "Best Homeopathy Clinic in Raipur",
     "story_subtitle": "Holistic Healing through Homeopathy since 1983",
-    "story_description_1": "In the spring of 2022, I established \"Dr. Trivedi's Homeopathy Clinic\" with a vision to provide gentle, safe, and holistic healthcare for all.",
+    "story_description_1": "In the spring of 2016, I established \"Dr. Trivedi's Homeopathy Clinic\" with a vision to provide gentle, safe, and holistic healthcare for all.",
     "story_description_2": "Moving beyond just \"treatment,\" our philosophy is \"healing the body from within.\"",
     "story_description_3": "We focus on addressing the root cause of illness and strengthening the body's natural ability to heal.",
     "wellness_hub": "Wellness Hub",
@@ -1184,7 +1184,7 @@
     }
   },
   "consultation_modal": {
-    "master_dosage_preserved": "Frequency applies to normal numeric medicines. Special codes retain Formula Master dosage.",
+    "master_dosage_preserved": "Frequency applies to normal numeric medicines. Q codes use 8/0/8 at 2 times/day; otherwise special codes retain Formula Master dosage.",
     "reg_number": "Reg. No.",
     "title": "PATIENT CONSULTATION (COMPLETED)",
     "token": "TOKEN",

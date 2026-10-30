@@ -4,7 +4,6 @@ import { resolveQuickNumericDoses } from './quickNumericDosage';
 
 test('inline and slash alpha codes retain exact master schedules for every duration and frequency', () => {
   const templates = [
-    { token: '36q', doses: { morning: 5, afternoon: 5, night: 5 } },
     { token: '12/HS', doses: { morning: 0, afternoon: 0, night: 4 } },
     { token: '12OD', doses: { morning: 4, afternoon: 0, night: 0 } },
     { token: '12/BD', doses: { morning: 4, afternoon: 0, night: 4 } },
@@ -24,7 +23,7 @@ test('normal numeric medicines apply short and long duration frequency rules inc
   for (const token of ['36', '36[5,12]', '36/5', '36/50', '36/500']) {
     for (const duration of ['7', '15']) {
       assert.deepEqual(resolveQuickNumericDoses(master, duration, '3', token), { morning: 4, afternoon: 4, night: 4 });
-      assert.deepEqual(resolveQuickNumericDoses(master, duration, '2', token), { morning: 8, afternoon: 0, night: 8 });
+      assert.deepEqual(resolveQuickNumericDoses(master, duration, '2', token), { morning: duration === '7' ? 8 : 6, afternoon: 0, night: duration === '7' ? 8 : 6 });
     }
     for (const duration of ['30', '45', '2M', '3M', '6M']) {
       assert.deepEqual(resolveQuickNumericDoses(master, duration, '3', token), { morning: 3, afternoon: 3, night: 3 });
@@ -35,9 +34,21 @@ test('normal numeric medicines apply short and long duration frequency rules inc
 
 test('frequency toggles update normal schedules without mutating special-code master doses', () => {
   const master = Object.freeze({ morning: 5, afternoon: 5, night: 5 });
-  assert.deepEqual(resolveQuickNumericDoses(master, '15', '2', '36'), { morning: 8, afternoon: 0, night: 8 });
+  assert.deepEqual(resolveQuickNumericDoses(master, '15', '2', '36'), { morning: 6, afternoon: 0, night: 6 });
   assert.deepEqual(resolveQuickNumericDoses(master, '15', '3', '36'), { morning: 4, afternoon: 4, night: 4 });
   const q = resolveQuickNumericDoses(master, '15', '2', '36Q');
-  assert.deepEqual(q, master);
+  assert.deepEqual(q, { morning: 8, afternoon: 0, night: 8 });
   assert.notEqual(q, master);
+  assert.deepEqual(resolveQuickNumericDoses(master, '15', '3', '36Q'), master);
+});
+
+test('Q codes use 8/0/8 twice daily at every duration and restore the master three times daily', () => {
+  const master = Object.freeze({ morning: 5, afternoon: 5, night: 5 });
+  for (const token of ['36q', '36/Q', '36[5,12]Q', '36Q[5,12]', '36Q/50']) {
+    for (const duration of ['7', '15', '30', '45', '2M', '3M', '6M']) {
+      assert.deepEqual(resolveQuickNumericDoses(master, duration, '2', token), { morning: 8, afternoon: 0, night: 8 });
+      assert.deepEqual(resolveQuickNumericDoses(master, duration, '3', token), master);
+    }
+  }
+  assert.deepEqual(resolveQuickNumericDoses(master, '15', '2', '36CUSTOMQ'), master);
 });
