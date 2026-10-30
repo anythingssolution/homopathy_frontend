@@ -3,14 +3,14 @@ import React, { useState } from 'react';
 import { MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-type PatientAddress = { patient_id: number; address?: string | null; area_name?: string | null; ward_no?: string | null; vidhan_sabha?: string | null; city?: string | null; pincode?: string | null };
+type PatientAddress = { patient_id: number; address?: string | null; area_name?: string | null; ward_no?: string | null; vidhan_sabha?: string | null; state_name?: string | null; city?: string | null; pincode?: string | null };
 
 export default function ReceptionBookingAddress({ patient, token, onSaved }: { patient: PatientAddress; token: string | null; onSaved: (patient: PatientAddress) => void }) {
   const { i18n } = useTranslation();
   const label = (en: string, hi: string) => i18n.language.startsWith('hi') ? hi : en;
   const address = patient.address || [patient.area_name, patient.pincode, patient.city].filter(Boolean).join(', ');
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ area_name: patient.area_name || '', ward_no: patient.ward_no || '', vidhan_sabha: patient.vidhan_sabha || '', city: patient.city || '', pincode: patient.pincode || '' });
+  const [form, setForm] = useState({ area_name: patient.area_name || '', ward_no: patient.ward_no || '', vidhan_sabha: patient.vidhan_sabha || '', state_name: patient.state_name || '', city: patient.city || '', pincode: patient.pincode || '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const save = async () => {
@@ -22,7 +22,7 @@ export default function ReceptionBookingAddress({ patient, token, onSaved }: { p
     try {
       const response = await fetch(`/api/v1/receptionist/patients/${patient.patient_id}`, {
         method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ area_name: form.area_name.trim(), ward_no: form.ward_no.trim(), vidhan_sabha: form.vidhan_sabha.trim(), city: form.city.trim(), pincode: form.pincode || null }),
+        body: JSON.stringify({ area_name: form.area_name.trim(), ward_no: form.ward_no.trim(), vidhan_sabha: form.vidhan_sabha.trim(), state_name: form.state_name.trim(), city: form.city.trim(), pincode: form.pincode || null }),
       });
       const result = await response.json();
       if (!response.ok || !result.success || !result.data?.patient) throw new Error(result.message || label('Unable to save address.', 'पता सेव नहीं हुआ।'));
@@ -40,7 +40,7 @@ export default function ReceptionBookingAddress({ patient, token, onSaved }: { p
           <p className={`text-sm font-medium ${address ? 'text-gray-600' : 'text-gray-400 italic'}`}>{address || label('No address provided', 'पता दर्ज नहीं है')}</p>
         </div>
       </div>
-      {!editing && <button type="button" onClick={() => { setForm({ area_name: patient.area_name || '', ward_no: patient.ward_no || '', vidhan_sabha: patient.vidhan_sabha || '', city: patient.city || '', pincode: patient.pincode || '' }); setError(''); setEditing(true); }} className="px-4 py-2 bg-primary-teal/10 text-primary-teal text-[10px] font-black uppercase tracking-widest rounded-full hover:bg-primary-teal/20 whitespace-nowrap">{address ? label('Edit Address', 'पता बदलें') : label('Add Address', 'पता जोड़ें')}</button>}
+      {!editing && <button type="button" onClick={() => { setForm({ area_name: patient.area_name || '', ward_no: patient.ward_no || '', vidhan_sabha: patient.vidhan_sabha || '', state_name: patient.state_name || '', city: patient.city || '', pincode: patient.pincode || '' }); setError(''); setEditing(true); }} className="px-4 py-2 bg-primary-teal/10 text-primary-teal text-[10px] font-black uppercase tracking-widest rounded-full hover:bg-primary-teal/20 whitespace-nowrap">{address ? label('Edit Address', 'पता बदलें') : label('Add Address', 'पता जोड़ें')}</button>}
     </div>
     {editing && <>
       <div className="grid md:grid-cols-3 gap-4">

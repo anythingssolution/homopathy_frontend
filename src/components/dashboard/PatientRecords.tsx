@@ -42,6 +42,7 @@ type PatientRegistryRow = {
   mobile_no?: string | null;
   ward_no?: string | null;
   vidhan_sabha?: string | null;
+  state_name?: string | null;
   latest_visit_date?: string | null;
   latest_activity_date?: string | null;
   summary?: {

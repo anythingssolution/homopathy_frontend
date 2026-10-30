@@ -2226,6 +2226,7 @@
     }
   },
   "patient_registration": {
+    "state_name": "राज्य",
     "nav_button": "मरीज पंजीकरण",
     "eyebrow": "मरीज पंजीकरण",
     "title": "मरीज",

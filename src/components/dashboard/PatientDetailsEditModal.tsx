@@ -16,6 +16,7 @@ interface PatientDetailsEditModalProps {
     area_name: string;
     ward_no: string;
     vidhan_sabha: string;
+    state_name: string;
     pincode: string;
     city: string;
   };
@@ -29,6 +30,7 @@ interface PatientDetailsEditModalProps {
     area_name: string;
     ward_no: string;
     vidhan_sabha: string;
+    state_name: string;
     pincode: string;
     city: string;
   }) => Promise<void>;
@@ -47,7 +49,7 @@ export default function PatientDetailsEditModal({
   const [gender, setGender] = useState("");
   const [mobileNo, setMobileNo] = useState("");
   const [areaName, setAreaName] = useState("");
-  const [extraAddress, setExtraAddress] = useState({ ward_no: "", vidhan_sabha: "" });
+  const [extraAddress, setExtraAddress] = useState({ ward_no: "", vidhan_sabha: "", state_name: "" });
   const [pincode, setPincode] = useState("");
   const [city, setCity] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -61,7 +63,7 @@ export default function PatientDetailsEditModal({
       setGender(patientData.gender || "");
       setMobileNo(patientData.mobile_no || "");
       setAreaName(patientData.area_name || "");
-      setExtraAddress({ ward_no: patientData.ward_no || "", vidhan_sabha: patientData.vidhan_sabha || "" });
+      setExtraAddress({ ward_no: patientData.ward_no || "", vidhan_sabha: patientData.vidhan_sabha || "", state_name: patientData.state_name || "" });
       setPincode(patientData.pincode || "");
       setCity(patientData.city || "");
       setErrors({});
@@ -115,6 +117,7 @@ export default function PatientDetailsEditModal({
         area_name: areaName.trim(),
         ward_no: extraAddress.ward_no.trim(),
         vidhan_sabha: extraAddress.vidhan_sabha.trim(),
+       state_name: extraAddress.state_name.trim(),
         pincode: pincode.trim(),
         city: city.trim(),
       });

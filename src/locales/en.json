@@ -2168,6 +2168,7 @@
     }
   },
   "patient_registration": {
+    "state_name": "State",
     "nav_button": "Patient Registration",
     "eyebrow": "Patient Registration",
     "title": "Patients",

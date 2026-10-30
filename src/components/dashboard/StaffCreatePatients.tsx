@@ -179,7 +179,8 @@ export default function StaffCreatePatients() {
     age: '',
     date_of_birth: '',
     gender: 'other',
-    email: '', address: '', ward_no: '', vidhan_sabha: '', pincode: '', city: '',
+    email: '', address: '', ward_no: '', vidhan_sabha: '',
+    state_name: '', pincode: '', city: '',
   });
 
   const genderOptions = [
@@ -389,6 +390,7 @@ export default function StaffCreatePatients() {
           address: form.address.trim(),
           ward_no: form.ward_no.trim(),
           vidhan_sabha: form.vidhan_sabha.trim(),
+          state_name: form.state_name.trim(),
           pincode: form.pincode.trim(),
           city: form.city.trim(),
           registration_token: registrationToken,
@@ -406,7 +408,7 @@ export default function StaffCreatePatients() {
           ? t('staff_patients.success_create_id', { id: createdUuid })
           : t('staff_patients.success_create'),
       );
-      setForm({ full_name: '', mobile_no: '', age: '', date_of_birth: '', gender: 'other', email: '', address: '', ward_no: '', vidhan_sabha: '', pincode: '', city: '' });
+      setForm({ full_name: '', mobile_no: '', age: '', date_of_birth: '', gender: 'other', email: '', address: '', ward_no: '', vidhan_sabha: '', state_name: '', pincode: '', city: '' });
       resetMobileVerification();
       setCreatedFrom(todayIsoDate());
       setCreatedTo(todayIsoDate());
@@ -474,7 +476,7 @@ export default function StaffCreatePatients() {
                   <button
                     type="button"
                     onClick={() => {
-                      setForm((current) => ({ ...current, full_name: '', age: '', date_of_birth: '', gender: 'other', email: '', address: '', ward_no: '', vidhan_sabha: '', pincode: '', city: '' }));
+                      setForm((current) => ({ ...current, full_name: '', age: '', date_of_birth: '', gender: 'other', email: '', address: '', ward_no: '', vidhan_sabha: '', state_name: '', pincode: '', city: '' }));
                       resetMobileVerification();
                     }}
                     className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 px-4 text-[11px] font-black uppercase tracking-wider text-slate-600 hover:border-[#549E9E]"
@@ -601,7 +603,7 @@ export default function StaffCreatePatients() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {([
                   ['email', 'Email', 255], ['address', 'Address', 150], ['ward_no', 'Ward No.', 50],
-                  ['vidhan_sabha', 'Vidhan Sabha', 150], ['pincode', 'Pincode', 6], ['city', 'City', 100],
+                  ['vidhan_sabha', 'Vidhan Sabha', 150], ['state_name', 'State', 100], ['pincode', 'Pincode', 6], ['city', 'City', 100],
                 ] as const).map(([field, label, maxLength]) => (
                   <label key={field} className="block text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
                     {t(`staff_patients.optional_${field}`, `${label} (Optional)`)}

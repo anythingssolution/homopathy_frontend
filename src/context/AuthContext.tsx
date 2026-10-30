@@ -36,6 +36,7 @@ interface User {
   pincode?: string | null;
   ward_no?: string | null;
   vidhan_sabha?: string | null;
+  state_name?: string | null;
   profile_image_url?: string | null;
   profile_image_key?: string | null;
   profile_image_mime_type?: string | null;
@@ -141,6 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           pincode: result.data.pincode,
           ward_no: result.data.ward_no,
           vidhan_sabha: result.data.vidhan_sabha,
+         state_name: result.data.state_name,
           date_of_birth: result.data.date_of_birth,
           age_display: result.data.age_display,
           profile_image_url: result.data.profile_image_url !== undefined ? result.data.profile_image_url : existingUser.profile_image_url,

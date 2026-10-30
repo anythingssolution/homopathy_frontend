@@ -263,6 +263,7 @@ export default function Booking() {
     area_name?: string | null;
     ward_no?: string | null;
     vidhan_sabha?: string | null;
+    state_name?: string | null;
     city?: string | null;
     pincode?: string | null;
     description?: string;
@@ -396,6 +397,7 @@ export default function Booking() {
   const [regAddress, setRegAddress] = useState('');
   const [regWardNo, setRegWardNo] = useState('');
   const [regVidhanSabha, setRegVidhanSabha] = useState('');
+  const [regState, setRegState] = useState('');
   const [regPincode, setRegPincode] = useState('');
   const [regCity, setRegCity] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -1185,6 +1187,7 @@ export default function Booking() {
             address: regAddress || undefined,
             ward_no: regWardNo || undefined,
             vidhan_sabha: regVidhanSabha || undefined,
+           state_name: regState.trim() || undefined,
             pincode: regPincode || undefined,
             city: regCity || undefined,
             registration_token: registrationToken,
@@ -3202,6 +3205,12 @@ export default function Booking() {
                             onChange={(e) => setRegVidhanSabha(e.target.value)}
                             className="w-full bg-gray-50 border-none rounded-full py-4 px-6 focus:ring-2 transition-all outline-none text-[#6A6A50] font-medium focus:ring-primary-teal/20"
                           />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">{t('patient_registration.state_name', 'State')}</label>
+                          <input type="text" maxLength={100} placeholder={t('patient_registration.state_name', 'State')}
+                            value={regState} onChange={(e) => setRegState(e.target.value)}
+                            className="w-full bg-gray-50 border-none rounded-full py-4 px-6 focus:ring-2 transition-all outline-none text-[#6A6A50] font-medium focus:ring-primary-teal/20" />
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs font-black text-primary-teal uppercase tracking-widest pl-4">

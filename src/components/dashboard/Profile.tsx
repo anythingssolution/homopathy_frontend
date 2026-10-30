@@ -31,6 +31,7 @@ export default function Profile() {
     area_name: '',
     ward_no: '',
     vidhan_sabha: '',
+   state_name: '',
     city: '',
     pincode: ''
   });
@@ -63,6 +64,7 @@ export default function Profile() {
         area_name: profileAreaValue(user),
         ward_no: user.ward_no || '',
         vidhan_sabha: user.vidhan_sabha || '',
+       state_name: user.state_name || '',
         city: user.city || '',
         pincode: user.pincode || ''
       });
@@ -86,7 +88,7 @@ export default function Profile() {
           age: formData.date_of_birth ? calculateAgeYearsFromDob(formData.date_of_birth) : parseInt(formData.age),
           date_of_birth: formData.date_of_birth || null,
           gender: formData.gender.toLowerCase(),
-          ...(isPatient ? { area_name: formData.area_name.trim(), ward_no: formData.ward_no.trim(), vidhan_sabha: formData.vidhan_sabha.trim(), city: formData.city.trim(), pincode: formData.pincode || null } : { address: formData.address })
+          ...(isPatient ? { area_name: formData.area_name.trim(), ward_no: formData.ward_no.trim(), vidhan_sabha: formData.vidhan_sabha.trim(), state_name: formData.state_name.trim(), city: formData.city.trim(), pincode: formData.pincode || null } : { address: formData.address })
         }
       });
       

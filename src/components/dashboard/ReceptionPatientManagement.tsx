@@ -47,6 +47,7 @@ type Patient = {
   area_name?: string | null;
   ward_no?: string | null;
   vidhan_sabha?: string | null;
+  state_name?: string | null;
   pincode?: string | null;
   city?: string | null;
   total_appointments: number;
@@ -201,6 +202,7 @@ export default function ReceptionPatientManagement() {
     area_name: '',
     ward_no: '',
     vidhan_sabha: '',
+   state_name: '',
     pincode: '',
     city: '',
   });
@@ -285,6 +287,7 @@ export default function ReceptionPatientManagement() {
       area_name: patient.area_name || '',
       ward_no: patient.ward_no || '',
       vidhan_sabha: patient.vidhan_sabha || '',
+     state_name: patient.state_name || '',
       pincode: patient.pincode || '',
       city: patient.city || '',
     });
@@ -304,6 +307,7 @@ export default function ReceptionPatientManagement() {
       area_name: '',
     ward_no: '',
     vidhan_sabha: '',
+   state_name: '',
       pincode: '',
       city: '',
     });
@@ -349,6 +353,7 @@ export default function ReceptionPatientManagement() {
         payload.area_name = editForm.area_name.trim() || null;
         payload.ward_no = editForm.ward_no.trim() || null;
         payload.vidhan_sabha = editForm.vidhan_sabha.trim() || null;
+        payload.state_name = editForm.state_name.trim() || null;
         payload.pincode = editForm.pincode.trim() || null;
         payload.city = editForm.city.trim();
       }

@@ -32,6 +32,7 @@ type RegisteredPatient = {
   area_name: string | null;
   ward_no: string | null;
   vidhan_sabha: string | null;
+  state_name: string | null;
   pincode: string | null;
   city: string | null;
   description: string | null;
@@ -155,6 +156,7 @@ const emptyForm = {
   address: '',
   ward_no: '',
   vidhan_sabha: '',
+ state_name: '',
   pincode: '',
   city: '',
   description: '',
@@ -245,6 +247,7 @@ export default function PatientRegistration() {
       address: patient.area_name || patient.address || '',
       ward_no: patient.ward_no || '',
       vidhan_sabha: patient.vidhan_sabha || '',
+     state_name: patient.state_name || '',
       pincode: patient.pincode || '',
       city: patient.city || '',
       description: patient.description || '',
@@ -305,6 +308,7 @@ export default function PatientRegistration() {
           address: form.address.trim() || null,
           ward_no: form.ward_no.trim() || null,
           vidhan_sabha: form.vidhan_sabha.trim() || null,
+         state_name: form.state_name.trim() || null,
           pincode: form.pincode.trim() || null,
           city: form.city.trim() || null,
           description: form.description.trim() || null,
@@ -686,6 +690,13 @@ export default function PatientRegistration() {
                   }
                   className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]"
                 />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('patient_registration.state_name', 'State')}</span>
+                <input value={form.state_name} maxLength={100}
+                  onChange={(event) => setForm((current) => ({ ...current, state_name: event.target.value }))}
+                  className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold outline-none focus:border-[#549E9E]" />
               </label>
 
               <label className="block sm:col-span-2">

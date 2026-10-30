@@ -3055,6 +3055,7 @@ export default function ConsultationPage() {
     area_name: string;
     ward_no: string;
     vidhan_sabha: string;
+    state_name: string;
     pincode: string;
     city: string;
   }) => {
@@ -3089,7 +3090,7 @@ export default function ConsultationPage() {
               patient_mobile_no: updatedData.mobile_no,
               patient_area_name: updatedData.area_name,
               patient_ward_no: updatedData.ward_no,
-              patient_vidhan_sabha: updatedData.vidhan_sabha,
+              patient_vidhan_sabha: updatedData.vidhan_sabha, patient_state_name: updatedData.state_name,
               patient_pincode: updatedData.pincode,
               patient_city: updatedData.city,
             }
@@ -3303,6 +3304,7 @@ export default function ConsultationPage() {
             area_name: currentApp.patient_area_name || "",
             ward_no: currentApp.patient_ward_no || "",
             vidhan_sabha: currentApp.patient_vidhan_sabha || "",
+           state_name: currentApp.patient_state_name || "",
             pincode: currentApp.patient_pincode || "",
             city: currentApp.patient_city || "",
           }}
