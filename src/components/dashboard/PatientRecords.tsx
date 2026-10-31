@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../../utils/patientRegistration';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -690,7 +691,7 @@ export default function PatientRecords() {
               {patients.length > 0 ? patients.map((patient) => (
                 <tr key={patient.patient_id} className="group transition-colors even:bg-slate-50/40 hover:bg-teal-50/70 focus-within:bg-teal-50/70">
                   <td className="border-l-2 border-transparent px-5 py-4 group-hover:border-teal-600 group-focus-within:border-teal-600">
-                    {patient.patient_uuid && <p className="text-sm font-extrabold tracking-wide text-teal-800">{patient.patient_uuid}</p>}
+                    {patient.patient_uuid && <p className="text-sm font-extrabold tracking-wide text-teal-800">{formatPatientRegistration(patient.patient_uuid)}</p>}
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
@@ -736,7 +737,7 @@ export default function PatientRecords() {
           {patients.map((patient) => (
             <button key={patient.patient_id} onClick={() => fetchPatientDetail(patient)} className="block w-full p-4 text-left transition-colors even:bg-slate-50/40 hover:bg-teal-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600">
               <div className="mb-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold">
-                {patient.patient_uuid && <span className="text-teal-800">{patient.patient_uuid}</span>}
+                {patient.patient_uuid && <span className="text-teal-800">{formatPatientRegistration(patient.patient_uuid)}</span>}
               </div>
               <p className="text-sm font-bold text-slate-900">{patient.full_name}</p>
               <p className="mt-1 text-xs font-medium text-slate-700">{[patient.mobile_no, patient.age ? `${patient.age}Y` : null, patient.gender].filter(Boolean).join(" · ")}</p>

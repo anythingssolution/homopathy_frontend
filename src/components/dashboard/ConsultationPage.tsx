@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../../utils/patientRegistration';
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 const RepeatTreatmentPicker = React.lazy(() => import('./RepeatTreatmentPicker'));
@@ -3359,7 +3360,7 @@ export default function ConsultationPage() {
             <div className="mt-3 grid max-w-4xl grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-xs font-black tracking-wide text-[#174f51] shadow-sm">
               <span className="break-all font-mono text-sm font-black tracking-wide">
-                {currentApp.patient_uuid || "—"}
+                {formatPatientRegistration(currentApp.patient_uuid)}
               </span>
             </span>
             {currentApp.treatment_name && (

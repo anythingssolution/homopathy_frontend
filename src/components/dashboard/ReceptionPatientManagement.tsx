@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../../utils/patientRegistration';
 import PatientAddressExtraFields from '../PatientAddressExtraFields';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -609,7 +610,7 @@ export default function ReceptionPatientManagement() {
                                 )}
                               </div>
                               <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                {patient.patient_uuid}
+                                {formatPatientRegistration(patient.patient_uuid)}
                               </p>
                             </div>
                           </div>
@@ -870,11 +871,12 @@ export default function ReceptionPatientManagement() {
               {!isEditingFamily && (
                 <label className="block">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                    Registration No. <span className="text-red-500">*</span>
+                    Registration No.
                   </span>
                   <input
                     maxLength={36}
-                    placeholder="e.g. DTH_1210"
+                    readOnly={!editTarget?.patient.patient_uuid}
+                    placeholder={editTarget?.patient.patient_uuid ? "e.g. DTH_1210" : "Assigned at first check-in"}
                     value={editForm.patient_uuid}
                     onChange={(event) =>
                       setEditForm((current) => ({
@@ -885,7 +887,7 @@ export default function ReceptionPatientManagement() {
                     className="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 font-bold uppercase outline-none focus:border-[#549E9E]"
                   />
                   <span className="mt-2 block text-xs font-semibold text-slate-400">
-                    Use the patient’s DTH registration number.
+                    {editTarget?.patient.patient_uuid ? 'Use the patient’s DTH registration number.' : 'Registration number will be assigned at first check-in.'}
                   </span>
                 </label>
               )}

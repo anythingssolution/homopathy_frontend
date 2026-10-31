@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../../../utils/patientRegistration';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
@@ -77,7 +78,7 @@ export default function AppointmentCardList({ token, branchId, branchName, from,
     <tbody className="divide-y divide-slate-100">{items.map(row => <tr key={row.appointment_id} className="align-top hover:bg-slate-50/80">
       <td className="whitespace-nowrap px-3 py-3 text-xs font-bold text-slate-600">{date(row.appointment_date)}</td>
       <td className="px-3 py-3"><div className="flex flex-col items-start gap-1">{row.queue_position != null && <span className="rounded border border-yellow-300 bg-yellow-100 px-2 py-1 text-xs font-black text-yellow-900">Pos #{row.queue_position}</span>}<span className="text-sm font-black text-[#2d8789]">{row.display_token_display || '—'}</span></div></td>
-      <td className="min-w-[150px] px-3 py-3"><p className="text-sm font-black text-slate-800">{row.patient_full_name || '—'}</p><p className="mt-1 text-xs font-bold text-[#2d8789]">{label('reg_no')}: {row.patient_uuid || '—'}</p>{row.family_member_id && <p className="mt-1 text-[10px] font-bold text-violet-600">{label('family_member')}</p>}</td>
+      <td className="min-w-[150px] px-3 py-3"><p className="text-sm font-black text-slate-800">{row.patient_full_name || '—'}</p><p className="mt-1 text-xs font-bold text-[#2d8789]">{label('reg_no')}: {formatPatientRegistration(row.patient_uuid)}</p>{row.family_member_id && <p className="mt-1 text-[10px] font-bold text-violet-600">{label('family_member')}</p>}</td>
       <td className="px-3 py-3 text-xs font-semibold text-slate-600">{row.patient_mobile_no || '—'}</td>
       <td className="px-3 py-3 text-xs font-bold text-slate-600">{row.treatment_name || '—'}</td>
       <td className="px-3 py-3 text-xs font-bold text-slate-500">{row.slot_name || '—'}</td>

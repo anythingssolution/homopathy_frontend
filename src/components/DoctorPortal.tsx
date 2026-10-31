@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../utils/patientRegistration';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import {
@@ -1703,7 +1704,7 @@ export default function DoctorPortal() {
                       <span className="text-[10px] font-bold text-gray-400">{app.patient_mobile_no}</span>
                       <span className="inline-flex items-center gap-2 rounded-lg border border-[#549E9E]/25 bg-[#549E9E]/[0.08] px-3 py-1.5">
                         <span className="text-xs font-semibold text-slate-600">{t('doctor_portal.table.reg_no', 'Reg no')}:</span>
-                        <span className="text-sm font-bold leading-5 tracking-normal tabular-nums text-[#174f51]">{app.patient_uuid || '—'}</span>
+                        <span className="text-sm font-bold leading-5 tracking-normal tabular-nums text-[#174f51]">{formatPatientRegistration(app.patient_uuid)}</span>
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -1836,7 +1837,7 @@ export default function DoctorPortal() {
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
-                          <span className="text-base font-bold leading-6 tracking-normal tabular-nums text-[#174f51] bg-[#549E9E]/[0.08] border border-[#549E9E]/25 px-3 py-2 rounded-lg whitespace-nowrap">{app.patient_uuid || '—'}</span>
+                          <span className="text-base font-bold leading-6 tracking-normal tabular-nums text-[#174f51] bg-[#549E9E]/[0.08] border border-[#549E9E]/25 px-3 py-2 rounded-lg whitespace-nowrap">{formatPatientRegistration(app.patient_uuid)}</span>
                           <button disabled={!app.patient_uuid} aria-label={`Copy ${t('doctor_portal.table.reg_no', 'Reg no')}`} title={`Copy ${t('doctor_portal.table.reg_no', 'Reg no')}`} onClick={(e) => { e.stopPropagation(); handleCopy(app.patient_uuid); }}
                             className={`p-2 rounded-lg transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-[#549E9E] disabled:opacity-40 disabled:cursor-default ${copiedId === app.patient_uuid ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-slate-600 hover:bg-gray-200'}`}>
                             {copiedId === app.patient_uuid ? <Check size={16} /> : <Copy size={16} />}
@@ -1948,7 +1949,7 @@ export default function DoctorPortal() {
                                       </div>
                                       <div>
                                         <span className="text-xs font-semibold text-slate-500">{t('doctor_portal.table.reg_no', 'Reg no')}</span>
-                                        <p className="text-sm font-bold text-[#174f51] tabular-nums break-all mt-1">{app.patient_uuid}</p>
+                                        <p className="text-sm font-bold text-[#174f51] tabular-nums break-all mt-1">{formatPatientRegistration(app.patient_uuid)}</p>
                                       </div>
                                     </div>
                                   </div>

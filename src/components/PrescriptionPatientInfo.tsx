@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../utils/patientRegistration';
 import React from 'react';
 
 interface PrescriptionPatientInfoProps {
@@ -28,7 +29,7 @@ export default function PrescriptionPatientInfo({
           {isHi ? 'रजिस्ट्रेशन नं. :' : 'Reg. No. :'}
         </span>
         <span className="font-mono text-[14px] font-black tracking-wide leading-tight">
-          {patientId || 'N/A'}
+          {formatPatientRegistration(patientId, isHi ? 'hi' : 'en')}
         </span>
       </div>
 

@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../utils/patientRegistration';
 import { bookingBranchStatus, type BookingDateAvailability } from '../utils/bookingWeekdays';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1209,7 +1210,8 @@ export default function Booking() {
           if (result.success) {
             const patientData = result.data.patient;
             login({
-              id: patientData.uuid,
+              id: ['PAT', 'patient'].includes(patientData.role_code || patientData.role || 'patient') ? String(patientData.id) : patientData.uuid,
+              uuid: patientData.uuid,
               name: patientData.full_name,
               phone: patientData.mobile_no,
               role: 'patient'
@@ -1262,7 +1264,8 @@ export default function Booking() {
             const pwRole = patientData.role;
             const pwRoleCode = patientData.role_code;
             login({
-              id: patientData.uuid,
+              id: ['PAT', 'patient'].includes(patientData.role_code || patientData.role || 'patient') ? String(patientData.id) : patientData.uuid,
+              uuid: patientData.uuid,
               name: patientData.full_name,
               phone: patientData.mobile_no,
               role: pwRole,
@@ -1351,7 +1354,8 @@ export default function Booking() {
               const userRoleCode = patientData.role_code;
 
               login({
-                id: patientData.uuid,
+                id: ['PAT', 'patient'].includes(patientData.role_code || patientData.role || 'patient') ? String(patientData.id) : patientData.uuid,
+                uuid: patientData.uuid,
                 name: patientData.full_name,
                 phone: patientData.mobile_no,
                 role: userRole,
@@ -1805,7 +1809,7 @@ export default function Booking() {
                                     >
                                       {patient.patient_uuid && (
                                         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px] font-extrabold tracking-wide text-teal-800">
-                                          <span>{patient.patient_uuid}</span>
+                                          <span>{formatPatientRegistration(patient.patient_uuid)}</span>
                                         </div>
                                       )}
                                       <p className="mt-0.5 text-[15px] font-semibold text-slate-900 leading-snug break-words">{patient.full_name}</p>

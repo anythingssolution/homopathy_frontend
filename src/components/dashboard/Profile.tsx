@@ -297,7 +297,7 @@ export default function Profile() {
                 </span>
                 <span className="px-2.5 py-1 bg-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/10 text-white/80">
                   {(user?.role_code === 'DOC' || user?.role?.toLowerCase() === 'doc' || user?.role?.toLowerCase() === 'doctor')
-                    ? 'Doctor' : (user?.role_code === 'REC' || user?.role_code === 'MED') ? 'Staff' : t('profile.patient_id').split(':')[0]} ID: {user?.id?.slice(0, 8)}...
+                    ? 'Doctor' : (user?.role_code === 'REC' || user?.role_code === 'MED') ? 'Staff' : t('profile.patient_id').split(':')[0]} ID: {isPatient ? (user?.uuid || 'Reg No. pending') : `${user?.id?.slice(0, 8)}...`}
                 </span>
               </div>
             </div>

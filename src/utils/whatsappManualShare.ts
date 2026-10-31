@@ -19,7 +19,7 @@ export function buildManualWhatsAppText(document: ShareDocument): string {
   const heading = [
     "*Dr. Trivedi's Homeopathy Clinic*",
     `${hi ? 'मरीज' : 'Patient'}: ${document.patient_name}`,
-    `${hi ? 'रजिस्ट्रेशन नंबर' : 'Reg. No.'}: ${document.patient_uuid}`,
+    `${hi ? 'रजिस्ट्रेशन नंबर' : 'Reg. No.'}: ${document.patient_uuid || (hi ? 'रजिस्ट्रेशन नंबर लंबित' : 'Reg No. pending')}`,
     `${hi ? 'बिल' : 'Bill'}: ${document.bill_number}`,
     `${hi ? 'दिनांक' : 'Date'}: ${document.date}`,
     '',

@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../../utils/patientRegistration';
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -561,7 +562,7 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
                           {app.treatment_name}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs font-bold text-[#246e70] tracking-wide bg-[#549E9E]/10 px-2 py-1 rounded-md">{t('my_appointments.table.reg_no')}: {registrationNo(app) || '—'}</span>
+                          <span className="text-xs font-bold text-[#246e70] tracking-wide bg-[#549E9E]/10 px-2 py-1 rounded-md">{t('my_appointments.table.reg_no')}: {formatPatientRegistration(registrationNo(app))}</span>
                           <button type="button" disabled={!registrationNo(app)} aria-label={t('my_appointments.copy_reg_no')} onClick={(e) => { e.stopPropagation(); handleCopy(registrationNo(app)); }} className="text-gray-400 p-1 disabled:opacity-30">
                             {copiedId === registrationNo(app) ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
                           </button>
@@ -694,7 +695,7 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
                       <td className={prescriptionsOnly ? 'px-3 py-4' : 'px-6 py-5'}>
                         <div className="flex items-center gap-2 group/registration">
                           <span className="text-sm font-bold text-[#246e70] tracking-wide bg-[#549E9E]/10 px-3 py-1.5 rounded-lg whitespace-nowrap">
-                            {registrationNo(app) || '—'}
+                            {formatPatientRegistration(registrationNo(app))}
                           </span>
                           <button
                             type="button"

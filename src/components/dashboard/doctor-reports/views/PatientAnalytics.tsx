@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../../../../utils/patientRegistration';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -593,7 +594,7 @@ export const PatientAnalytics: React.FC<PatientAnalyticsProps> = ({ token }) => 
                             return (
                               <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50/30 transition-colors">
                                 <td className="py-4 px-6 text-xs font-black text-gray-600">
-                                  {patient.patient_uuid}
+                                  {formatPatientRegistration(patient.patient_uuid)}
                                 </td>
                                 <td className="py-4 px-4 text-xs font-black text-gray-700 uppercase tracking-wide">
                                   {displayName}

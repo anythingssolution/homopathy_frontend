@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../../../../utils/patientRegistration';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -98,7 +99,7 @@ export default function DispensaryPage() {
   const summary = data?.summary;
   const patient = (row: DispensingRow) => <>
     <p className="text-sm font-black text-slate-800">{row.patient_full_name || '—'}</p>
-    <p className="mt-1 text-xs font-bold text-[#2d8789]">{label('reg_no')}: {row.patient_uuid || '—'}</p>
+    <p className="mt-1 text-xs font-bold text-[#2d8789]">{label('reg_no')}: {formatPatientRegistration(row.patient_uuid)}</p>
     <p className="mt-1 text-xs text-slate-500">{row.patient_mobile_no || '—'}{row.family_member_id ? ` · ${label('family')}` : ''}</p>
   </>;
   const tokenBadge = (row: DispensingRow) => <div className="mt-1 flex flex-wrap items-center gap-1.5">

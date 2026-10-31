@@ -127,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Preserve existing role_code if API doesn't return it
         const existingUser = JSON.parse(localStorage.getItem('user') || '{}');
         const userData: User = {
-          id: result.data.uuid,
+          id: ['PAT', 'patient'].includes(result.data.role_code || result.data.role) ? String(result.data.id) : result.data.uuid,
           name: result.data.full_name,
           phone: result.data.mobile_no,
           email: result.data.email || undefined,
@@ -186,6 +186,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
   }, [token]);
+
+  useEffect(() => {
+    if (!token || !['PAT', 'patient'].includes(user?.role_code || user?.role || '') || user?.uuid) return;
+    const refreshPendingRegistration = () => { void refreshProfile(); };
+    window.addEventListener('focus', refreshPendingRegistration);
+    return () => window.removeEventListener('focus', refreshPendingRegistration);
+  }, [token, user?.role_code, user?.role, user?.uuid]);
 
   const login = (userData: User, authToken: string, authBranchScope: BranchScope | null = null) => {
     setUser(userData);

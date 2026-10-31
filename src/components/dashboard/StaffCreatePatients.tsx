@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../../utils/patientRegistration';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
@@ -752,7 +753,7 @@ export default function StaffCreatePatients() {
                           <p className="font-black text-slate-900">{patient.full_name}</p>
                         </div>
                       </td>
-                      <td className="px-6 py-5 text-sm font-bold text-slate-700">{patient.patient_uuid}</td>
+                      <td className="px-6 py-5 text-sm font-bold text-slate-700">{formatPatientRegistration(patient.patient_uuid)}</td>
                       <td className="px-6 py-5 text-sm font-bold text-slate-700">{patient.mobile_no}</td>
                       <td className="px-6 py-5 text-sm font-bold capitalize text-slate-700">
                         {patient.gender} / {formatAgeValue(patient.age, patient.age_display, patient.date_of_birth, i18n.language)}

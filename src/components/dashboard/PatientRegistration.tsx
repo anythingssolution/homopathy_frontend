@@ -1,3 +1,4 @@
+import { formatPatientRegistration } from '../../utils/patientRegistration';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
@@ -453,7 +454,7 @@ export default function PatientRegistration() {
                       </div>
                     </td>
                     <td className="px-6 py-5 text-sm font-bold text-slate-700">
-                      {patient.patient_uuid || '—'}
+                      {formatPatientRegistration(patient.patient_uuid)}
                     </td>
                     <td className="px-6 py-5 text-sm font-bold text-slate-700">{patient.mobile_no}</td>
                     <td className="px-6 py-5 text-sm font-bold text-slate-700">
@@ -545,10 +546,11 @@ export default function PatientRegistration() {
 
               <label className="block sm:col-span-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {t('patient_registration.patient_id')}
+                  {t('patient_registration.patient_id').replace('*', '').trim()}
                 </span>
                 <input
                   maxLength={50}
+                  disabled={!editingPatient?.patient_uuid}
                   value={form.patient_uuid}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -557,7 +559,7 @@ export default function PatientRegistration() {
                     }))
                   }
                   className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 px-4 font-bold uppercase outline-none focus:border-[#549E9E]"
-                  placeholder={t('patient_registration.patient_id_placeholder')}
+                  placeholder={!editingPatient?.patient_uuid ? 'Assigned at first check-in' : t('patient_registration.patient_id_placeholder')}
                 />
               </label>
 
