@@ -3098,7 +3098,7 @@ export default function ConsultationPage() {
           : prev,
       );
       setIsPatientEditOpen(false);
-      addToast(t("patient_edit.success", "Patient details updated successfully"), "success");
+      addToast(result.data?.unchanged ? result.message : t("patient_edit.success", "Patient details updated successfully"), result.data?.unchanged ? "info" : "success");
     } else {
       addToast(result.message || t("patient_edit.failed", "Failed to update patient details"), "error");
     }
