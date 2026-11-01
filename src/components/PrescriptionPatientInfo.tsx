@@ -9,6 +9,7 @@ interface PrescriptionPatientInfoProps {
   gender?: string | null;
   date: string;
   contactNumber?: string | null;
+  address?: string | null;
   isHi?: boolean;
 }
 
@@ -20,8 +21,14 @@ export default function PrescriptionPatientInfo({
   gender,
   date,
   contactNumber,
+  address,
   isHi = false,
 }: PrescriptionPatientInfoProps) {
+  // Legacy saved addresses place the PIN before the city. Reorder only the
+  // standalone PIN segment for printing, preserving all other address text.
+  const addressParts = (address || '').split(',').map(part => part.trim()).filter(Boolean);
+  const pinParts = addressParts.filter(part => /^[1-9]\d{5}$/.test(part));
+  const displayAddress = [...addressParts.filter(part => !/^[1-9]\d{5}$/.test(part)), ...pinParts].join(', ');
   return (
     <div className="w-full mb-4 px-1 mt-1 font-bold text-gray-800 text-[10px]">
       <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[#cc3333]">
@@ -57,6 +64,12 @@ export default function PrescriptionPatientInfo({
             <span className="shrink-0 text-gray-500">{isHi ? 'संपर्क नंबर :' : 'Contact Number :'}</span>
             <span className="font-black tracking-wide text-[#1a2b4c]">{contactNumber || 'N/A'}</span>
           </div>
+          {displayAddress && (
+            <div className="flex items-baseline gap-1.5">
+              <span className="shrink-0 text-gray-500">{isHi ? 'पता :' : 'Address :'}</span>
+              <span className="min-w-0 break-words uppercase text-[#1a2b4c]">{displayAddress}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

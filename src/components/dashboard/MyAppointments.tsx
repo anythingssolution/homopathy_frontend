@@ -69,6 +69,7 @@ interface Appointment {
   primary_patient_gender?: string;
   patient_uuid?: string;
   patient_mobile_no?: string;
+  patient_address?: string;
   patient_age?: number;
   patient_age_display?: string | null;
   patient_date_of_birth?: string | null;
@@ -383,6 +384,7 @@ export default function MyAppointments({ prescriptionsOnly = false }: { prescrip
           date_of_birth: accountAppointment.primary_patient_date_of_birth || accountAppointment.patient_date_of_birth,
           gender: accountAppointment.primary_patient_gender || accountAppointment.patient_gender,
           mobile_no: accountAppointment.patient_mobile_no,
+          address: accountAppointment.patient_address,
         },
         visits: subjectAppointments.map((appointment: Appointment) => ({
           ...appointment,

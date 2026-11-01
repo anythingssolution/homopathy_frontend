@@ -98,6 +98,7 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
               </div>
 
               <PrescriptionPatientInfo
+                address={patient?.address || patient?.patient_address || [patient?.area_name, patient?.city, patient?.state_name, patient?.pincode].filter(Boolean).join(', ')}
                 patientId={patient?.patient_uuid}
                 name={patient?.full_name || patient?.patient_full_name}
                 age={patient?.age}

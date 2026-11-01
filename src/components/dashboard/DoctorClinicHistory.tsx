@@ -128,6 +128,7 @@ function HistoryPrescriptions({ data, lang, timelineVisits }: { data: any; lang:
                               full_name: selectedConsultation.appointment.patient_full_name,
                               patient_uuid: selectedConsultation.appointment.patient_uuid,
                               mobile_no: selectedConsultation.appointment.patient_mobile_no,
+                              address: selectedConsultation.appointment.patient_address,
                               age: selectedConsultation.appointment.patient_age,
                               gender: selectedConsultation.appointment.patient_gender,
                             }}

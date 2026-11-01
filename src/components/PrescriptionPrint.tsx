@@ -176,6 +176,7 @@ export default function PrescriptionPrint({ consultation, appointment, lang = 'e
               </div>
 
               <PrescriptionPatientInfo
+                address={appointment.patient_address || appointment.patient?.address || consultation.patient?.address || [appointment.patient_area_name, appointment.patient_city, appointment.patient_state_name, appointment.patient_pincode].filter(Boolean).join(', ')}
                 patientId={appointment.patient_uuid || appointment.patient?.patient_uuid}
                 name={appointment.patient_full_name || appointment.patient?.full_name}
                 age={appointment.patient_age || appointment.patient?.age}
