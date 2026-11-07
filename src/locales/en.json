@@ -1298,7 +1298,8 @@
     "none": "No payment found to print"
   },
   "medical_dashboard": {
-    "search_placeholder": "Search patient name, AUID...",
+    "search_placeholder": "Search patient name, mobile, Reg No...",
+    "copy_reg_no": "Copy registration number",
     "refresh": "Refresh",
     "filters": {
       "today_date": "Today Appointment Date",
@@ -1311,6 +1312,7 @@
       "hash": "#",
       "token": "Token",
       "auid": "AUID",
+      "reg_no": "Reg no",
       "patient": "Patient",
       "date_slot": "Date & Slot",
       "branch": "Branch",
@@ -1328,7 +1330,8 @@
     "original_bill": "Original Bill",
     "original_prescription": "Original Prescription",
     "payment_receipt": "Payment Receipt",
-    "search_placeholder": "Search patient name, AUID...",
+    "search_placeholder": "Search patient name, mobile, Reg No...",
+    "copy_reg_no": "Copy registration number",
     "refresh": "Refresh",
     "filters": {
       "appointment_date": "Visit / payment date"
@@ -1337,6 +1340,7 @@
       "hash": "#",
       "token": "Token",
       "auid": "AUID",
+      "reg_no": "Reg No.",
       "patient": "Patient",
       "date_slot": "Date & Slot",
       "branch": "Branch",

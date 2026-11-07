@@ -37,6 +37,7 @@ import CustomDatePicker from '../CustomDatePicker';
 import Pagination from '../Pagination';
 import { getDosePreview, getMedicationPricingAmount, getMedicationRoleLabel, formatNumericMedicineWithFormula } from '../../utils/prescriptionFormat';
 import { getLocalDateString } from '../../utils/date';
+import { formatPatientRegistration } from '../../utils/patientRegistration';
 import { useLenisNestedScroll } from '../../hooks/useLenisNestedScroll';
 import { useTranslation } from 'react-i18next';
 import MedicationDispensingStatus from '../MedicationDispensingStatus';
@@ -262,6 +263,32 @@ const RepeatMedicineInvoice = ({ record }: { record: any }) => {
     items: bill.items?.length ? bill.items : fallbackItems,
   }]} patient={{...record.appointment, ...record.patient}} />;
 };
+
+function HistoryRegistration({ record, copiedId, onCopy, mobile = false }: {
+  record: any;
+  copiedId: string | null;
+  onCopy: (value: string) => void;
+  mobile?: boolean;
+}) {
+  const { t, i18n } = useTranslation();
+  const registration = record.patient?.patient_uuid?.trim() || record.patient?.uuid?.trim() || '';
+  const copied = Boolean(registration) && copiedId === registration;
+  const copyLabel = t('dispensary_history.copy_reg_no', 'Copy registration number');
+
+  return <div className={`flex items-center gap-2 ${mobile ? 'mt-1 flex-wrap' : ''}`}>
+    <span className={`inline-flex items-center gap-x-2 gap-y-1 rounded-lg border border-[#549E9E]/25 bg-[#549E9E]/[0.08] ${mobile ? 'max-w-full flex-wrap px-3 py-1.5' : 'px-3 py-2 whitespace-nowrap'}`}>
+      {mobile && <span className="text-xs font-semibold text-slate-600">{t('dispensary_history.table.reg_no', 'Reg No.')}:</span>}
+      <span className={`font-bold tracking-normal tabular-nums text-[#174f51] ${mobile ? 'min-w-0 break-all text-sm leading-5' : 'text-base leading-6'}`}>
+        {formatPatientRegistration(registration, i18n.language)}
+      </span>
+    </span>
+    <button type="button" disabled={!registration} aria-label={copyLabel} title={copyLabel}
+      onClick={(event) => { event.stopPropagation(); onCopy(registration); }}
+      className={`p-2 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-[#549E9E] disabled:opacity-40 disabled:cursor-default ${copied ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-slate-600 hover:bg-gray-200'}`}>
+      {copied ? <Check size={mobile ? 14 : 16} /> : <Copy size={mobile ? 14 : 16} />}
+    </button>
+  </div>;
+}
 
 export default function DispensaryHistory() {
   const { t, i18n } = useTranslation();
@@ -683,7 +710,7 @@ export default function DispensaryHistory() {
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E] transition-colors" size={22} />
             <input
               type="text"
-              placeholder={t('dispensary_history.search_placeholder', 'Search patient name, AUID...')}
+              placeholder={t('dispensary_history.search_placeholder', 'Search patient name, mobile, Reg No...')}
               value={patientSearch}
               onChange={(e) => setPatientSearch(e.target.value)}
               className="w-full bg-white border-2 border-gray-50 py-4 pl-14 pr-6 text-sm font-bold text-gray-600 outline-none focus:border-[#549E9E]/20 transition-all placeholder:text-gray-300"
@@ -731,7 +758,7 @@ export default function DispensaryHistory() {
             prescriptions.map((p, idx) => (
               <div key={p.consultation_id || p.bill_id || idx} className="p-4 hover:bg-gray-50/50 transition-colors">
                 <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     {p.is_repeat_medicine ? (
                       <div className="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg">
                         <RefreshCcw size={16} />
@@ -749,7 +776,7 @@ export default function DispensaryHistory() {
                         </span>
                       </div>
                     )}
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-black text-[#2d8789] uppercase tracking-wide">
                         {p.patient?.full_name}
                       </p>
@@ -768,12 +795,7 @@ export default function DispensaryHistory() {
                           {t('dispensary_history.previous_amount_received', 'Previous amount received')}
                         </span>
                       )}
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] font-black text-gray-500 tracking-wider bg-gray-100 px-2 py-1 rounded-md">{p.appointment?.auid}</span>
-                        <button onClick={(e) => { e.stopPropagation(); handleCopy(p.appointment?.auid); }} className="text-gray-400 p-1">
-                          {copiedId === p.appointment?.auid ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-                        </button>
-                      </div>
+                      <HistoryRegistration record={p} copiedId={copiedId} onCopy={handleCopy} mobile />
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
@@ -824,7 +846,7 @@ export default function DispensaryHistory() {
               <tr className="bg-gray-50/50 border-b border-gray-100">
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.hash', '#')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.token', 'Token')}</th>
-                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.auid', 'AUID')}</th>
+                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.reg_no', 'Reg No.')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.patient', 'Patient')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.date_slot', 'Date & Slot')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('dispensary_history.table.branch', 'Branch')}</th>
@@ -867,13 +889,7 @@ export default function DispensaryHistory() {
                       )}
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-gray-500 tracking-wider bg-gray-100 px-3 py-1.5 rounded-lg whitespace-nowrap">{p.appointment?.auid}</span>
-                        <button onClick={(e) => { e.stopPropagation(); handleCopy(p.appointment?.auid); }}
-                          className={`p-1.5 rounded-md transition-all cursor-pointer ${copiedId === p.appointment?.auid ? 'bg-emerald-50 text-emerald-500' : 'bg-gray-50 text-gray-400 hover:bg-gray-200'}`}>
-                          {copiedId === p.appointment?.auid ? <Check size={12} /> : <Copy size={12} />}
-                        </button>
-                      </div>
+                      <HistoryRegistration record={p} copiedId={copiedId} onCopy={handleCopy} />
                     </td>
                     <td className="px-5 py-4">
                       <div>

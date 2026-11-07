@@ -1303,7 +1303,8 @@
     "none": "प्रिंट करने के लिए कोई भुगतान नहीं मिला"
   },
   "medical_dashboard": {
-    "search_placeholder": "रोगी का नाम, AUID खोजें...",
+    "search_placeholder": "रोगी का नाम, मोबाइल, पंजीकरण नं. खोजें...",
+    "copy_reg_no": "पंजीकरण नंबर कॉपी करें",
     "refresh": "रीफ्रेश करें",
     "filters": {
       "today_date": "आज की अपॉइंटमेंट तिथि",
@@ -1316,6 +1317,7 @@
       "hash": "#",
       "token": "टोकन",
       "auid": "AUID",
+      "reg_no": "पंजीकरण नं.",
       "patient": "रोगी",
       "date_slot": "तिथि और स्लॉट",
       "branch": "शाखा",
@@ -1333,7 +1335,8 @@
     "original_bill": "पुराना बिल",
     "original_prescription": "पुराना प्रिस्क्रिप्शन",
     "payment_receipt": "भुगतान रसीद",
-    "search_placeholder": "रोगी का नाम, AUID खोजें...",
+    "search_placeholder": "रोगी का नाम, मोबाइल, पंजीकरण नं. खोजें...",
+    "copy_reg_no": "पंजीकरण नंबर कॉपी करें",
     "refresh": "रीफ्रेश करें",
     "filters": {
       "appointment_date": "विज़िट / भुगतान तिथि"
@@ -1342,6 +1345,7 @@
       "hash": "#",
       "token": "टोकन",
       "auid": "AUID",
+      "reg_no": "पंजीकरण नं.",
       "patient": "रोगी",
       "date_slot": "तिथि और स्लॉट",
       "branch": "शाखा",

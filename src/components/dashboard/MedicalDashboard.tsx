@@ -28,6 +28,7 @@ import {
   MessageCircle
 } from 'lucide-react';
 import { buildDispenseEstimate, type DispenseEstimate } from '../../utils/dispenseEstimate';
+import { formatPatientRegistration } from '../../utils/patientRegistration';
 const DispenseEstimateWhatsAppModal = React.lazy(() => import('../DispenseEstimateWhatsAppModal'));
 import { useNotifications } from '../../context/NotificationContext';
 import { dedupedFetch } from '../../utils/dedupedFetch';
@@ -1000,7 +1001,7 @@ export default function MedicalDashboard() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E] transition-colors" size={16} />
               <input
                 type="text"
-                placeholder={t('medical_dashboard.search_placeholder', 'Search patient name, mobile, UUID...')}
+                placeholder={t('medical_dashboard.search_placeholder', 'Search patient name, mobile, Reg No...')}
                 value={patientSearch}
                 onChange={(e) => setPatientSearch(e.target.value)}
                 className="w-full bg-white border border-gray-200 py-2.5 pl-11 pr-4 text-xs font-bold text-gray-600 outline-none focus:border-[#549E9E] focus:ring-2 focus:ring-[#549E9E]/10 transition-all placeholder:text-gray-300 rounded-xl"
@@ -1062,13 +1063,13 @@ export default function MedicalDashboard() {
             prescriptions.map((p, idx) => (
               <div key={p.consultation_id || idx} className="p-4 hover:bg-gray-50/50 transition-colors">
                 <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-gray-50 rounded-lg">
                       <span className="text-lg font-black text-[#549E9E]">
                         #{p.appointment?.display_token_display || p.appointment?.token_number || '-'}
                       </span>
                     </div>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-black text-[#2d8789] uppercase tracking-wide">
                         {p.patient?.full_name}
                       </p>
@@ -1077,10 +1078,13 @@ export default function MedicalDashboard() {
                           Pending {formatMoney(p.account_dues.total_pending)}
                         </span>
                       )}
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] font-black text-gray-500 tracking-wider bg-gray-100 px-2 py-1 rounded-md">{p.appointment?.auid}</span>
-                        <button onClick={(e) => { e.stopPropagation(); handleCopy(p.appointment?.auid); }} className="text-gray-400 p-1">
-                          {copiedId === p.appointment?.auid ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[#549E9E]/25 bg-[#549E9E]/[0.08] px-3 py-1.5">
+                          <span className="text-xs font-semibold text-slate-600">{t('medical_dashboard.table.reg_no', 'Reg no')}:</span>
+                          <span className="min-w-0 break-all text-sm font-bold leading-5 tracking-normal tabular-nums text-[#174f51]">{formatPatientRegistration(p.patient?.patient_uuid, i18n.language)}</span>
+                        </span>
+                        <button disabled={!p.patient?.patient_uuid?.trim()} aria-label={t('medical_dashboard.copy_reg_no', 'Copy registration number')} title={t('medical_dashboard.copy_reg_no', 'Copy registration number')} onClick={(e) => { e.stopPropagation(); handleCopy(p.patient?.patient_uuid); }} className={`p-1.5 rounded-md transition-colors focus-visible:outline-2 focus-visible:outline-[#549E9E] disabled:opacity-40 disabled:cursor-default ${copiedId === p.patient?.patient_uuid ? 'text-emerald-700' : 'text-slate-600 hover:bg-gray-100'}`}>
+                          {copiedId === p.patient?.patient_uuid ? <Check size={14} /> : <Copy size={14} />}
                         </button>
                       </div>
                     </div>
@@ -1166,7 +1170,7 @@ export default function MedicalDashboard() {
               <tr className="bg-gray-50/50 border-b border-gray-100">
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.hash', '#')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.token', 'Token')}</th>
-                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.auid', 'AUID')}</th>
+                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.reg_no', 'Reg no')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.patient', 'Patient')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.date_slot', 'Date & Slot')}</th>
                 <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.branch', 'Branch')}</th>
@@ -1194,10 +1198,10 @@ export default function MedicalDashboard() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-gray-500 tracking-wider bg-gray-100 px-3 py-1.5 rounded-lg whitespace-nowrap">{p.appointment?.auid}</span>
-                        <button onClick={(e) => { e.stopPropagation(); handleCopy(p.appointment?.auid); }}
-                          className={`p-1.5 rounded-md transition-all cursor-pointer ${copiedId === p.appointment?.auid ? 'bg-emerald-50 text-emerald-500' : 'bg-gray-50 text-gray-400 hover:bg-gray-200'}`}>
-                          {copiedId === p.appointment?.auid ? <Check size={12} /> : <Copy size={12} />}
+                        <span className="text-base font-bold leading-6 tracking-normal tabular-nums text-[#174f51] bg-[#549E9E]/[0.08] border border-[#549E9E]/25 px-3 py-2 rounded-lg whitespace-nowrap">{formatPatientRegistration(p.patient?.patient_uuid, i18n.language)}</span>
+                        <button disabled={!p.patient?.patient_uuid?.trim()} aria-label={t('medical_dashboard.copy_reg_no', 'Copy registration number')} title={t('medical_dashboard.copy_reg_no', 'Copy registration number')} onClick={(e) => { e.stopPropagation(); handleCopy(p.patient?.patient_uuid); }}
+                          className={`p-2 rounded-lg transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-[#549E9E] disabled:opacity-40 disabled:cursor-default ${copiedId === p.patient?.patient_uuid ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-slate-600 hover:bg-gray-200'}`}>
+                          {copiedId === p.patient?.patient_uuid ? <Check size={16} /> : <Copy size={16} />}
                         </button>
                       </div>
                     </td>
