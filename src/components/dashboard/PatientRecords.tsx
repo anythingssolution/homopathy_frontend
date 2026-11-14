@@ -215,6 +215,7 @@ export default function PatientRecords() {
     patientPage: number;
     sortBy?: RegistrySortField;
     sortOrder?: 'asc' | 'desc';
+    recordBranch?: string;
   }>("patient-records");
   const routedSearch = String(
     searchParams.get("search") || (location.state as { patientSearch?: string } | null)?.patientSearch || "",
@@ -235,7 +236,19 @@ export default function PatientRecords() {
     savedRecordsView?.sortBy && REGISTRY_SORT_FIELDS.includes(savedRecordsView.sortBy) ? savedRecordsView.sortBy : 'patient_id',
   );
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(savedRecordsView?.sortOrder === 'desc' ? 'desc' : 'asc');
-  usePersistViewState("patient-records", { patientSearch, registrationSearch, patientPage, sortBy, sortOrder });
+  const [recordBranch, setRecordBranch] = useState(savedRecordsView?.recordBranch || 'all');
+  const [recordBranches, setRecordBranches] = useState<{ id: number; branch_name: string }[]>([]);
+  usePersistViewState("patient-records", { patientSearch, registrationSearch, patientPage, sortBy, sortOrder, recordBranch });
+  useEffect(() => {
+    if (!token) return;
+    const controller = new AbortController();
+    fetch('/api/v1/patient-records/branches', { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      .then(response => response.json()).then(result => { if (result.success && !controller.signal.aborted) setRecordBranches(result.data || []); })
+      .catch(error => { if (error.name !== 'AbortError') console.error('Unable to load history branches', error); });
+    return () => controller.abort();
+  }, [token]);
+  const historyRequest = useRef<AbortController | null>(null);
+  const detailRequest = useRef<AbortController | null>(null);
   const registryRequest = useRef<AbortController | null>(null);
   const changeRegistrySort = (field: RegistrySortField) => {
     setSortOrder(sortBy === field && sortOrder === 'asc' ? 'desc' : 'asc');
@@ -256,6 +269,7 @@ export default function PatientRecords() {
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTotalPages, setHistoryTotalPages] = useState(1);
   const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyPrintableTotal, setHistoryPrintableTotal] = useState(0);
   const [historyBreakdown, setHistoryBreakdown] = useState({
     clinical_visits: 0,
     medicine_pickups: 0,
@@ -282,6 +296,8 @@ export default function PatientRecords() {
   const [printAfterAllVisitsLoad, setPrintAfterAllVisitsLoad] = useState(false);
   const openedFromQuery = useRef(false);
   const lastIncomingQuery = useRef("");
+  const previewContext = useRef('');
+  previewContext.current = JSON.stringify([selectedPatient?.patient?.patient_id, selectedSubject, recordBranch, fromDate, toDate]);
 
   const fetchPatients = useCallback(async (pageNum = patientPage) => {
     if (!token) return;
@@ -293,6 +309,7 @@ export default function PatientRecords() {
 
     try {
       const params = new URLSearchParams();
+      params.set('branch_id', recordBranch);
       if (patientSearch.trim()) params.set("patient_search", patientSearch.trim());
       if (registrationSearch.trim()) params.set("registration_no", registrationSearch.trim());
       params.set("page", String(pageNum));
@@ -319,36 +336,46 @@ export default function PatientRecords() {
     } finally {
       if (!controller.signal.aborted) setIsRegistryLoading(false);
     }
-  }, [token, patientSearch, registrationSearch, patientPage, sortBy, sortOrder]);
+  }, [token, patientSearch, registrationSearch, patientPage, sortBy, sortOrder, recordBranch]);
 
-  const fetchPatientDetail = async (patient: PatientRegistryRow) => {
+  const fetchPatientDetail = async (patient: PatientRegistryRow, keepSubject = false) => {
     if (!token) return;
+    detailRequest.current?.abort();
+    const controller = new AbortController();
+    detailRequest.current = controller;
     setError("");
-    setSelectedSubject({ scope: "ALL", label: "All linked records" });
-    setHistoryType("");
+    if (!keepSubject) {
+      setSelectedSubject({ scope: "ALL", label: "All linked records" });
+      setHistoryType("");
+    }
     setHistoryPage(1);
 
     try {
-      const response = await fetch(`/api/v1/patient-records/patients/${patient.patient_id}`, {
+      const response = await fetch(`/api/v1/patient-records/patients/${patient.patient_id}?branch_id=${recordBranch}`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
       const result = await response.json();
       if (!response.ok || !result.success) {
         throw new Error(result.message || "Unable to load patient detail");
       }
-      setSelectedPatient(result.data);
+      if (!controller.signal.aborted) setSelectedPatient(result.data);
     } catch (detailError: any) {
-      setError(detailError.message || "Unable to load patient detail");
+      if (!controller.signal.aborted) setError(detailError.message || "Unable to load patient detail");
     }
   };
 
   const fetchHistory = useCallback(async (pageNum = historyPage) => {
     if (!token || !selectedPatient?.patient?.patient_id) return;
+    historyRequest.current?.abort();
+    const controller = new AbortController();
+    historyRequest.current = controller;
     setIsHistoryLoading(true);
     setError("");
 
     try {
       const params = new URLSearchParams();
+      params.set('branch_id', recordBranch);
       if (fromDate) params.set("from_date", fromDate);
       if (toDate) params.set("to_date", toDate);
       if (historyType) params.set("timeline_type", historyType);
@@ -359,15 +386,18 @@ export default function PatientRecords() {
 
       const response = await fetch(`/api/v1/patient-records/patients/${selectedPatient.patient.patient_id}/visits?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
       const result = await response.json();
       if (!response.ok || !result.success) {
         throw new Error(result.message || "Unable to load patient history");
       }
 
+      if (controller.signal.aborted) return;
       setHistoryItems(result.data?.items || []);
       setExpandedVisitId(null);
       setHistoryTotal(result.data?.meta?.total || 0);
+      setHistoryPrintableTotal(Number(result.data?.meta?.printable_total || 0));
       setHistoryBreakdown({
         clinical_visits: Number(result.data?.meta?.breakdown?.clinical_visits || 0),
         medicine_pickups: Number(result.data?.meta?.breakdown?.medicine_pickups || 0),
@@ -377,11 +407,11 @@ export default function PatientRecords() {
       setHistoryTotalPages(result.data?.meta?.total_pages || 1);
       setHistoryPage(result.data?.meta?.page || pageNum);
     } catch (historyError: any) {
-      setError(historyError.message || "Unable to load patient history");
+      if (!controller.signal.aborted) { setError(historyError.message || "Unable to load patient history"); setHistoryItems([]); setHistoryPrintableTotal(0); }
     } finally {
-      setIsHistoryLoading(false);
+      if (!controller.signal.aborted) setIsHistoryLoading(false);
     }
-  }, [token, selectedPatient, selectedSubject, fromDate, toDate, historyType, historyPage]);
+  }, [token, selectedPatient, selectedSubject, fromDate, toDate, historyType, historyPage, recordBranch]);
 
   useEffect(() => {
     const timer = setTimeout(() => { void fetchPatients(patientPage); }, 250);
@@ -417,11 +447,20 @@ export default function PatientRecords() {
 
   useEffect(() => {
     if (selectedPatient) fetchHistory(historyPage);
-  }, [selectedPatient, selectedSubject, historyType, fromDate, toDate, historyPage]);
+  }, [selectedPatient, selectedSubject, historyType, fromDate, toDate, historyPage, recordBranch]);
+
+  useEffect(() => {
+    setPatientPage(1);
+    if (selectedPatient) void fetchPatientDetail(selectedPatient.patient, true);
+  }, [recordBranch]);
+
+  useEffect(() => () => {
+    historyRequest.current?.abort(); detailRequest.current?.abort(); registryRequest.current?.abort();
+  }, []);
 
   useEffect(() => {
     setHistoryPage(1);
-  }, [selectedSubject, historyType, fromDate, toDate]);
+  }, [selectedSubject, historyType, fromDate, toDate, recordBranch]);
 
   useEffect(() => {
     if (selectedPatient || selectedPrescription || selectedAllVisits) {
@@ -436,23 +475,20 @@ export default function PatientRecords() {
 
   const openPrescriptionPreview = async (item: TimelineItem, printAfterLoad = false) => {
     if (!token || !item.consultation_id) return;
+    const context = previewContext.current;
     setIsPrescriptionLoading(true);
     setPrintAfterPreviewLoad(printAfterLoad);
     setError("");
 
     try {
-      const roleCode = String(user?.role_code || "").toUpperCase();
-      const role = String(user?.role || "").toLowerCase();
-      const isReceptionist = roleCode === "REC" || role === "rec" || role === "receptionist";
-      const endpoint = isReceptionist
-        ? `/api/v1/receptionist/prescriptions/${item.consultation_id}`
-        : `/api/v1/medical/prescriptions/${item.consultation_id}`;
-      const response = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` } });
-      const result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || "Unable to load prescription");
-      }
-      setSelectedPrescription({ consultation: result.data, appointment: result.data });
+      if (!selectedPatient) return;
+      const items = await loadPrescriptionTimeline({ token, patientId: selectedPatient.patient.patient_id,
+        familyMemberId: selectedSubject.familyMemberId, subjectScope: selectedSubject.scope === 'SELF' ? 'SELF' : 'ALL', branchId: recordBranch });
+      const prescription = items.find(candidate => candidate.record_type === 'CONSULTATION'
+        && Number(candidate.consultation_id) === Number(item.consultation_id));
+      if (context !== previewContext.current) return;
+      if (!prescription) throw new Error('Unable to load prescription');
+      setSelectedPrescription({ consultation: prescription.consultation, appointment: prescription.appointment });
     } catch (previewError: any) {
       setPrintAfterPreviewLoad(false);
       setError(previewError.message || "Unable to load prescription");
@@ -463,6 +499,7 @@ export default function PatientRecords() {
 
   const openMedicinePurchasePreview = async (item: TimelineItem, printAfterLoad = false) => {
     if (!token || !selectedPatient?.patient?.patient_id) return;
+    const context = previewContext.current;
     setIsAllVisitsLoading(true);
     setPrintAfterAllVisitsLoad(printAfterLoad);
     setError("");
@@ -475,11 +512,13 @@ export default function PatientRecords() {
         subjectScope: selectedSubject.scope === "SELF" ? "SELF" : "ALL",
         fromDate,
         toDate,
+        branchId: recordBranch,
       });
       const printableItem = printableItems.find((candidate) => (
         candidate.timeline_type === 'MEDICINE_PURCHASE'
         && Number(candidate.source_id) === Number(item.source_id)
       ));
+      if (context !== previewContext.current) return;
 
       if (!printableItem) {
         throw new Error(t('patient_records.modal.medicine_preview_missing', 'Medicine collection record could not be loaded.'));
@@ -507,6 +546,7 @@ export default function PatientRecords() {
 
   const openAllVisitsPreview = async (printAfterLoad = false) => {
     if (!token || !selectedPatient?.patient?.patient_id) return;
+    const context = previewContext.current;
     setIsAllVisitsLoading(true);
     setPrintAfterAllVisitsLoad(printAfterLoad);
     setError("");
@@ -519,8 +559,10 @@ export default function PatientRecords() {
         subjectScope: selectedSubject.scope === "SELF" ? "SELF" : "ALL",
         fromDate,
         toDate,
+        branchId: recordBranch,
       });
 
+      if (context !== previewContext.current) return;
       if (fetchedVisits.length === 0) {
         throw new Error("No prescription or medicine collection records found.");
       }
@@ -563,6 +605,16 @@ export default function PatientRecords() {
     family: acc.family + Number(patient.summary?.family_members_count || 0),
   }), { patients: 0, prescriptions: 0, medicinePickups: 0, family: 0 }), [patients]);
 
+  const hasPrintableHistory = historyPrintableTotal > 0;
+  const branchFilter = (id: string) => <label htmlFor={id} className="block min-w-44 space-y-1.5">
+    <span className="block text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.history_branch', 'History branch')}</span>
+    <select id={id} value={recordBranch} onChange={event => setRecordBranch(event.target.value)}
+      className="h-[42px] w-full rounded-xl border border-gray-200 bg-white px-4 text-xs font-bold text-gray-600 outline-none focus:border-[#549E9E]">
+      <option value="all">{t('patient_records.all_branches', 'All branches')}</option>
+      {recordBranches.map(branch => <option key={branch.id} value={String(branch.id)}>{branch.branch_name}</option>)}
+    </select>
+  </label>;
+
   return (
     <div className="no-print space-y-8 pb-12">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -604,6 +656,7 @@ export default function PatientRecords() {
       </div>
 
       <div className="border border-gray-200 bg-white p-6 rounded-xl shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
+        {branchFilter('registry-history-branch')}
         <label className="relative group flex-1">
           <span className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-slate-400">{t('patient_records.search_label', 'Common Search')}</span>
           <Search className="absolute left-5 top-[calc(50%+10px)] -translate-y-1/2 text-gray-300 group-focus-within:text-[#549E9E]" size={22} />
@@ -770,7 +823,7 @@ export default function PatientRecords() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  disabled={isAllVisitsLoading}
+                  disabled={isAllVisitsLoading || isHistoryLoading || !hasPrintableHistory}
                   onClick={() => openAllVisitsPreview(false)}
                   className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white shadow-sm transition-all hover:bg-emerald-700 disabled:bg-gray-300 active:scale-95 cursor-pointer"
                 >
@@ -778,13 +831,15 @@ export default function PatientRecords() {
                 </button>
                 <button
                   type="button"
-                  disabled={isAllVisitsLoading}
+                  disabled={isAllVisitsLoading || isHistoryLoading || !hasPrintableHistory}
                   onClick={() => openAllVisitsPreview(true)}
                   className="inline-flex items-center gap-2 rounded-xl border border-emerald-600/30 bg-emerald-50 px-4 py-2.5 text-xs font-black uppercase tracking-widest text-emerald-700 shadow-sm transition-all hover:bg-emerald-100 disabled:bg-gray-100 active:scale-95 cursor-pointer"
                 >
                   <Printer size={16} /> Print All
                 </button>
-                <button aria-label={t('patient_records.modal.close', 'Close patient record')} onClick={() => setSelectedPatient(null)} className="rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-red-50 hover:text-red-500">
+                <button aria-label={t('patient_records.modal.close', 'Close patient record')} onClick={() => {
+                  detailRequest.current?.abort(); historyRequest.current?.abort(); setSelectedPatient(null);
+                }} className="rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-red-50 hover:text-red-500">
                   <X size={20} />
                 </button>
               </div>
@@ -818,7 +873,8 @@ export default function PatientRecords() {
                 </div>
               </div>
 
-              <div className="mb-5 grid gap-4 md:grid-cols-4 items-end">
+              <div className="mb-5 grid gap-4 md:grid-cols-3 xl:grid-cols-5 items-end">
+                {branchFilter('patient-history-branch')}
                 <div className="space-y-1.5 w-full">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('patient_records.modal.visit_type_label', 'Visit Type')}</label>
                   <select value={historyType} onChange={(event) => setHistoryType(event.target.value)} className="w-full border border-gray-200 bg-white px-4 py-3 text-xs font-bold text-gray-600 outline-none transition-all hover:border-[#549E9E]/50 focus:border-[#549E9E] rounded-xl h-[42px]">
@@ -875,6 +931,7 @@ export default function PatientRecords() {
                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.table.treatment', 'Treatment')}</p>
                             <p className="mt-1 whitespace-normal text-sm font-black text-[#2d8789]">{item.details?.treatment_name || "Treatment not recorded"}</p>
                             <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{item.details?.slot_name || "Slot not recorded"}</p>
+                            <p className="mt-1 whitespace-normal text-xs font-semibold text-[#2d8789]">{item.branch_name || t('patient_records.modal.details.branch_not_recorded', 'Branch not recorded')}</p>
                           </div>
                           <div className="min-w-0">
                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.table.doctor_status', 'Doctor / Status')}</p>
@@ -964,7 +1021,7 @@ export default function PatientRecords() {
                   }) : !isHistoryLoading && (
                     <div className="px-5 py-16 text-center">
                       <FileText size={34} className="mx-auto mb-3 text-gray-200" />
-                      <p className="text-xs font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.no_history', 'No history found')}</p>
+                      <p className="text-sm font-bold text-gray-500">{t('patient_records.no_previous_history', 'No previous records found for these filters.')}</p>
                     </div>
                   )}
                 </div>

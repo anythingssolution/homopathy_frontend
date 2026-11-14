@@ -17,6 +17,7 @@ import { formatTimeTo12Hour } from '../utils/dateUtils';
 import { calculateAgeYearsFromDob, formatAgeValue } from '../utils/ageDisplay';
 import ScheduleRuleNotice from './ScheduleRuleNotice';
 import ReceptionBookingAddress from './ReceptionBookingAddress';
+import FamilyMemberMatchNotice, { type FamilyMemberMatchDetails, type FamilyMemberMatch } from './FamilyMemberMatchNotice';
 const BookingSourcePrompt = React.lazy(() => import('./BookingSourcePrompt'));
 const RECAPTCHA_SITE_KEY = String(import.meta.env.VITE_RECAPTCHA_SITE_KEY || '');
 
@@ -452,6 +453,10 @@ export default function Booking() {
   const bindPatientSuggestionsScroll = useLenisNestedScroll();
 
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
+  const [familyMatch, setFamilyMatch] = useState<FamilyMemberMatchDetails | null>(null);
+  const familySaveInFlight = useRef(false);
+  const familyAccountRef = useRef<number | undefined>(undefined);
+  familyAccountRef.current = selectedPatient?.patient_id;
   const [bookedForType, setBookedForType] = useState<'SELF' | 'FAMILY_MEMBER'>('SELF');
   const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<number | ''>('');
   const [selectedParentAppointmentId, setSelectedParentAppointmentId] = useState<number | ''>('');
@@ -1461,7 +1466,26 @@ export default function Booking() {
     }
   };
 
-  const handleCreateFamilyMemberForReceptionist = async () => {
+  useEffect(() => { setFamilyMatch(null); }, [newFamilyMember, selectedPatient?.patient_id]);
+
+  const useExistingFamilyMember = async (member: FamilyMemberMatch) => {
+    if (!selectedPatient?.patient_id || !Number(member.is_active)) return;
+    const patientId = selectedPatient.patient_id;
+    const members = await fetchReceptionistPatientFamilyMembers(patientId);
+    if (familyAccountRef.current !== patientId) return;
+    if (!members.some((item: any) => Number(item.family_member_id) === Number(member.family_member_id))) {
+      setErrors({ appointment: 'This member is no longer available. Reload the patient and try again.' });
+      return;
+    }
+    setBookedForType('FAMILY_MEMBER');
+    setSelectedFamilyMemberId(member.family_member_id);
+    setIsAddingFamilyMember(false);
+    setFamilyMatch(null);
+    setErrors({});
+  };
+
+  const handleCreateFamilyMemberForReceptionist = async (confirmationToken?: string) => {
+    if (familySaveInFlight.current) return;
     if (!selectedPatient?.patient_id) {
       setErrors({ appointment: 'Select an existing patient before adding a family member.' });
       return;
@@ -1487,8 +1511,10 @@ export default function Booking() {
       return;
     }
 
+    familySaveInFlight.current = true;
     setIsFamilyMemberSaving(true);
     setErrors({});
+    const patientId = selectedPatient.patient_id;
 
     try {
       const response = await fetch(`/api/v1/receptionist/patients/${selectedPatient.patient_id}/family-members`, {
@@ -1504,16 +1530,23 @@ export default function Booking() {
           date_of_birth: newFamilyMember.date_of_birth || null,
           gender,
           description: newFamilyMember.description.trim() || null,
+          duplicate_confirmation_token: confirmationToken,
         }),
       });
 
       const result = await response.json();
+      if (familyAccountRef.current !== patientId) return;
       if (!result.success) {
+        if (result.details?.code === 'FAMILY_MEMBER_MATCH') {
+          setFamilyMatch(result.details);
+          return;
+        }
         setErrors({ appointment: result.message || 'Failed to add family member.' });
         return;
       }
 
       const activeMembers = await fetchReceptionistPatientFamilyMembers(selectedPatient.patient_id);
+      if (familyAccountRef.current !== patientId) return;
       const createdMemberId = result.data?.family_member_id;
 
       setNewFamilyMember({
@@ -1531,12 +1564,17 @@ export default function Booking() {
       console.error('Error creating family member:', error);
       setErrors({ appointment: 'Network error adding family member. Please try again.' });
     } finally {
+      familySaveInFlight.current = false;
       setIsFamilyMemberSaving(false);
     }
   };
 
   const handleAppointmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isFamilyMemberSaving || isAddingFamilyMember) {
+      setErrors({ appointment: 'Save or cancel the family member form before booking the appointment.' });
+      return;
+    }
     // Availability has its own live status/error UI; loading must not become a persistent form error.
     if (dateAvailabilityPending || dateAvailabilityError) return;
     if (weekdayUnavailable) { setErrors({ appointment: slotBookingStatus?.reason || branchBookingStatus?.reason || 'Booking is closed for this session.' }); return; }
@@ -2442,6 +2480,9 @@ export default function Booking() {
                           </div>
                         </div>
 
+                        {familyMatch && <FamilyMemberMatchNotice match={familyMatch} busy={isFamilyMemberSaving}
+                          onSelect={(member) => { void useExistingFamilyMember(member); }}
+                          onDifferent={() => { void handleCreateFamilyMemberForReceptionist(familyMatch.confirmation_token); }} />}
                         <div className="md:col-span-2 flex flex-col sm:flex-row justify-end gap-3">
                           <button
                             type="button"
@@ -2453,7 +2494,7 @@ export default function Booking() {
                           <button
                             type="button"
                             disabled={isFamilyMemberSaving}
-                            onClick={handleCreateFamilyMemberForReceptionist}
+                            onClick={() => { void handleCreateFamilyMemberForReceptionist(); }}
                             className="cursor-pointer px-6 py-3 rounded-full bg-primary-teal text-white text-[10px] font-black uppercase tracking-widest hover:bg-primary-teal/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {isFamilyMemberSaving ? t('booking.saving', 'Saving...') : t('booking.save_and_select', 'Save & Select')}

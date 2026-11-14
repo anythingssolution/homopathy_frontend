@@ -1483,6 +1483,9 @@
     "update_success": "Branch updated successfully"
   },
   "patient_records": {
+    "history_branch": "History branch",
+    "all_branches": "All branches",
+    "no_previous_history": "No previous records found for these filters.",
     "category": "PATIENT HISTORY & RECORDS",
     "title": "Patient Registry",
     "refresh": "Refresh",

@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Users, UserPlus, Edit2, ShieldAlert, Heart, Calendar, Plus, X, ToggleLeft, ToggleRight, Check, AlertCircle, ChevronDown } from 'lucide-react';
 import { useApi } from '../../hooks/useApi';
 import { useNotifications } from '../../context/NotificationContext';
 import { calculateAgeYearsFromDob, formatAgeValue } from '../../utils/ageDisplay';
+import FamilyMemberMatchNotice, { type FamilyMemberMatchDetails } from '../FamilyMemberMatchNotice';
 
 interface FamilyMember {
   family_member_id: number;
@@ -42,6 +43,9 @@ export default function FamilyMembers() {
   const [gender, setGender] = useState('male');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const saveInFlight = useRef(false);
+  const [familyMatch, setFamilyMatch] = useState<FamilyMemberMatchDetails | null>(null);
+  useEffect(() => { setFamilyMatch(null); }, [fullName, age, dateOfBirth, gender, relationship, description, isModalOpen]);
   const [isGenderDropdownOpen, setIsGenderDropdownOpen] = useState(false);
 
   const fetchFamilyMembers = async () => {
@@ -88,8 +92,9 @@ export default function FamilyMembers() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent, confirmationToken?: string) => {
+    e?.preventDefault();
+    if (saveInFlight.current) return;
 
     if (!fullName.trim() || !relationship.trim() || (!age.trim() && !dateOfBirth) || !gender) {
       addToast('Please fill all required fields.', 'warning');
@@ -102,6 +107,7 @@ export default function FamilyMembers() {
       return;
     }
 
+    saveInFlight.current = true;
     setIsSubmitting(true);
     try {
       let response;
@@ -120,9 +126,10 @@ export default function FamilyMembers() {
         });
       } else {
         // Add flow
-        if (activeCount >= 5) {
+        if (activeCount >= 5 && !familyMatch) {
           addToast('Maximum 5 active family members are allowed.', 'warning');
           setIsSubmitting(false);
+          saveInFlight.current = false;
           return;
         }
 
@@ -135,6 +142,7 @@ export default function FamilyMembers() {
             date_of_birth: dateOfBirth || null,
             gender: gender.toLowerCase(),
             description: description.trim() || null,
+            duplicate_confirmation_token: confirmationToken,
           },
         });
       }
@@ -149,12 +157,17 @@ export default function FamilyMembers() {
         setIsModalOpen(false);
         fetchFamilyMembers();
       } else {
+        if (response?.details?.code === 'FAMILY_MEMBER_MATCH') {
+          setFamilyMatch(response.details);
+          return;
+        }
         addToast(response?.message || 'Action failed', 'error');
       }
     } catch (error) {
       console.error('Error saving family member:', error);
       addToast('Network error saving family member', 'error');
     } finally {
+      saveInFlight.current = false;
       setIsSubmitting(false);
     }
   };
@@ -257,6 +270,7 @@ export default function FamilyMembers() {
             <motion.div
               layout
               key={member.family_member_id}
+              id={`family-member-${member.family_member_id}`}
               className={`bg-white rounded-[30px] border p-6 transition-all duration-300 flex flex-col justify-between relative overflow-hidden group shadow-sm hover:shadow-md ${member.is_active === 1 ? 'border-gray-100' : 'border-dashed border-gray-200 bg-gray-50/50'
                 }`}
             >
@@ -506,6 +520,13 @@ export default function FamilyMembers() {
                   </div>
                 </div>
 
+                {!editingMember && familyMatch && <FamilyMemberMatchNotice match={familyMatch} busy={isSubmitting}
+                  onSelect={(member) => {
+                    setIsModalOpen(false);
+                    document.getElementById(`family-member-${member.family_member_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    addToast('Existing family member selected. Choose them when booking an appointment.', 'success');
+                  }}
+                  onDifferent={() => { void handleSubmit(undefined, familyMatch.confirmation_token); }} />}
                 <div className="pt-6 flex flex-col sm:flex-row items-center justify-end gap-3 sm:gap-4 border-t border-gray-50">
                   <button
                     type="button"

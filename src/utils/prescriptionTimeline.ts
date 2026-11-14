@@ -3,6 +3,7 @@ export type PrescriptionTimelineScope = {
   subjectScope?: "SELF" | "ALL";
   fromDate?: string | null;
   toDate?: string | null;
+  branchId?: string | number;
 };
 
 type LoadPrescriptionTimelineArgs = PrescriptionTimelineScope & {
@@ -31,8 +32,10 @@ export async function loadPrescriptionTimeline({
   subjectScope = "SELF",
   fromDate,
   toDate,
+  branchId,
 }: LoadPrescriptionTimelineArgs) {
   const params = new URLSearchParams();
+  if (branchId !== undefined) params.set("branch_id", String(branchId));
   if (familyMemberId) params.set("family_member_id", String(familyMemberId));
   else params.set("subject_scope", subjectScope);
   if (fromDate) params.set("from_date", fromDate);
