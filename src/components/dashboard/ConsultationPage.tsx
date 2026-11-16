@@ -1,3 +1,4 @@
+import LifestyleHistoryFields, { parseLifestyleHistory, hasLifestyleHistory } from "./history/LifestyleHistoryFields";
 import { formatPatientRegistration } from '../../utils/patientRegistration';
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -38,6 +39,7 @@ import InvestigationRows, {
 } from "./InvestigationRows";
 import AppointmentTokenBadge from "../AppointmentTokenBadge";
 import AllVisitsPrint from "../AllVisitsPrint";
+import PrescriptionPreviewPaper from '../PrescriptionPreviewPaper';
 import { loadPrescriptionTimeline } from "../../utils/prescriptionTimeline";
 import { goBackOr, type RouteFrom } from "../../utils/viewState";
 import { useNotifications } from "../../context/NotificationContext";
@@ -838,6 +840,7 @@ export default function ConsultationPage() {
 
   // Extended History Fields
   const [isExtendedHistoryOpen, setIsExtendedHistoryOpen] = useState(false);
+  const [lifestyleHistory, setLifestyleHistory] = useState(() => parseLifestyleHistory(app?.lifestyle_history));
   const [occupation, setOccupation] = useState<string>(app?.occupation || "");
   const [historyPresentIllness, setHistoryPresentIllness] = useState<string>(
     app?.history_present_illness || "",
@@ -1242,6 +1245,7 @@ export default function ConsultationPage() {
           if (c.family_history) setFamilyHistory(c.family_history);
           if (c.allergies_history) setAllergiesHistory(c.allergies_history);
           if (c.gynecological_history) setGynecologicalHistory(c.gynecological_history);
+          setLifestyleHistory(parseLifestyleHistory(c.lifestyle_history));
           if (c.personal_social_history) setPersonalSocialHistory(c.personal_social_history);
           if (c.general_examination) setGeneralExamination(c.general_examination);
           if (c.systematic_examination) setSystematicExamination(c.systematic_examination);
@@ -1514,6 +1518,7 @@ export default function ConsultationPage() {
       setAllergiesHistory(draft.allergiesHistory || "");
       setGynecologicalHistory(draft.gynecologicalHistory || "");
       setPersonalSocialHistory(draft.personalSocialHistory || "");
+      setLifestyleHistory(parseLifestyleHistory(draft.lifestyleHistory ?? app?.lifestyle_history));
       setGeneralExamination(draft.generalExamination || "");
       setSystematicExamination(draft.systematicExamination || "");
       setDifferentialDiagnosis(draft.differentialDiagnosis || "");
@@ -1589,6 +1594,7 @@ export default function ConsultationPage() {
       allergiesHistory,
       gynecologicalHistory,
       personalSocialHistory,
+      lifestyleHistory,
       generalExamination,
       systematicExamination,
       differentialDiagnosis,
@@ -1651,6 +1657,7 @@ export default function ConsultationPage() {
     allergiesHistory,
     gynecologicalHistory,
     personalSocialHistory,
+    lifestyleHistory,
     generalExamination,
     systematicExamination,
     differentialDiagnosis,
@@ -2932,6 +2939,7 @@ export default function ConsultationPage() {
         familyHistory.trim() ||
         allergiesHistory.trim() ||
         gynecologicalHistory.trim() ||
+        hasLifestyleHistory(lifestyleHistory) ||
         personalSocialHistory.trim() ||
         generalExamination.trim() ||
         systematicExamination.trim() ||
@@ -2997,6 +3005,7 @@ export default function ConsultationPage() {
         allergies_history: allergiesHistory.trim() || null,
         gynecological_history: gynecologicalHistory.trim() || null,
         personal_social_history: personalSocialHistory.trim() || null,
+        lifestyle_history: hasLifestyleHistory(lifestyleHistory) ? lifestyleHistory : null,
         general_examination: generalExamination.trim() || null,
         systematic_examination: systematicExamination.trim() || null,
         differential_diagnosis: differentialDiagnosis.trim() || null,
@@ -3632,7 +3641,7 @@ export default function ConsultationPage() {
                   size={20}
                   className="transition-transform group-hover:rotate-6 shrink-0"
                 />
-                {(occupation ||
+                {(hasLifestyleHistory(lifestyleHistory) || occupation ||
                   historyPresentIllness ||
                   historyPastIllness ||
                   familyHistory ||
@@ -4504,6 +4513,7 @@ export default function ConsultationPage() {
                           "Basic & Lifestyle",
                         )}
                       </label>
+                      <LifestyleHistoryFields value={lifestyleHistory} onChange={setLifestyleHistory} disabled={isReadOnly} familyNotes={familyHistory} onFamilyNotesChange={setFamilyHistory} />
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
@@ -4593,25 +4603,6 @@ export default function ConsultationPage() {
                             placeholder={t(
                               "consultation_modal.past_illness_placeholder",
                               "Details of past illnesses...",
-                            )}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest mb-1.5 block">
-                            {t(
-                              "consultation_modal.family_history",
-                              "Family History",
-                            )}
-                          </label>
-                          <textarea
-                            disabled={isReadOnly}
-                            value={familyHistory}
-                            onChange={(e) => setFamilyHistory(e.target.value)}
-                            rows={2}
-                            className="w-full p-3 bg-white border border-gray-200 rounded-lg focus:border-[#549E9E] focus:ring-4 focus:ring-[#549E9E]/10 outline-none text-sm font-bold text-gray-800 disabled:opacity-80 resize-none"
-                            placeholder={t(
-                              "consultation_modal.family_history_placeholder",
-                              "Relevant family diseases...",
                             )}
                           />
                         </div>
@@ -6502,8 +6493,8 @@ export default function ConsultationPage() {
       {selectedAllVisits &&
         createPortal(
           <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/80 p-4 backdrop-blur-md no-print">
-            <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl">
-              <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+            <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl min-w-0 min-h-0">
+              <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 md:px-6 py-3 md:py-4 flex-wrap gap-3">
                 <div>
                   <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">
                     {t("consultation_modal.all_visits_preview", "All Visits & Prescriptions Preview")}
@@ -6515,7 +6506,7 @@ export default function ConsultationPage() {
                     })}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3">
                   <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
                     <button
                       type="button"
@@ -6556,18 +6547,13 @@ export default function ConsultationPage() {
                   </button>
                 </div>
               </div>
-              <div
-                className="flex flex-1 items-start justify-center overflow-auto bg-gray-200/50 p-4 md:p-12"
-                data-lenis-prevent
-              >
-                <div className="mx-auto flex min-h-[297mm] w-[210mm] shrink-0 flex-col rounded-sm border border-gray-100 bg-white p-0 shadow-xl md:p-8">
-                  <AllVisitsPrint
-                    patient={selectedAllVisits.patient}
-                    visits={selectedAllVisits.visits}
-                    lang={allVisitsLang}
-                  />
-                </div>
-              </div>
+              <PrescriptionPreviewPaper>
+                <AllVisitsPrint
+                  patient={selectedAllVisits.patient}
+                  visits={selectedAllVisits.visits}
+                  lang={allVisitsLang}
+                />
+              </PrescriptionPreviewPaper>
             </div>
           </div>,
           document.body,

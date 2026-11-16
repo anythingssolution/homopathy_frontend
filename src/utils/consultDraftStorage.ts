@@ -1,3 +1,4 @@
+import type { LifestyleHistory } from "../components/dashboard/history/LifestyleHistoryFields";
 const STORAGE_PREFIX = "consultDraft";
 const DRAFT_VERSION = 1 as const;
 const DRAFT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -89,6 +90,7 @@ export type ConsultDraft = {
   allergiesHistory: string;
   gynecologicalHistory: string;
   personalSocialHistory: string;
+  lifestyleHistory?: LifestyleHistory;
   generalExamination: string;
   systematicExamination: string;
   differentialDiagnosis: string;

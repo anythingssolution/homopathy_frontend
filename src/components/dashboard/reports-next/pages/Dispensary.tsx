@@ -9,6 +9,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { SummaryMetricCard } from '../../doctor-reports/components/SummaryMetricCard';
 import Pagination from '../../../Pagination';
 import PrescriptionPrint from '../../../PrescriptionPrint';
+import PrescriptionPreviewPaper from '../../../PrescriptionPreviewPaper';
 import ClinicBillPrint from '../../../print/ClinicBillPrint';
 import { DateBar } from '../DateBar';
 import { fetchReportModule, formatReportWindowLabel, parseIsoDate, patientRecordsHref, rangeForFilter, type CustomRange } from '../lib';
@@ -203,8 +204,8 @@ export default function DispensaryPage() {
             if (event.shiftKey && (document.activeElement === first || document.activeElement === prescriptionDialog.current)) { event.preventDefault(); last.focus(); }
             else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
           }}
-          className="flex h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-slate-100 shadow-2xl outline-none">
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 md:px-6">
+          className="flex h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-slate-100 shadow-2xl outline-none min-w-0 min-h-0">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 md:px-4 md:px-6">
             <h2 id="dispensary-prescription-title" className="text-sm font-bold text-slate-800">{t('patient_records.modal.prescription_preview', 'Prescription Preview')}</h2>
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setPrescriptionLang(value => value === 'en' ? 'hi' : 'en')} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold">{prescriptionLang === 'en' ? 'हिन्दी' : 'English'}</button>
@@ -212,11 +213,9 @@ export default function DispensaryPage() {
               <button type="button" aria-label={label('close')} onClick={() => setPrescription(null)} className="rounded-lg bg-slate-100 p-2.5 text-slate-600 hover:bg-red-50 hover:text-red-600"><X size={20} /></button>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto overscroll-contain p-3 md:p-6" data-lenis-prevent tabIndex={0} role="region" aria-label={t('patient_records.modal.prescription_preview', 'Prescription Preview')}>
-            <div className="mx-auto min-h-[297mm] w-full min-w-[210mm] max-w-[210mm] bg-white p-4 shadow-lg md:p-8">
-              <PrescriptionPrint consultation={prescription.consultation} appointment={prescription.appointment} lang={prescriptionLang} />
-            </div>
-          </div>
+          <PrescriptionPreviewPaper>
+            <PrescriptionPrint consultation={prescription.consultation} appointment={prescription.appointment} lang={prescriptionLang} />
+          </PrescriptionPreviewPaper>
         </div>
       </div>,document.body)}
     {prescription && createPortal(<div className="print-only"><PrescriptionPrint consultation={prescription.consultation} appointment={prescription.appointment} lang={prescriptionLang} /></div>,document.body)}

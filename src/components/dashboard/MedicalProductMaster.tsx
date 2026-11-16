@@ -72,6 +72,7 @@ const sourceOptions = [
   { id: 'REGULAR_PRODUCT', label: 'Regular Product' },
   { id: 'RADIENT_PHARMA', label: 'Radient Pharma' },
   { id: 'MEDICAL_PRODUCT_PRICE', label: 'Medical Product Price' },
+  { id: 'DOCTOR_MANUAL', label: 'Doctor Manual' },
 ];
 
 const productTypeOptions = [

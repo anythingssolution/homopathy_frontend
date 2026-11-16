@@ -23,6 +23,7 @@ import { goBackOr, readViewState, usePersistViewState } from "../../utils/viewSt
 import CustomDatePicker from "../CustomDatePicker";
 import Pagination from "../Pagination";
 import PrescriptionPrint from "../PrescriptionPrint";
+import PrescriptionPreviewPaper from '../PrescriptionPreviewPaper';
 import AllVisitsPrint from "../AllVisitsPrint";
 import { loadPrescriptionTimeline } from "../../utils/prescriptionTimeline";
 import { useTranslation } from "react-i18next";
@@ -1039,13 +1040,13 @@ export default function PatientRecords() {
 
       {selectedPrescription && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/80 p-4 backdrop-blur-md no-print">
-          <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+          <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl min-w-0 min-h-0">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 md:px-6 py-3 md:py-4 flex-wrap gap-3">
               <div>
                 <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">{t('patient_records.modal.prescription_preview', 'Prescription Preview')}</h3>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('patient_records.modal.saved_prescription_sub', 'Saved doctor consultation prescription')}</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 md:gap-3">
                 {/* Language Toggle Options */}
                 <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
                   <button
@@ -1083,11 +1084,9 @@ export default function PatientRecords() {
                 </button>
               </div>
             </div>
-            <div className="flex flex-1 items-start justify-center overflow-auto bg-gray-200/50 p-4 md:p-12" data-lenis-prevent>
-              <div className="mx-auto flex min-h-[297mm] w-[210mm] shrink-0 flex-col rounded-sm border border-gray-100 bg-white p-0 shadow-xl md:p-8">
-                <PrescriptionPrint consultation={selectedPrescription.consultation} appointment={selectedPrescription.appointment} lang={prescriptionLang} />
-              </div>
-            </div>
+            <PrescriptionPreviewPaper>
+              <PrescriptionPrint consultation={selectedPrescription.consultation} appointment={selectedPrescription.appointment} lang={prescriptionLang} />
+            </PrescriptionPreviewPaper>
           </div>
         </div>, document.body)}
 
@@ -1104,8 +1103,8 @@ export default function PatientRecords() {
 
       {selectedAllVisits && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-900/80 p-4 backdrop-blur-md no-print">
-          <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+          <div className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-gray-100 shadow-2xl min-w-0 min-h-0">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 md:px-6 py-3 md:py-4 flex-wrap gap-3">
               <div>
                 <h3 className="text-sm font-black uppercase tracking-widest text-gray-800">
                   {selectedAllVisits.previewMode === 'medicine-purchase'
@@ -1118,7 +1117,7 @@ export default function PatientRecords() {
                     : t('patient_records.modal.all_visits_preview_subtitle', 'Complete visit history for {{name}}', { name: selectedAllVisits.patient.full_name })}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 md:gap-3">
                 {/* Language Toggle */}
                 <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
                   <button
@@ -1156,11 +1155,9 @@ export default function PatientRecords() {
                 </button>
               </div>
             </div>
-            <div className="flex flex-1 items-start justify-center overflow-auto bg-gray-200/50 p-4 md:p-12" data-lenis-prevent>
-              <div className="mx-auto flex min-h-[297mm] w-[210mm] shrink-0 flex-col rounded-sm border border-gray-100 bg-white p-0 shadow-xl md:p-8">
-                <AllVisitsPrint patient={selectedAllVisits.patient} visits={selectedAllVisits.visits} lang={allVisitsLang} />
-              </div>
-            </div>
+            <PrescriptionPreviewPaper>
+              <AllVisitsPrint patient={selectedAllVisits.patient} visits={selectedAllVisits.visits} lang={allVisitsLang} />
+            </PrescriptionPreviewPaper>
           </div>
         </div>, document.body)}
     </div>

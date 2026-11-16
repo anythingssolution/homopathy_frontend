@@ -35,6 +35,7 @@ import ChartInfoButton from '../components/ChartInfoButton';
 import { useTranslation } from 'react-i18next';
 import { useNotifications } from '../../../../context/NotificationContext';
 import PrescriptionPrint from '../../../PrescriptionPrint';
+import PrescriptionPreviewPaper from '../../../PrescriptionPreviewPaper';
 
 interface BookedVsConsultedViewProps {
   token: string | null;
@@ -1025,10 +1026,10 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-gray-100 w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col shadow-2xl rounded-3xl"
+              className="bg-gray-100 w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col shadow-2xl rounded-3xl min-w-0 min-h-0"
             >
-              <div className="bg-white px-6 py-4 border-b border-gray-200 flex justify-between items-center shrink-0">
-                <div className="flex items-center gap-3">
+              <div className="bg-white px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 flex justify-between items-center shrink-0 flex-wrap gap-3">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3">
                   <div className="w-10 h-10 bg-[#549E9E]/10 rounded-full flex items-center justify-center text-[#549E9E]">
                     <FileText size={20} />
                   </div>
@@ -1041,7 +1042,7 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3">
                   <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
                     <button
                       type="button"
@@ -1082,21 +1083,13 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
                   </button>
                 </div>
               </div>
-              <div
-                className="flex-1 overflow-auto p-4 md:p-12 bg-gray-200/50 flex justify-center items-start overscroll-contain"
-                data-lenis-prevent
-              >
-                <div
-                  className="bg-white shadow-xl shrink-0 p-0 md:p-8 rounded-sm border border-gray-100 mx-auto flex flex-col"
-                  style={{ width: '210mm', minHeight: '297mm' }}
-                >
-                  <PrescriptionPrint
-                    consultation={showPrescriptionPreview.consultation}
-                    appointment={showPrescriptionPreview.appointment}
-                    lang={prescriptionLang}
-                  />
-                </div>
-              </div>
+              <PrescriptionPreviewPaper>
+                <PrescriptionPrint
+                  consultation={showPrescriptionPreview.consultation}
+                  appointment={showPrescriptionPreview.appointment}
+                  lang={prescriptionLang}
+                />
+              </PrescriptionPreviewPaper>
             </motion.div>
           </motion.div>
         )}

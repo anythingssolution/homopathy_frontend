@@ -1,4 +1,5 @@
 import AllVisitsPrint from '../AllVisitsPrint';
+import PrescriptionPreviewPaper from '../PrescriptionPreviewPaper';
 import ClinicHistoryListPrint from './ClinicHistoryListPrint';
 import ClinicHistoryTiming from './ClinicHistoryTiming';
 import VisitDrawer from './bills-next/VisitDrawer';
@@ -1197,10 +1198,10 @@ export default function DoctorClinicHistory() {
                         </div>
                       </div>
 
-                      <div className="overflow-x-auto rounded-xl bg-slate-100 p-2 md:p-5">
-                        <div className="min-w-[640px] bg-white p-3 shadow-sm">
+                      <div className="flex h-[75vh] min-h-0 min-w-0 flex-col overflow-hidden rounded-xl">
+                        <PrescriptionPreviewPaper>
                           <HistoryPrescriptions data={selectedConsultation} lang={prescriptionLang} timelineVisits={selectedHistoryTimeline} />
-                        </div>
+                        </PrescriptionPreviewPaper>
                       </div>
 
                     </div>
@@ -1230,11 +1231,11 @@ export default function DoctorClinicHistory() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-gray-100 w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col shadow-2xl rounded-3xl"
+              className="bg-gray-100 w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col shadow-2xl rounded-3xl min-w-0 min-h-0"
             >
               {/* Toolbar */}
-              <div className="bg-white px-6 py-4 border-b border-gray-200 flex justify-between items-center shrink-0">
-                <div className="flex items-center gap-3">
+              <div className="bg-white px-4 py-3 md:px-6 md:py-4 border-b border-gray-200 flex flex-wrap justify-between items-center gap-3 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3">
                   <div className="w-10 h-10 bg-[#549E9E]/10 rounded-full flex items-center justify-center text-[#549E9E]">
                     <FileText size={20} />
                   </div>
@@ -1247,7 +1248,7 @@ export default function DoctorClinicHistory() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3">
                   {/* Language Toggle Options */}
                   <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 gap-1">
                     <button
@@ -1292,21 +1293,13 @@ export default function DoctorClinicHistory() {
                 </div>
               </div>
 
-              <div
-                className="flex-1 overflow-auto p-4 md:p-12 bg-gray-200/50 flex justify-center items-start overscroll-contain"
-                data-lenis-prevent
-              >
-                <div
-                  className="bg-white shadow-xl shrink-0 p-0 md:p-8 rounded-sm border border-gray-100 mx-auto flex flex-col"
-                  style={{ width: '210mm', minHeight: '297mm' }}
-                >
-                  <PrescriptionPrint
-                    consultation={showPrescriptionPreview.consultation}
-                    appointment={showPrescriptionPreview.appointment}
-                    lang={prescriptionLang}
-                  />
-                </div>
-              </div>
+              <PrescriptionPreviewPaper>
+                <PrescriptionPrint
+                  consultation={showPrescriptionPreview.consultation}
+                  appointment={showPrescriptionPreview.appointment}
+                  lang={prescriptionLang}
+                />
+              </PrescriptionPreviewPaper>
             </motion.div>
           </motion.div>
         )}
