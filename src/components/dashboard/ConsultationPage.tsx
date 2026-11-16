@@ -1,6 +1,6 @@
 import LifestyleHistoryFields, { parseLifestyleHistory, hasLifestyleHistory } from "./history/LifestyleHistoryFields";
 import { formatPatientRegistration } from '../../utils/patientRegistration';
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 const RepeatTreatmentPicker = React.lazy(() => import('./RepeatTreatmentPicker'));
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -67,6 +67,7 @@ import {
   saveConsultDraft,
   type ConsultDraftPayload,
 } from "../../utils/consultDraftStorage";
+import { buildLastVisitConsultDraft, hasMeaningfulConsultDraft } from "../../utils/consultationAutofill";
 import { useLenisNestedScroll } from "../../hooks/useLenisNestedScroll";
 import {
   getDurationDaysFromKey,
@@ -692,6 +693,19 @@ export default function ConsultationPage() {
   const consultDraftAppliedForRef = useRef<number | null>(null);
   const consultDraftHydratedRef = useRef(false);
   const [consultDraftReadyToken, setConsultDraftReadyToken] = useState(0);
+  const [draftFieldsAppointmentId, setDraftFieldsAppointmentId] = useState<number | null>(null);
+  const [autofillNotice, setAutofillNotice] = useState('');
+  const [isAutofillLoading, setIsAutofillLoading] = useState(false);
+  const [lastVisitAutofill, setLastVisitAutofill] = useState<ConsultDraftPayload['lastVisitAutofill']>(null);
+  const [loadedAppointmentId, setLoadedAppointmentId] = useState<number | null>(null);
+  const initialAutofillDraftRef = useRef<{ appointmentId: number; draft: ConsultDraftPayload | null } | null>(null);
+  const autofillDoneRef = useRef<string | null>(null);
+  const autofillEditRef = useRef({ appointmentId: '', revision: 0 });
+  const restoredAutofillFormulaRef = useRef<string | null>(null);
+  if (autofillEditRef.current.appointmentId !== String(appointmentId || '')) {
+    autofillEditRef.current = { appointmentId: String(appointmentId || ''), revision: 0 };
+  }
+
   const latestConsultDraftRef = useRef<{
     doctorId: string | number;
     appointmentId: number;
@@ -895,6 +909,10 @@ export default function ConsultationPage() {
 
   useEffect(() => {
     setIsSubmitting(false);
+    setAutofillNotice('');
+    setLastVisitAutofill(null);
+    setLoadedAppointmentId(null);
+    autofillDoneRef.current = null;
     setIsReadOnly(false);
     setIsEditingCompletedConsultation(false);
     setCanEditBeforeDispense(false);
@@ -1075,6 +1093,7 @@ export default function ConsultationPage() {
       return;
     }
 
+    const detailController = new AbortController();
     const fetchAppointmentDetail = async () => {
       if (!appointmentId) return;
 
@@ -1082,11 +1101,13 @@ export default function ConsultationPage() {
         const res = await fetch(
           `/api/v1/doctors/appointments/${appointmentId}`,
           {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Authorization: `Bearer ${token}` }, signal: detailController.signal,
           },
         );
         const result = await res.json();
+        if (detailController.signal.aborted) return;
         if (result.success && result.data) {
+          setLoadedAppointmentId(Number(result.data.appointment_id));
           setAppointmentDetail(result.data);
           if (Array.isArray(result.data.follow_up_chain)) {
             setFollowUpChain(result.data.follow_up_chain);
@@ -1153,7 +1174,7 @@ export default function ConsultationPage() {
           }
         }
       } catch (err) {
-        console.error("Failed to fetch appointment detail", err);
+        if (!detailController.signal.aborted) console.error("Failed to fetch appointment detail", err);
       }
     };
 
@@ -1387,6 +1408,7 @@ export default function ConsultationPage() {
     } else {
       fetchConsultation();
     }
+    return () => detailController.abort();
   }, [app, appointmentId, navigate, token, currentApp?.status, consultationReloadKey, shouldStartInEditMode, addToast]);
 
   useEffect(() => {
@@ -1408,39 +1430,7 @@ export default function ConsultationPage() {
     );
   }, [followUpChain, currentApp?.appointment_id]);
 
-  // Restore per-appointment consultation drafts from localStorage.
-  useEffect(() => {
-    const draftAppointmentId =
-      normalizedRouteAppointmentId || Number(currentApp?.appointment_id || 0);
-
-    if (!user?.id || !draftAppointmentId || draftAppointmentId <= 0) {
-      consultDraftHydratedRef.current = false;
-      return;
-    }
-
-    if (consultDraftAppliedForRef.current === draftAppointmentId) {
-      return;
-    }
-
-    const isCompleted =
-      String(currentApp?.status || "").toLowerCase() === "completed";
-
-    // Wait until appointment context is ready so we know completed vs in-progress.
-    if (!isAppointmentContextReady) {
-      consultDraftHydratedRef.current = false;
-      return;
-    }
-
-    consultDraftAppliedForRef.current = draftAppointmentId;
-
-    if (isCompleted || isReadOnly) {
-      clearConsultDraft(user.id, draftAppointmentId);
-      consultDraftHydratedRef.current = true;
-      return;
-    }
-
-    const draft = loadConsultDraft(user.id, draftAppointmentId);
-    if (draft) {
+  const applyConsultDraftFields = useCallback((draft: ConsultDraftPayload) => {
       setChiefComplaints(draft.chiefComplaints || "");
       setDiagnosis(draft.diagnosis || "");
       setTreatmentNotes(draft.treatmentNotes || "");
@@ -1472,7 +1462,8 @@ export default function ConsultationPage() {
       ) {
         setFollowUpPreset(draft.followUpPreset);
       }
-      setCustomFollowUpDays("");
+      if (draft.followUpPreset === "custom") setFollowUpPreset("custom");
+      setCustomFollowUpDays(draft.followUpPreset === "custom" ? draft.customFollowUpDays || "" : "");
       setRepeatedFromConsultationId(
         draft.repeatedFromConsultationId
           ? Number(draft.repeatedFromConsultationId)
@@ -1518,7 +1509,7 @@ export default function ConsultationPage() {
       setAllergiesHistory(draft.allergiesHistory || "");
       setGynecologicalHistory(draft.gynecologicalHistory || "");
       setPersonalSocialHistory(draft.personalSocialHistory || "");
-      setLifestyleHistory(parseLifestyleHistory(draft.lifestyleHistory ?? app?.lifestyle_history));
+      setLifestyleHistory(parseLifestyleHistory(draft.lifestyleHistory));
       setGeneralExamination(draft.generalExamination || "");
       setSystematicExamination(draft.systematicExamination || "");
       setDifferentialDiagnosis(draft.differentialDiagnosis || "");
@@ -1527,10 +1518,55 @@ export default function ConsultationPage() {
       setDisease(draft.disease || "");
       setInvestigations(normalizeInvestigationRows(draft.investigations));
       setFollowUpChainClosed(Boolean(draft.followUpChainClosed));
+      setLastVisitAutofill(draft.lastVisitAutofill || null);
+      restoredAutofillFormulaRef.current = draft.lastVisitAutofill ? draft.quickNumericInput.trim() : null;
+  }, []);
+
+  // Restore per-appointment consultation drafts from localStorage.
+  useEffect(() => {
+    const draftAppointmentId =
+      normalizedRouteAppointmentId || Number(currentApp?.appointment_id || 0);
+
+    if (!user?.id || !draftAppointmentId || draftAppointmentId <= 0) {
+      consultDraftHydratedRef.current = false;
+      return;
+    }
+
+    if (consultDraftAppliedForRef.current === draftAppointmentId) {
+      return;
+    }
+
+    const isCompleted =
+      String(currentApp?.status || "").toLowerCase() === "completed";
+
+    // Wait until appointment context is ready so we know completed vs in-progress.
+    if (!isAppointmentContextReady) {
+      consultDraftHydratedRef.current = false;
+      return;
+    }
+
+    consultDraftAppliedForRef.current = draftAppointmentId;
+
+    if (isCompleted || isReadOnly) {
+      clearConsultDraft(user.id, draftAppointmentId);
+      consultDraftHydratedRef.current = true;
+      return;
+    }
+
+    const draft = loadConsultDraft(user.id, draftAppointmentId);
+    initialAutofillDraftRef.current = { appointmentId: draftAppointmentId, draft };
+    if (draft) {
+      applyConsultDraftFields({ ...draft, lifestyleHistory: draft.lifestyleHistory ?? parseLifestyleHistory(app?.lifestyle_history) });
+    } else if (draftFieldsAppointmentId && draftFieldsAppointmentId !== draftAppointmentId) {
+      // Route changes can reuse this component. Never carry another patient's fields forward.
+      const blank = buildLastVisitConsultDraft({ consultation: currentApp, source: {} }, currentApp);
+      delete blank.lastVisitAutofill;
+      applyConsultDraftFields(blank);
     }
 
     // Enable persistence on the next render so we never save pre-restore values.
     consultDraftHydratedRef.current = true;
+    setDraftFieldsAppointmentId(draftAppointmentId);
     setConsultDraftReadyToken((token) => token + 1);
   }, [
     user?.id,
@@ -1539,7 +1575,56 @@ export default function ConsultationPage() {
     currentApp?.status,
     isAppointmentContextReady,
     isReadOnly,
+    applyConsultDraftFields,
   ]);
+
+  // Only the initial blank draft may be filled. Never replace a saved draft or edits made while loading.
+  useEffect(() => {
+    const id = Number(currentApp?.appointment_id || 0);
+    const key = `${user?.id}:${id}`;
+    if (!token || !user?.id || !id || loadedAppointmentId !== id || !isAppointmentContextReady ||
+        !consultDraftReadyToken || draftFieldsAppointmentId !== id || !consultDraftHydratedRef.current || isReadOnly ||
+        ['completed', 'cancelled'].includes(String(currentApp?.status || '').toLowerCase()) || autofillDoneRef.current === key) return;
+    const saved = initialAutofillDraftRef.current;
+    if (saved?.appointmentId !== id) return;
+    setLastVisitAutofill(saved.draft?.lastVisitAutofill || null);
+    if (hasMeaningfulConsultDraft(saved.draft, currentApp)) {
+      autofillDoneRef.current = key;
+      setAutofillNotice('Saved draft restored. Last visit did not overwrite your work.');
+      return;
+    }
+    const controller = new AbortController();
+    const revision = autofillEditRef.current.revision;
+    const routeId = String(appointmentId || '');
+    setIsAutofillLoading(true);
+    setAutofillNotice('Checking last visit auto-fill…');
+    const timeout = window.setTimeout(() => controller.abort('timeout'), 15000);
+    fetch(`/api/v1/doctors/consultations/${id}/last-visit-prefill`, {
+      headers: { Authorization: `Bearer ${token}` }, signal: controller.signal, cache: 'no-store',
+    }).then(async response => {
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'Unable to load last visit');
+      if (controller.signal.aborted || autofillEditRef.current.appointmentId !== routeId) return;
+      autofillDoneRef.current = key;
+      if (!result.data.enabled) { setAutofillNotice(''); return; }
+      if (!result.data.source || !result.data.consultation) { setAutofillNotice('No previous completed visit found for this patient / family member.'); return; }
+      if (revision !== 0 || autofillEditRef.current.revision !== revision) {
+        setAutofillNotice('Auto-fill skipped because you started editing. Your entries are unchanged.');
+        return;
+      }
+      applyConsultDraftFields(buildLastVisitConsultDraft(result.data, currentApp));
+      setAutofillNotice('Last visit copied. Review all details, medicines and tests before completing.');
+    }).catch(() => {
+      if (controller.signal.aborted && controller.signal.reason !== 'timeout') return;
+      autofillDoneRef.current = key;
+      setAutofillNotice('Last visit could not be loaded. You can enter details manually or reopen this consultation to retry.');
+    }).finally(() => {
+      window.clearTimeout(timeout);
+      if (!controller.signal.aborted || controller.signal.reason === 'timeout') setIsAutofillLoading(false);
+    });
+    return () => { window.clearTimeout(timeout); controller.abort(); setIsAutofillLoading(false); };
+  }, [token, user?.id, appointmentId, currentApp, loadedAppointmentId, isAppointmentContextReady,
+    consultDraftReadyToken, draftFieldsAppointmentId, isReadOnly, applyConsultDraftFields]);
 
   // Persist in-progress consultation drafts per appointment.
   useEffect(() => {
@@ -1549,6 +1634,7 @@ export default function ConsultationPage() {
     if (
       !consultDraftHydratedRef.current ||
       !consultDraftReadyToken ||
+      draftFieldsAppointmentId !== draftAppointmentId ||
       !user?.id ||
       !draftAppointmentId ||
       draftAppointmentId <= 0 ||
@@ -1603,6 +1689,7 @@ export default function ConsultationPage() {
       disease,
       investigations,
       followUpChainClosed,
+      lastVisitAutofill,
     };
 
     latestConsultDraftRef.current = {
@@ -1618,6 +1705,7 @@ export default function ConsultationPage() {
     return () => window.clearTimeout(timer);
   }, [
     consultDraftReadyToken,
+    draftFieldsAppointmentId,
     user?.id,
     normalizedRouteAppointmentId,
     currentApp?.appointment_id,
@@ -1666,6 +1754,7 @@ export default function ConsultationPage() {
     disease,
     investigations,
     followUpChainClosed,
+    lastVisitAutofill,
   ]);
 
   // Flush the latest draft when leaving the consult page or switching appointments.
@@ -1936,6 +2025,10 @@ export default function ConsultationPage() {
       return;
     }
 
+    if (restoredAutofillFormulaRef.current !== null) {
+      if (restoredAutofillFormulaRef.current === trimmedInput) return;
+      restoredAutofillFormulaRef.current = null;
+    }
     if (!formulaSnapshot) return;
     if (
       quickFormulaPreview.errors.length > 0 ||
@@ -2818,7 +2911,7 @@ export default function ConsultationPage() {
   };
 
   const handleCompleteConsultation = async () => {
-    if (isReadOnly || isSubmitting) return;
+    if (isReadOnly || isSubmitting || isAutofillLoading) return;
 
     const submissionAppointmentId =
       normalizedRouteAppointmentId || Number(currentApp?.appointment_id || 0);
@@ -3305,7 +3398,16 @@ export default function ConsultationPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pt-6 pb-12 consultation-form-override">
+    <div className="max-w-6xl mx-auto space-y-6 pt-6 pb-12 consultation-form-override"
+      onInputCapture={() => { autofillEditRef.current.revision += 1; }}
+      onPointerDownCapture={() => { autofillEditRef.current.revision += 1; }}
+      onKeyDownCapture={event => { if (event.key === 'Enter' || event.key === ' ') autofillEditRef.current.revision += 1; }}>
+      {!isReadOnly && String(currentApp.status).toLowerCase() !== 'completed' && autofillNotice && (
+        <div role="status" aria-live="polite" className="rounded-xl border border-[#549E9E]/25 bg-[#549E9E]/5 px-4 py-3 text-sm text-gray-700">
+          <p className="font-semibold">{autofillNotice}</p>
+          {lastVisitAutofill && <p className="text-xs text-gray-500 mt-1">Source: {new Date(lastVisitAutofill.appointment_date).toLocaleDateString('en-IN')} · {lastVisitAutofill.branch_name}</p>}
+        </div>
+      )}
       {currentApp && (
         <PatientDetailsEditModal
           isOpen={isPatientEditOpen}
@@ -4500,13 +4602,13 @@ export default function ConsultationPage() {
                   </div>
 
                   <div
-                    className="p-6 overflow-y-auto space-y-6 flex-1 h-full min-h-0"
+                    className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 h-full min-h-0"
                     style={{ overscrollBehavior: "contain" }}
                     onWheel={(e) => e.stopPropagation()}
                     onTouchMove={(e) => e.stopPropagation()}
                   >
                     {/* Basic & Lifestyle */}
-                    <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-4 space-y-3">
+                    <div className="bg-gray-50/70 border border-gray-200/80 rounded-xl p-3 space-y-2">
                       <label className="text-xs font-black text-[#549E9E] uppercase tracking-widest block border-b border-gray-200 pb-2">
                         {t(
                           "consultation_modal.basic_lifestyle",
@@ -6450,7 +6552,7 @@ export default function ConsultationPage() {
             <button
               type="button"
               onClick={handleCompleteConsultation}
-              disabled={isSubmitting || !isAppointmentContextReady}
+              disabled={isSubmitting || isAutofillLoading || !isAppointmentContextReady}
               className="w-full sm:w-auto px-8 h-12 bg-[#549E9E] hover:bg-[#438787] text-white font-black uppercase tracking-wider text-xs rounded-xl shadow-md shadow-[#549E9E]/20 hover:shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
               {isSubmitting ? (

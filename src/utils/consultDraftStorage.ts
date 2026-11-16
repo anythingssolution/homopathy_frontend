@@ -33,6 +33,8 @@ export type ConsultDraftOtherMedication = {
   amount: string;
   quantity?: number | string;
   isManualEntry?: boolean;
+  manualUnitPrice?: number | null;
+  shouldPersistManualMaster?: boolean;
 };
 
 export type ConsultDraftTest = {
@@ -98,6 +100,7 @@ export type ConsultDraft = {
   mentalMindStatus: string;
   disease: string;
   followUpChainClosed: boolean;
+  lastVisitAutofill?: { consultation_id: number; appointment_date: string; branch_name: string } | null;
 };
 
 export type ConsultDraftPayload = Omit<

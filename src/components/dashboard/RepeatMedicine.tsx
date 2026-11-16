@@ -805,66 +805,6 @@ export default function RepeatMedicine() {
               </span>
             </div>
 
-            {lastPrescription && prescriptionOptions.length > 1 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label={t('repeat_medicine.choose_prescription', 'Choose prescription')}>
-                {prescriptionOptions.map((prescription, index) => {
-                  const active = prescription.consultation_id === lastPrescription.prescription.consultation_id;
-                  return (
-                    <button key={prescription.consultation_id} type="button" disabled={isSaving || isLoading}
-                      aria-pressed={active} onClick={() => switchPrescription(prescription)}
-                      className={`rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50 ${active ? 'border-[#549E9E] bg-[#549E9E]/10 text-[#2d8789]' : 'border-gray-200 text-gray-600 hover:border-[#549E9E]/50'}`}>
-                      <span className="block text-xs font-black">{index === 0 ? t('repeat_medicine.latest_prescription', 'Latest prescription') : t('repeat_medicine.previous_prescription', 'Previous prescription')}</span>
-                      <span className="mt-1 block text-xs font-medium">{prescription.appointment_date.slice(0, 10)} • {prescription.doctor_name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {lastPrescription ? (
-              <div className="space-y-2">
-                {(lastPrescription.prescription.medications || []).map((med) => {
-                const checked = Boolean(selectedMedicineIds[med.consultation_medication_id]);
-                return (
-                  <div key={med.consultation_medication_id} className="grid grid-cols-[auto_1fr_120px] gap-3 items-center border border-gray-100 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => {
-                        setSelectedMedicineIds((state) => ({ ...state, [med.consultation_medication_id]: e.target.checked }));
-                        setCollectedAmount('');
-                      }}
-                      className="w-4 h-4 accent-[#549E9E]"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-sm font-black text-gray-800 truncate">{String(med.medicine_value || '').toUpperCase()}</p>
-                      {med.remark && <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{med.remark}</p>}
-                    </div>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={medicineAmounts[med.consultation_medication_id] || ''}
-                      disabled={!checked}
-                      onChange={(e) => setMedicineAmounts((state) => ({ ...state, [med.consultation_medication_id]: e.target.value }))}
-                      placeholder="Amount"
-                      className="bg-gray-50 border border-gray-100 px-3 py-1.5 text-xs font-bold outline-none focus:border-[#549E9E] disabled:opacity-40"
-                    />
-                  </div>
-                );
-                })}
-              </div>
-            ) : (
-              <div className="border border-amber-100 bg-amber-50/50 p-3">
-                <p className="text-xs font-black text-amber-700 uppercase tracking-widest">
-                  Previous prescription available nahi hai
-                </p>
-                <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-widest mt-1">
-                  Is patient ke liye Medical Added medicine ya tests add karke bill bana sakte hain.
-                </p>
-              </div>
-            )}
-
             <div className="border border-amber-100 bg-amber-50/40 p-3 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div>
@@ -876,7 +816,7 @@ export default function RepeatMedicine() {
                 </button>
               </div>
 
-              {additionalMedicines.map((item, index) => {
+              {additionalMedicines.map((item, index) => ({ item, index })).reverse().map(({ item, index }) => {
                 const variantOptions = getVariantOptions(item.name);
                 const medicineOptions = textMedicines.map((medicine) => ({
                   label: medicine.medicine_value,
@@ -948,7 +888,7 @@ export default function RepeatMedicine() {
                   onChange={value => { const id = Number(value); if (testMaster.some(test => Number(test.id) === id)) setSelectedTestIds(prev => prev.includes(id) ? prev : [...prev, id]); }}
                 />
               )}
-              {selectedTests.map(test => (
+              {selectedTests.slice().reverse().map(test => (
                 <div key={test.id} className="flex items-center gap-3 border border-amber-100 bg-white p-2">
                   <span className="flex-1 text-xs font-bold text-gray-700">{test.test_name}</span>
                   <span className="text-xs font-black text-amber-700">₹ {money(test.amount)}</span>
@@ -956,6 +896,68 @@ export default function RepeatMedicine() {
                 </div>
               ))}
             </div>
+
+            {lastPrescription && prescriptionOptions.length > 1 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label={t('repeat_medicine.choose_prescription', 'Choose prescription')}>
+                {prescriptionOptions.map((prescription, index) => {
+                  const active = prescription.consultation_id === lastPrescription.prescription.consultation_id;
+                  return (
+                    <button key={prescription.consultation_id} type="button" disabled={isSaving || isLoading}
+                      aria-pressed={active} onClick={() => switchPrescription(prescription)}
+                      className={`rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-50 ${active ? 'border-[#549E9E] bg-[#549E9E]/10 text-[#2d8789]' : 'border-gray-200 text-gray-600 hover:border-[#549E9E]/50'}`}>
+                      <span className="block text-xs font-black">{index === 0 ? t('repeat_medicine.latest_prescription', 'Latest prescription') : t('repeat_medicine.previous_prescription', 'Previous prescription')}</span>
+                      <span className="mt-1 block text-xs font-medium">{prescription.appointment_date.slice(0, 10)} • {prescription.doctor_name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {lastPrescription ? (
+              <div className="space-y-2">
+                {(lastPrescription.prescription.medications || []).map((med) => {
+                const checked = Boolean(selectedMedicineIds[med.consultation_medication_id]);
+                return (
+                  <div key={med.consultation_medication_id} className="grid grid-cols-[auto_1fr_120px] gap-3 items-center border border-gray-100 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        setSelectedMedicineIds((state) => ({ ...state, [med.consultation_medication_id]: e.target.checked }));
+                        setCollectedAmount('');
+                      }}
+                      className="w-4 h-4 accent-[#549E9E]"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-gray-800 truncate">{String(med.medicine_value || '').toUpperCase()}</p>
+                      {med.remark && <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{med.remark}</p>}
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={medicineAmounts[med.consultation_medication_id] || ''}
+                      disabled={!checked}
+                      onChange={(e) => setMedicineAmounts((state) => ({ ...state, [med.consultation_medication_id]: e.target.value }))}
+                      placeholder="Amount"
+                      className="bg-gray-50 border border-gray-100 px-3 py-1.5 text-xs font-bold outline-none focus:border-[#549E9E] disabled:opacity-40"
+                    />
+                  </div>
+                );
+                })}
+              </div>
+            ) : (
+              <div className="border border-amber-100 bg-amber-50/50 p-3">
+                <p className="text-xs font-black text-amber-700 uppercase tracking-widest">
+                  Previous prescription available nahi hai
+                </p>
+                <p className="text-[10px] font-bold text-amber-700/70 uppercase tracking-widest mt-1">
+                  Is patient ke liye Medical Added medicine ya tests add karke bill bana sakte hain.
+                </p>
+              </div>
+            )}
+
+
           </div>
 
           <div className="bg-white border border-gray-200 shadow-sm flex flex-col sticky top-24 max-h-[calc(100vh-7rem)]">

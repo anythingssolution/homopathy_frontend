@@ -1374,6 +1374,120 @@ export default function MedicalDashboard() {
                   </h3>
 
                   <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3">
+                    <div className="space-y-2.5 rounded-xl border border-[#549E9E]/15 bg-white p-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
+                          <FileText size={12} />
+                          {t('dispense.medical_additional_medicines', 'Medical Additional Medicines')}
+                        </h4>
+                        <button
+                          onClick={addAdditionalMed}
+                          className="cursor-pointer rounded-lg bg-[#549E9E]/10 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#549E9E] transition-all hover:bg-[#549E9E] hover:text-white"
+                        >
+                          + {t('common.add', 'Add')}
+                        </button>
+                      </div>
+
+                          {additionalMeds.map((med, idx) => ({ med, idx })).reverse().map(({ med, idx }) => {
+                            const selectedMedicine = textMedicines.find((m) => String(m.medicine_value || '').toUpperCase() === String(med.name || '').toUpperCase());
+                            const variantOptions =
+                              selectedMedicine && selectedMedicine.medical_products?.length
+                                ? selectedMedicine.medical_products
+                                    .map((p: any) => ({
+                                      label: p.packing || p.size_or_weight || p.net_weight_or_size || p.product_name || 'N/A',
+                                      price: p.mrp_rate || p.price_max || p.price_min || '0',
+                                    }))
+                                    .filter((v: any) => v.label !== 'N/A')
+                                : selectedMedicine
+                                ? [
+                                    ...(selectedMedicine.products || []).map((p: any) => ({ label: p.packing || 'N/A', price: p.mrp_rate || '0' })),
+                                    ...(selectedMedicine.radient_pharma_products || []).map((p: any) => ({ label: p.net_weight_or_size || 'N/A', price: p.mrp_rate || '0' })),
+                                    ...(selectedMedicine.handwritten_product_prices || []).map((p: any) => ({ label: p.product_name || p.category || 'N/A', price: p.price_max || '0' })),
+                                  ].filter((v: any) => v.label !== 'N/A')
+                                : [];
+
+                            const medicineOptions = textMedicines.map((m) => ({ label: m.medicine_value, value: m.medicine_value }));
+
+                            return (
+                              <div
+                                key={`additional-${idx}`}
+                                className="grid grid-cols-1 sm:grid-cols-[minmax(180px,1.2fr)_minmax(120px,0.8fr)_70px_100px_40px] gap-2.5 items-center bg-white border border-gray-100 p-3 rounded-xl shadow-2xs"
+                              >
+                                <div>
+                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
+                                    Medicine / Syrup Name
+                                  </label>
+                                  <SearchableDropdown
+                                    disabled={false}
+                                    allowCustom={true}
+                                    options={medicineOptions}
+                                    value={med.name || med.medicine_value}
+                                    onChange={(val) => updateAdditionalMedField(idx, 'name', val)}
+                                    placeholder="Search / Enter medicine..."
+                                  />
+                                </div>
+                                <div>
+                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
+                                    Variant
+                                  </label>
+                                  <SearchableDropdown
+                                    disabled={variantOptions.length === 0}
+                                    options={variantOptions.map((v) => ({ label: v.label, value: v.label }))}
+                                    value={med.selectedVariant?.label || ''}
+                                    onChange={(val) => {
+                                      const variant = variantOptions.find((v) => v.label === val);
+                                      updateAdditionalMedField(idx, 'selectedVariant', variant || null);
+                                    }}
+                                    placeholder={variantOptions.length > 0 ? 'Variant...' : 'No Variants'}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
+                                    Qty
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    placeholder="1"
+                                    value={med.quantity ?? 1}
+                                    onChange={(e) => updateAdditionalMedField(idx, 'quantity', e.target.value)}
+                                    className="w-full h-8.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-gray-800 outline-none text-center focus:border-[#549E9E]"
+                                  />
+                                </div>
+                                <div className="relative">
+                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
+                                    Amount
+                                  </label>
+                                  <div className="relative">
+                                    <IndianRupee size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
+                                    <input
+                                      type="number"
+                                      placeholder="0"
+                                      value={med.amount}
+                                      onChange={(e) => updateAdditionalMedField(idx, 'amount', e.target.value)}
+                                      className="w-full h-8.5 bg-gray-50 border border-gray-200 rounded-lg pl-7 pr-2 text-xs font-black text-gray-800 outline-none text-right focus:border-[#549E9E]"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex justify-center">
+                                  <button
+                                    onClick={() => removeAdditionalMed(idx)}
+                                    className="w-8 h-8 flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all cursor-pointer"
+                                    title="Remove Row"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                    {additionalMeds.length === 0 && (
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('dispense.no_additional_medicines', 'No additional medicines added')}</p>
+                    )}
+                    </div>
+
                     {(selectedPrescription.prescription?.medications || []).length > 0 ? (
                       <div className="space-y-2">
                         {selectedPrescription.prescription.medications.filter((med: any) => med.added_by_role !== 'MEDICAL').map((med: any, idx: number) => {
@@ -1593,117 +1707,7 @@ export default function MedicalDashboard() {
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#549E9E]">
-                          <FileText size={12} />
-                          {t('dispense.medical_additional_medicines', 'Medical Additional Medicines')}
-                        </h4>
-                        <button
-                          onClick={addAdditionalMed}
-                          className="cursor-pointer rounded-lg bg-[#549E9E]/10 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-[#549E9E] transition-all hover:bg-[#549E9E] hover:text-white"
-                        >
-                          + {t('common.add', 'Add')}
-                        </button>
-                      </div>
 
-                          {additionalMeds.map((med, idx) => {
-                            const selectedMedicine = textMedicines.find((m) => String(m.medicine_value || '').toUpperCase() === String(med.name || '').toUpperCase());
-                            const variantOptions =
-                              selectedMedicine && selectedMedicine.medical_products?.length
-                                ? selectedMedicine.medical_products
-                                    .map((p: any) => ({
-                                      label: p.packing || p.size_or_weight || p.net_weight_or_size || p.product_name || 'N/A',
-                                      price: p.mrp_rate || p.price_max || p.price_min || '0',
-                                    }))
-                                    .filter((v: any) => v.label !== 'N/A')
-                                : selectedMedicine
-                                ? [
-                                    ...(selectedMedicine.products || []).map((p: any) => ({ label: p.packing || 'N/A', price: p.mrp_rate || '0' })),
-                                    ...(selectedMedicine.radient_pharma_products || []).map((p: any) => ({ label: p.net_weight_or_size || 'N/A', price: p.mrp_rate || '0' })),
-                                    ...(selectedMedicine.handwritten_product_prices || []).map((p: any) => ({ label: p.product_name || p.category || 'N/A', price: p.price_max || '0' })),
-                                  ].filter((v: any) => v.label !== 'N/A')
-                                : [];
-
-                            const medicineOptions = textMedicines.map((m) => ({ label: m.medicine_value, value: m.medicine_value }));
-
-                            return (
-                              <div
-                                key={`additional-${idx}`}
-                                className="grid grid-cols-1 sm:grid-cols-[minmax(180px,1.2fr)_minmax(120px,0.8fr)_70px_100px_40px] gap-2.5 items-center bg-white border border-gray-100 p-3 rounded-xl shadow-2xs"
-                              >
-                                <div>
-                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
-                                    Medicine / Syrup Name
-                                  </label>
-                                  <SearchableDropdown
-                                    disabled={false}
-                                    allowCustom={true}
-                                    options={medicineOptions}
-                                    value={med.name || med.medicine_value}
-                                    onChange={(val) => updateAdditionalMedField(idx, 'name', val)}
-                                    placeholder="Search / Enter medicine..."
-                                  />
-                                </div>
-                                <div>
-                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
-                                    Variant
-                                  </label>
-                                  <SearchableDropdown
-                                    disabled={variantOptions.length === 0}
-                                    options={variantOptions.map((v) => ({ label: v.label, value: v.label }))}
-                                    value={med.selectedVariant?.label || ''}
-                                    onChange={(val) => {
-                                      const variant = variantOptions.find((v) => v.label === val);
-                                      updateAdditionalMedField(idx, 'selectedVariant', variant || null);
-                                    }}
-                                    placeholder={variantOptions.length > 0 ? 'Variant...' : 'No Variants'}
-                                  />
-                                </div>
-                                <div>
-                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
-                                    Qty
-                                  </label>
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    placeholder="1"
-                                    value={med.quantity ?? 1}
-                                    onChange={(e) => updateAdditionalMedField(idx, 'quantity', e.target.value)}
-                                    className="w-full h-8.5 px-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-gray-800 outline-none text-center focus:border-[#549E9E]"
-                                  />
-                                </div>
-                                <div className="relative">
-                                  <label className="sm:hidden text-[8px] font-black text-gray-500 uppercase tracking-widest mb-0.5 block">
-                                    Amount
-                                  </label>
-                                  <div className="relative">
-                                    <IndianRupee size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-300" />
-                                    <input
-                                      type="number"
-                                      placeholder="0"
-                                      value={med.amount}
-                                      onChange={(e) => updateAdditionalMedField(idx, 'amount', e.target.value)}
-                                      className="w-full h-8.5 bg-gray-50 border border-gray-200 rounded-lg pl-7 pr-2 text-xs font-black text-gray-800 outline-none text-right focus:border-[#549E9E]"
-                                    />
-                                  </div>
-                                </div>
-                                <div className="flex justify-center">
-                                  <button
-                                    onClick={() => removeAdditionalMed(idx)}
-                                    className="w-8 h-8 flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all cursor-pointer"
-                                    title="Remove Row"
-                                  >
-                                    <X size={14} />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-
-                    {additionalMeds.length === 0 && (
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{t('dispense.no_additional_medicines', 'No additional medicines added')}</p>
-                    )}
                   </div>
                   </div>
                 </div>
