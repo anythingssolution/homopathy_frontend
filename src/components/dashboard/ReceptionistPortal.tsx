@@ -1,3 +1,4 @@
+import ReceptionDiscoveryRecovery, { ReceptionSourceAction } from '../ReceptionDiscoverySource';
 import { formatPatientRegistration } from '../../utils/patientRegistration';
 import SlotTimingWhatsApp from './SlotTimingWhatsApp';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
@@ -41,6 +42,8 @@ import { useNotifications } from "../../context/NotificationContext";
 import { useCoalescedCallback } from "../../hooks/useCoalescedCallback";
 import { dedupedFetch } from "../../utils/dedupedFetch";
 import TokenLayoutManager from "./TokenLayoutManager";
+import ReceptionDashboardCards from "./ReceptionDashboardCards";
+import { buildReceptionSummary, getReceptionStage, scopeReceptionAppointments, type ReceptionCardFilter } from "../../utils/receptionDashboardSummary";
 import PrescriptionPrint from "../PrescriptionPrint";
 import PrescriptionPreviewPaper from '../PrescriptionPreviewPaper';
 import InvestigationRows, {
@@ -174,6 +177,17 @@ export default function ReceptionistPortal() {
   const [slotFilter, setSlotFilter] = useState<"ALL" | "M" | "E">("ALL");
   const [patientFilter, setPatientFilter] = useState("");
   const [treatmentFilter, setTreatmentFilter] = useState("ALL");
+  const [cardFilter, setCardFilter] = useState<ReceptionCardFilter>('ALL');
+  const appointmentScopeKey = `${user?.id || ''}:${selectedBranchId || 'ALL'}:${dateStr}`;
+  const [loadedAppointmentScope, setLoadedAppointmentScope] = useState<string | null>(null);
+  const [appointmentsErrorScope, setAppointmentsErrorScope] = useState<string | null>(null);
+  const appointmentsContextRef = useRef(appointmentScopeKey);
+  appointmentsContextRef.current = appointmentScopeKey;
+  const appointmentsReady = loadedAppointmentScope === appointmentScopeKey;
+  const currentAppointments = useMemo(() => appointmentsReady
+    ? scopeReceptionAppointments(appointments, { branchId: selectedBranchId, date: dateStr, slot: 'ALL', treatment: 'ALL' }) : [],
+    [appointments, appointmentsReady, selectedBranchId, dateStr]);
+
 
   // Pagination State
   const [appointmentsPage, setAppointmentsPage] = useState(1);
@@ -410,7 +424,7 @@ export default function ReceptionistPortal() {
       fetchAppointments();
       setAppointmentsPage(1);
     }
-  }, [dateStr, token, activeTab]);
+  }, [dateStr, token, activeTab, selectedBranchId]);
 
   // Keep filter on local "today" across midnight unless the user picked another date.
   useEffect(() => {
@@ -476,33 +490,31 @@ export default function ReceptionistPortal() {
   const appointmentsRequestIdRef = useRef(0);
   const fetchAppointments = useCallback(async () => {
     const requestId = ++appointmentsRequestIdRef.current;
+    const requestedScope = appointmentScopeKey;
     setIsLoadingAppointments(true);
+    setAppointmentsErrorScope(null);
     try {
-      const res = await dedupedFetch(
-        `/api/v1/receptionist/appointments?appointment_date=${dateStr}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      const params = new URLSearchParams({ appointment_date: dateStr });
+      if (selectedBranchId) params.set('branch_id', String(selectedBranchId));
+      const res = await dedupedFetch(`/api/v1/receptionist/appointments?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
-      if (requestId !== appointmentsRequestIdRef.current) return;
-      if (data.success) {
-        setAppointments(
-          (data.data || []).filter(
-            (appointment: any) =>
-              appointment?.status !== "Cancelled" &&
-              Number(appointment?.is_active ?? 1) === 1,
-          ),
-        );
-      }
+      if (requestId !== appointmentsRequestIdRef.current || requestedScope !== appointmentsContextRef.current) return;
+      if (!res.ok || !data.success || !Array.isArray(data.data)) throw new Error(data.message || 'Failed to load appointments');
+      setAppointments(data.data);
+      setLoadedAppointmentScope(requestedScope);
     } catch (err) {
-      console.error(err);
+      if (requestId === appointmentsRequestIdRef.current && requestedScope === appointmentsContextRef.current) {
+        console.error(err);
+        setAppointmentsErrorScope(requestedScope);
+      }
     } finally {
-      if (requestId === appointmentsRequestIdRef.current) {
+      if (requestId === appointmentsRequestIdRef.current && requestedScope === appointmentsContextRef.current) {
         setIsLoadingAppointments(false);
       }
     }
-  }, [dateStr, token]);
+  }, [dateStr, token, selectedBranchId, appointmentScopeKey]);
 
   const scheduleQueueRefresh = useCoalescedCallback(() => {
     void fetchAppointments();
@@ -610,7 +622,7 @@ export default function ReceptionistPortal() {
     const activeRooms = new Set<string>();
 
     const subscribeToRooms = () => {
-      const uniqueRooms = appointments
+      const uniqueRooms = currentAppointments
         .filter((app: any) => app.appointment_date === dateStr)
         .reduce(
           (acc: Array<{ branchId: number; slotId: number }>, app: any) => {
@@ -650,7 +662,7 @@ export default function ReceptionistPortal() {
       });
     };
 
-    if (appointments.length > 0) {
+    if (currentAppointments.length > 0) {
       subscribeToRooms();
     }
 
@@ -673,7 +685,7 @@ export default function ReceptionistPortal() {
         }
       });
     };
-  }, [token, appointments, dateStr, selectedBranchId]);
+  }, [token, currentAppointments, dateStr, selectedBranchId]);
 
   const openConsultationPaymentModal = (
     appointment: any,
@@ -1277,7 +1289,7 @@ export default function ReceptionistPortal() {
       );
     };
 
-    return [...appointments].sort((left: any, right: any) => {
+    return [...currentAppointments].sort((left: any, right: any) => {
       const leftRank = backendSequenceRank(left);
       const rightRank = backendSequenceRank(right);
       if (leftRank !== rightRank) return leftRank - rightRank;
@@ -1299,76 +1311,55 @@ export default function ReceptionistPortal() {
         Number(right.appointment_id || Number.MAX_SAFE_INTEGER)
       );
     });
-  }, [appointments]);
+  }, [currentAppointments]);
 
   const treatmentOptions = useMemo(
     () =>
       Array.from(
         new Set(
-          appointments
+          currentAppointments
             .map((appointment) =>
               String(appointment.treatment_name || "").trim(),
             )
             .filter(Boolean),
         ),
       ).sort((left, right) => left.localeCompare(right)),
-    [appointments],
+    [currentAppointments],
   );
+
+  const summaryAppointments = useMemo(() => scopeReceptionAppointments(sortedAppointments, {
+    branchId: selectedBranchId, date: dateStr, slot: slotFilter, treatment: treatmentFilter,
+  }), [sortedAppointments, selectedBranchId, dateStr, slotFilter, treatmentFilter]);
+  const appointmentSummary = useMemo(() => buildReceptionSummary(summaryAppointments), [summaryAppointments]);
 
   const filteredAppointments = useMemo(() => {
     const normalizedToken = tokenFilter.trim().toLowerCase();
     const normalizedPatient = patientFilter.trim().toLowerCase();
-
-    return sortedAppointments.filter((appointment) => {
-      const displayToken = String(
-        appointment.display_token_display || "",
-      ).toUpperCase();
-      const slotName = String(appointment.slot_name || "").toLowerCase();
-      const appointmentSlot = displayToken.startsWith("M-")
-        ? "M"
-        : displayToken.startsWith("E-")
-          ? "E"
-          : slotName.includes("morning")
-            ? "M"
-            : slotName.includes("evening")
-              ? "E"
-              : "";
-      const tokenValues = [
-        appointment.display_token_display,
-        appointment.current_token_number,
-        appointment.token_number,
-        appointment.original_token_number,
-      ]
-        .filter((value) => value !== null && value !== undefined)
-        .map((value) => String(value).toLowerCase());
-      const patientValues = [
-        appointment.patient_full_name,
-        appointment.primary_patient_full_name,
-      ]
-        .filter(Boolean)
-        .map((value) => String(value).toLowerCase());
-
-      return (
-        (!normalizedToken ||
-          tokenValues.some((value) => value.includes(normalizedToken))) &&
-        (slotFilter === "ALL" || appointmentSlot === slotFilter) &&
-        (!normalizedPatient ||
-          patientValues.some((value) => value.includes(normalizedPatient))) &&
-        (treatmentFilter === "ALL" ||
-          String(appointment.treatment_name || "") === treatmentFilter)
-      );
+    return summaryAppointments.filter((appointment) => {
+      if (cardFilter !== 'ALL' && getReceptionStage(appointment) !== cardFilter) return false;
+      const tokenValues = [appointment.display_token_display, appointment.current_token_number,
+        appointment.token_number, appointment.original_token_number]
+        .filter(value => value !== null && value !== undefined).map(value => String(value).toLowerCase());
+      const patientValues = [appointment.patient_full_name, appointment.primary_patient_full_name]
+        .filter(Boolean).map(value => String(value).toLowerCase());
+      return (!normalizedToken || tokenValues.some(value => value.includes(normalizedToken))) &&
+        (!normalizedPatient || patientValues.some(value => value.includes(normalizedPatient)));
     });
-  }, [
-    sortedAppointments,
-    tokenFilter,
-    slotFilter,
-    patientFilter,
-    treatmentFilter,
-  ]);
+  }, [summaryAppointments, cardFilter, tokenFilter, patientFilter]);
+
+  const selectSummaryCard = (filter: ReceptionCardFilter) => {
+    setCardFilter(filter);
+    setAppointmentsPage(1);
+    setSelectedAppointmentIds([]);
+    setIsBulkReject(false);
+  };
 
   useEffect(() => {
     setAppointmentsPage(1);
-  }, [dateStr, tokenFilter, slotFilter, patientFilter, treatmentFilter]);
+  }, [dateStr, selectedBranchId, tokenFilter, slotFilter, patientFilter, treatmentFilter, cardFilter]);
+  useEffect(() => {
+    setAppointmentsPage(page => Math.min(page, Math.max(1, Math.ceil(filteredAppointments.length / pageSize))));
+  }, [filteredAppointments.length]);
 
   // Call Next Ready Token
   const handleCallNext = async () => {
@@ -1447,6 +1438,7 @@ export default function ReceptionistPortal() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
+      <ReceptionDiscoveryRecovery />
       <div className="bg-[#549E9E] p-6 text-white shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative">
         <div className="flex flex-col gap-4 w-full md:w-auto">
           <div>
@@ -1557,7 +1549,13 @@ export default function ReceptionistPortal() {
       </div>
 
       {activeTab === "queue" && (
-        <div className="bg-white p-6 border border-gray-200 shadow-sm space-y-6">
+        <div className="bg-white p-4 sm:p-6 border border-gray-200 shadow-sm space-y-6">
+          <ReceptionDashboardCards
+            summary={appointmentSummary} active={cardFilter} onSelect={selectSummaryCard}
+            date={dateStr} branch={selectedBranchName} slot={slotFilter} treatment={treatmentFilter}
+            ready={appointmentsReady} refreshing={isLoadingAppointments || (!appointmentsReady && appointmentsErrorScope !== appointmentScopeKey)}
+            error={appointmentsErrorScope === appointmentScopeKey} onRetry={fetchAppointments}
+          />
           <div className="grid grid-cols-1 gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100 md:grid-cols-2 xl:grid-cols-6 items-end">
             <CustomDatePicker
               label={t("receptionist.filter_date", "Filter Date")}
@@ -1626,7 +1624,7 @@ export default function ReceptionistPortal() {
               Refresh
             </button>
           </div>
-          <div className="bg-white border border-gray-100 shadow-sm rounded-xl sm:rounded-none overflow-hidden">
+          <div id="reception-appointment-list" className="bg-white border border-gray-100 shadow-sm rounded-xl sm:rounded-none overflow-hidden">
             {/* === MOBILE CARD VIEW === */}
             <div className="sm:hidden">
               {isLoadingAppointments && appointments.length === 0 ? (
@@ -1981,6 +1979,7 @@ export default function ReceptionistPortal() {
                             )}
                           </td>
                           <td className="px-4 py-4 text-right align-middle">
+                            <div><ReceptionSourceAction appointmentId={app.appointment_id} /></div>
                             {["Cancelled", "Completed"].includes(app.status) ? (
                               <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
                                 {app.status}

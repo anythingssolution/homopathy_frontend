@@ -1,3 +1,4 @@
+import CancelDispenseAction from './CancelDispenseAction';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -1021,7 +1022,8 @@ export default function MedicalDashboard() {
               options={[
                 { id: 'all', label: t('medical_dashboard.filters.all_statuses', 'All Statuses') },
                 { id: 'pending', label: t('medical_dashboard.filters.pending', 'Pending') },
-                { id: 'completed', label: t('medical_dashboard.filters.completed', 'Completed') }
+                { id: 'completed', label: t('medical_dashboard.filters.completed', 'Completed') },
+                { id: 'cancelled', label: 'Cancelled' }
               ]}
             />
           </div>
@@ -1114,7 +1116,7 @@ export default function MedicalDashboard() {
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-gray-50 flex flex-col gap-2">
-                  {p.workflow_status === 'PROCESSED_BY_MEDICAL' ? (
+                  {p.workflow_status === 'DISPENSE_CANCELLED' ? (<div className="flex min-w-0 flex-col items-start gap-2"><span className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-bold text-red-700">Cancelled · {p.dispense_cancellation?.delivery_mode === 'COURIER' ? 'Courier' : 'Hand Delivery'}</span><p className="max-w-full break-words text-xs text-gray-500">{p.dispense_cancellation?.reason}</p><button type="button" disabled={isPreviewLoading} onClick={() => openPrescriptionPreview(p.consultation_id)} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white transition-colors hover:bg-amber-600 disabled:opacity-50"><FileText size={14} />View Prescription</button></div>) : p.workflow_status === 'PROCESSED_BY_MEDICAL' ? (
                     <div className="flex gap-2">
                       <button
                         onClick={() => openPrescriptionPreview(p.consultation_id)}
@@ -1148,6 +1150,7 @@ export default function MedicalDashboard() {
                       >
                         <Stethoscope size={16} /> {t('medical_dashboard.table.dispense', 'Dispense')}
                       </button>
+                      <CancelDispenseAction prescription={p} token={token} onCancelled={fetchPrescriptions} />
                     </>
                   )}
                 </div>
@@ -1166,16 +1169,17 @@ export default function MedicalDashboard() {
 
         {/* === DESKTOP TABLE VIEW === */}
         <div className="hidden sm:block overflow-x-auto">
-          <table className="w-full text-left whitespace-nowrap">
+          <table className="w-full table-fixed text-left">
+            <colgroup><col className="w-[4%]" /><col className="w-[7%]" /><col className="w-[16%]" /><col className="w-[22%]" /><col className="w-[16%]" /><col className="w-[13%]" /><col className="w-[22%]" /></colgroup>
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.hash', '#')}</th>
-                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.token', 'Token')}</th>
-                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.reg_no', 'Reg no')}</th>
-                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.patient', 'Patient')}</th>
-                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.date_slot', 'Date & Slot')}</th>
-                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.branch', 'Branch')}</th>
-                <th className="px-5 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">{t('medical_dashboard.table.action', 'Action')}</th>
+                <th className="px-2.5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.hash', '#')}</th>
+                <th className="px-2.5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.token', 'Token')}</th>
+                <th className="px-2.5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.reg_no', 'Reg no')}</th>
+                <th className="px-2.5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.patient', 'Patient')}</th>
+                <th className="px-2.5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.date_slot', 'Date & Slot')}</th>
+                <th className="px-2.5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('medical_dashboard.table.branch', 'Branch')}</th>
+                <th className="px-2.5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">{t('medical_dashboard.table.action', 'Action')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -1188,25 +1192,25 @@ export default function MedicalDashboard() {
                     transition={{ delay: idx * 0.03 }}
                     className="hover:bg-[#549E9E]/[0.02] transition-colors group cursor-pointer"
                   >
-                    <td className="px-5 py-4">
+                    <td className="px-2.5 py-3">
                       <span className="text-xs font-black text-gray-300">{(idx + 1).toString().padStart(2, '0')}</span>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-2.5 py-3">
                       <div className="w-12 h-12 flex items-center justify-center text-gray-800 relative group/token">
                         <Ticket size={40} className="absolute text-red-500/20 -rotate-12 transition-transform group-hover/token:rotate-0" fill="currentColor" />
                         <span className="relative z-10 text-base font-black tracking-tight">{p.appointment?.display_token_display || p.appointment?.token_number}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-2.5 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-base font-bold leading-6 tracking-normal tabular-nums text-[#174f51] bg-[#549E9E]/[0.08] border border-[#549E9E]/25 px-3 py-2 rounded-lg whitespace-nowrap">{formatPatientRegistration(p.patient?.patient_uuid, i18n.language)}</span>
+                        <span className="text-sm font-bold leading-5 tracking-normal tabular-nums text-[#174f51] bg-[#549E9E]/[0.08] border border-[#549E9E]/25 px-2 py-1.5 rounded-lg break-words">{formatPatientRegistration(p.patient?.patient_uuid, i18n.language)}</span>
                         <button disabled={!p.patient?.patient_uuid?.trim()} aria-label={t('medical_dashboard.copy_reg_no', 'Copy registration number')} title={t('medical_dashboard.copy_reg_no', 'Copy registration number')} onClick={(e) => { e.stopPropagation(); handleCopy(p.patient?.patient_uuid); }}
                           className={`p-2 rounded-lg transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-[#549E9E] disabled:opacity-40 disabled:cursor-default ${copiedId === p.patient?.patient_uuid ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-slate-600 hover:bg-gray-200'}`}>
                           {copiedId === p.patient?.patient_uuid ? <Check size={16} /> : <Copy size={16} />}
                         </button>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
+                    <td className="px-2.5 py-3">
                       <div>
                         <p className="text-sm font-black text-[#2d8789] uppercase tracking-wide">
                           {p.patient?.full_name}
@@ -1229,7 +1233,7 @@ export default function MedicalDashboard() {
                         </p>
                       </div>
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap">
+                    <td className="px-2.5 py-3 break-words">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2 text-gray-800 font-black text-xs">
                           <Calendar size={13} className="text-[#549E9E]" />
@@ -1241,15 +1245,15 @@ export default function MedicalDashboard() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2 text-gray-600 font-black text-[10px] uppercase tracking-widest whitespace-nowrap">
+                    <td className="px-2.5 py-3">
+                      <div className="flex items-center gap-2 text-gray-600 font-black text-[10px] uppercase tracking-widest break-words">
                         <MapPin size={13} className="text-[#E6C682]" />
                         {p.appointment?.branch_name}
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {p.workflow_status === 'PROCESSED_BY_MEDICAL' ? (
+                    <td className="px-2.5 py-3 text-center">
+                      <div className="flex flex-wrap items-center justify-center gap-1.5">
+                        {p.workflow_status === 'DISPENSE_CANCELLED' ? (<div className="flex min-w-0 flex-col items-start gap-2"><span className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[10px] font-bold text-red-700">Cancelled · {p.dispense_cancellation?.delivery_mode === 'COURIER' ? 'Courier' : 'Hand Delivery'}</span><p className="max-w-full break-words text-xs text-gray-500">{p.dispense_cancellation?.reason}</p><button type="button" disabled={isPreviewLoading} onClick={() => openPrescriptionPreview(p.consultation_id)} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-white transition-colors hover:bg-amber-600 disabled:opacity-50"><FileText size={14} />View Prescription</button></div>) : p.workflow_status === 'PROCESSED_BY_MEDICAL' ? (
                           <>
                             <button
                               onClick={() => openPrescriptionPreview(p.consultation_id)}
@@ -1260,7 +1264,7 @@ export default function MedicalDashboard() {
                             </button>
                             <button
                               onClick={() => handleDispense(p)}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
+                              className="inline-flex items-center gap-2 px-2.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer"
                             >
                               <Edit2 size={14} /> {t('medical_dashboard.table.edit', 'Edit')}
                             </button>
@@ -1276,13 +1280,14 @@ export default function MedicalDashboard() {
                             </button>
                             <button
                               onClick={() => handleDispense(p)}
-                              className={`inline-flex items-center gap-2 px-4 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer ${p.appointment?.status === 'Completed'
+                              className={`inline-flex items-center gap-2 px-2.5 py-2 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md hover:shadow-lg cursor-pointer ${p.appointment?.status === 'Completed'
                                   ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-500/20'
                                   : 'bg-[#549E9E] hover:bg-[#438787] shadow-[#549E9E]/20'
                                 }`}
                             >
                               <Stethoscope size={14} /> {t('medical_dashboard.table.dispense', 'Dispense')}
                             </button>
+                      <CancelDispenseAction prescription={p} token={token} onCancelled={fetchPrescriptions} />
                           </>
                         )}
                       </div>

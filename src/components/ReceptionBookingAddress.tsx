@@ -1,11 +1,10 @@
-import PatientAddressExtraFields from './PatientAddressExtraFields';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 type PatientAddress = { patient_id: number; address?: string | null; area_name?: string | null; ward_no?: string | null; vidhan_sabha?: string | null; state_name?: string | null; city?: string | null; pincode?: string | null };
 
-export default function ReceptionBookingAddress({ patient, token, onSaved }: { patient: PatientAddress; token: string | null; onSaved: (patient: PatientAddress) => void }) {
+export default function ReceptionBookingAddress({ patient, token, onSaved, validationRequest = 0 }: { validationRequest?: number; patient: PatientAddress; token: string | null; onSaved: (patient: PatientAddress) => void }) {
   const { i18n } = useTranslation();
   const label = (en: string, hi: string) => i18n.language.startsWith('hi') ? hi : en;
   const address = patient.address || [patient.area_name, patient.pincode, patient.city].filter(Boolean).join(', ');
@@ -13,9 +12,23 @@ export default function ReceptionBookingAddress({ patient, token, onSaved }: { p
   const [form, setForm] = useState({ area_name: patient.area_name || '', ward_no: patient.ward_no || '', vidhan_sabha: patient.vidhan_sabha || '', state_name: patient.state_name || '', city: patient.city || '', pincode: patient.pincode || '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const addressSection = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!validationRequest || (patient.vidhan_sabha?.trim() && patient.state_name?.trim())) return;
+    setEditing(true);
+    setError(label('Vidhan Sabha and State must be saved before booking.', 'बुकिंग से पहले विधानसभा और राज्य सेव करना आवश्यक है।'));
+    const frame = requestAnimationFrame(() => {
+      addressSection.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const missing = !patient.vidhan_sabha?.trim() ? 'vidhan_sabha' : 'state_name';
+      addressSection.current?.querySelector<HTMLInputElement>(`input[name="${missing}"]`)?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [validationRequest]);
   const save = async () => {
     if (!token || saving) return;
     if (!form.area_name.trim() || !form.city.trim()) { setError(label('Area and city are required.', 'क्षेत्र और शहर आवश्यक हैं।')); return; }
+    if (!form.vidhan_sabha.trim()) { setError(label('Vidhan Sabha is required.', 'विधानसभा आवश्यक है।')); return; }
+    if (!form.state_name.trim()) { setError(label('State is required.', 'राज्य आवश्यक है।')); return; }
     if (form.pincode && !/^\d{6}$/.test(form.pincode)) { setError(label('Pincode must contain 6 digits.', 'पिनकोड 6 अंकों का होना चाहिए।')); return; }
     setSaving(true);
     setError('');
@@ -31,7 +44,7 @@ export default function ReceptionBookingAddress({ patient, token, onSaved }: { p
     } catch (err) { setError(err instanceof Error ? err.message : label('Unable to save address.', 'पता सेव नहीं हुआ।')); }
     finally { setSaving(false); }
   };
-  return <div className="bg-gray-50 border border-gray-100 rounded-[26px] p-5 space-y-4">
+  return <div ref={addressSection} className="bg-gray-50 border border-gray-100 rounded-[26px] p-5 space-y-4">
     <div className="flex justify-between items-start gap-4">
       <div className="flex gap-3">
         <MapPin size={20} className="text-primary-teal shrink-0 mt-1" />
@@ -48,10 +61,12 @@ export default function ReceptionBookingAddress({ patient, token, onSaved }: { p
           <span>{title}{(key === 'area_name' || key === 'city') && <span className="text-red-500"> *</span>}</span>
           <input disabled={saving} value={form[key]} maxLength={key === 'pincode' ? 6 : key === 'city' ? 100 : 150} inputMode={key === 'pincode' ? 'numeric' : 'text'} onChange={event => setForm(current => ({ ...current, [key]: key === 'pincode' ? event.target.value.replace(/\D/g, '') : event.target.value }))} className="w-full rounded-full bg-white border border-gray-100 py-3 px-4 outline-none focus:ring-2 focus:ring-primary-teal/20 text-gray-700 font-medium" />
         </label>)}
-        <PatientAddressExtraFields values={form} disabled={saving}
-          onChange={(field, value) => setForm(current => ({ ...current, [field]: value }))}
-          labelClassName="space-y-2 text-xs font-bold text-primary-teal"
-          inputClassName="w-full rounded-full bg-white border border-gray-100 py-3 px-4 outline-none focus:ring-2 focus:ring-primary-teal/20 text-gray-700 font-medium" />
+        {([['ward_no', label('Ward No.', 'वार्ड नंबर')], ['vidhan_sabha', label('Vidhan Sabha', 'विधानसभा')], ['state_name', label('State', 'राज्य')]] as const).map(([key, title]) => <label key={key} className="space-y-2 text-xs font-bold text-primary-teal">
+          <span>{title}{key !== 'ward_no' && <span className="text-red-500"> *</span>}</span>
+          <input name={key} type="text" required={key !== 'ward_no'} disabled={saving} value={form[key]} maxLength={key === 'ward_no' ? 50 : key === 'state_name' ? 100 : 150}
+            onChange={event => setForm(current => ({ ...current, [key]: event.target.value }))}
+            className="w-full rounded-full bg-white border border-gray-100 py-3 px-4 outline-none focus:ring-2 focus:ring-primary-teal/20 text-gray-700 font-medium" />
+        </label>)}
       </div>
       {error && <p role="alert" className="text-xs font-bold text-red-600">{error}</p>}
       <div className="flex justify-end gap-3">

@@ -7,6 +7,13 @@ export default function DispensingDeliveryInfo({ sources, lang = 'en', compact =
   lang?: 'en' | 'hi';
   compact?: boolean;
 }) {
+  const cancellationSource = sources.find(source => source?.dispense_cancellation);
+  let cancellation = cancellationSource?.dispense_cancellation;
+  if (typeof cancellation === 'string') { try { cancellation = JSON.parse(cancellation); } catch { cancellation = null; } }
+  if (cancellation) return <div className="my-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 page-break-inside-avoid">
+    <p className="font-bold">{lang === 'hi' ? 'डिस्पेंस रद्द' : 'Dispensing cancelled'} · {cancellation.delivery_mode === 'COURIER' ? 'Courier' : 'Hand Delivery'}</p>
+    <p>{cancellation.reason}</p>
+  </div>;
   const delivery = resolveDispensingDelivery(...sources);
   const isHi = lang === 'hi';
   const label = (en: string, hi: string) => isHi ? hi : en;

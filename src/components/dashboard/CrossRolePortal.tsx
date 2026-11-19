@@ -238,7 +238,7 @@ export default function CrossRolePortal({ targetRole }: { targetRole: 'medical' 
         {receptionistTab === 'queue-billing' && <ReceptionistPortal />}
         {receptionistTab === 'book-appointment' && (
           <div className="bg-white border border-gray-200 shadow-sm">
-            <Booking />
+            <Booking onBookingComplete={() => setReceptionistTab('queue-billing')} />
           </div>
         )}
       </div>

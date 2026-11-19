@@ -250,7 +250,7 @@ const getPostAuthPath = (
   return getSafeReturnPath(from) || '/dashboard';
 };
 
-export default function Booking() {
+export default function Booking({ onBookingComplete }: { onBookingComplete?: () => void } = {}) {
   type ReceptionistPatientOption = {
     patient_id: number;
     patient_uuid: string;
@@ -537,6 +537,14 @@ export default function Booking() {
     [formData?.treatments, treatmentType]
   );
   const selectedTreatmentVisitType = selectedTreatment?.visit_type_code || null;
+  useEffect(() => {
+    if (!isReceptionist || !token) return;
+    const controller = new AbortController();
+    fetch('/api/v1/receptionist/booking-discovery/pending', { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      .then(response => response.json()).then(result => { if (result.success && result.data?.appointment_id) { setSourceBookingId(Number(result.data.appointment_id)); setIsAppointmentSuccess(true); } })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [isReceptionist, token]);
   const isPatientSelfBooking = Boolean(
     user
     && !isReceptionist
@@ -1569,8 +1577,25 @@ export default function Booking() {
     }
   };
 
+  const [addressValidationRequest, setAddressValidationRequest] = useState(0);
+
+  const finishAppointmentBooking = () => {
+    setSourceBookingId(null);
+    setIsAppointmentSuccess(false);
+    if (onBookingComplete) { onBookingComplete(); return; }
+    navigate(isReceptionist
+      ? (window.location.pathname.startsWith('/cross-role/receptionist') ? '/cross-role/receptionist' : '/medical-welcome')
+      : isDoctor ? '/doctor-portal' : '/my-appointments');
+  };
+
   const handleAppointmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReceptionist && selectedPatient && (!selectedPatient.vidhan_sabha?.trim() || !selectedPatient.state_name?.trim())) {
+      setAddressValidationRequest(value => value + 1);
+      setErrors({ appointment: 'Please save Vidhan Sabha and State in the patient address before booking.' });
+      return;
+    }
+
     if (isFamilyMemberSaving || isAddingFamilyMember) {
       setErrors({ appointment: 'Save or cancel the family member form before booking the appointment.' });
       return;
@@ -1722,7 +1747,7 @@ export default function Booking() {
         if (result.success) {
           addToast(result.message || 'Appointment booked successfully', 'success');
           setIsAppointmentSuccess(true);
-          const askDiscoverySource = isPatientSelfBooking && Number(result.data?.appointment_id) > 0;
+          const askDiscoverySource = (isPatientSelfBooking || isReceptionist) && Number(result.data?.appointment_id) > 0;
           setSourceBookingId(askDiscoverySource ? Number(result.data.appointment_id) : null);
           setBookedForType('SELF');
           setSelectedFamilyMemberId('');
@@ -1740,15 +1765,7 @@ export default function Booking() {
             personal_social_history: '',
             mental_mind_status: '',
           });
-          const isCrossRoleRec = window.location.pathname.startsWith('/cross-role/receptionist');
-          if (!askDiscoverySource) setTimeout(() => {
-            setIsAppointmentSuccess(false);
-            if (isCrossRoleRec) {
-              navigate('/cross-role/receptionist');
-            } else {
-              navigate(isReceptionist ? '/medical-welcome' : (isDoctor ? '/doctor-portal' : '/my-appointments'));
-            }
-          }, 3000);
+          if (!askDiscoverySource) setTimeout(finishAppointmentBooking, 3000);
         } else {
           setErrors({ appointment: result.message || 'Booking failed' });
         }
@@ -2332,6 +2349,7 @@ export default function Booking() {
                           onClick={() => {
                             setBookedForType('SELF');
                             setSelectedFamilyMemberId('');
+                            setIsAddingFamilyMember(false);
                           }}
                           className={`cursor-pointer px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${bookedForType === 'SELF'
                             ? 'bg-primary-teal text-white shadow-md'
@@ -2342,14 +2360,14 @@ export default function Booking() {
                         </button>
                         <button
                           type="button"
-                          disabled={isReceptionist ? (!selectedPatient || familyMembers.length === 0) : familyMembers.length === 0}
+                          disabled={isReceptionist ? !selectedPatient : familyMembers.length === 0}
                           onClick={() => {
                             setBookedForType('FAMILY_MEMBER');
                             if (familyMembers.length > 0) {
                               setSelectedFamilyMemberId(familyMembers[0].family_member_id);
                             }
                           }}
-                          className={`cursor-pointer px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${(isReceptionist ? (!selectedPatient || familyMembers.length === 0) : familyMembers.length === 0)
+                          className={`cursor-pointer px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${(isReceptionist ? !selectedPatient : familyMembers.length === 0)
                             ? 'opacity-40 cursor-not-allowed text-gray-300'
                             : bookedForType === 'FAMILY_MEMBER'
                               ? 'bg-primary-teal text-white shadow-md'
@@ -2361,7 +2379,30 @@ export default function Booking() {
                       </div>
                     </div>
 
-                    {isReceptionist && selectedPatient && (
+                    {/* Dropdown to select family member */}
+                    {bookedForType === 'FAMILY_MEMBER' && familyMembers.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="pt-2 border-t border-gray-100"
+                      >
+                        <CustomSelect
+                          label={t('booking.select_family_member', 'Select Family Member')}
+                          options={familyMembers.map((m) => ({
+                            id: m.family_member_id,
+                            label: `${m.full_name} (${m.relationship})`,
+                            description: `Age: ${formatAgeValue(m.age, m.age_display, m.date_of_birth)} • Gender: ${m.gender}`,
+                          }))}
+                          value={selectedFamilyMemberId}
+                          onChange={(val) => setSelectedFamilyMemberId(val as number)}
+                          icon={Users}
+                        />
+                      </motion.div>
+                    )}
+
+
+                    {isReceptionist && selectedPatient && bookedForType === 'FAMILY_MEMBER' && (
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-gray-100 pt-4">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                           {t('booking.add_dependent_info', 'Add a dependent here if this patient has come with a family member.')}
@@ -2382,7 +2423,7 @@ export default function Booking() {
                       </p>
                     )}
 
-                    {isReceptionist && selectedPatient && isAddingFamilyMember && (
+                    {isReceptionist && selectedPatient && bookedForType === 'FAMILY_MEMBER' && isAddingFamilyMember && (
                       <motion.div
                         initial={{ opacity: 0, y: -8 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -2503,28 +2544,6 @@ export default function Booking() {
                       </motion.div>
                     )}
 
-                    {/* Dropdown to select family member */}
-                    {bookedForType === 'FAMILY_MEMBER' && familyMembers.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="pt-2 border-t border-gray-100"
-                      >
-                        <CustomSelect
-                          label={t('booking.select_family_member', 'Select Family Member')}
-                          options={familyMembers.map((m) => ({
-                            id: m.family_member_id,
-                            label: `${m.full_name} (${m.relationship})`,
-                            description: `Age: ${formatAgeValue(m.age, m.age_display, m.date_of_birth)} • Gender: ${m.gender}`,
-                          }))}
-                          value={selectedFamilyMemberId}
-                          onChange={(val) => setSelectedFamilyMemberId(val as number)}
-                          icon={Users}
-                        />
-                      </motion.div>
-                    )}
-
                     {!isReceptionist && familyMembers.length === 0 && (
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                         {t('booking.no_family_members', 'No active family members registered. You can add them in your')}{' '}
@@ -2534,7 +2553,7 @@ export default function Booking() {
                       </p>
                     )}
 
-                    {isReceptionist && familyMembers.length === 0 && (
+                    {isReceptionist && bookedForType === 'FAMILY_MEMBER' && familyMembers.length === 0 && (
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                         {t('booking.no_active_family_members_receptionist', 'No active family members registered for this patient account.')}
                       </p>
@@ -2570,7 +2589,7 @@ export default function Booking() {
                 )}
 
                 {isReceptionist && selectedPatient && (
-                  <ReceptionBookingAddress key={selectedPatient.patient_id} patient={selectedPatient} token={token} onSaved={(patient) => setSelectedPatient(current => current?.patient_id === patient.patient_id ? { ...current, ...patient } : current)} />
+                  <ReceptionBookingAddress validationRequest={addressValidationRequest} key={selectedPatient.patient_id} patient={selectedPatient} token={token} onSaved={(patient) => { setSelectedPatient(current => current?.patient_id === patient.patient_id ? { ...current, ...patient } : current); setErrors(current => { if (current.appointment !== 'Please save Vidhan Sabha and State in the patient address before booking.') return current; const next = { ...current }; delete next.appointment; return next; }); }} />
                 )}
 
                 {user && (user.role === 'patient' || user.role_code === 'PAT') && (
@@ -3623,8 +3642,8 @@ export default function Booking() {
 
       {/* Success Modal */}
       {sourceBookingId && isAppointmentSuccess && <React.Suspense fallback={
-        <div role="status" className="fixed inset-0 z-[210] flex flex-col items-center justify-center gap-4 bg-white/95 text-teal-700"><p>Appointment confirmed!</p><button type="button" className="rounded-full border px-5 py-3" onClick={() => { setSourceBookingId(null); setIsAppointmentSuccess(false); navigate('/my-appointments'); }}>View Appointments</button></div>
-      }><BookingSourcePrompt appointmentId={sourceBookingId} token={token} onDone={() => { setSourceBookingId(null); setIsAppointmentSuccess(false); navigate('/my-appointments'); }}/></React.Suspense>}
+        <div role="status" className="fixed inset-0 z-[210] flex flex-col items-center justify-center gap-4 bg-white/95 text-teal-700"><p>Appointment confirmed!</p>{!isReceptionist && <button type="button" className="rounded-full border px-5 py-3" onClick={() => { setSourceBookingId(null); setIsAppointmentSuccess(false); navigate('/my-appointments'); }}>View Appointments</button>}</div>
+      }><BookingSourcePrompt appointmentId={sourceBookingId} token={token} reception={isReceptionist} apiUrl={isReceptionist ? `/api/v1/receptionist/booking-discovery/${sourceBookingId}` : undefined} onDone={finishAppointmentBooking}/></React.Suspense>}
       <AnimatePresence>
         {(showSuccess || isAppointmentSuccess) && !sourceBookingId && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
@@ -3665,7 +3684,7 @@ export default function Booking() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => { setShowSuccess(false); setIsAppointmentSuccess(false); if (isAppointmentSuccess) navigate('/my-appointments'); }}
+                onClick={() => { setShowSuccess(false); setIsAppointmentSuccess(false); if (isAppointmentSuccess) finishAppointmentBooking(); }}
                 className="w-full py-4 bg-[#549E9E] text-white rounded-full font-black text-xs uppercase tracking-widest shadow-xl shadow-primary-teal/20"
               >
                 {isAppointmentSuccess ? t('booking.view_appointments') : t('common.got_it')}
