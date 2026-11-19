@@ -39,6 +39,8 @@ import PrescriptionPreviewPaper from '../../../PrescriptionPreviewPaper';
 
 interface BookedVsConsultedViewProps {
   token: string | null;
+  independentReport?: boolean;
+  reportBranchId?: number;
 }
 
 const AutoSizedChart: React.FC<{ children: (width: number, height: number) => React.ReactNode; height?: number }> = ({ children, height = 320 }) => {
@@ -76,7 +78,7 @@ const AutoSizedChart: React.FC<{ children: (width: number, height: number) => Re
   );
 };
 
-export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ token }) => {
+export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ token, independentReport = false, reportBranchId }) => {
   const { t, i18n } = useTranslation();
   const { addToast } = useNotifications();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
@@ -95,11 +97,21 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [prescriptionLang, setPrescriptionLang] = useState<'en' | 'hi'>('en');
 
+  const reportRequest = React.useRef(0);
+  const scopedUrl = (url: string) => {
+    if (!independentReport) return url;
+    const [path, query = ''] = url.split('?');
+    const params = new URLSearchParams(query);
+    params.set('report_scope', 'independent');
+    params.set('branch_id', reportBranchId ? String(reportBranchId) : 'all');
+    return `${path}?${params}`;
+  };
+
   const openPrescriptionPreview = async (patient: any) => {
     if (!token || !patient?.appointment_id || !patient?.consultation_id) return;
     setIsPreviewLoading(true);
     try {
-      const response = await fetch(`/api/v1/doctors/consultations/${patient.appointment_id}`, {
+      const response = await fetch(scopedUrl(independentReport ? `/api/v1/reports/prescriptions/${patient.appointment_id}` : `/api/v1/doctors/consultations/${patient.appointment_id}`), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const result = await response.json();
@@ -120,6 +132,7 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
   };
 
   const fetchDrilldownReport = async (year: number, month: number | null, date: string | null) => {
+    const request = ++reportRequest.current;
     setIsLoading(true);
     setError(null);
     setData(null); // Clear stale data to prevent showing old level's chart
@@ -129,21 +142,23 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
       if (month) params.append('month', String(month));
       if (date) params.append('date', date);
 
-      const res = await fetch(`/api/v1/reports/booked-vs-consulted?${params.toString()}`, {
+      const res = await fetch(scopedUrl(`/api/v1/reports/booked-vs-consulted?${params.toString()}`), {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
       const result = await res.json();
+      if (request !== reportRequest.current) return;
       if (result.success) {
         setData(result.data);
       } else {
         setError(result.message || t('reports.bvc.fetch_failed', 'Failed to fetch drilldown report'));
       }
     } catch (err: any) {
+      if (request !== reportRequest.current) return;
       setError(err.message || t('reports.bvc.server_error', 'Error connecting to server'));
     } finally {
-      setIsLoading(false);
+      if (request === reportRequest.current) setIsLoading(false);
     }
   };
 
@@ -151,7 +166,8 @@ export const BookedVsConsultedView: React.FC<BookedVsConsultedViewProps> = ({ to
     fetchDrilldownReport(selectedYear, selectedMonth, selectedDate);
     setDayPage(1);
     setShowPrescriptionPreview(null);
-  }, [selectedYear, selectedMonth, selectedDate, token]);
+    return () => { reportRequest.current += 1; };
+  }, [selectedYear, selectedMonth, selectedDate, token, independentReport, reportBranchId]);
 
   // Available Years dropdown options
   const yearOptions = useMemo(() => {

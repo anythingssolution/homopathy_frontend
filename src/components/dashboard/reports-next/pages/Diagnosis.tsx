@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, ChevronDown, RefreshCcw, Search } from 'lucide-react';
@@ -6,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../../context/AuthContext';
 import { DateBar } from '../DateBar';
 import { useReviewDate } from '../ReviewDateContext';
-import { fetchReportModule, parseIsoDate } from '../lib';
+import { parseIsoDate } from '../lib';
 
 const COLORS = ['#549E9E', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6', '#EC4899'];
 const PAGE_SIZE = 8;
@@ -87,6 +88,7 @@ export default function DiagnosisPage() {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const { token } = useAuth();
+  const { fetchReportModule, branchId, isCurrent } = useReportBranch();
   const navigate = useNavigate();
   const { dateFilter, setDateFilter, customDateRange, setCustomDateRange, range } = useReviewDate();
   const [history, setHistory] = useState<any[]>([]);
@@ -104,12 +106,13 @@ export default function DiagnosisPage() {
       const data = await fetchReportModule(token, 'clinical', range.from, range.to, { force });
       setHistory(Array.isArray(data?.consultation_history) ? data.consultation_history : []);
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err instanceof Error ? err.message : t('reports_next.fetch_failed'));
       setHistory([]);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [token, range.from, range.to, t]);
+  }, [fetchReportModule, isCurrent, token, range.from, range.to, t]);
 
   useEffect(() => {
     void load(false);
@@ -130,7 +133,7 @@ export default function DiagnosisPage() {
   useEffect(() => {
     setPage(1);
     setOpenKey('');
-  }, [search, dateFilter, range.from, range.to]);
+  }, [search, dateFilter, range.from, range.to, branchId]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const slice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

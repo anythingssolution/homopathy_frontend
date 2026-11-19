@@ -1,10 +1,11 @@
+import { useReportBranch } from '../ReportBranchContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, RefreshCcw, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../../context/AuthContext';
 import { DateBar } from '../DateBar';
 import { WindowBanner } from '../WindowBanner';
-import { fetchReportModule, num, parseIsoDate, rangeForFilter, rupee, type CustomRange } from '../lib';
+import { num, parseIsoDate, rangeForFilter, rupee, type CustomRange } from '../lib';
 import { useReportWindow } from '../useReportWindow';
 
 const formatDate = (value: unknown, locale: string) => {
@@ -19,6 +20,7 @@ export default function CollectionsPage() {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const { token } = useAuth();
+  const { fetchReportModule, isCurrent } = useReportBranch();
   const { dateFilter, setDateFilter, fromCard } = useReportWindow('3_months');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
   const [data, setData] = useState<any>(null);
@@ -34,12 +36,13 @@ export default function CollectionsPage() {
     try {
       setData(await fetchReportModule(token, 'billing', range.from, range.to, { force }));
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err instanceof Error ? err.message : t('reports_next.fetch_failed'));
       setData(null);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [token, dateFilter, customDateRange, t]);
+  }, [fetchReportModule, isCurrent, token, dateFilter, customDateRange, t]);
 
   useEffect(() => {
     void load(false);
@@ -168,7 +171,7 @@ export default function CollectionsPage() {
                       return (
                         <tr key={row.bill_id}>
                           <td className="px-5 py-3 align-top">
-                            <p className="text-sm font-black text-slate-800">{row.patient_full_name}</p>
+                            <p className="text-sm font-black text-slate-800">{row.patient_full_name}</p><p className="mt-1 text-xs text-slate-500">{row.branch_name || '—'}</p>
                             {row.patient_mobile_no ? (
                               <a
                                 href={`tel:${row.patient_mobile_no}`}

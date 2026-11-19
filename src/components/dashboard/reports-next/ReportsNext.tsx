@@ -1,14 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
-import StaffBranchSwitcher from '../../StaffBranchSwitcher';
+import { ReportBranchProvider, useReportBranch } from './ReportBranchContext';
+import { ReportBranchFilter } from './ReportBranchFilter';
 import { Sidebar, type BadgeCounts } from './Sidebar';
 import { ReviewDateProvider } from './ReviewDateContext';
-import { fetchReportModule, isoDate, rangeForFilter, rangeForFollowUpFilter } from './lib';
+import { isoDate, rangeForFilter, rangeForFollowUpFilter } from './lib';
 
 const emptyBadges: BadgeCounts = { followUps: 0, collections: 0, dispensary: 0 };
 
 export default function ReportsNext() {
+  const { pathname } = useLocation();
+  return <ReviewDateProvider><ReportBranchProvider key={pathname}><ReportLayout /></ReportBranchProvider></ReviewDateProvider>;
+}
+
+function ReportLayout() {
+  const { fetchReportModule, isCurrent } = useReportBranch();
   const { token, user } = useAuth();
   const [badges, setBadges] = useState<BadgeCounts>(emptyBadges);
   const roleCode = String(user?.role_code || '').toUpperCase();
@@ -32,27 +39,28 @@ export default function ReportsNext() {
         dispensary: Number(medical?.summary?.pending_count || 0),
       });
     } catch {
+      if (!isCurrent()) return;
       setBadges(emptyBadges);
     }
-  }, [token, isReceptionist]);
+  }, [token, isReceptionist, fetchReportModule, isCurrent]);
 
   useEffect(() => {
     loadBadges();
   }, [loadBadges]);
 
   return (
-    <ReviewDateProvider>
+    <>
       <div className="flex flex-col md:block min-h-[calc(100vh-5rem)]">
         <aside className="w-full md:fixed md:left-0 md:top-20 md:bottom-0 md:w-72 z-20 no-print">
           <Sidebar badges={badges} />
         </aside>
         <div className="flex-1 min-w-0 md:ml-72 px-4 sm:px-6 lg:px-8 pt-3 pb-8 space-y-6">
           <div className="no-print">
-            <StaffBranchSwitcher />
+            <ReportBranchFilter />
           </div>
           <Outlet />
         </div>
       </div>
-    </ReviewDateProvider>
+    </>
   );
 }

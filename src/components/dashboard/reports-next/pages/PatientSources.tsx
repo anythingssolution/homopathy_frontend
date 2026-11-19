@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import { formatPatientRegistration } from '../../../../utils/patientRegistration';
 import React, { useEffect, useState } from 'react';
 import { ChevronRight, Download, Search, Users, X } from 'lucide-react';
@@ -7,23 +8,23 @@ import { useAuth } from '../../../../context/AuthContext';
 import Pagination from '../../../Pagination';
 import { DateBar } from '../DateBar';
 import { useReportWindow } from '../useReportWindow';
-import { fetchReportModule, rangeForFilter } from '../lib';
+import { rangeForFilter } from '../lib';
 import { csvCell } from '../locationPatients';
 import DiscoverySourceIcon from '../../../DiscoverySourceIcon';
 
-type Patient = { subject_key: string; source_code: string; other_detail: string | null; patient_uuid: string; patient_full_name: string; patient_mobile_no: string; family_member_id: number | null; answered_on: string; booking_date: string };
+type Patient = { branch_name?: string; subject_key: string; source_code: string; other_detail: string | null; patient_uuid: string; patient_full_name: string; patient_mobile_no: string; family_member_id: number | null; answered_on: string; booking_date: string };
 type Source = { code: string; label: string; count: number };
 const PAGE_SIZE = 30;
 const displayDate = (value: string) => value ? value.split('-').reverse().join('/') : '—';
 
 export default function PatientSources() {
-  const { token, branchScope } = useAuth();
+  const { token } = useAuth();
+  const { fetchReportModule, branchId, isCurrent } = useReportBranch();
   const { i18n } = useTranslation(); const hi = i18n.language.startsWith('hi');
   const [params, setParams] = useSearchParams();
   const { dateFilter, setDateFilter } = useReportWindow('1_month');
   const customRange = { from: params.get('start') || '', to: params.get('end') || '' };
   const range = rangeForFilter(dateFilter, customRange);
-  const branchId = Number(branchScope?.selected_branch_id) || undefined;
   const source = params.get('source') || '';
   const search = params.get('search') || '';
   const [data, setData] = useState<{ patients: Patient[]; sources: Source[] } | null>(null);
@@ -37,12 +38,12 @@ export default function PatientSources() {
   }, { replace: true });
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setData(null); setError('');
-    if (!token || !branchId) { setLoading(false); return () => controller.abort(); }
+    if (!token) { setLoading(false); return () => controller.abort(); }
     fetchReportModule(token, 'patient-sources', range.from, range.to, { branchId, force: true, signal: controller.signal })
       .then(setData).catch(err => { if (!controller.signal.aborted) setError(err.message || 'Unable to load patient sources.'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [token, branchId, range.from, range.to, refresh]);
+  }, [fetchReportModule, isCurrent, token, branchId, range.from, range.to, refresh]);
   const sources = data?.sources || [];
   const patients = data?.patients || [];
   const q = search.trim().toLowerCase();
@@ -50,7 +51,7 @@ export default function PatientSources() {
   const page = Math.min(Math.max(1, Number(params.get('page')) || 1), Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)));
   const sourceLabel = (code: string) => sources.find(item => item.code === code)?.label || code;
   const exportCsv = () => {
-    const rows = [['Reg No.', 'Patient', 'Contact', 'Source', 'Other detail', 'Booking date', 'Answered on'], ...filtered.map(patient => [patient.patient_uuid, patient.patient_full_name, patient.patient_mobile_no, sourceLabel(patient.source_code), patient.other_detail, patient.booking_date, patient.answered_on])];
+    const rows = [['Reg No.', 'Patient', 'Contact', 'Source', 'Other detail', 'Booking date', 'Answered on', 'Branch'], ...filtered.map(patient => [patient.patient_uuid, patient.patient_full_name, patient.patient_mobile_no, sourceLabel(patient.source_code), patient.other_detail, patient.booking_date, patient.answered_on, patient.branch_name])];
     const url = URL.createObjectURL(new Blob(['\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' }));
     const link = document.createElement('a'); link.href = url; link.download = `patient-sources-${range.from}-${range.to}.csv`; link.click(); URL.revokeObjectURL(url);
   };
@@ -73,7 +74,7 @@ export default function PatientSources() {
     </div>}
     {source && <button type="button" onClick={() => change({ source: '', search: '' })} className="inline-flex items-center gap-2 rounded-full border border-[#549e9e]/30 bg-[#549e9e]/[0.07] px-3 py-1.5 text-xs font-bold text-[#246e70] hover:bg-[#549e9e]/15"><DiscoverySourceIcon code={source} size={14}/>{sourceLabel(source)}<X size={13}/><span className="sr-only">Clear source filter</span></button>}
     <div className="flex flex-wrap items-center gap-3"><h2 className="mr-auto text-base font-bold text-slate-800">{source ? sourceLabel(source) : (hi ? 'सभी जवाब' : 'All answers')} <span className="text-sm font-medium text-slate-400">({filtered.length})</span></h2><div className="relative"><Search size={15} className="absolute left-3 top-3 text-slate-400"/><input aria-label="Search patients" value={search} placeholder={hi ? 'नाम, Reg No., मोबाइल…' : 'Name, Reg No., mobile…'} onChange={e => change({ search: e.target.value })} className="rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#549e9e]"/></div><button type="button" disabled={loading || !filtered.length} onClick={exportCsv} className="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5 text-xs font-bold text-teal-700 disabled:opacity-40"><Download size={15}/>Export CSV</button></div>
-    <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white"><table className="w-full"><thead className="bg-slate-50"><tr>{['Reg No. / Patient', 'Contact', 'Source', 'Booking / Answer date'].map(label => <th key={label} className={th}>{label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(patient => <tr key={patient.subject_key}><td className={td}><p className="text-xs font-bold text-[#246e70]">{formatPatientRegistration(patient.patient_uuid)}</p><p className="mt-1 font-bold text-slate-800">{patient.patient_full_name}</p>{patient.family_member_id && <p className="text-xs text-slate-400">Family member</p>}</td><td className={`${td} whitespace-nowrap`}>{patient.patient_mobile_no || '—'}</td><td className={td}><span className="inline-flex items-center gap-1.5 rounded-lg bg-[#549e9e]/[0.07] px-2 py-1 text-xs font-bold text-[#246e70]"><DiscoverySourceIcon code={patient.source_code} size={14}/>{sourceLabel(patient.source_code)}</span>{patient.other_detail && <p className="mt-1 max-w-xs break-words text-xs text-slate-500">{patient.other_detail}</p>}</td><td className={`${td} whitespace-nowrap`}><p>{displayDate(patient.booking_date)}</p><p className="mt-1 text-xs text-slate-400">Answered: {displayDate(patient.answered_on)}</p></td></tr>)}{!filtered.length && <tr><td colSpan={4} className="p-10 text-center text-sm text-slate-400">{loading ? 'Loading patients…' : error ? 'Report could not be loaded.' : 'No answers found for this selection.'}</td></tr>}</tbody></table></div>
+    <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white"><table className="w-full"><thead className="bg-slate-50"><tr>{['Reg No. / Patient', 'Contact', 'Source', 'Booking / Answer date'].map(label => <th key={label} className={th}>{label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(patient => <tr key={patient.subject_key}><td className={td}><p className="text-xs font-bold text-[#246e70]">{formatPatientRegistration(patient.patient_uuid)}</p><p className="mt-1 font-bold text-slate-800">{patient.patient_full_name}</p><p className="mt-1 text-xs text-slate-500">{patient.branch_name || '—'}</p>{patient.family_member_id && <p className="text-xs text-slate-400">Family member</p>}</td><td className={`${td} whitespace-nowrap`}>{patient.patient_mobile_no || '—'}</td><td className={td}><span className="inline-flex items-center gap-1.5 rounded-lg bg-[#549e9e]/[0.07] px-2 py-1 text-xs font-bold text-[#246e70]"><DiscoverySourceIcon code={patient.source_code} size={14}/>{sourceLabel(patient.source_code)}</span>{patient.other_detail && <p className="mt-1 max-w-xs break-words text-xs text-slate-500">{patient.other_detail}</p>}</td><td className={`${td} whitespace-nowrap`}><p>{displayDate(patient.booking_date)}</p><p className="mt-1 text-xs text-slate-400">Answered: {displayDate(patient.answered_on)}</p></td></tr>)}{!filtered.length && <tr><td colSpan={4} className="p-10 text-center text-sm text-slate-400">{loading ? 'Loading patients…' : error ? 'Report could not be loaded.' : 'No answers found for this selection.'}</td></tr>}</tbody></table></div>
     <Pagination currentPage={page} totalPages={Math.ceil(filtered.length / PAGE_SIZE)} totalItems={filtered.length} pageSize={PAGE_SIZE} onPageChange={value => setParams(previous => { const next = new URLSearchParams(previous); next.set('page', String(value)); return next; }, { replace: true })}/>
   </div>;
 }

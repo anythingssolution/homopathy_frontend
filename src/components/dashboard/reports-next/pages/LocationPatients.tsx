@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import { formatPatientRegistration } from '../../../../utils/patientRegistration';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -9,14 +10,15 @@ import Pagination from '../../../Pagination';
 import { DateBar } from '../DateBar';
 import { useReportWindow } from '../useReportWindow';
 import LocationCharts from '../LocationCharts';
-import { fetchReportModule, patientRecordsHref, rangeForFilter } from '../lib';
+import { patientRecordsHref, rangeForFilter } from '../lib';
 import { cleanLocation, csvCell, groupLocationPatients, LOCATION_FIELDS, type LocationField, type LocationPatient } from '../locationPatients';
 
 const PAGE_SIZE=40;
 export default function LocationPatients() {
   const { t }=useTranslation();
   const label=(key:string)=>t(`reports_next.location.${key}`);
-  const { token,branchScope }=useAuth();
+  const { token }=useAuth();
+  const { fetchReportModule, branchId, branchName, isCurrent } = useReportBranch();
   const [params,setParams]=useSearchParams();
   const {dateFilter,setDateFilter}=useReportWindow('1_month');
   const customRange={from:params.get('start')||'',to:params.get('end')||''};
@@ -25,7 +27,6 @@ export default function LocationPatients() {
   const field=(LOCATION_FIELDS.includes(params.get('group') as LocationField) ? params.get('group') : 'city') as LocationField;
   const selected=params.get('location') || '';
   const search=params.get('search') || '';
-  const branchId=Number(branchScope?.selected_branch_id)||undefined;
   const [data,setData]=useState<{all:LocationPatient[];consulted:LocationPatient[];registered:LocationPatient[]}|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
@@ -38,12 +39,12 @@ export default function LocationPatients() {
   },{replace:true});
   useEffect(()=>{
     const controller=new AbortController(); setLoading(true); setData(null); setError('');
-    if(!token || !branchId){setLoading(false);return()=>controller.abort();}
+    if(!token){setLoading(false);return()=>controller.abort();}
     fetchReportModule(token,'location-patients',range.from,range.to,{branchId,force:true,signal:controller.signal})
       .then(setData).catch(err=>{if(!controller.signal.aborted)setError(err.message || t('reports_next.fetch_failed'));})
       .finally(()=>{if(!controller.signal.aborted)setLoading(false);});
     return()=>controller.abort();
-  },[token,branchId,range.from,range.to,refresh,t]);
+  },[fetchReportModule,isCurrent,token,branchId,range.from,range.to,refresh,t]);
   const patients=data?.[mode] || [];
   const groups=useMemo(()=>groupLocationPatients(patients,field),[patients,field]);
   const group=groups.find(item=>item.key===selected);
@@ -86,6 +87,6 @@ export default function LocationPatients() {
       </tbody></table></div>}
       <Pagination currentPage={page} totalPages={Math.max(1,Math.ceil(total/PAGE_SIZE))} onPageChange={value=>setParams(prev=>{const next=new URLSearchParams(prev);next.set('page',String(value));return next;},{replace:true})} totalItems={total} pageSize={PAGE_SIZE} alwaysShow/>
     </div>
-    {printing&&createPortal(<div className="print-only"><style>{`@media print{@page{size:A4 landscape;margin:12mm}.location-print{font:11px Arial;color:#17202a}.location-print table{width:100%;border-collapse:collapse}.location-print th,.location-print td{border:1px solid #ddd;padding:6px;text-align:left;overflow-wrap:anywhere}.location-print thead{display:table-header-group}.location-print tr{break-inside:avoid}}`}</style><div className="location-print"><h1>{label('title')}{group?` · ${groupName(group)}`:''}</h1><p>{mode==='all'?label('all'):branchScope?.selected_branch?.branch_name||''} · {mode==='all'?label('all_time'):`${range.from} – ${range.to}`} · {label(mode)} · {total} {label(group?'unique':'locations')}</p><p>{label('address_note')}</p><table><thead><tr>{headers.map(name=><th key={name}>{name}</th>)}</tr></thead><tbody>{exportRows.map((row,index)=><tr key={index}>{row.map((cell,idx)=><td key={idx}>{cell}</td>)}</tr>)}</tbody></table></div></div>,document.body)}
+    {printing&&createPortal(<div className="print-only"><style>{`@media print{@page{size:A4 landscape;margin:12mm}.location-print{font:11px Arial;color:#17202a}.location-print table{width:100%;border-collapse:collapse}.location-print th,.location-print td{border:1px solid #ddd;padding:6px;text-align:left;overflow-wrap:anywhere}.location-print thead{display:table-header-group}.location-print tr{break-inside:avoid}}`}</style><div className="location-print"><h1>{label('title')}{group?` · ${groupName(group)}`:''}</h1><p>{mode==='all'?label('all'):branchName} · {mode==='all'?label('all_time'):`${range.from} – ${range.to}`} · {label(mode)} · {total} {label(group?'unique':'locations')}</p><p>{label('address_note')}</p><table><thead><tr>{headers.map(name=><th key={name}>{name}</th>)}</tr></thead><tbody>{exportRows.map((row,index)=><tr key={index}>{row.map((cell,idx)=><td key={idx}>{cell}</td>)}</tr>)}</tbody></table></div></div>,document.body)}
   </div>;
 }

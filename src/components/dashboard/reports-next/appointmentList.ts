@@ -1,6 +1,6 @@
 export type AppointmentCardStatus = 'all' | 'completed' | 'pending' | 'cancelled';
 export type AppointmentCardRow = {
-  appointment_id: number; appointment_date: string; status: string;
+  branch_name?: string; fk_branch_id?: number; appointment_id: number; appointment_date: string; status: string;
   patient_full_name: string; patient_uuid?: string; patient_mobile_no?: string;
   fk_patient_id: number; family_member_id?: number | null;
   display_token_display?: string; queue_position?: number | null;

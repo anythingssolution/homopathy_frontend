@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import React, { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, RefreshCcw } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -5,13 +6,14 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../../context/AuthContext';
 import { DateBar } from '../DateBar';
 import { useReviewDate } from '../ReviewDateContext';
-import { fetchReportModule, num } from '../lib';
+import { num } from '../lib';
 
 const COLORS = ['#549E9E', '#10B981', '#F59E0B', '#3B82F6'];
 
 export default function PatientsPage() {
   const { t } = useTranslation();
   const { token } = useAuth();
+  const { fetchReportModule, isCurrent } = useReportBranch();
   const { dateFilter, setDateFilter, customDateRange, setCustomDateRange, range } = useReviewDate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -24,12 +26,13 @@ export default function PatientsPage() {
     try {
       setData(await fetchReportModule(token, 'patients', range.from, range.to, { force }));
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err instanceof Error ? err.message : t('reports_next.fetch_failed'));
       setData(null);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [token, range.from, range.to, t]);
+  }, [fetchReportModule, isCurrent, token, range.from, range.to, t]);
 
   useEffect(() => {
     void load(false);

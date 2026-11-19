@@ -37,7 +37,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     return <Navigate to="/" replace />;
   }
 
-  if (needsBranchSelection) {
+  if (needsBranchSelection && location.pathname !== '/reports-next' && !location.pathname.startsWith('/reports-next/')) {
     return <StaffBranchSelectionGate />;
   }
 

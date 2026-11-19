@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import { formatPatientRegistration } from '../../../../utils/patientRegistration';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -8,7 +9,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import Pagination from '../../../Pagination';
 import PrescriptionPrint from '../../../PrescriptionPrint';
 import PrescriptionPreviewPaper from '../../../PrescriptionPreviewPaper';
-import { fetchReportModule, patientRecordsHref, parseIsoDate } from '../lib';
+import { patientRecordsHref, parseIsoDate } from '../lib';
 import { csvCell } from '../locationPatients';
 import { filterNotReturned, type NotReturnedPatient } from '../notReturned';
 
@@ -18,8 +19,8 @@ const BUCKETS = ['1_2', '2_3', '3_plus'] as const;
 export default function NotReturnedPage() {
   const { t, i18n } = useTranslation();
   const label = (key: string, values?: Record<string, any>): string => String(t(`reports_next.not_returned.${key}`, values));
-  const { token, branchScope } = useAuth();
-  const branchId = Number(branchScope?.selected_branch_id) || undefined;
+  const { token } = useAuth();
+  const { fetchReportModule, branchId, reportUrl, isCurrent } = useReportBranch();
   const [params, setParams] = useSearchParams();
   const bucket = BUCKETS.includes(params.get('bucket') as any) ? params.get('bucket')! : 'all';
   const search = params.get('search') || '';
@@ -45,13 +46,13 @@ export default function NotReturnedPage() {
   useEffect(() => {
     const controller = new AbortController();
     setData(null); setError(''); setLoading(true);
-    if (!token || !branchId) { setLoading(false); return () => controller.abort(); }
+    if (!token) { setLoading(false); return () => controller.abort(); }
     fetchReportModule(token, 'not-returned', '', '', { branchId, force: true, signal: controller.signal })
       .then(result => { if (!controller.signal.aborted) setData(result); })
       .catch(err => { if (!controller.signal.aborted) setError(err.message || t('reports_next.fetch_failed')); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [token, branchId, revision, t]);
+  }, [fetchReportModule, isCurrent, token, branchId, revision, t]);
 
   useEffect(() => {
     if (!printing) return;
@@ -72,7 +73,7 @@ export default function NotReturnedPage() {
     if (!token || previewLoading) return;
     setPreviewLoading(row.subject_key); setPreviewError('');
     try {
-      const response = await fetch(`/api/v1/medical/prescriptions/${row.consultation_id}`, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await fetch(reportUrl(`/api/v1/reports/medical-prescriptions/${row.consultation_id}`), { headers: { Authorization: `Bearer ${token}` } });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || t('reports_next.fetch_failed'));
       setPrescription(result.data);
@@ -81,14 +82,15 @@ export default function NotReturnedPage() {
   };
   const exportCsv = () => {
     const header = ['reg_no','patient','mobile','last_visit','days_away','follow_up','treatment','medicine_taken','next_booked'].map(key => label(key));
-    const csv = [header, ...filtered.map(row => [row.patient_uuid, row.patient_full_name, row.patient_mobile_no, row.last_visit_date, row.days_since_visit, row.due_date, row.treatment_name, row.last_medicine_date, row.next_appointment])].map(row => row.map(csvCell).join(',')).join('\r\n');
+    header.push(t('reports_next.branch_filter.label'));
+    const csv = [header, ...filtered.map(row => [row.patient_uuid, row.patient_full_name, row.patient_mobile_no, row.last_visit_date, row.days_since_visit, row.due_date, row.treatment_name, row.last_medicine_date, row.next_appointment, row.branch_name])].map(row => row.map(csvCell).join(',')).join('\r\n');
     const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }));
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `patients-not-returned-${data?.as_of || 'report'}.csv`; anchor.click(); URL.revokeObjectURL(url);
   };
   const table = (items: NotReturnedPatient[], print = false) => <table className="w-full text-left"><thead><tr className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
     {['patient','last_visit','follow_up','treatment', ...(print ? [] : ['actions'])].map(key => <th key={key} className="px-4 py-3">{label(key)}</th>)}
   </tr></thead><tbody className="divide-y divide-slate-100">{items.map(row => <tr key={row.subject_key} className="align-top hover:bg-slate-50/80">
-    <td className="px-4 py-4"><p className="text-sm font-black text-[#2d8789]">{row.patient_full_name}</p><p className="mt-1 text-xs font-bold text-slate-600">{label('reg_no')}: {formatPatientRegistration(row.patient_uuid)}</p><p className="mt-1 text-xs text-slate-500">{row.patient_mobile_no || '—'}</p>{row.family_member_id && <p className="mt-1 text-[10px] font-bold text-violet-600">{label('family_member')}{row.family_member_relationship ? ` · ${row.family_member_relationship}` : ''}</p>}</td>
+    <td className="px-4 py-4"><p className="text-sm font-black text-[#2d8789]">{row.patient_full_name}</p><p className="mt-1 text-xs text-slate-500">{row.branch_name || '—'}</p><p className="mt-1 text-xs font-bold text-slate-600">{label('reg_no')}: {formatPatientRegistration(row.patient_uuid)}</p><p className="mt-1 text-xs text-slate-500">{row.patient_mobile_no || '—'}</p>{row.family_member_id && <p className="mt-1 text-[10px] font-bold text-violet-600">{label('family_member')}{row.family_member_relationship ? ` · ${row.family_member_relationship}` : ''}</p>}</td>
     <td className="px-4 py-4"><p className="text-sm font-bold text-slate-700">{date(row.last_visit_date)}</p><p className="mt-1 text-xs font-bold text-slate-500">{label('days_away_value', { count: row.days_since_visit })}</p>{row.last_medicine_date && <p className="mt-2 text-[11px] font-bold text-sky-700">{label('medicine_taken')}: {date(row.last_medicine_date)}</p>}</td>
     <td className="px-4 py-4">{row.follow_up_chain_closed ? <p className="text-xs font-bold text-slate-500">{label('follow_up_closed')}</p> : row.due_date ? <><p className="text-xs font-bold text-slate-700">{date(row.due_date)}</p><p className={`mt-1 text-xs font-bold ${row.overdue_days > 0 ? 'text-amber-700' : 'text-[#2d8789]'}`}>{row.overdue_days > 0 ? label('overdue_days', { count: row.overdue_days }) : row.due_date === data?.as_of ? label('due_today') : label('not_due')}</p></> : <p className="text-xs text-slate-400">{label('no_due')}</p>}{row.next_appointment && <p className="mt-2 rounded-lg bg-emerald-50 px-2 py-1.5 text-[11px] font-bold text-emerald-700">{label('next_booked')}: {date(row.next_appointment)}</p>}</td>
     <td className="max-w-[240px] px-4 py-4"><p className="text-xs font-bold text-slate-600">{row.treatment_name || '—'}</p>{(row.disease || row.diagnosis) && <p className="mt-1 text-xs text-slate-500 break-words">{row.disease || row.diagnosis}</p>}</td>

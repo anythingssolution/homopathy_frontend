@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, RefreshCcw, Search } from 'lucide-react';
@@ -5,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../../context/AuthContext';
 import { DateBar } from '../DateBar';
 import { WindowBanner } from '../WindowBanner';
-import { fetchReportModule, parseIsoDate, rangeForFollowUpFilter, type CustomRange } from '../lib';
+import { parseIsoDate, rangeForFollowUpFilter, type CustomRange } from '../lib';
 import { useReportWindow } from '../useReportWindow';
 
 const PAGE_SIZE = 25;
@@ -15,6 +16,7 @@ export default function FollowUpsPage() {
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const navigate = useNavigate();
   const { token } = useAuth();
+  const { fetchReportModule, branchId, isCurrent } = useReportBranch();
   const { dateFilter, setDateFilter, fromCard } = useReportWindow('3_months');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
   const [rows, setRows] = useState<any[]>([]);
@@ -32,12 +34,13 @@ export default function FollowUpsPage() {
       const data = await fetchReportModule(token, 'clinical', range.from, range.to, { force });
       setRows(Array.isArray(data?.followup_due) ? data.followup_due : []);
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err instanceof Error ? err.message : t('reports_next.fetch_failed'));
       setRows([]);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [token, dateFilter, customDateRange, t]);
+  }, [fetchReportModule, isCurrent, token, dateFilter, customDateRange, t]);
 
   useEffect(() => {
     void load(false);
@@ -45,7 +48,7 @@ export default function FollowUpsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, dateFilter]);
+  }, [search, dateFilter, branchId]);
 
   const range = useMemo(
     () => rangeForFollowUpFilter(dateFilter, customDateRange),

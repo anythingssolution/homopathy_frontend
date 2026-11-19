@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -22,7 +23,6 @@ import { useNotifications } from '../../../../context/NotificationContext';
 import { SummaryMetricCard } from '../../doctor-reports/components/SummaryMetricCard';
 import { DateBar } from '../DateBar';
 import {
-  fetchReportModule,
   formatReportWindowLabel,
   num,
   parseIsoDate,
@@ -40,6 +40,7 @@ type ReportSendStatus = 'SENT' | 'NOT_SENT';
 type ReportSendFilter = 'ALL' | ReportSendStatus | 'UNMARKED';
 
 type TestRegisterRow = {
+  branch_name?: string | null;
   consultation_test_id: number | string;
   test_source?: string;
   report_source_type?: 'CONSULTATION' | 'BILL';
@@ -132,7 +133,8 @@ export default function TestRegisterPage() {
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const navigate = useNavigate();
   const location = useLocation();
-  const { token, branchScope, user } = useAuth();
+  const { token, user } = useAuth();
+  const { fetchReportModule, branchId, branchName, reportUrl, isCurrent } = useReportBranch();
   const { addToast } = useNotifications();
   const roleCode = String(user?.role_code || '').toUpperCase();
   const role = String(user?.role || '').toLowerCase();
@@ -159,16 +161,17 @@ export default function TestRegisterPage() {
     try {
       const data = await fetchReportModule(token, 'test-register', range.from, range.to, {
         force,
-        branchId: branchScope?.selected_branch_id || undefined,
+        branchId,
       });
       setRows(Array.isArray(data?.rows) ? data.rows : []);
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err instanceof Error ? err.message : t('reports_next.fetch_failed'));
       setRows([]);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [token, branchScope?.selected_branch_id, dateFilter, customDateRange, t]);
+  }, [fetchReportModule, isCurrent, token, branchId, dateFilter, customDateRange, t]);
 
   useEffect(() => {
     void load(false);
@@ -176,7 +179,9 @@ export default function TestRegisterPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, reportSendFilter, testFilter, dateFilter, customDateRange]);
+  }, [search, statusFilter, reportSendFilter, testFilter, dateFilter, customDateRange, branchId]);
+
+  useEffect(() => { setReportModal(null); setReportStatusError(''); }, [branchId]);
 
   const testNames = useMemo(
     () => [...new Set(rows.map((row) => String(row.test_name || '').trim()).filter(Boolean))]
@@ -377,7 +382,7 @@ export default function TestRegisterPage() {
     setSavingReportStatus(true);
     setReportStatusError('');
     try {
-      const response = await fetch('/api/v1/reports/test-register/report-status', {
+      const response = await fetch(reportUrl('/api/v1/reports/test-register/report-status'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -388,7 +393,7 @@ export default function TestRegisterPage() {
           source_id: sourceId,
           status: reportModal.status,
           reason: reportModal.status === 'NOT_SENT' ? reportModal.reason.trim() : null,
-          branch_id: branchScope?.selected_branch_id || undefined,
+          branch_id: branchId,
         }),
       });
       const payload = await response.json();
@@ -451,7 +456,7 @@ export default function TestRegisterPage() {
             <p className="mt-1 text-[10px] font-bold text-slate-400">{group.first.test_source === 'BILL' ? group.first.bill_number : group.first.slot_name || ''}</p>
           </td>
           <td className="px-4 py-3">
-            <p className="text-sm font-black text-slate-800">{group.first.patient_full_name || '—'}</p>
+            <p className="text-sm font-black text-slate-800">{group.first.patient_full_name || '—'}</p><p className="mt-1 text-xs text-slate-500">{group.first.branch_name || '—'}</p>
             <p className="mt-0.5 text-[11px] font-medium text-slate-400">{group.first.patient_mobile_no || '—'}</p>
           </td>
           <td className="px-4 py-3 text-xs font-bold text-slate-600">
@@ -828,7 +833,7 @@ export default function TestRegisterPage() {
         <div className="mb-4 border-b-2 border-[#549E9E] pb-3">
           <h1 className="text-xl font-black">{t('reports_next.test_register.print_title')}</h1>
           <p className="mt-1 text-xs font-bold text-slate-500">
-            {branchScope?.selected_branch?.branch_name || t('reports_next.active_branch')} · {windowLabel}
+            {branchName} · {windowLabel}
           </p>
         </div>
         {filteredGroups.length === 0 ? (

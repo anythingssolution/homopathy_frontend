@@ -1,4 +1,5 @@
 export type NotReturnedPatient = {
+  branch_name?: string; fk_branch_id?: number;
   subject_key: string; fk_patient_id: number; family_member_id?: number | null;
   patient_uuid: string; patient_full_name: string; patient_mobile_no?: string;
   family_member_relationship?: string; consultation_id: number; appointment_id: number;

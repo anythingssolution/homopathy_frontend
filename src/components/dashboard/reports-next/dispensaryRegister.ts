@@ -1,4 +1,5 @@
 export type DispensingRow = {
+  branch_name?: string; fk_branch_id?: number;
   consultation_id?: number | null; appointment_id?: number | null; bill_id?: number;
   bill_number?: string; fk_patient_id: number; family_member_id?: number | null;
   patient_full_name: string; patient_uuid?: string; patient_mobile_no?: string;

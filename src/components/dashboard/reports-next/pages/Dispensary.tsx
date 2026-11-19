@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import { formatPatientRegistration } from '../../../../utils/patientRegistration';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -12,7 +13,7 @@ import PrescriptionPrint from '../../../PrescriptionPrint';
 import PrescriptionPreviewPaper from '../../../PrescriptionPreviewPaper';
 import ClinicBillPrint from '../../../print/ClinicBillPrint';
 import { DateBar } from '../DateBar';
-import { fetchReportModule, formatReportWindowLabel, parseIsoDate, patientRecordsHref, rangeForFilter, type CustomRange } from '../lib';
+import { formatReportWindowLabel, parseIsoDate, patientRecordsHref, rangeForFilter, type CustomRange } from '../lib';
 import { useReportWindow } from '../useReportWindow';
 import { filterDispensingRows, type DispensingRow, type DispensaryRegister } from '../dispensaryRegister';
 
@@ -24,8 +25,8 @@ export default function DispensaryPage() {
   const { t, i18n } = useTranslation();
   const label = (key: string, values?: Record<string, any>): string => String(t(`reports_next.dispensary.${key}`, values));
   const locale = i18n.language.startsWith('hi') ? 'hi-IN' : 'en-GB';
-  const { token, branchScope } = useAuth();
-  const branchId = Number(branchScope?.selected_branch_id) || undefined;
+  const { token } = useAuth();
+  const { fetchReportModule, branchId, branchName, reportUrl, isCurrent } = useReportBranch();
   const [params, setParams] = useSearchParams();
   const { dateFilter } = useReportWindow('3_months');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
@@ -58,13 +59,13 @@ export default function DispensaryPage() {
     const controller = new AbortController();
     detailRequest.current?.abort(); setActionKey('');
     setLoading(true); setError(''); setData(null); setActionError(''); setPrescription(null); setBillPreview(null);
-    if (!token || !branchId) { setLoading(false); return () => controller.abort(); }
+    if (!token) { setLoading(false); return () => controller.abort(); }
     fetchReportModule(token, 'dispensary', range.from, range.to, { branchId, force: true, signal: controller.signal })
       .then(result => { if (!controller.signal.aborted) setData(result); })
       .catch(err => { if (!controller.signal.aborted) setError(err.message || t('reports_next.fetch_failed')); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => { controller.abort(); detailRequest.current?.abort(); };
-  }, [token, branchId, range.from, range.to, revision, t]);
+  }, [fetchReportModule, isCurrent, token, branchId, range.from, range.to, revision, t]);
 
   useEffect(() => {
     if (!prescription) return;
@@ -99,7 +100,7 @@ export default function DispensaryPage() {
   const date = (value?: string) => parseIsoDate(value || '')?.toLocaleDateString(locale,{day:'2-digit',month:'short',year:'numeric'}) || '—';
   const summary = data?.summary;
   const patient = (row: DispensingRow) => <>
-    <p className="text-sm font-black text-slate-800">{row.patient_full_name || '—'}</p>
+    <p className="text-sm font-black text-slate-800">{row.patient_full_name || '—'}</p><p className="mt-1 text-xs text-slate-500">{row.branch_name || '—'}</p>
     <p className="mt-1 text-xs font-bold text-[#2d8789]">{label('reg_no')}: {formatPatientRegistration(row.patient_uuid)}</p>
     <p className="mt-1 text-xs text-slate-500">{row.patient_mobile_no || '—'}{row.family_member_id ? ` · ${label('family')}` : ''}</p>
   </>;
@@ -114,7 +115,7 @@ export default function DispensaryPage() {
     detailRequest.current = controller;
     setActionKey(String(row.bill_id || row.consultation_id)); setActionError('');
     try {
-      const response = await fetch(row.bill_id ? `/api/v1/bills/${row.bill_id}?billing_scope=branch` : `/api/v1/doctors/consultations/${row.appointment_id}`, { headers:{ Authorization:`Bearer ${token}` }, signal: controller.signal });
+      const response = await fetch(reportUrl(row.bill_id ? `/api/v1/reports/bills/${row.bill_id}` : `/api/v1/reports/prescriptions/${row.appointment_id}`), { headers:{ Authorization:`Bearer ${token}` }, signal: controller.signal });
       const result = await response.json();
       if (controller.signal.aborted) return;
       if (!response.ok || !result.success) throw new Error(result.message || t('reports_next.fetch_failed'));
@@ -190,7 +191,7 @@ export default function DispensaryPage() {
         </div>
       </>}
     </div>
-    {printing && createPortal(<div className="print-only dispensary-register-print"><style>{'@media print{@page{size:A4 landscape;margin:12mm}}'}</style><h1>{label('title')} · {label(view)}</h1><p>{branchScope?.selected_branch?.branch_name} · {view === 'pending' ? label('all_pending') : `${date(range.from)} – ${date(range.to)}`} · {label('list_count',{count:rows.length})}</p>{view === 'dispensed' && <p>{label(`type_${type.toLowerCase()}`)} · {label(`payment_${payment}`)}</p>}{search && <p>{search}</p>}{table(rows,true)}</div>,document.body)}
+    {printing && createPortal(<div className="print-only dispensary-register-print"><style>{'@media print{@page{size:A4 landscape;margin:12mm}}'}</style><h1>{label('title')} · {label(view)}</h1><p>{branchName} · {view === 'pending' ? label('all_pending') : `${date(range.from)} – ${date(range.to)}`} · {label('list_count',{count:rows.length})}</p>{view === 'dispensed' && <p>{label(`type_${type.toLowerCase()}`)} · {label(`payment_${payment}`)}</p>}{search && <p>{search}</p>}{table(rows,true)}</div>,document.body)}
     {billPreview && <ClinicBillPrint bills={[billPreview.bill]} patient={billPreview.patient} onClose={() => setBillPreview(null)} />}
     {prescription && createPortal(
       <div className="no-print fixed inset-0 z-[10000] flex items-center justify-center bg-slate-900/80 p-2 backdrop-blur-sm md:p-4">

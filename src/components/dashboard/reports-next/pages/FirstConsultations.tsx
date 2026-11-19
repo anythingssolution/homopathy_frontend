@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, CalendarCheck, CheckCircle2, Clock, Percent, RefreshCcw, Search, XCircle } from 'lucide-react';
@@ -6,7 +7,6 @@ import { useAuth } from '../../../../context/AuthContext';
 import { SummaryMetricCard } from '../../doctor-reports/components/SummaryMetricCard';
 import { DateBar } from '../DateBar';
 import {
-  fetchReportModule,
   formatReportWindowLabel,
   parseIsoDate,
   patientRecordsHref,
@@ -22,6 +22,7 @@ export default function FirstConsultationsPage() {
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
   const navigate = useNavigate();
   const { token } = useAuth();
+  const { fetchReportModule, branchId, isCurrent } = useReportBranch();
   const { dateFilter, setDateFilter } = useReportWindow('1_week');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
   const [rows, setRows] = useState<any[]>([]);
@@ -39,12 +40,13 @@ export default function FirstConsultationsPage() {
       const data = await fetchReportModule(token, 'appointments', range.from, range.to, { force });
       setRows(Array.isArray(data?.first_consultations) ? data.first_consultations : []);
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err instanceof Error ? err.message : t('reports_next.fetch_failed'));
       setRows([]);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [token, dateFilter, customDateRange, t]);
+  }, [fetchReportModule, isCurrent, token, dateFilter, customDateRange, t]);
 
   useEffect(() => {
     void load(false);
@@ -52,7 +54,7 @@ export default function FirstConsultationsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, dateFilter]);
+  }, [search, dateFilter, branchId]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -204,7 +206,7 @@ export default function FirstConsultationsPage() {
                       className="cursor-pointer hover:bg-slate-50/80"
                     >
                       <td className="px-5 py-3">
-                        <p className="text-sm font-black text-[#2d8789]">{item.patient_full_name}</p>
+                        <p className="text-sm font-black text-[#2d8789]">{item.patient_full_name}</p><p className="mt-1 text-xs text-slate-500">{item.branch_name || '—'}</p>
                         {item.patient_mobile_no ? (
                           <p className="text-[11px] font-semibold text-slate-400">{item.patient_mobile_no}</p>
                         ) : (

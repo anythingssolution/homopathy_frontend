@@ -2332,6 +2332,11 @@
     "success_create_id": "Patient created successfully. ID: {{id}}"
   },
   "reports_next": {
+    "branch_filter": {
+      "label": "Report branch",
+      "all": "All Branches",
+      "hint": "Filter this report independently of your dashboard branch."
+    },
     "appointment_list": {
       "title": "Appointment list",
       "view_list": "View list ↓",

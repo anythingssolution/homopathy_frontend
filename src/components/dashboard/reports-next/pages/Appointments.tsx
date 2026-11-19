@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, CalendarCheck, CheckCircle2, Clock, Percent, RefreshCcw, XCircle } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -9,7 +10,6 @@ import { SummaryMetricCard } from '../../doctor-reports/components/SummaryMetric
 import { DateBar } from '../DateBar';
 import {
   consultRateFromDaily,
-  fetchReportModule,
   num,
   parseIsoDate,
   rangeForFilter,
@@ -25,7 +25,8 @@ const AppointmentCardList = React.lazy(() => import('../AppointmentCardList'));
 export default function AppointmentsPage() {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
-  const { token, branchScope } = useAuth();
+  const { token } = useAuth();
+  const { fetchReportModule, branchId, branchName, isCurrent } = useReportBranch();
   const [tab, setTab] = useState<'status' | 'came'>('status');
   const { dateFilter, setDateFilter } = useReportWindow('1_week');
   const [customDateRange, setCustomDateRange] = useState<CustomRange>({ from: '', to: '' });
@@ -64,11 +65,11 @@ export default function AppointmentsPage() {
       const [current, previous] = await Promise.all([
         fetchReportModule(token, 'appointments', range.from, range.to, {
           force,
-          branchId: branchScope?.selected_branch_id || undefined,
+          branchId,
         }),
         fetchReportModule(token, 'appointments', prevFrom.toISOString().slice(0, 10), prevTo.toISOString().slice(0, 10), {
           force,
-          branchId: branchScope?.selected_branch_id || undefined,
+          branchId,
         }),
       ]);
       if (sequence !== loadSequence.current) return;
@@ -80,7 +81,7 @@ export default function AppointmentsPage() {
     } finally {
       if (sequence === loadSequence.current) setLoading(false);
     }
-  }, [token, branchScope?.selected_branch_id, dateFilter, customDateRange, tab, t]);
+  }, [fetchReportModule, isCurrent, token, branchId, dateFilter, customDateRange, tab, t]);
 
   useEffect(() => {
     void load(false);
@@ -141,7 +142,7 @@ export default function AppointmentsPage() {
       </div>
 
       {tab === 'came' ? (
-        <BookedVsConsultedView token={token} />
+        <BookedVsConsultedView token={token} independentReport reportBranchId={branchId} />
       ) : (
         <>
           <DateBar
@@ -226,8 +227,8 @@ export default function AppointmentsPage() {
               {selectedCard && token && <div ref={listRef} className="scroll-mt-28">
                 <React.Suspense fallback={<p className="p-8 text-center text-sm text-slate-400">{t('common.loading')}</p>}>
                   <AppointmentCardList
-                    key={`${branchScope?.selected_branch_id}:${dateFilter}:${customDateRange.from}:${customDateRange.to}:${selectedCard}`}
-                    token={token} branchId={branchScope?.selected_branch_id || undefined} branchName={branchScope?.selected_branch?.branch_name || undefined}
+                    key={`${branchId}:${dateFilter}:${customDateRange.from}:${customDateRange.to}:${selectedCard}`}
+                    token={token} branchId={branchId} branchName={branchName}
                     from={rangeForFilter(dateFilter, customDateRange).from} to={rangeForFilter(dateFilter, customDateRange).to}
                     status={selectedCard}
                     expectedCount={selectedCard === 'all' ? total : selectedCard === 'completed' ? completed : selectedCard === 'pending' ? waiting : cancelled}

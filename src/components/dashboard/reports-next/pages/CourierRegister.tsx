@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +10,7 @@ import CourierSlipPrint, { type CourierSlipData } from '../../../print/CourierSl
 import Pagination from '../../../Pagination';
 import { SummaryMetricCard } from '../../doctor-reports/components/SummaryMetricCard';
 import { DateBar } from '../DateBar';
-import { fetchReportModule, formatReportWindowLabel, num, parseIsoDate, patientRecordsHref, rangeForFilter, rupee, type CustomRange } from '../lib';
+import { formatReportWindowLabel, num, parseIsoDate, patientRecordsHref, rangeForFilter, rupee, type CustomRange } from '../lib';
 import { useReportWindow } from '../useReportWindow';
 import { courierRegisterAmounts } from '../courierRegister';
 
@@ -44,7 +45,8 @@ const toSlipData = (row: CourierRow): CourierSlipData => ({
 
 export default function CourierRegisterPage() {
   const { t, i18n } = useTranslation();
-  const { token, branchScope } = useAuth();
+  const { token } = useAuth();
+  const { fetchReportModule, branchId, branchName, isCurrent } = useReportBranch();
   const { addToast } = useNotifications();
   const navigate = useNavigate();
   const locale = i18n.language?.startsWith('hi') ? 'hi-IN' : 'en-GB';
@@ -63,15 +65,16 @@ export default function CourierRegisterPage() {
     setLoading(true); setError('');
     const range = rangeForFilter(dateFilter, customDateRange);
     try {
-      const data = await fetchReportModule(token, 'courier-register', range.from, range.to, { force, branchId: branchScope?.selected_branch_id || undefined });
+      const data = await fetchReportModule(token, 'courier-register', range.from, range.to, { force, branchId });
       setRows(Array.isArray(data?.rows) ? data.rows : []);
     } catch (loadError) {
+      if (!isCurrent()) return;
       setRows([]); setError(loadError instanceof Error ? loadError.message : t('reports_next.fetch_failed'));
-    } finally { setLoading(false); }
-  }, [token, branchScope?.selected_branch_id, dateFilter, customDateRange, t]);
+    } finally { if (isCurrent()) setLoading(false); }
+  }, [fetchReportModule, isCurrent, token, branchId, dateFilter, customDateRange, t]);
 
   useEffect(() => { void load(false); }, [load]);
-  useEffect(() => { setPage(1); }, [search, dateFilter, customDateRange]);
+  useEffect(() => { setPage(1); setSelected(null); setSlipRow(null); }, [search, dateFilter, customDateRange, branchId]);
 
   const label = (en: string, hi: string) => i18n.language?.startsWith('hi') ? hi : en;
   const typeLabel = (type: CourierRow['medicine_type']) => t(`reports_next.courier_register.type_${type.toLowerCase()}`);
@@ -112,7 +115,7 @@ export default function CourierRegisterPage() {
       output.push(<tr key={row.bill_id} className="align-top hover:bg-slate-50/80">
         <td className="px-3 py-3 text-xs font-black text-slate-400">{sequence}</td>
         <td className="px-3 py-3"><p className="text-xs font-black text-slate-800">{formatDateTime(row.booked_at, locale)}</p><p className="mt-1 text-[10px] font-bold text-slate-400">{row.bill_number}</p><span className="mt-1 inline-flex rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-black text-slate-500">{typeLabel(row.medicine_type)}</span></td>
-        <td className="min-w-[160px] px-3 py-3"><p className="text-xs font-black text-slate-800">{row.patient_full_name}</p><p className="mt-0.5 text-[10px] font-medium text-slate-400">{row.patient_mobile_no || '—'} · {row.patient_uuid || row.auid || '—'}</p></td>
+        <td className="min-w-[160px] px-3 py-3"><p className="text-xs font-black text-slate-800">{row.patient_full_name}</p><p className="mt-1 text-xs text-slate-500">{row.branch_name || '—'}</p><p className="mt-0.5 text-[10px] font-medium text-slate-400">{row.patient_mobile_no || '—'} · {row.patient_uuid || row.auid || '—'}</p></td>
         <td className="min-w-[210px] px-3 py-3"><p className="line-clamp-2 text-[11px] font-bold text-slate-600">{row.courier_address || (row.is_cancelled ? label('Not dispatched', 'डिस्पैच नहीं हुआ') : t('reports_next.courier_register.no_address'))}</p>{!print && row.courier_address && <button type="button" onClick={() => void copyAddress(row)} className="mt-1 inline-flex items-center gap-1 text-[9px] font-black uppercase text-[#2d8789]"><Copy size={10} />{t('reports_next.courier_register.copy')}</button>}</td>
         <td className="min-w-[145px] px-3 py-3"><p className="text-xs font-black text-slate-700">{row.courier_partner || '—'}</p><p className="mt-0.5 break-all text-[10px] font-bold text-sky-700">{row.is_cancelled ? label('Not dispatched', 'डिस्पैच नहीं हुआ') : row.tracking_no || t('reports_next.courier_register.no_tracking')}</p></td>
         <td className="px-3 py-3 text-xs font-black tabular-nums"><p className="text-slate-700">{row.is_cancelled ? label('Not billed', 'बिल नहीं बना') : rupee(amounts.gross)}</p>{amounts.discount > 0 && <p className="text-[10px] text-amber-700">-{rupee(amounts.discount)}</p>}{!row.is_cancelled && <p className="text-[10px] text-[#2d8789]">{t('reports_next.courier_register.net')} {rupee(amounts.net)}</p>}</td>
@@ -141,7 +144,7 @@ export default function CourierRegisterPage() {
         <Pagination currentPage={safePage} totalPages={pages} onPageChange={setPage} totalItems={filteredRows.length} pageSize={PAGE_SIZE} />
       </div>
     </div>
-    <div className="print-only courier-register-print"><h1>{t('reports_next.courier_register.print_title')}</h1><p>{windowLabel} · {countSummary}</p><p>{t('reports_next.courier_register.amount_note')}</p><table><thead><tr><th>#</th><th>{t('reports_next.courier_register.col_booking')}</th><th>{t('reports_next.courier_register.col_patient')}</th><th>{t('reports_next.courier_register.col_address')}</th><th>{t('reports_next.courier_register.col_tracking')}</th><th>{t('reports_next.courier_register.col_charge')}</th><th>{t('reports_next.courier_register.col_status')}</th></tr></thead><tbody>{renderRows(filteredRows, true)}</tbody></table></div>
+    <div className="print-only courier-register-print"><h1>{t('reports_next.courier_register.print_title')}</h1><p>{branchName} · {windowLabel} · {countSummary}</p><p>{t('reports_next.courier_register.amount_note')}</p><table><thead><tr><th>#</th><th>{t('reports_next.courier_register.col_booking')}</th><th>{t('reports_next.courier_register.col_patient')}</th><th>{t('reports_next.courier_register.col_address')}</th><th>{t('reports_next.courier_register.col_tracking')}</th><th>{t('reports_next.courier_register.col_charge')}</th><th>{t('reports_next.courier_register.col_status')}</th></tr></thead><tbody>{renderRows(filteredRows, true)}</tbody></table></div>
     {selected && createPortal(<div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm no-print"><div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl"><div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4"><div><p className="text-lg font-black text-slate-900">{selected.patient_full_name}</p><p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{selected.bill_number} · {typeLabel(selected.medicine_type)}</p></div><button type="button" onClick={() => setSelected(null)} className="rounded-full bg-slate-100 p-2 text-slate-500"><X size={18} /></button></div><div className="space-y-4 p-5"><div className="grid gap-3 sm:grid-cols-3"><div className={`rounded-xl p-3 ${selected.is_cancelled ? 'bg-red-50' : 'bg-emerald-50'}`}><p className={`text-[9px] font-black uppercase ${selected.is_cancelled ? 'text-red-600' : 'text-emerald-600'}`}>{t('reports_next.courier_register.status')}</p><p className={`mt-1 text-sm font-black ${selected.is_cancelled ? 'text-red-700' : 'text-emerald-700'}`}>{selected.is_cancelled ? label('Cancelled', 'रद्द') : t('reports_next.courier_register.dispensed')}</p>{selected.is_cancelled && <p className="mt-1 text-xs text-red-600">{selected.delivery_remark}</p>}</div><div className="rounded-xl bg-slate-50 p-3"><p className="text-[9px] font-black uppercase text-slate-400">{t('reports_next.courier_register.bill_total')}</p><p className="mt-1 text-lg font-black text-slate-800">{selected.is_cancelled ? label('Not billed', 'बिल नहीं बना') : rupee(selected.total_amount)}</p><p className="text-[10px] font-bold text-slate-400">{selected.payment_status}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-[9px] font-black uppercase text-slate-400">{t('reports_next.courier_register.col_charge')}</p><p className="mt-1 text-lg font-black text-[#2d8789]">{selected.is_cancelled ? '—' : rupee(courierRegisterAmounts(selected).net)}</p></div></div><div className="rounded-xl border border-slate-200 p-4"><div className="flex items-start gap-3"><MapPin size={18} className="mt-0.5 shrink-0 text-[#2d8789]" /><div><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{t('reports_next.courier_register.delivery_address')}</p><p className="mt-1 text-sm font-bold text-slate-700">{selected.courier_address || '—'}</p><p className="mt-1 text-xs text-slate-500">{selected.patient_mobile_no || '—'}</p></div></div></div><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-slate-200 p-4"><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{t('reports_next.courier_register.courier_tracking')}</p><p className="mt-2 text-sm font-black text-slate-700">{selected.courier_partner || '—'}</p><p className="mt-1 break-all text-xs font-bold text-sky-700">{selected.tracking_no || '—'}</p></div><div className="rounded-xl border border-slate-200 p-4"><p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{t('reports_next.courier_register.medicine_summary')}</p><p className="mt-2 text-xs font-bold text-slate-700">{selected.is_cancelled ? label('Dispensing cancelled; original prescription is available in Patient Record.', 'डिस्पेंस रद्द है; मूल पर्चा Patient Record में उपलब्ध है।') : selected.medicine_names || '—'}</p></div></div><div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => navigate(patientRecordsHref(selected))} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-black text-slate-600">{t('reports_next.courier_register.patient_record')}</button>{!selected.is_cancelled && <button type="button" onClick={() => setSlipRow(selected)} className="rounded-xl bg-[#549E9E] px-4 py-2 text-xs font-black text-white">{t('reports_next.courier_register.print_slip')}</button>}</div></div></div></div>, document.body)}
     {slipRow && !slipRow.is_cancelled && <CourierSlipPrint data={toSlipData(slipRow)} onClose={() => setSlipRow(null)} />}
     <style>{`@media screen{.print-only{display:none}}@media print{.no-print{display:none!important}.print-only{display:block!important}.courier-register-print{font:10px Arial;color:#17202a}.courier-register-print h1{font-size:19px;margin:0 0 4px}.courier-register-print table{width:100%;border-collapse:collapse;margin-top:12px}.courier-register-print th,.courier-register-print td{border:1px solid #cbd5e1;padding:5px;text-align:left;vertical-align:top}.courier-register-print thead{display:table-header-group}.courier-register-print tr{break-inside:avoid}}`}</style>

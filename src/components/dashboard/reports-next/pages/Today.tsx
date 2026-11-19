@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, Banknote, CalendarCheck, ClipboardList, Pill, RefreshCcw, TrendingDown, TrendingUp, UserPlus } from 'lucide-react';
@@ -5,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../../context/AuthContext';
 import {
   consultRateFromDaily,
-  fetchReportModule,
   isoDate,
   nowCardHref,
   rangeForFilter,
@@ -28,7 +28,8 @@ type Tile = {
 
 export default function TodayPage() {
   const { t } = useTranslation();
-  const { token, branchScope } = useAuth();
+  const { token } = useAuth();
+  const { fetchReportModule, branchName, isCurrent } = useReportBranch();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pendingVisits, setPendingVisits] = useState(0);
@@ -82,11 +83,12 @@ export default function TodayPage() {
       setLastRate(previous.rate);
       setThisTotal(current.total);
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err instanceof Error ? err.message : t('reports_next.fetch_failed'));
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [token, t]);
+  }, [fetchReportModule, isCurrent, token, t]);
 
   useEffect(() => {
     void load(false);
@@ -156,7 +158,7 @@ export default function TodayPage() {
           <h1 className="mt-1 text-3xl font-black text-slate-900">{t('reports_next.today_page.title')}</h1>
           <p className="mt-2 max-w-2xl text-sm font-medium text-slate-500">
             {t('reports_next.today_page.subtitle', {
-              branch: branchScope?.selected_branch?.branch_name || t('reports_next.active_branch'),
+              branch: branchName,
             })}
           </p>
         </div>

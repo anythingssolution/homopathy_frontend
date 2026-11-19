@@ -1,3 +1,4 @@
+import { useReportBranch } from '../ReportBranchContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, MapPin, RefreshCcw, Stethoscope } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -18,7 +19,8 @@ type CompareRow = {
 
 export default function ComparePage() {
   const { t } = useTranslation();
-  const { token, branchScope } = useAuth();
+  const { token } = useAuth();
+  const { fetchReportModule, isCurrent } = useReportBranch();
   const { dateFilter, setDateFilter, customDateRange, setCustomDateRange, range } = useReviewDate();
   const [reportType, setReportType] = useState<'branch' | 'treatment'>('branch');
   const [rows, setRows] = useState<CompareRow[]>([]);
@@ -30,16 +32,8 @@ export default function ComparePage() {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ type: reportType, from: range.from, to: range.to });
-      if (branchScope?.selected_branch_id) {
-        params.set('branch_id', String(branchScope.selected_branch_id));
-      }
-      const res = await fetch(`/api/v1/doctors/reports?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const payload = await res.json();
-      if (!res.ok || !payload.success) throw new Error(payload.message || t('reports_next.fetch_failed'));
-      const mapped: CompareRow[] = (payload.data || [])
+      const data = await fetchReportModule(token, 'appointments', range.from, range.to);
+      const mapped: CompareRow[] = (data?.[reportType === 'branch' ? 'branch_wise_appointments' : 'treatment_wise_appointments'] || [])
         .map((row: any) => ({
           name: String(row.treatment_name || row.branch_name || '').trim() || '—',
           total: num(row.total_appointments),
@@ -51,12 +45,13 @@ export default function ComparePage() {
         .sort((a: CompareRow, b: CompareRow) => b.total - a.total);
       setRows(mapped);
     } catch (err) {
+      if (!isCurrent()) return;
       setError(err instanceof Error ? err.message : t('reports_next.fetch_failed'));
       setRows([]);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [token, reportType, range.from, range.to, branchScope?.selected_branch_id, t]);
+  }, [token, reportType, range.from, range.to, fetchReportModule, isCurrent, t]);
 
   useEffect(() => {
     void load();

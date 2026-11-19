@@ -153,10 +153,12 @@ export async function fetchReportModule(
   module: string,
   from: string,
   to: string,
-  options?: { force?: boolean; branchBilling?: boolean; reportKeys?: string[]; branchId?: number; signal?: AbortSignal },
+  options?: { force?: boolean; branchBilling?: boolean; reportKeys?: string[]; branchId?: number; signal?: AbortSignal; reportScope?: 'independent' },
 ) {
   const reportKeys = options?.reportKeys ? [...new Set(options.reportKeys)].sort().join(',') : '';
-  const key = reportCacheKey(token, module, from, to) + (options?.branchBilling ? ':branch-billing' : '') + `:${options?.branchId || ''}:${reportKeys}`;
+  const key = (options?.reportScope === 'independent'
+    ? `${module}:${from}:${to}:report:${options.branchId || 'all'}:${token.slice(-12)}`
+    : reportCacheKey(token, module, from, to)) + (options?.branchBilling ? ':branch-billing' : '') + `:${options?.branchId || ''}:${reportKeys}`;
   if (!options?.force && !options?.signal) {
     const cached = reportCache.get(key);
     if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
@@ -168,6 +170,10 @@ export async function fetchReportModule(
 
   const request = (async () => {
     const params = new URLSearchParams({ from, to });
+    if (options?.reportScope === 'independent') {
+      params.set('report_scope', 'independent');
+      params.set('branch_id', options.branchId ? String(options.branchId) : 'all');
+    }
     if (options?.branchBilling) params.set('billing_scope', 'branch');
     if (reportKeys) params.set('report_keys', reportKeys);
     if (options?.branchId) params.set('branch_id', String(options.branchId));
