@@ -55,6 +55,15 @@ export default function ReceptionDashboardCards({ summary, active, onSelect, dat
         </button>;
       })}
     </div>
+    <div className="flex flex-wrap items-center gap-1.5 border-b border-gray-100 pb-3">
+      <span className="mr-1 text-[10px] font-black uppercase tracking-widest text-gray-400">Treatment-wise bookings</span>
+      {ready && summary.treatmentCounts.length > 0 ? summary.treatmentCounts.map(({ treatment_name, booking_count }) => (
+        <span key={treatment_name} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800">
+          {treatment_name}
+          <b className="rounded bg-amber-200/70 px-1 text-[9px]">{booking_count}</b>
+        </span>
+      )) : <span className="text-[10px] font-medium text-gray-400">{ready ? 'No booking found' : 'Loading…'}</span>}
+    </div>
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-[#549E9E]/5 px-3 py-2">
       <span className="text-xs font-semibold text-gray-700">{t('receptionist.summary.completion', 'Completion')}: {ready ? `${summary.completionPercent}%` : '—'}</span>
       <div className="h-1.5 min-w-20 max-w-52 flex-1 rounded-full bg-[#549E9E]/15 overflow-hidden" role="progressbar" aria-label={t('receptionist.summary.completion', 'Completion')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={ready ? summary.completionPercent : undefined}>

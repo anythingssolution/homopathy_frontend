@@ -346,7 +346,7 @@ export default function PatientRecords() {
     detailRequest.current = controller;
     setError("");
     if (!keepSubject) {
-      setSelectedSubject({ scope: "ALL", label: "All linked records" });
+      setSelectedSubject({ scope: "SELF", label: "Self" });
       setHistoryType("");
     }
     setHistoryPage(1);
@@ -847,32 +847,54 @@ export default function PatientRecords() {
             </div>
 
             <div className="flex-1 overflow-auto p-5" data-lenis-prevent>
-              <div className="mb-4 border-b border-gray-100 pb-3">
-                <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.record_scope', 'Record scope')}</p>
+              <section className="mb-4 border-b border-gray-100 pb-4">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('patient_records.modal.record_scope', 'Record scope')}</p>
+                  <span className="text-[10px] font-medium text-gray-400">Select one record holder</span>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setSelectedSubject({ scope: "ALL", label: t('patient_records.modal.all_linked_visits', 'All linked records') })}
-                    className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${selectedSubject.scope === "ALL" ? "border-[#549E9E] bg-[#549E9E] text-white shadow-sm" : "border-gray-200 bg-white text-gray-600 hover:border-[#549E9E]/40 hover:text-[#549E9E]"}`}
+                    className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-[10px] font-black uppercase tracking-wide transition-all ${selectedSubject.scope === "ALL" ? "border-[#549E9E] bg-[#549E9E] text-white shadow-sm" : "border-gray-200 bg-white text-gray-600 hover:border-[#549E9E]/40 hover:text-[#549E9E]"}`}
                   >
-                    {t('patient_records.modal.primary_plus_family', 'Primary + family')}
+                    <Users size={15} /> {t('patient_records.modal.primary_plus_family', 'Primary + family')}
                   </button>
                   <button
                     onClick={() => setSelectedSubject({ scope: "SELF", label: t('patient_records.modal.self', 'Self') })}
-                    className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${selectedSubject.scope === "SELF" ? "border-[#549E9E] bg-[#549E9E] text-white shadow-sm" : "border-gray-200 bg-white text-gray-600 hover:border-[#549E9E]/40 hover:text-[#549E9E]"}`}
+                    className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-left transition-all ${selectedSubject.scope === "SELF" ? "border-[#549E9E] bg-[#549E9E] text-white shadow-sm" : "border-gray-200 bg-white text-gray-600 hover:border-[#549E9E]/40"}`}
                   >
-                    {t('patient_records.modal.self', 'Self')} • {formatCountLabel(selectedPatient.self?.summary?.completed_appointments_count, t('patient_records.badges.clinical_visit', 'clinical visit'), t('patient_records.badges.clinical_visits', 'clinical visits'))} • {selectedPatient.self?.summary?.prescriptions_count || 0} {t('patient_records.badges.doctor_rx', 'Doctor Rx')} • {formatCountLabel(selectedPatient.self?.summary?.medicine_pickups_count, t('patient_records.badges.medicine_pickup', 'medicine pickup'), t('patient_records.badges.medicine_pickups', 'medicine pickups'))}
+                    <User size={15} className="shrink-0" />
+                    <span className="font-black text-[10px] uppercase tracking-wide">{selectedPatient.patient.full_name}</span>
+                    <span className={`text-[10px] ${selectedSubject.scope === "SELF" ? "text-white/80" : "text-gray-400"}`}>Self · {selectedPatient.self?.summary?.completed_appointments_count || 0} visits · {selectedPatient.self?.summary?.prescriptions_count || 0} Rx</span>
                   </button>
-                  {selectedPatient.family_members.map((member: FamilyMember) => (
-                    <button
-                      key={member.family_member_id}
-                      onClick={() => setSelectedSubject({ scope: "FAMILY_MEMBER", familyMemberId: member.family_member_id, label: `${member.full_name} (${member.relationship})` })}
-                      className={`rounded-full border px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${selectedSubject.familyMemberId === member.family_member_id ? "border-[#549E9E] bg-[#549E9E] text-white shadow-sm" : "border-purple-100 bg-purple-50 text-purple-700 hover:border-purple-200"}`}
-                    >
-                      {member.full_name} • {member.relationship} • {formatCountLabel(member.summary?.completed_appointments_count, t('patient_records.badges.clinical_visit', 'clinical visit'), t('patient_records.badges.clinical_visits', 'clinical visits'))} • {member.summary?.prescriptions_count || 0} {t('patient_records.badges.doctor_rx', 'Doctor Rx')} • {formatCountLabel(member.summary?.medicine_pickups_count, t('patient_records.badges.medicine_pickup', 'medicine pickup'), t('patient_records.badges.medicine_pickups', 'medicine pickups'))}
-                    </button>
-                  ))}
                 </div>
-              </div>
+
+                {selectedPatient.family_members.length > 0 && (
+                  <div className="mt-3">
+                    <p className="mb-1.5 text-[10px] font-black uppercase tracking-widest text-violet-500">Family members</p>
+                    <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+                      {selectedPatient.family_members.map((member: FamilyMember) => {
+                        const isSelected = selectedSubject.scope === "FAMILY_MEMBER" && selectedSubject.familyMemberId === member.family_member_id;
+                        const summary = member.summary || {};
+                        return (
+                          <button
+                            key={member.family_member_id}
+                            onClick={() => setSelectedSubject({ scope: "FAMILY_MEMBER", familyMemberId: member.family_member_id, label: `${member.full_name} (${member.relationship})` })}
+                            className={`flex min-h-12 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-all ${isSelected ? "border-violet-600 bg-violet-600 text-white shadow-sm" : "border-violet-100 bg-violet-50/40 text-slate-700 hover:border-violet-300 hover:bg-violet-50"}`}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-[11px] font-black uppercase tracking-wide">{member.full_name}</span>
+                              <span className={`mt-0.5 block truncate text-[10px] font-medium ${isSelected ? "text-white/80" : "text-violet-600"}`}>{[member.relationship, member.age ? `${member.age}Y` : null, member.gender].filter(Boolean).join(' · ')}</span>
+                            </span>
+                            <span className={`shrink-0 whitespace-nowrap text-[10px] font-bold ${isSelected ? "text-white" : "text-slate-500"}`}>{summary.completed_appointments_count || 0} visits <span className={isSelected ? "text-white/50" : "text-slate-300"}>·</span> {summary.prescriptions_count || 0} Rx <span className={isSelected ? "text-white/50" : "text-slate-300"}>·</span> {summary.medicine_pickups_count || 0} pickups</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+              </section>
 
               <div className="mb-5 grid gap-4 md:grid-cols-3 xl:grid-cols-5 items-end">
                 {branchFilter('patient-history-branch')}

@@ -402,8 +402,15 @@ export default function AllVisitsPrint({ patient, visits, lang = 'en' }: AllVisi
                                   return (
                                     <div className="flex flex-col gap-0.5 items-end text-right">
                                       {formulaLabel ? (
-                                        <div className="text-[11px] font-mono font-bold text-[#1a2b4c]">
-                                          {formulaLabel}
+                                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                          {durationLabel ? (
+                                            <span className="rounded border border-[#549E9E]/35 bg-[#549E9E]/10 px-1.5 py-0.5 text-[7.5px] font-black tracking-wide text-[#287777]">
+                                              {durationLabel}
+                                            </span>
+                                          ) : null}
+                                          <span className="text-[11px] font-mono font-bold text-[#1a2b4c]">
+                                            {formulaLabel}
+                                          </span>
                                         </div>
                                       ) : null}
                                       {doseLines.map((line) => (

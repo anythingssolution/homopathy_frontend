@@ -66,6 +66,7 @@ export function buildReceptionSummary(rows: ReceptionAppointment[]) {
   const counts: Record<ReceptionCardFilter, number> = {
     ALL: 0, APPROVAL_PENDING: 0, NOT_ARRIVED: 0, WAITING: 0, IN_CONSULTATION: 0, COMPLETED: 0,
   };
+  const treatmentCountMap = new Map<string, number>();
   const seen = new Set<number>();
   for (const row of rows) {
     const id = Number(row.appointment_id);
@@ -74,6 +75,11 @@ export function buildReceptionSummary(rows: ReceptionAppointment[]) {
     seen.add(id);
     counts.ALL += 1;
     counts[stage] += 1;
+    const treatmentName = String(row.treatment_name || '').trim() || 'Treatment not set';
+    treatmentCountMap.set(treatmentName, (treatmentCountMap.get(treatmentName) || 0) + 1);
   }
-  return { counts, completionPercent: counts.ALL ? Math.round(counts.COMPLETED / counts.ALL * 1000) / 10 : 0 };
+  const treatmentCounts = [...treatmentCountMap.entries()]
+    .map(([treatment_name, booking_count]) => ({ treatment_name, booking_count }))
+    .sort((a, b) => b.booking_count - a.booking_count || a.treatment_name.localeCompare(b.treatment_name));
+  return { counts, treatmentCounts, completionPercent: counts.ALL ? Math.round(counts.COMPLETED / counts.ALL * 1000) / 10 : 0 };
 }
