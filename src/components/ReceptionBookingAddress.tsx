@@ -14,20 +14,18 @@ export default function ReceptionBookingAddress({ patient, token, onSaved, valid
   const [error, setError] = useState('');
   const addressSection = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!validationRequest || (patient.vidhan_sabha?.trim() && patient.state_name?.trim())) return;
+    if (!validationRequest || patient.state_name?.trim()) return;
     setEditing(true);
-    setError(label('Vidhan Sabha and State must be saved before booking.', 'बुकिंग से पहले विधानसभा और राज्य सेव करना आवश्यक है।'));
+    setError(label('State must be saved before booking.', 'बुकिंग से पहले राज्य सेव करना आवश्यक है।'));
     const frame = requestAnimationFrame(() => {
       addressSection.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const missing = !patient.vidhan_sabha?.trim() ? 'vidhan_sabha' : 'state_name';
-      addressSection.current?.querySelector<HTMLInputElement>(`input[name="${missing}"]`)?.focus({ preventScroll: true });
+      addressSection.current?.querySelector<HTMLInputElement>('input[name="state_name"]')?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
   }, [validationRequest]);
   const save = async () => {
     if (!token || saving) return;
     if (!form.area_name.trim() || !form.city.trim()) { setError(label('Area and city are required.', 'क्षेत्र और शहर आवश्यक हैं।')); return; }
-    if (!form.vidhan_sabha.trim()) { setError(label('Vidhan Sabha is required.', 'विधानसभा आवश्यक है।')); return; }
     if (!form.state_name.trim()) { setError(label('State is required.', 'राज्य आवश्यक है।')); return; }
     if (form.pincode && !/^\d{6}$/.test(form.pincode)) { setError(label('Pincode must contain 6 digits.', 'पिनकोड 6 अंकों का होना चाहिए।')); return; }
     setSaving(true);
@@ -61,9 +59,9 @@ export default function ReceptionBookingAddress({ patient, token, onSaved, valid
           <span>{title}{(key === 'area_name' || key === 'city') && <span className="text-red-500"> *</span>}</span>
           <input disabled={saving} value={form[key]} maxLength={key === 'pincode' ? 6 : key === 'city' ? 100 : 150} inputMode={key === 'pincode' ? 'numeric' : 'text'} onChange={event => setForm(current => ({ ...current, [key]: key === 'pincode' ? event.target.value.replace(/\D/g, '') : event.target.value }))} className="w-full rounded-full bg-white border border-gray-100 py-3 px-4 outline-none focus:ring-2 focus:ring-primary-teal/20 text-gray-700 font-medium" />
         </label>)}
-        {([['ward_no', label('Ward No.', 'वार्ड नंबर')], ['vidhan_sabha', label('Vidhan Sabha', 'विधानसभा')], ['state_name', label('State', 'राज्य')]] as const).map(([key, title]) => <label key={key} className="space-y-2 text-xs font-bold text-primary-teal">
-          <span>{title}{key !== 'ward_no' && <span className="text-red-500"> *</span>}</span>
-          <input name={key} type="text" required={key !== 'ward_no'} disabled={saving} value={form[key]} maxLength={key === 'ward_no' ? 50 : key === 'state_name' ? 100 : 150}
+        {([['ward_no', label('Ward No.', 'वार्ड नंबर')], ['vidhan_sabha', label('Vidhan Sabha (optional)', 'विधानसभा (वैकल्पिक)')], ['state_name', label('State', 'राज्य')]] as const).map(([key, title]) => <label key={key} className="space-y-2 text-xs font-bold text-primary-teal">
+          <span>{title}{key === 'state_name' && <span className="text-red-500"> *</span>}</span>
+          <input name={key} type="text" required={key === 'state_name'} disabled={saving} value={form[key]} maxLength={key === 'ward_no' ? 50 : key === 'state_name' ? 100 : 150}
             onChange={event => setForm(current => ({ ...current, [key]: event.target.value }))}
             className="w-full rounded-full bg-white border border-gray-100 py-3 px-4 outline-none focus:ring-2 focus:ring-primary-teal/20 text-gray-700 font-medium" />
         </label>)}

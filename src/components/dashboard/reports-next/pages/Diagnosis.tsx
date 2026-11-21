@@ -100,7 +100,7 @@ export default function DiagnosisPage() {
 
   const load = useCallback(async (force = false) => {
     if (!token) return;
-    setLoading(true);
+    setLoading(true); setHistory([]);
     setError('');
     try {
       const data = await fetchReportModule(token, 'clinical', range.from, range.to, { force });

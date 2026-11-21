@@ -27,7 +27,7 @@ export default function FollowUpsPage() {
 
   const load = useCallback(async (force = false) => {
     if (!token) return;
-    setLoading(true);
+    setLoading(true); setRows([]);
     setError('');
     const range = rangeForFollowUpFilter(dateFilter, customDateRange);
     try {

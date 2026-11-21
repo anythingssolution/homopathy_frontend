@@ -1590,9 +1590,9 @@ export default function Booking({ onBookingComplete }: { onBookingComplete?: () 
 
   const handleAppointmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isReceptionist && selectedPatient && (!selectedPatient.vidhan_sabha?.trim() || !selectedPatient.state_name?.trim())) {
+    if (isReceptionist && selectedPatient && !selectedPatient.state_name?.trim()) {
       setAddressValidationRequest(value => value + 1);
-      setErrors({ appointment: 'Please save Vidhan Sabha and State in the patient address before booking.' });
+      setErrors({ appointment: 'Please save State in the patient address before booking.' });
       return;
     }
 
@@ -2589,7 +2589,7 @@ export default function Booking({ onBookingComplete }: { onBookingComplete?: () 
                 )}
 
                 {isReceptionist && selectedPatient && (
-                  <ReceptionBookingAddress validationRequest={addressValidationRequest} key={selectedPatient.patient_id} patient={selectedPatient} token={token} onSaved={(patient) => { setSelectedPatient(current => current?.patient_id === patient.patient_id ? { ...current, ...patient } : current); setErrors(current => { if (current.appointment !== 'Please save Vidhan Sabha and State in the patient address before booking.') return current; const next = { ...current }; delete next.appointment; return next; }); }} />
+                  <ReceptionBookingAddress validationRequest={addressValidationRequest} key={selectedPatient.patient_id} patient={selectedPatient} token={token} onSaved={(patient) => { setSelectedPatient(current => current?.patient_id === patient.patient_id ? { ...current, ...patient } : current); setErrors(current => { if (current.appointment !== 'Please save State in the patient address before booking.') return current; const next = { ...current }; delete next.appointment; return next; }); }} />
                 )}
 
                 {user && (user.role === 'patient' || user.role_code === 'PAT') && (

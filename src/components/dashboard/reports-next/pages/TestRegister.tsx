@@ -155,7 +155,7 @@ export default function TestRegisterPage() {
 
   const load = useCallback(async (force = false) => {
     if (!token) return;
-    setLoading(true);
+    setLoading(true); setRows([]);
     setError('');
     const range = rangeForFilter(dateFilter, customDateRange);
     try {
@@ -829,7 +829,7 @@ export default function TestRegisterPage() {
         )}
       </div>
 
-      <section className="print-only px-5 py-4 text-slate-900">
+      {createPortal(<section className="print-only px-5 py-4 text-slate-900">
         <div className="mb-4 border-b-2 border-[#549E9E] pb-3">
           <h1 className="text-xl font-black">{t('reports_next.test_register.print_title')}</h1>
           <p className="mt-1 text-xs font-bold text-slate-500">
@@ -844,7 +844,7 @@ export default function TestRegisterPage() {
             <tbody className="divide-y divide-slate-200">{renderRows(filteredGroups, true)}</tbody>
           </table>
         )}
-      </section>
+      </section>, document.body)}
       {reportModal && selectedReportTest && createPortal(
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm no-print">
           <div role="dialog" aria-modal="true" aria-labelledby="test-report-send-heading" className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">

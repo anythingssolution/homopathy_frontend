@@ -64,3 +64,29 @@ test('cancellable loads do not share their request with other report consumers',
   assert.deepEqual(cancellable, { result: 1 });
   assert.deepEqual(shared, { result: 2 });
 });
+
+test('Reports Next All Branches is explicit, cached separately, and independent of working-branch storage', async (t) => {
+  invalidateReportCache();
+  const calls: URL[] = [];
+  let workingBranch = 1;
+  const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ selected_branch_id: workingBranch }) } });
+  t.after(() => { if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage); else delete (globalThis as any).localStorage; });
+  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
+    calls.push(new URL(String(input), 'http://localhost'));
+    return response({ result: calls.length });
+  });
+  const args = ['independent-report-test', 'appointments', '2026-11-01', '2026-11-20'] as const;
+  assert.deepEqual(await fetchReportModule(...args, { reportScope: 'independent' }), { result: 1 });
+  workingBranch = 2;
+  assert.deepEqual(await fetchReportModule(...args, { reportScope: 'independent' }), { result: 1 });
+  assert.deepEqual(await fetchReportModule(...args, { reportScope: 'independent', branchId: 1 }), { result: 2 });
+  assert.deepEqual(await fetchReportModule(...args, { reportScope: 'independent', branchId: 2 }), { result: 3 });
+  assert.deepEqual(await fetchReportModule(...args), { result: 4 });
+  assert.equal(calls[0].searchParams.get('branch_id'), 'all');
+  assert.equal(calls[0].searchParams.get('report_scope'), 'independent');
+  assert.equal(calls[1].searchParams.get('branch_id'), '1');
+  assert.equal(calls[2].searchParams.get('branch_id'), '2');
+  assert.equal(calls[3].searchParams.has('report_scope'), false);
+  assert.equal(calls[3].searchParams.has('branch_id'), false);
+});

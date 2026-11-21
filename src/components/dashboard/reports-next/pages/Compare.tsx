@@ -29,7 +29,7 @@ export default function ComparePage() {
 
   const load = useCallback(async () => {
     if (!token || !range.from || !range.to) return;
-    setLoading(true);
+    setLoading(true); setRows([]);
     setError('');
     try {
       const data = await fetchReportModule(token, 'appointments', range.from, range.to);

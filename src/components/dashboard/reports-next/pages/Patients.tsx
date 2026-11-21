@@ -21,7 +21,7 @@ export default function PatientsPage() {
 
   const load = useCallback(async (force = false) => {
     if (!token) return;
-    setLoading(true);
+    setLoading(true); setData(null);
     setError('');
     try {
       setData(await fetchReportModule(token, 'patients', range.from, range.to, { force }));

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Building2 } from 'lucide-react';
+import { Building2, UserPlus } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../context/AuthContext';
 import { useReportBranch } from './ReportBranchContext';
@@ -16,6 +17,11 @@ export function ReportBranchFilter() {
         {(branchScope?.available_branches || []).map(branch => <option key={branch.id} value={branch.id}>{branch.branch_name}</option>)}
       </select>
     </label>
-    <p className="text-xs text-slate-500">{t('reports_next.branch_filter.hint')}</p>
+    <div className="flex flex-wrap items-center gap-3">
+      <p className="text-xs text-slate-500">{t('reports_next.branch_filter.hint')}</p>
+      <Link to="/staff-patients" className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#549E9E]/25 px-3 py-2 text-xs font-bold text-[#2d8789] hover:bg-[#549E9E]/5">
+        <UserPlus size={15} />{t('staff_patients.nav_button', 'Create Patient')}
+      </Link>
+    </div>
   </div>;
 }

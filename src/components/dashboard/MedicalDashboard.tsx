@@ -1918,9 +1918,10 @@ export default function MedicalDashboard() {
           </div>
         </div>, document.body)}
 
-      <div className="print-only">
-        {previewPrescription && <PrescriptionPrint consultation={previewPrescription.consultation} appointment={previewPrescription.appointment} lang={prescriptionLang} />}
-      </div>
+      {previewPrescription && createPortal(
+        <div className="print-only">
+          <PrescriptionPrint consultation={previewPrescription.consultation} appointment={previewPrescription.appointment} lang={prescriptionLang} />
+        </div>, document.body)}
       <style>{`
         @media screen {
           .print-only { display: none; }

@@ -1,4 +1,4 @@
-import { useReportBranch } from '../ReportBranchContext';
+import { useReportBranch, useReportBranchPagination } from '../ReportBranchContext';
 import { formatPatientRegistration } from '../../../../utils/patientRegistration';
 import React, { useEffect, useState } from 'react';
 import { ChevronRight, Download, Search, Users, X } from 'lucide-react';
@@ -36,6 +36,8 @@ export default function PatientSources() {
     for (const [key, value] of Object.entries(values)) value ? next.set(key, value) : next.delete(key);
     return next;
   }, { replace: true });
+  useReportBranchPagination(setParams);
+
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setData(null); setError('');
     if (!token) { setLoading(false); return () => controller.abort(); }
@@ -60,7 +62,7 @@ export default function PatientSources() {
   return <div className="space-y-5">
     <div><h1 className="text-2xl font-black text-slate-900">{hi ? 'मरीजों को क्लिनिक की जानकारी कहाँ से मिली?' : 'Patient Sources'}</h1><p className="mt-1 text-sm font-semibold text-[#549e9e]">{hi ? 'कौन-से माध्यम से मरीज हमारे पास आए?' : 'How patients heard about our clinic'}</p></div>
     <DateBar dateFilter={dateFilter} onDateFilter={setDateFilter} customDateRange={customRange} onCustomDateRange={value => { const next = typeof value === 'function' ? value(customRange) : value; change({ start: next.from, end: next.to }); }} onRefresh={() => setRefresh(value => value + 1)} loading={loading}/>
-    <p className="text-xs leading-relaxed text-slate-500">{hi ? 'चुनी हुई ब्रांच की बुकिंग के बाद इस अवधि में मिले जवाब। हर मरीज एक बार गिना जाता है। Skip करने वाले या पुराने बिना जवाब वाले मरीज इसमें शामिल नहीं हैं।' : 'Answers received in this period after bookings at the selected branch. Each patient is counted once. Skipped questions and older patients without an answer are not included.'}</p>
+    <p className="text-xs leading-relaxed text-slate-500">{hi ? 'चुनी हुई ब्रांच की बुकिंग के बाद इस अवधि में मिले जवाब। हर मरीज एक बार गिना जाता है। Skip करने वाले या पुराने बिना जवाब वाले मरीज इसमें शामिल नहीं हैं।' : 'Answers received in this period after bookings at the selected report branches. Each patient is counted once. Skipped questions and older patients without an answer are not included.'}</p>
     {error && <div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
     {!error && <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">

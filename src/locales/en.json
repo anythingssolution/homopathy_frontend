@@ -1070,7 +1070,7 @@
     "title": "Bills",
     "subtitle": "How the clinic did, who still owes, and which visits still have dues.",
     "compare_old": "Open old Bills list →",
-    "this_branch": "This branch",
+    "this_branch": "Report overview",
     "timeframe": "Timeframe",
     "today": "Today",
     "week": "1 Week",
@@ -2399,7 +2399,7 @@
       "showing": "{{count}} patients in this list",
       "empty": "No patients match these filters.",
       "close": "Close prescription",
-      "scope_note": "Selected branch · One count per patient, based on the last consultation. Medicine-only visits are shown separately.",
+      "scope_note": "Report branch selection - One count per patient, based on the last consultation within these branches. Medicine-only visits are shown separately.",
       "card_note": "Calendar months since last consultation · Card counts are before list filters"
     },
     "location": {
@@ -2451,9 +2451,9 @@
       "top_eight_note": "Showing the top 8 locations. The table below includes every location.",
       "count_help": "How are patients and consultations counted?",
       "all": "All registered patients",
-      "all_note": "All active clinic registrations, including family members and patients without visits. Address counts cover all branches; Open Record uses the selected branch.",
+      "all_note": "Active registrations for the report branch selection, including family members. Unlinked registrations appear when all clinic branches are accessible.",
       "all_time": "All registrations · all branches",
-      "no_branch_history": "No history in selected branch"
+      "no_branch_history": "No history in report selection"
     },
     "menu": "Reports Next",
     "menu_hint": "Act first, then review",
@@ -2733,7 +2733,7 @@
       "demand": "Top items",
       "pending": "Dispensing Pending",
       "dispensed": "Dispensed Bills",
-      "all_pending": "All currently pending · selected branch",
+      "all_pending": "All currently pending - report branch selection",
       "net_billed": "Net Billed",
       "paid_card": "Paid on Bills",
       "pending_card": "Pending on Bills",

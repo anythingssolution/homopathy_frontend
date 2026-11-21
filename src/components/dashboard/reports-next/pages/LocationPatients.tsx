@@ -1,4 +1,4 @@
-import { useReportBranch } from '../ReportBranchContext';
+import { useReportBranch, useReportBranchPagination } from '../ReportBranchContext';
 import { formatPatientRegistration } from '../../../../utils/patientRegistration';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -37,6 +37,8 @@ export default function LocationPatients() {
     for(const [key,value] of Object.entries(values)) value?next.set(key,value):next.delete(key);
     return next;
   },{replace:true});
+  useReportBranchPagination(setParams);
+
   useEffect(()=>{
     const controller=new AbortController(); setLoading(true); setData(null); setError('');
     if(!token){setLoading(false);return()=>controller.abort();}
@@ -87,6 +89,6 @@ export default function LocationPatients() {
       </tbody></table></div>}
       <Pagination currentPage={page} totalPages={Math.max(1,Math.ceil(total/PAGE_SIZE))} onPageChange={value=>setParams(prev=>{const next=new URLSearchParams(prev);next.set('page',String(value));return next;},{replace:true})} totalItems={total} pageSize={PAGE_SIZE} alwaysShow/>
     </div>
-    {printing&&createPortal(<div className="print-only"><style>{`@media print{@page{size:A4 landscape;margin:12mm}.location-print{font:11px Arial;color:#17202a}.location-print table{width:100%;border-collapse:collapse}.location-print th,.location-print td{border:1px solid #ddd;padding:6px;text-align:left;overflow-wrap:anywhere}.location-print thead{display:table-header-group}.location-print tr{break-inside:avoid}}`}</style><div className="location-print"><h1>{label('title')}{group?` · ${groupName(group)}`:''}</h1><p>{mode==='all'?label('all'):branchName} · {mode==='all'?label('all_time'):`${range.from} – ${range.to}`} · {label(mode)} · {total} {label(group?'unique':'locations')}</p><p>{label('address_note')}</p><table><thead><tr>{headers.map(name=><th key={name}>{name}</th>)}</tr></thead><tbody>{exportRows.map((row,index)=><tr key={index}>{row.map((cell,idx)=><td key={idx}>{cell}</td>)}</tr>)}</tbody></table></div></div>,document.body)}
+    {printing&&createPortal(<div className="print-only"><style>{`@media print{@page{size:A4 landscape;margin:12mm}.location-print{font:11px Arial;color:#17202a}.location-print table{width:100%;border-collapse:collapse}.location-print th,.location-print td{border:1px solid #ddd;padding:6px;text-align:left;overflow-wrap:anywhere}.location-print thead{display:table-header-group}.location-print tr{break-inside:avoid}}`}</style><div className="location-print"><h1>{label('title')}{group?` · ${groupName(group)}`:''}</h1><p>{branchName} · {mode==='all'?label('all_time'):`${range.from} – ${range.to}`} · {label(mode)} · {total} {label(group?'unique':'locations')}</p><p>{label('address_note')}</p><table><thead><tr>{headers.map(name=><th key={name}>{name}</th>)}</tr></thead><tbody>{exportRows.map((row,index)=><tr key={index}>{row.map((cell,idx)=><td key={idx}>{cell}</td>)}</tr>)}</tbody></table></div></div>,document.body)}
   </div>;
 }

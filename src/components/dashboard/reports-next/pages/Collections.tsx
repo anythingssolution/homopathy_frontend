@@ -30,7 +30,7 @@ export default function CollectionsPage() {
 
   const load = useCallback(async (force = false) => {
     if (!token) return;
-    setLoading(true);
+    setLoading(true); setData(null);
     setError('');
     const range = rangeForFilter(dateFilter, customDateRange);
     try {

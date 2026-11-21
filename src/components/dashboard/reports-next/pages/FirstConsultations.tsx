@@ -33,7 +33,7 @@ export default function FirstConsultationsPage() {
 
   const load = useCallback(async (force = false) => {
     if (!token) return;
-    setLoading(true);
+    setLoading(true); setRows([]);
     setError('');
     const range = rangeForFilter(dateFilter, customDateRange);
     try {

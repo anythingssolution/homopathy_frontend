@@ -1,4 +1,4 @@
-import { useReportBranch } from '../ReportBranchContext';
+import { useReportBranch, useReportBranchPagination } from '../ReportBranchContext';
 import { formatPatientRegistration } from '../../../../utils/patientRegistration';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -54,6 +54,8 @@ export default function DispensaryPage() {
     for (const [key,value] of Object.entries(values)) value ? next.set(key,value) : next.delete(key);
     return next;
   }, { replace: true });
+
+  useReportBranchPagination(setParams);
 
   useEffect(() => {
     const controller = new AbortController();

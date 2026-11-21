@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import type { SetURLSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../context/AuthContext';
 import { fetchReportModule as fetchModule } from './lib';
@@ -47,4 +48,20 @@ export function useReportBranch() {
   const value = useContext(Context);
   if (!value) throw new Error('useReportBranch must be used within Reports Next');
   return value;
+}
+
+export function useReportBranchPagination(setParams: SetURLSearchParams) {
+  const { branchId } = useReportBranch();
+  const previous = useRef(branchId);
+  useEffect(() => {
+    // React Router changes setParams when the query changes. Reset only for
+    // an actual branch change, so clicking Next does not reset itself to page 1.
+    if (previous.current === branchId) return;
+    previous.current = branchId;
+    setParams(params => {
+      const next = new URLSearchParams(params);
+      next.delete('page');
+      return next;
+    }, { replace: true });
+  }, [branchId, setParams]);
 }
