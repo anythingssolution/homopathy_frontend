@@ -751,6 +751,49 @@ export default function ConsultationPage() {
     (!normalizedRouteAppointmentId ||
       Number(currentApp.appointment_id) === normalizedRouteAppointmentId);
   const [followUpChain, setFollowUpChain] = useState<any[]>([]);
+  const lastVisitPatientId = Number(currentApp?.fk_patient_id || currentApp?.patient_id || 0);
+  const lastVisitFamilyId = Number(currentApp?.fk_patient_family_member_id || 0);
+  const lastVisitAppointmentId = Number(currentApp?.appointment_id || 0);
+  const lastVisitContext = `${lastVisitAppointmentId}:${lastVisitPatientId}:${lastVisitFamilyId}`;
+  const [lastVisit, setLastVisit] = useState<{ context: string; status: 'loading' | 'ready' | 'error'; date?: string; branch?: string }>({ context: '', status: 'loading' });
+  useEffect(() => {
+    if (!token || !lastVisitPatientId || !lastVisitAppointmentId || !isAppointmentContextReady) return;
+    const controller = new AbortController();
+    setLastVisit({ context: lastVisitContext, status: 'loading' });
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
+    const load = async () => {
+      try {
+        // The history endpoint already restricts this list to completed visits.
+        // Always scope to the actual subject, independently of auto-fill settings.
+        const params = new URLSearchParams({ branch_id: 'all', timeline_type: 'CONSULTATION', subject_scope: lastVisitFamilyId ? 'FAMILY_MEMBER' : 'SELF', page_size: '100' });
+        if (lastVisitFamilyId) params.set('family_member_id', String(lastVisitFamilyId));
+        let page = 1;
+        while (!controller.signal.aborted) {
+          params.set('page', String(page));
+          const response = await fetch(`/api/v1/patient-records/patients/${lastVisitPatientId}/visits?${params}`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
+          const result = await response.json();
+          if (!response.ok || !result.success) throw new Error('History unavailable');
+          const visit = (result.data?.items || []).find((item: any) => {
+            const time = new Date(item.event_date).getTime();
+            return Number(item.appointment_id || item.source_id) !== lastVisitAppointmentId && Number.isFinite(time) && time <= Date.now();
+          });
+          if (controller.signal.aborted) return;
+          if (visit) {
+            setLastVisit({ context: lastVisitContext, status: 'ready', date: visit.event_date, branch: visit.branch_name });
+            return;
+          }
+          if (page >= Number(result.data?.meta?.total_pages || 1)) break;
+          page += 1;
+        }
+        if (!controller.signal.aborted) setLastVisit({ context: lastVisitContext, status: 'ready' });
+      } catch {
+        if (!disposed) setLastVisit({ context: lastVisitContext, status: 'error' });
+      } finally { window.clearTimeout(timeout); }
+    };
+    let disposed = false;
+    void load();
+    return () => { disposed = true; controller.abort(); window.clearTimeout(timeout); };
+  }, [token, lastVisitPatientId, lastVisitFamilyId, lastVisitAppointmentId, lastVisitContext, isAppointmentContextReady]);
   const [isFollowUpChainOpen, setIsFollowUpChainOpen] = useState(false);
   const [selectedAllVisits, setSelectedAllVisits] = useState<{ patient: any; visits: any[] } | null>(null);
   const [isAllVisitsLoading, setIsAllVisitsLoading] = useState(false);
@@ -3460,7 +3503,7 @@ export default function ConsultationPage() {
             />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="flex items-center gap-2 text-xl font-black uppercase tracking-widest">
+            <h3 className="flex flex-wrap items-center gap-2 text-xl font-black uppercase tracking-widest">
               {currentApp.patient_full_name}{" "}
               {t("consultation_modal.consult_form", "Consult Form")}
               {!isReadOnly && (
@@ -3472,6 +3515,16 @@ export default function ConsultationPage() {
                   <Pencil size={16} />
                 </button>
               )}
+            <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-lg border border-white/40 bg-white/15 px-3 py-1.5 text-sm font-bold normal-case tracking-normal text-white">
+              <span className="shrink-0 text-[10px] uppercase tracking-wider text-white/80">{i18n.language.startsWith('hi') ? 'पिछली विज़िट' : 'Last Visit'}:</span>
+              {lastVisit.context !== lastVisitContext || lastVisit.status === 'loading'
+                ? (i18n.language.startsWith('hi') ? 'देख रहे हैं…' : 'Checking…')
+                : lastVisit.status === 'error'
+                  ? (i18n.language.startsWith('hi') ? 'उपलब्ध नहीं' : 'Unavailable')
+                  : lastVisit.date
+                    ? <><span>{new Date(lastVisit.date).toLocaleDateString(i18n.language.startsWith('hi') ? 'hi-IN' : 'en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>{lastVisit.branch && <span className="min-w-0 break-words font-semibold">· {lastVisit.branch}</span>}</>
+                    : (i18n.language.startsWith('hi') ? 'पहली विज़िट' : 'First visit')}
+            </span>
             </h3>
             <div className="mt-3 grid max-w-4xl grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-xs font-black tracking-wide text-[#174f51] shadow-sm">
@@ -3513,6 +3566,7 @@ export default function ConsultationPage() {
               {t("consultation_modal.mobile", "MOBILE")}:{" "}
               {currentApp.patient_mobile_no}
             </span>
+
             <span className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-100 px-3 py-2 text-xs font-black uppercase tracking-wider text-sky-900 shadow-sm">
               <MapPin size={14} className="text-sky-700" />
               <span className="truncate">
