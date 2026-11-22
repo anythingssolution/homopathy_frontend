@@ -2405,6 +2405,7 @@
     "location": {
       "title": "Location-wise Patients",
       "subtitle": "See where patients come from and open their records.",
+      "state_name": "State",
       "city": "City",
       "vidhan_sabha": "Vidhan Sabha",
       "area_name": "Area / Colony",

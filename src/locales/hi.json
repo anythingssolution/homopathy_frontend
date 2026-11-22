@@ -2461,6 +2461,7 @@
     "location": {
       "title": "स्थान अनुसार मरीज",
       "subtitle": "See where patients come from and open their records.",
+      "state_name": "राज्य",
       "city": "शहर",
       "vidhan_sabha": "विधान सभा",
       "area_name": "क्षेत्र / कॉलोनी",

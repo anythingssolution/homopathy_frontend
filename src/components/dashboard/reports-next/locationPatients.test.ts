@@ -18,3 +18,17 @@ test('CSV export escapes quotes and spreadsheet formulas',()=>{
   assert.equal(csvCell('=SUM(1,2)'),`"'=SUM(1,2)"`);
   assert.equal(csvCell('Patient "A"'),'"Patient ""A"""');
 });
+test('state aliases combine known spellings without losing subjects or changing source addresses',()=>{
+  const variants=['CHHATTISGARH','CHHATISHGARH','CHATTISGARH','CHHATISGARH','CHHATTISHGARH','CHHATISHGAR','CHHATTISGHARH','CHHATTISGARG','CHHATTISGARH4','CHHATTISGAR','CHAATISHGARH','CHATISGARH','cg'];
+  const patients=variants.map((state_name,i)=>row(i+1,{state_name}));
+  patients.push(row(100,{state_name:'UP'}),row(101,{state_name:'Utter pradesh'}),row(102,{state_name:'HYDERABAD'}),row(103,{state_name:'EUROPE'}),row(104,{state_name:null as any}));
+  const before=JSON.stringify(patients);
+  const groups=groupLocationPatients(patients,'state_name');
+  assert.equal(groups.find(g=>g.name==='Chhattisgarh')?.patients.length,variants.length);
+  assert.equal(groups.find(g=>g.name==='Uttar Pradesh')?.patients.length,2);
+  assert.equal(groups.find(g=>g.name==='HYDERABAD')?.patients.length,1);
+  assert.equal(groups.find(g=>g.name==='EUROPE')?.patients.length,1);
+  assert.equal(groups.find(g=>!g.name)?.patients.length,1);
+  assert.equal(groups.reduce((sum,g)=>sum+g.patients.length,0),patients.length);
+  assert.equal(JSON.stringify(patients),before);
+});
