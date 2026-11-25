@@ -1,4 +1,4 @@
-import ReceptionDiscoveryRecovery, { ReceptionSourceAction } from '../ReceptionDiscoverySource';
+import ReceptionDiscoveryRecovery, { ReceptionSourceAction, RECEPTION_CHECK_IN_SOURCE_EVENT } from '../ReceptionDiscoverySource';
 import { formatPatientRegistration } from '../../utils/patientRegistration';
 import SlotTimingWhatsApp from './SlotTimingWhatsApp';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
@@ -753,6 +753,7 @@ export default function ReceptionistPortal() {
           addToast("Patient checked in successfully", "success");
         }
         fetchAppointments();
+        window.dispatchEvent(new Event(RECEPTION_CHECK_IN_SOURCE_EVENT));
         return true;
       }
       if (res.status === 409 && data.code === "CONSULTATION_PAYMENT_REQUIRED") {

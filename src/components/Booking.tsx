@@ -537,14 +537,6 @@ export default function Booking({ onBookingComplete }: { onBookingComplete?: () 
     [formData?.treatments, treatmentType]
   );
   const selectedTreatmentVisitType = selectedTreatment?.visit_type_code || null;
-  useEffect(() => {
-    if (!isReceptionist || !token) return;
-    const controller = new AbortController();
-    fetch('/api/v1/receptionist/booking-discovery/pending', { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
-      .then(response => response.json()).then(result => { if (result.success && result.data?.appointment_id) { setSourceBookingId(Number(result.data.appointment_id)); setIsAppointmentSuccess(true); } })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [isReceptionist, token]);
   const isPatientSelfBooking = Boolean(
     user
     && !isReceptionist
@@ -1747,7 +1739,7 @@ export default function Booking({ onBookingComplete }: { onBookingComplete?: () 
         if (result.success) {
           addToast(result.message || 'Appointment booked successfully', 'success');
           setIsAppointmentSuccess(true);
-          const askDiscoverySource = (isPatientSelfBooking || isReceptionist) && Number(result.data?.appointment_id) > 0;
+          const askDiscoverySource = isPatientSelfBooking && Number(result.data?.appointment_id) > 0;
           setSourceBookingId(askDiscoverySource ? Number(result.data.appointment_id) : null);
           setBookedForType('SELF');
           setSelectedFamilyMemberId('');
@@ -3641,9 +3633,9 @@ export default function Booking({ onBookingComplete }: { onBookingComplete?: () 
       </AnimatePresence>
 
       {/* Success Modal */}
-      {sourceBookingId && isAppointmentSuccess && <React.Suspense fallback={
+      {sourceBookingId && isAppointmentSuccess && isPatientSelfBooking && <React.Suspense fallback={
         <div role="status" className="fixed inset-0 z-[210] flex flex-col items-center justify-center gap-4 bg-white/95 text-teal-700"><p>Appointment confirmed!</p>{!isReceptionist && <button type="button" className="rounded-full border px-5 py-3" onClick={() => { setSourceBookingId(null); setIsAppointmentSuccess(false); navigate('/my-appointments'); }}>View Appointments</button>}</div>
-      }><BookingSourcePrompt appointmentId={sourceBookingId} token={token} reception={isReceptionist} apiUrl={isReceptionist ? `/api/v1/receptionist/booking-discovery/${sourceBookingId}` : undefined} onDone={finishAppointmentBooking}/></React.Suspense>}
+      }><BookingSourcePrompt appointmentId={sourceBookingId} token={token} onDone={finishAppointmentBooking}/></React.Suspense>}
       <AnimatePresence>
         {(showSuccess || isAppointmentSuccess) && !sourceBookingId && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
