@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { CheckCircle2, Edit2, Loader2, Plus, RefreshCcw, Search, Trash2, X, Boxes, GlassWater, Droplet, Droplets, Pill, Layers, ChevronDown, Check } from 'lucide-react';
+import { CheckCircle2, Edit2, Loader2, Plus, RefreshCcw, Search, Trash2, X, Boxes, GlassWater, Droplet, Droplets, Pill, Layers, ChevronDown, Check, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import Pagination from '../Pagination';
@@ -21,6 +21,7 @@ type ProductRow = {
   description: string | null;
   formula_composition: string | null;
   is_active: number;
+  created_at?: string;
 };
 
 type FormState = {
@@ -236,6 +237,14 @@ export default function MedicalProductMaster() {
   const [search, setSearch] = useState('');
   const [sourceType, setSourceType] = useState('');
   const [status, setStatus] = useState('active');
+  const [sortBy, setSortBy] = useState('product');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const productRequestId = useRef(0);
+  const changeSort = (key: string) => {
+    setPage(1);
+    setSortOrder(sortBy === key ? (sortOrder === 'asc' ? 'desc' : 'asc') : key === 'created_at' ? 'desc' : 'asc');
+    setSortBy(key);
+  };
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -267,12 +276,15 @@ export default function MedicalProductMaster() {
   }, [form.product_type]);
 
   const fetchProducts = async (overrideSearch?: string) => {
+    const requestId = ++productRequestId.current;
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
         page: String(page),
         limit: String(pageSize),
         status,
+        sort_by: sortBy,
+        sort_order: sortOrder,
       });
       const currentSearch = overrideSearch !== undefined ? overrideSearch : search;
       if (currentSearch.trim()) params.set('search', currentSearch.trim());
@@ -282,6 +294,7 @@ export default function MedicalProductMaster() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const payload = await response.json();
+      if (requestId !== productRequestId.current) return;
 
       if (!response.ok || !payload.success) {
         throw new Error(payload.message || 'Unable to fetch products');
@@ -290,9 +303,9 @@ export default function MedicalProductMaster() {
       setRows(payload.data || []);
       setTotalPages(payload.pagination?.total_pages || 1);
     } catch (error: any) {
-      addToast(error.message || 'Unable to fetch products', 'error');
+      if (requestId === productRequestId.current) addToast(error.message || 'Unable to fetch products', 'error');
     } finally {
-      setIsLoading(false);
+      if (requestId === productRequestId.current) setIsLoading(false);
     }
   };
 
@@ -315,7 +328,7 @@ export default function MedicalProductMaster() {
 
   useEffect(() => {
     fetchProducts();
-  }, [page, sourceType, status]);
+  }, [page, sourceType, status, sortBy, sortOrder]);
 
   useEffect(() => {
     if (!hasMountedSearchRef.current) {
@@ -699,8 +712,8 @@ export default function MedicalProductMaster() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/70 border-b border-gray-100">
-                  {['Product', 'Source', 'Variant', 'Price', 'Status', 'Action'].map((head) => (
-                    <th key={head} className="px-6 py-4.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{head}</th>
+                  {[['Product','product'], ['Source','source'], ['Variant','variant'], ['Price','price'], ['Status','status'], ['Created Date','created_at'], ['Action','']].map(([head,key]) => (
+                    <th key={head} aria-sort={key && sortBy===key ? (sortOrder==='asc'?'ascending':'descending') : undefined} className="px-4 py-4.5 text-[10px] font-black text-gray-500 uppercase tracking-widest">{key ? <button type="button" onClick={()=>changeSort(key)} title={`Sort ${head} ${sortBy===key && sortOrder==='asc'?'descending':'ascending'}`} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded py-1 hover:text-[#287777] focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600">{head}{sortBy===key ? (sortOrder==='asc'?<ArrowUp size={13}/>:<ArrowDown size={13}/>):<ArrowUpDown size={13}/>}</button> : head}</th>
                   ))}
                 </tr>
               </thead>
@@ -721,6 +734,7 @@ export default function MedicalProductMaster() {
                         {row.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
+                    <td className="px-4 py-4 text-xs font-semibold text-gray-500 whitespace-nowrap">{row.created_at && Number.isFinite(new Date(row.created_at).getTime()) ? new Date(row.created_at).toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <button onClick={() => startEdit(row)} className="w-8.5 h-8.5 rounded-xl bg-blue-50/50 text-blue-600 flex items-center justify-center hover:bg-blue-50 hover:shadow-sm transition-all duration-200">
@@ -735,7 +749,7 @@ export default function MedicalProductMaster() {
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-16 text-center">
+                    <td colSpan={7} className="px-6 py-16 text-center">
                       <div className="max-w-xs mx-auto flex flex-col items-center gap-3">
                         <div className="w-12 h-12 bg-gray-50 text-gray-300 rounded-2xl flex items-center justify-center">
                           <Boxes size={24} />

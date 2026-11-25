@@ -2399,7 +2399,7 @@
       "showing": "{{count}} patients in this list",
       "empty": "No patients match these filters.",
       "close": "Close prescription",
-      "scope_note": "Report branch selection - One count per patient, based on the last consultation within these branches. Medicine-only visits are shown separately.",
+      "scope_note": "Report branch selection - One count per patient, based on the last non-acute consultation within these branches. Acute Treatment visits and bookings are excluded. Medicine-only visits are shown separately.",
       "card_note": "Calendar months since last consultation · Card counts are before list filters"
     },
     "location": {
